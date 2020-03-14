@@ -38,6 +38,7 @@ func NewDatabase(workingDirectory string) (*Database, error) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	db := &Database{
 		WorkingDirectory: workingDirectory,
+		Datasets:         make([]*Dataset, 0),
 	}
 	db.setupRoutes()
 	return db, nil

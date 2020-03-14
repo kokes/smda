@@ -161,6 +161,39 @@ func TestDatasetListing(t *testing.T) {
 	}
 }
 
+func TestDatasetListingNoDatasets(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+
+	srv := httptest.NewServer(db.server.Handler)
+	defer srv.Close()
+
+	url := fmt.Sprintf("%s/api/datasets", srv.URL)
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("unexpected status: %v", resp.Status)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("unexpected content type: %v", ct)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(bytes.TrimSpace(body), []byte("[]")) {
+		t.Errorf("expecting datasets listing to give us an empty array, got %v", string(body))
+	}
+}
+
 func TestErrorsAreWrittenOut(t *testing.T) {
 	tests := []struct {
 		status int
