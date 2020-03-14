@@ -18,14 +18,16 @@ const (
 	maxBytesPerStripe = 500_000
 )
 
+// LoadSampleData reads all CSVs from a given directory and loads them up into the database
+// using default settings
 // TODO: this will fall into the go-bindata packing issue (also includes webserver's static files)
-func (d *Database) LoadSampleData(path string) error {
+func (db *Database) LoadSampleData(path string) error {
 	files, err := filepath.Glob(filepath.Join(path, "*.csv*"))
 	if err != nil {
 		return fmt.Errorf("could not load samples: %w", err)
 	}
 	for _, file := range files {
-		_, err := d.loadDatasetFromLocalFileAuto(file)
+		_, err := db.loadDatasetFromLocalFileAuto(file)
 		if err != nil {
 			return err
 		}
@@ -46,11 +48,13 @@ func cacheIncomingFile(r io.Reader, path string) error {
 	return nil
 }
 
-// this loads a 'special' dataset, one which is only used for parsing, it cannot be queried
+// LoadRawDataset loads a 'special' dataset, one which is only used for parsing, it cannot be queried
 // in any way, so I question the validity of calling this 'dataset'
-// we may rename this as all it does is local caching
+// we may rename this as all it does is local caching (at that point we might as well use
+// cacheIncomingFile directly) - but let's keep in mind that we might need to reprocess the raw
+// dataset at a later point (if schema changes, if we need to infer it again etc.)
 func (db *Database) LoadRawDataset(r io.Reader) (*Dataset, error) {
-	d := &Dataset{ID: newUid(otypeDataset)}
+	d := &Dataset{ID: newUID(otypeDataset)}
 	d.LocalFilepath = filepath.Join(db.WorkingDirectory, d.ID.String())
 
 	if err := cacheIncomingFile(r, d.LocalFilepath); err != nil {
@@ -105,7 +109,7 @@ type dataStripe struct {
 
 func newDataStripe() *dataStripe {
 	return &dataStripe{
-		id: newUid(otypeStripe),
+		id: newUID(otypeStripe),
 	}
 }
 
@@ -209,7 +213,7 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 	}
 	// check that the existing schema is all strings?
 
-	newDsID := newUid(otypeDataset)
+	newDsID := newUID(otypeDataset)
 	newStripeIDs := make([]uid, 0, len(newSchema))
 	for _, stripeID := range ds.Stripes {
 		newStripe := newDataStripe()
@@ -278,8 +282,8 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID uid, nthColumn in
 
 // This is how data gets in! This is the main entrypoint
 // TODO: log dependency on the raw dataset somehow? lineage?
-func (d *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
-	datasetID := newUid(otypeDataset)
+func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
+	datasetID := newUID(otypeDataset)
 	rl, err := newRawLoader(r, settings)
 	if err != nil {
 		return nil, err
@@ -293,7 +297,7 @@ func (d *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*D
 		stripes = append(stripes, ds.id)
 
 		// TODO: shouldn't this be d.LocalFilePath?
-		if err := ds.writeToFile(d.WorkingDirectory, datasetID.String()); err != nil {
+		if err := ds.writeToFile(db.WorkingDirectory, datasetID.String()); err != nil {
 			return nil, err
 		}
 
@@ -303,21 +307,21 @@ func (d *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*D
 	}
 
 	ds := &Dataset{ID: datasetID, Schema: rl.settings.schema, Stripes: stripes}
-	d.addDataset(ds)
+	db.addDataset(ds)
 	return ds, nil
 }
 
 // convenience wrapper
-func (d *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {
+func (db *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return d.loadDatasetFromReader(f, settings)
+	return db.loadDatasetFromReader(f, settings)
 }
 
-func (d *Database) loadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
+func (db *Database) loadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
 	header := make([]byte, 64)
 	n, err := r.Read(header)
 	if err != nil && err != io.EOF {
@@ -356,30 +360,30 @@ func (d *Database) loadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
 	// we could infer types on the raw data and then load the dataset with the correct schema
 	// one thing to keep in mind: the schema from the first 1000 rows may differ from the whole file
 	//  - do we fail on a load then? do we allow for runtime changes? (e.g. int -> float, not nullable -> nullable etc.)
-	ds, err := d.loadDatasetFromReader(umr, ls)
+	ds, err := db.loadDatasetFromReader(umr, ls)
 	if err != nil {
 		return nil, err
 	}
 
-	schema, err := d.inferTypes(ds)
+	schema, err := db.inferTypes(ds)
 	if err != nil {
 		return nil, err
 	}
-	defer d.removeDataset(ds) // remove the string-only dataset
+	defer db.removeDataset(ds) // remove the string-only dataset
 	// now that we have inferred a schema from strings, we have two options
 	// 1) we pass this schema to our CSV reader and let all the existing code do its work
 	// 2) write a new method, which will take our binary files and resave them using this new schema
 	// the second option, while longer, will be much more performant
 	// also, we don't have the CSV anymore - we used a reader after all
-	return d.castDataset(ds, schema)
+	return db.castDataset(ds, schema)
 }
 
-func (d *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) {
+func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	return d.loadDatasetFromReaderAuto(f)
+	return db.loadDatasetFromReaderAuto(f)
 }

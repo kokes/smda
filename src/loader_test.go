@@ -100,7 +100,7 @@ func TestReadingFromStripes(t *testing.T) {
 }
 
 // columnSchema JSON marshaling (because of dtypes)
-// func (d *Database) LoadSampleData(path string) error {
+// func (db *Database) LoadSampleData(path string) error {
 // func cacheIncomingFile(r io.Reader, path string) error {
 // func (db *Database) LoadRawDataset(r io.Reader) (*Dataset, error) {
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
@@ -111,7 +111,7 @@ func TestReadingFromStripes(t *testing.T) {
 // 		// perhaps wrap this in an init function that returns a schema, so that we have less cruft here
 // func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset, error) {
 // func (db *Database) readColumnFromStripe(ds *Dataset, stripeID uid, nthColumn int) (typedColumn, error) {
-// func (d *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
-// func (d *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {
-// func (d *Database) loadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
-// func (d *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) {
+// func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
+// func (db *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {
+// func (db *Database) loadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
+// func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) {

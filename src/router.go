@@ -6,30 +6,31 @@ import (
 	"net/http"
 )
 
-func (d *Database) setupRoutes() {
+func (db *Database) setupRoutes() {
 	mux := http.NewServeMux()
 	// there is a great Mat Ryer talk about not building all the handle* funcs as taking
 	// (w, r) as arguments, but rather returning handlefuncs themselves - this allows for
 	// passing in arguments, setup before the closure and other nice things
-	mux.HandleFunc("/", d.handleRoot)
-	mux.HandleFunc("/status", d.handleStatus)
-	mux.HandleFunc("/api/datasets", d.handleDatasets)
-	mux.HandleFunc("/api/query", d.handleQuery)
-	mux.HandleFunc("/upload/raw", d.handleUpload)
-	mux.HandleFunc("/upload/auto", d.handleAutoUpload)
+	mux.HandleFunc("/", db.handleRoot)
+	mux.HandleFunc("/status", db.handleStatus)
+	mux.HandleFunc("/api/datasets", db.handleDatasets)
+	mux.HandleFunc("/api/query", db.handleQuery)
+	mux.HandleFunc("/upload/raw", db.handleUpload)
+	mux.HandleFunc("/upload/auto", db.handleAutoUpload)
 	// mux.HandleFunc("/upload/infer-schema", d.handleTypeInference)
 
-	d.server = &http.Server{
+	db.server = &http.Server{
 		Handler: mux,
 	}
 }
 
-func (d *Database) RunWebserver(port int) {
-	d.setupRoutes()
+// RunWebserver sets up all the necessities for a server to run (namely routes) and launches one
+func (db *Database) RunWebserver(port int) {
+	db.setupRoutes()
 
 	sport := fmt.Sprintf(":%v", port)
-	d.server.Addr = sport
+	db.server.Addr = sport
 	log.Printf("listening on http://localhost%v", sport)
 	// log.Fatal(http.ListenAndServe(sport, d.mux))
-	log.Fatal(d.server.ListenAndServe())
+	log.Fatal(db.server.ListenAndServe())
 }

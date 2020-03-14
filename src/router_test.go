@@ -1,4 +1,4 @@
 package smda
 
-// func (d *Database) setupRoutes() {
-// func (d *Database) RunWebserver(port int) {
+// func (db *Database) setupRoutes() {
+// func (db *Database) RunWebserver(port int) {

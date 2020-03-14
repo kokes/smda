@@ -19,7 +19,7 @@ func responseError(w http.ResponseWriter, status int, error string) {
 	}
 }
 
-func (d *Database) handleRoot(w http.ResponseWriter, r *http.Request) {
+func (db *Database) handleRoot(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		responseError(w, http.StatusNotFound, "file not found")
 		return
@@ -40,27 +40,27 @@ func (d *Database) handleRoot(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, fn)
 }
 
-func (d *Database) handleStatus(w http.ResponseWriter, r *http.Request) {
+func (db *Database) handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprint(w, `{"status": "ok"}`)
 }
 
-func (d *Database) handleDatasets(w http.ResponseWriter, r *http.Request) {
+func (db *Database) handleDatasets(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	// might be a bottleneck to indent it, but what the heck at this point
 	// this is quite dangerous as there may be new fields that get automatically marshalled here
-	if err := json.NewEncoder(w).Encode(d.Datasets); err != nil {
+	if err := json.NewEncoder(w).Encode(db.Datasets); err != nil {
 		panic(err)
 	}
 }
 
-func (d *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
+func (db *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	urlQuery := r.URL.Query()
 	q := Query{
 		Dataset: urlQuery.Get("dataset"),
 	}
-	res, err := d.query(q)
+	res, err := db.query(q)
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed this query: %v", err))
 		return
@@ -73,7 +73,7 @@ func (d *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (d *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
+func (db *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		responseError(w, http.StatusMethodNotAllowed, "only POST requests allowed for /upload/raw")
 		return
@@ -82,7 +82,7 @@ func (d *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// 1) we don't want to block the body read by our parser - we want to save the incoming
 	// data as quickly as possible
 	// 2) we want to have a local copy if we need to reprocess it
-	ds, err := d.LoadRawDataset(r.Body)
+	ds, err := db.LoadRawDataset(r.Body)
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("not able to accept this file: %v", err))
 		return
@@ -97,18 +97,18 @@ func (d *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
 // this will load the data, but also infer the schema and automatically load it with it
 // the part with `loadDatasetFromLocalFileAuto` is potentially slow - do we want to make this asynchronous?
 //   that is - we load the raw data and return a jobID - and let the requester ping the server backend for status
-func (d *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
+func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		responseError(w, http.StatusMethodNotAllowed, "only POST requests allowed for /upload/auto")
 		return
 	}
-	ds, err := d.LoadRawDataset(r.Body)
+	ds, err := db.LoadRawDataset(r.Body)
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("not able to accept this file: %v", err))
 		return
 	}
 
-	pds, err := d.loadDatasetFromLocalFileAuto(ds.LocalFilepath)
+	pds, err := db.loadDatasetFromLocalFileAuto(ds.LocalFilepath)
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed to parse a given file: %v", err))
 		return
@@ -120,7 +120,7 @@ func (d *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
 
 // TODO: this assumes data already loaded - incorrect - we need to process data
 // as it arrives (raw) - we need to reuse loadSettings and other things
-// func (d *Database) handleTypeInference(w http.ResponseWriter, r *http.Request) {
+// func (db *Database) handleTypeInference(w http.ResponseWriter, r *http.Request) {
 // 	w.Header().Set("Content-Type", "application/json")
 // 	if r.Method != http.MethodGet {
 // 		responseError(w, http.StatusMethodNotAllowed, "only GET requests allowed for /type-inference")
@@ -147,7 +147,7 @@ func (d *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
 // 		}
 // 	}
 
-// 	dataset, err := d.getDataset(datasetID)
+// 	dataset, err := db.getDataset(datasetID)
 // 	if err != nil {
 // 		responseError(w, http.StatusNotFound, fmt.Sprintf("did not find dataset %v", datasetID))
 // 		return

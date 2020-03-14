@@ -9,23 +9,27 @@ import (
 	"math"
 )
 
-type bitmap struct {
+// Bitmap holds a series of boolean values, at this point it's a plain []bool, but we plan
+// to migrate it to a more compact format - []byte or []uint64 with each value taking one bit
+type Bitmap struct {
 	data []bool // to be a []byte or []uint64
 }
 
 // NewBitmap allocates a bitmap to hold at least n values
-func NewBitmap(n int) *bitmap {
-	return &bitmap{
+func NewBitmap(n int) *Bitmap {
+	return &Bitmap{
 		data: make([]bool, 0, n),
 	}
 }
-func NewBitmapFromBools(data []bool) *bitmap {
-	return &bitmap{
+
+// NewBitmapFromBools initialises a bitmap from a pre-existing bool slice
+func NewBitmapFromBools(data []bool) *Bitmap {
+	return &Bitmap{
 		data: data,
 	}
 }
 
-func (b *bitmap) set(n int, val bool) {
+func (b *Bitmap) set(n int, val bool) {
 	if len(b.data) <= n {
 		newvals := make([]bool, n-len(b.data)+1)
 		b.data = append(b.data, newvals...)
@@ -33,7 +37,7 @@ func (b *bitmap) set(n int, val bool) {
 	b.data[n] = val
 }
 
-func (b *bitmap) get(n int) bool {
+func (b *Bitmap) get(n int) bool {
 	if n >= len(b.data) {
 		// panic("out of range")
 		// we have sparse bitmaps, so this is our way to signify this is valid, but out of range?
@@ -43,7 +47,7 @@ func (b *bitmap) get(n int) bool {
 	return b.data[n]
 }
 
-func (b *bitmap) serialize(w io.Writer) (int, error) {
+func (b *Bitmap) serialize(w io.Writer) (int, error) {
 	nbytes := uint32(len(b.data))
 	if err := binary.Write(w, binary.LittleEndian, nbytes); err != nil {
 		return 0, err
@@ -51,7 +55,7 @@ func (b *bitmap) serialize(w io.Writer) (int, error) {
 	return 4 + int(nbytes), binary.Write(w, binary.LittleEndian, b.data)
 }
 
-func deserialiseBitmapFromReader(r io.Reader) (*bitmap, error) {
+func deserialiseBitmapFromReader(r io.Reader) (*Bitmap, error) {
 	var nbytes uint32
 	if err := binary.Read(r, binary.LittleEndian, &nbytes); err != nil {
 		return nil, err
@@ -97,13 +101,13 @@ type columnStrings struct {
 	data        []byte
 	offsets     []uint32
 	nullable    bool
-	nullability *bitmap
+	nullability *Bitmap
 	length      int64 // can't we just limit all chunks to be uint32 in length max.? we'd also have to limit MaxRowsPerStripe
 }
 type columnInts struct {
 	data        []int64
 	nullable    bool
-	nullability *bitmap
+	nullability *Bitmap
 	length      int64
 }
 type columnFloats struct {
@@ -115,7 +119,7 @@ type columnFloats struct {
 type columnBools struct {
 	data        []bool // TODO: bitmap
 	nullable    bool
-	nullability *bitmap
+	nullability *Bitmap
 	length      int64
 }
 

@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+// Database is the main struct that contains it all - notably the datasets' metadata and the webserver
+// Having the webserver here makes it convenient for testing - we can spawn new servers at a moment's notice
 type Database struct {
 	sync.Mutex
 	Datasets         []*Dataset
@@ -20,6 +22,8 @@ type Database struct {
 	WorkingDirectory string
 }
 
+// NewDatabase initiates a new database in a directory, which cannot exist (we wouldn't know what to do with any of
+// the existing files there)
 func NewDatabase(workingDirectory string) (*Database, error) {
 	abspath, err := filepath.Abs(workingDirectory)
 	if err != nil {
@@ -44,6 +48,7 @@ func NewDatabase(workingDirectory string) (*Database, error) {
 	return db, nil
 }
 
+// NewDatabaseTemp creates a new database in your system's temporary directory, it's mostly used for testing
 func NewDatabaseTemp() (*Database, error) {
 	tdir, err := ioutil.TempDir("", "smda_tmp")
 	if err != nil {
@@ -68,7 +73,7 @@ type uid struct {
 	oid   uint64
 }
 
-func newUid(otype otype) uid {
+func newUID(otype otype) uid {
 	return uid{
 		otype: otype,
 		oid:   rand.Uint64(),
@@ -90,6 +95,7 @@ func (uid uid) MarshalJSON() ([]byte, error) {
 	return ret, nil
 }
 
+// Dataset contains metadata for a given dataset, which at this point means a table
 type Dataset struct {
 	ID            uid            `json:"id"`
 	Name          string         `json:"name"`

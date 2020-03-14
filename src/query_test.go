@@ -1,3 +1,3 @@
 package smda
 
-// func (d *Database) query(q Query) (*QueryResult, error) {
+// func (db *Database) query(q Query) (*QueryResult, error) {

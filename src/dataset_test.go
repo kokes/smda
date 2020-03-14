@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewUidStringify(t *testing.T) {
-	uid := newUid(otypeDataset)
+	uid := newUID(otypeDataset)
 	suid := uid.String()
 
 	if len(suid) != 18 {
@@ -19,7 +19,7 @@ func TestNewUidStringify(t *testing.T) {
 }
 
 func TestNewUidJSONify(t *testing.T) {
-	uid := newUid(otypeDataset)
+	uid := newUID(otypeDataset)
 	dt, err := json.Marshal(uid)
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestAddingDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds := &Dataset{ID: newUid(otypeDataset)}
+	ds := &Dataset{ID: newUID(otypeDataset)}
 	db.addDataset(ds)
 
 	ds2, err := db.getDataset(ds.ID.String())
@@ -99,7 +99,7 @@ func TestRemovingDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds := &Dataset{ID: newUid(otypeDataset)}
+	ds := &Dataset{ID: newUID(otypeDataset)}
 	db.addDataset(ds)
 	db.removeDataset(ds)
 

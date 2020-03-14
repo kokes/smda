@@ -24,7 +24,7 @@ import (
 // }
 
 func TestBitmapRoundtrip(t *testing.T) {
-	bitmaps := []*bitmap{
+	bitmaps := []*Bitmap{
 		NewBitmapFromBools([]bool{true, false, true, false}),
 		NewBitmap(0),
 		NewBitmap(1),

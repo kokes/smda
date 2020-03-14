@@ -224,7 +224,7 @@ func TestErrorsAreWrittenOut(t *testing.T) {
 	}
 }
 
-// func (d *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
-// func (d *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
-// func (d *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
-// func (d *Database) handleTypeInference(w http.ResponseWriter, r *http.Request) {
+// func (db *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
+// func (db *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
+// func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
+// func (db *Database) handleTypeInference(w http.ResponseWriter, r *http.Request) {
