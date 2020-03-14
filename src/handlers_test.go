@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -224,7 +225,57 @@ func TestErrorsAreWrittenOut(t *testing.T) {
 	}
 }
 
-// func (db *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
+func TestHandlingQueries(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+	dsets := []string{"foo,bar\n1,3\n4,6", "foo,bar\n9,8\n1,2"}
+	dss := make([]*Dataset, 0, len(dsets))
+	for _, dset := range dsets {
+		ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(dset))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dss = append(dss, ds)
+	}
+
+	srv := httptest.NewServer(db.server.Handler)
+	defer srv.Close()
+
+	for _, ds := range dss {
+		url := fmt.Sprintf("%s/api/query?dataset=%v", srv.URL, ds.ID)
+		resp, err := http.Get(url)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 200 {
+			t.Fatalf("unexpected status: %v", resp.Status)
+		}
+		ct := resp.Header.Get("Content-Type")
+		if ct != "application/json" {
+			t.Errorf("unexpected content type: %v", ct)
+		}
+		defer resp.Body.Close()
+
+		var dec struct {
+			Columns []string `json:"columns"`
+			Data    [][]int  `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
+			t.Fatal(err)
+		}
+
+		expCol := []string{"foo", "bar"}
+		if !reflect.DeepEqual(expCol, dec.Columns) {
+			t.Errorf("expected the columns to be %v, got %v", expCol, dec.Columns)
+		}
+		if !(len(dec.Data) == 2 && len(dec.Data[0]) == 2) {
+			t.Errorf("unexpected payload: %v", dec.Data)
+		}
+	}
+}
+
 // func (db *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
 // func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
-// func (db *Database) handleTypeInference(w http.ResponseWriter, r *http.Request) {
