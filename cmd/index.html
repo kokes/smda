@@ -1,0 +1,112 @@
+<html>
+    <head>
+        <title>smda</title>
+    </head>
+<body>
+<div id='status'></div>
+
+<input id='filepicker' type='file' />
+
+<div id='datasets'>
+    Datasets:
+</div>
+
+<div id='tables'></div>
+
+<script type='text/javascript'>
+    class statusGetter {
+        constructor(endpoint, target, minDuration, maxDuration) {
+            this.endpoint = endpoint;
+            this.target = target;
+            this.minDuration = minDuration || 20;
+            this.maxDuration = maxDuration || 30;
+            this.duration = this.minDuration;
+        }
+        async checkStatus() {
+            try {
+                const status = await (await fetch(this.endpoint)).json();
+                this.target.innerText = 'Status: ' + status.status;
+                this.duration = this.minDuration; // reset if successful
+            } catch (e) {
+                this.target.innerText = 'Status: ' + e;
+                // increase wait time unless it's larger than our maximum
+                this.duration = Math.min(this.duration * 1.25, this.maxDuration);
+            }
+            setTimeout(this.checkStatus.bind(this), this.duration * 1000);
+        }
+    }
+
+    async function getDatasets() {
+        const req = await fetch('/api/datasets');
+        return await req.json();
+    }
+
+    async function listDatasets(target) {
+        const datasets = await getDatasets();
+        const list = document.createElement('ul');
+
+        for (const ds of (datasets || [])) {
+            const dsli = document.createElement('li');
+            dsli.innerHTML = `${ds.name} (${ds.id})`;
+            list.appendChild(dsli);
+        }
+        target.appendChild(list);
+    }
+
+    function encodeQueryParams(params) {
+        return '?' + Object.entries(params).map(k => k.map(encodeURIComponent).join('=')).join('&');
+    }
+
+    async function getDatasetData(dataset) {
+        const params = {
+            // limit: limit || 15,
+            dataset,
+        }
+        const req = await fetch('/api/query' + encodeQueryParams(params));
+        return await req.json();
+    }
+
+    async function tabulateAllTables(target) {
+        const datasets = await getDatasets();
+        for (const dataset of (datasets || [])) {
+            const data = await getDatasetData(dataset.id);
+            const heading = document.createElement('h2');
+            heading.innerText = dataset.name;
+            const table = document.createElement('table');
+            const thead = document.createElement('tr');
+            for (let colname of data.columns) {
+                const th = document.createElement('th');
+                th.innerText = colname;
+                thead.appendChild(th);
+            }
+            table.appendChild(thead);
+
+            let colsLength = data.data[0].length; // TODO: what if we get nothing?
+            if (colsLength > 20) {
+                colsLength = 20;
+            }
+
+            for (let j = 0; j < colsLength; j++) {
+                const row = document.createElement('tr');
+                for (let colNum = 0; colNum < data.columns.length; colNum++) {
+                    const cell = document.createElement('td');
+                    cell.innerText = data.data[colNum][j];
+                    row.appendChild(cell);
+                }
+                table.appendChild(row);
+            }
+
+            target.appendChild(heading);
+            target.appendChild(table);
+        }
+    }
+
+    const sg = new statusGetter('/status', document.getElementById('status'));
+    sg.checkStatus();
+
+    listDatasets(document.getElementById('datasets'));
+    tabulateAllTables(document.getElementById('tables'))
+</script>
+
+</body>
+</html>
