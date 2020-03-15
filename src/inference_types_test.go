@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
+	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -288,3 +291,64 @@ func TestBasicTypeGuessing(t *testing.T) {
 }
 
 // func (db *Database) inferTypes(ds *Dataset) ([]columnSchema, error) {
+
+func TestDatasetTypeInferenceErr(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+
+	datasets := []string{
+		"foo,bar,baz\n1,fo,ba\n4,ba,bak", // "foo" will be inferred as an int column
+		// "", // TODO: panics
+	}
+	for _, dataset := range datasets {
+		ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(dataset))
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		if _, err := db.inferTypes(ds); err == nil {
+			t.Errorf("should not be able to infer a schema from %v, but did", string(dataset))
+		}
+	}
+}
+func TestDatasetTypeInference(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+
+	datasets := []struct {
+		raw string
+		cs  []columnSchema
+	}{
+		{"foo\n1\n2", []columnSchema{{"foo", dtypeInt, false}}},
+		{"foo,bar\n1,2\n2,false", []columnSchema{{"foo", dtypeInt, false}, {"bar", dtypeString, false}}},
+		{"foo\ntrue\nFALSE", []columnSchema{{"foo", dtypeBool, false}}},
+		{"foo,bar\na,b\nc,", []columnSchema{{"foo", dtypeString, false}, {"bar", dtypeString, true}}}, // we do have nullable strings
+		{"foo,bar\n1,\n2,3", []columnSchema{{"foo", dtypeInt, false}, {"bar", dtypeInt, true}}},
+		{"foo,bar\n1,\n2,", []columnSchema{{"foo", dtypeInt, false}, {"bar", dtypeNull, true}}},
+		// the following issues are linked to the fact that encoding/csv skips empty rows (???)
+		// {"foo\n\n\n", []columnSchema{{"foo", dtypeNull, true}}}, // this should work, but we keep returning invalid
+		// {"foo\ntrue\n", []columnSchema{{"foo", dtypeBool, true}}}, // this should be nullable, but we keep saying it is not
+		// {"foo\nfoo\n\ntrue", []columnSchema{{"foo", dtypeBool, true}}}, // this should be nullable, but we keep saying it is not
+	}
+	for _, dataset := range datasets {
+		ds, err := db.loadDatasetFromReader(strings.NewReader(dataset.raw), loadSettings{}) // loadSettings{} -> nil, once we migrate this to be accepting pointers
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		cs, err := db.inferTypes(ds)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		if !reflect.DeepEqual(cs, dataset.cs) {
+			t.Errorf("expecting %v to be inferred as %v, got %v", dataset.raw, dataset.cs, cs)
+		}
+	}
+}
