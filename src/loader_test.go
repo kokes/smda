@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -170,7 +171,35 @@ func TestLoadingSampleData(t *testing.T) {
 	}
 }
 
-// func cacheIncomingFile(r io.Reader, path string) error {
+func TestBasicFileCaching(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "caching")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpdir)
+	for _, size := range []int{0, 1000, 1000_1000} {
+		buf := new(bytes.Buffer)
+		for j := 0; j < size; j++ {
+			if _, err := buf.Write([]byte{byte(j % 256)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rd := bytes.NewReader(buf.Bytes())
+		path := filepath.Join(tmpdir, strconv.Itoa(size))
+		if err := cacheIncomingFile(rd, path); err != nil {
+			t.Error(err)
+			continue
+		}
+		contents, err := ioutil.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(contents, buf.Bytes()) {
+			t.Errorf("roundtrip failed for %v bytes", size)
+		}
+	}
+}
+
 // func (db *Database) LoadRawDataset(r io.Reader) (*Dataset, error) {
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 // func newDataStripe() *dataStripe {

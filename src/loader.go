@@ -44,7 +44,9 @@ func cacheIncomingFile(r io.Reader, path string) error {
 		return err
 	}
 	defer f.Close()
-	_, err = io.Copy(f, r)
+	bw := bufio.NewWriter(f)
+	defer bw.Flush()
+	_, err = io.Copy(bw, r)
 	if err != nil {
 		return err
 	}
