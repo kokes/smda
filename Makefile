@@ -12,3 +12,6 @@ test:
 
 testv:
 	go test -test.v -timeout 5s -coverprofile=coverage.out ./...
+
+coverstats:
+	go tool cover -func=coverage.out
