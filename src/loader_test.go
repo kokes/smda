@@ -35,6 +35,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer os.RemoveAll(d.WorkingDirectory)
 		bf := new(bytes.Buffer)
 		switch test.compression {
 		case compressionNone:
@@ -84,6 +85,7 @@ func TestReadingFromStripes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(db.WorkingDirectory)
 	buf := strings.NewReader("foo,bar,baz\n1,12,13\n1444,112,13")
 
 	ds, err := db.loadDatasetFromReaderAuto(buf)
@@ -112,8 +114,62 @@ func TestColumnSchemaMarshalingRoundtrips(t *testing.T) {
 	}
 }
 
-// columnSchema JSON marshaling (because of dtypes)
-// func (db *Database) LoadSampleData(path string) error {
+func TestLoadingSampleData(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+
+	tmpdir, err := ioutil.TempDir("", "sample_data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// prep some sample data
+	fns := []string{"foo.csv", "bar.tsv", "baz.csv.gz"}
+	for _, fn := range fns {
+		tfn := filepath.Join(tmpdir, fn)
+		var data []byte
+		if strings.HasSuffix(fn, ".csv") {
+			data = []byte("foo,bar,baz\n1,2,3\n3,4,5")
+		} else if strings.HasSuffix(fn, ".tsv") {
+			data = []byte("foo\tbar\tbaz\n1\t2\t3\n4\t5\t6")
+		} else if strings.HasSuffix(fn, ".csv.gz") {
+			buf := new(bytes.Buffer)
+			gw := gzip.NewWriter(buf)
+			if _, err := gw.Write([]byte("foo,bar,baz\n1,2,3\n3,4,5")); err != nil {
+				t.Fatal(err)
+			}
+			gw.Close()
+			data = buf.Bytes() // [:]
+		} else {
+			panic("misspecified test case")
+		}
+
+		if err := ioutil.WriteFile(tfn, data, os.ModePerm); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.LoadSampleData(tmpdir); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(db.Datasets) != len(fns) {
+		t.Errorf("expecting %v datasets, got %v", len(fns), len(db.Datasets))
+	}
+
+	ecols := []string{"foo", "bar", "baz"}
+	for _, ds := range db.Datasets {
+		cols := make([]string, 0)
+		for _, col := range ds.Schema {
+			cols = append(cols, col.Name)
+		}
+		if !reflect.DeepEqual(cols, ecols) {
+			t.Errorf("expecting each dataset to have the header of %v, got %v", ecols, cols)
+		}
+	}
+}
+
 // func cacheIncomingFile(r io.Reader, path string) error {
 // func (db *Database) LoadRawDataset(r io.Reader) (*Dataset, error) {
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {

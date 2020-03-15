@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -22,12 +23,14 @@ const (
 // using default settings
 // TODO: this will fall into the go-bindata packing issue (also includes webserver's static files)
 func (db *Database) LoadSampleData(path string) error {
-	files, err := filepath.Glob(filepath.Join(path, "*.csv*"))
+	// walking would be more efficient, but it should not matter here
+	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		return fmt.Errorf("could not load samples: %w", err)
 	}
 	for _, file := range files {
-		_, err := db.loadDatasetFromLocalFileAuto(file)
+		ffn := filepath.Join(path, file.Name())
+		_, err := db.loadDatasetFromLocalFileAuto(ffn)
 		if err != nil {
 			return err
 		}
