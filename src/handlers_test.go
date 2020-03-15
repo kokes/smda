@@ -301,22 +301,59 @@ func TestBasicRawUpload(t *testing.T) {
 		t.Errorf("unexpected content type: %v", ct)
 	}
 	defer resp.Body.Close()
-	var dec struct {
-		ID     string         `json:"id"`
-		Name   string         `json:"name"`
-		Schema []columnSchema `json:"schema"`
-	}
+	var dec Dataset
 
 	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
 		t.Fatal(err)
 	}
 	// TODO: test .Name when we start populating it
-	if len(dec.ID) != len(newUID(otypeDataset).String()) {
-		t.Errorf("expecting a dataset identifier to be of proper length, got: %v", dec.ID)
+	if dec.ID.otype != otypeDataset {
+		t.Errorf("expecting an ID for a dataset")
 	}
 	if dec.Schema != nil {
 		t.Errorf("not expecting a schema to be present, got: %v", dec.Schema)
 	}
 }
 
-// func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
+func TestBasicAutoUpload(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+
+	srv := httptest.NewServer(db.server.Handler)
+	defer srv.Close()
+
+	url := fmt.Sprintf("%s/upload/auto", srv.URL)
+	body := strings.NewReader("foo,bar,baz\n1,2,true\n4,,false")
+	resp, err := http.Post(url, "text/csv", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("unexpected status: %v", resp.Status)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("unexpected content type: %v", ct)
+	}
+	defer resp.Body.Close()
+	var dec Dataset
+
+	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
+		t.Fatal(err)
+	}
+	// TODO: test .Name when we start populating it
+	if dec.ID.otype != otypeDataset {
+		t.Errorf("expecting an ID for a dataset")
+	}
+	if dec.Schema == nil {
+		t.Error("expecting a schema to be present, got a nil")
+	}
+	es := []columnSchema{{"foo", dtypeInt, false}, {"bar", dtypeInt, true}, {"baz", dtypeBool, false}}
+	if !reflect.DeepEqual(dec.Schema, es) {
+		t.Errorf("expecting the schema to be inferred as %v, got %v", es, dec.Schema)
+	}
+
+}
