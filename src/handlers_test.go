@@ -277,5 +277,46 @@ func TestHandlingQueries(t *testing.T) {
 	}
 }
 
-// func (db *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
+func TestBasicRawUpload(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+
+	srv := httptest.NewServer(db.server.Handler)
+	defer srv.Close()
+
+	url := fmt.Sprintf("%s/upload/raw", srv.URL)
+	body := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
+	resp, err := http.Post(url, "text/csv", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("unexpected status: %v", resp.Status)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("unexpected content type: %v", ct)
+	}
+	defer resp.Body.Close()
+	var dec struct {
+		ID     string         `json:"id"`
+		Name   string         `json:"name"`
+		Schema []columnSchema `json:"schema"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
+		t.Fatal(err)
+	}
+	// TODO: test .Name when we start populating it
+	if len(dec.ID) != len(newUID(otypeDataset).String()) {
+		t.Errorf("expecting a dataset identifier to be of proper length, got: %v", dec.ID)
+	}
+	if dec.Schema != nil {
+		t.Errorf("not expecting a schema to be present, got: %v", dec.Schema)
+	}
+}
+
 // func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {

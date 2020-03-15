@@ -74,6 +74,7 @@ func (db *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
 }
 
 func (db *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
 		responseError(w, http.StatusMethodNotAllowed, "only POST requests allowed for /upload/raw")
 		return
@@ -98,6 +99,7 @@ func (db *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
 // the part with `loadDatasetFromLocalFileAuto` is potentially slow - do we want to make this asynchronous?
 //   that is - we load the raw data and return a jobID - and let the requester ping the server backend for status
 func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
 		responseError(w, http.StatusMethodNotAllowed, "only POST requests allowed for /upload/auto")
 		return
