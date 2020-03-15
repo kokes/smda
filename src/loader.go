@@ -65,7 +65,7 @@ func (db *Database) LoadRawDataset(r io.Reader) (*Dataset, error) {
 
 type columnSchema struct {
 	Name     string `json:"name"`
-	Dtype    dtype  `json:"dtype"` // TODO: this does not get marshaled properly
+	Dtype    dtype  `json:"dtype"`
 	Nullable bool   `json:"nullable"`
 }
 
@@ -103,7 +103,7 @@ func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 }
 
 type dataStripe struct {
-	id      uid
+	id      UID
 	columns []typedColumn // pointers instead?
 }
 
@@ -214,7 +214,7 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 	// check that the existing schema is all strings?
 
 	newDsID := newUID(otypeDataset)
-	newStripeIDs := make([]uid, 0, len(newSchema))
+	newStripeIDs := make([]UID, 0, len(newSchema))
 	for _, stripeID := range ds.Stripes {
 		newStripe := newDataStripe()
 
@@ -246,7 +246,7 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
-func (db *Database) readColumnFromStripe(ds *Dataset, stripeID uid, nthColumn int) (typedColumn, error) {
+func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (typedColumn, error) {
 	// TODO: d.LocalFilePath? (is probably not filled in here)
 	path := filepath.Join(db.WorkingDirectory, ds.ID.String(), stripeID.String())
 	f, err := os.Open(path)
@@ -288,7 +288,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*
 	if err != nil {
 		return nil, err
 	}
-	stripes := make([]uid, 0)
+	stripes := make([]UID, 0)
 	for {
 		ds, loadingErr := rl.ReadIntoStripe(maxRowsPerStripe, maxBytesPerStripe)
 		if loadingErr != nil && loadingErr != io.EOF {

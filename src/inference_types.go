@@ -2,6 +2,7 @@ package smda
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -28,6 +29,31 @@ func (dt dtype) MarshalJSON() ([]byte, error) {
 	retval := append([]byte{'"'}, []byte(dt.String())...)
 	retval = append(retval, '"')
 	return retval, nil
+}
+
+func (dt *dtype) UnmarshalJSON(data []byte) error {
+	if !(len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"') {
+		return errors.New("unexpected string to be unmarshaled into a dtype")
+	}
+	sdata := string(data[1 : len(data)-1])
+	switch sdata {
+	case "invalid":
+		*dt = dtypeInvalid
+	case "null":
+		*dt = dtypeNull
+	case "string":
+		*dt = dtypeString
+	case "int":
+		*dt = dtypeInt
+	case "float":
+		*dt = dtypeFloat
+	case "bool":
+		*dt = dtypeBool
+	default:
+		return fmt.Errorf("unexpected type: %v", sdata)
+	}
+
+	return nil
 }
 
 type typeGuesser struct {

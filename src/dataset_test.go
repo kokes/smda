@@ -33,6 +33,25 @@ func TestNewUidJSONify(t *testing.T) {
 	}
 }
 
+func TestNewUidDeJSONify(t *testing.T) {
+	uid := newUID(otypeDataset)
+	dt, err := json.Marshal(uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var uid2 UID
+	if err := json.Unmarshal(dt, &uid2); err != nil {
+		t.Fatal(err)
+	}
+	if uid2.otype != uid.otype {
+		t.Errorf("expecting the type to be the same after a roundtrip, got: %v", uid2.otype)
+	}
+	if uid2.oid != uid.oid {
+		t.Errorf("expecting the id to be the same after a roundtrip, got: %v", uid2.oid)
+	}
+}
+
 func TestInitDB(t *testing.T) {
 	dr, err := ioutil.TempDir("", "init_db_testing")
 	if err != nil {

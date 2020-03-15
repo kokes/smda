@@ -3,6 +3,7 @@ package smda
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -67,27 +68,29 @@ const (
 	// when we start using IDs for columns and jobs and other objects, this will be handy
 )
 
-// NOT uuid
-type uid struct {
+// UID is a unique ID for a given object, it's NOT a uuid
+type UID struct {
 	otype otype
 	oid   uint64
 }
 
-func newUID(otype otype) uid {
-	return uid{
+func newUID(otype otype) UID {
+	return UID{
 		otype: otype,
 		oid:   rand.Uint64(),
 	}
 }
 
-func (uid uid) String() string {
+func (uid UID) String() string {
 	bf := make([]byte, 9)
 	bf[0] = byte(uid.otype)
 	binary.LittleEndian.PutUint64(bf[1:], uid.oid)
 	return hex.EncodeToString(bf)
 }
 
-func (uid uid) MarshalJSON() ([]byte, error) {
+// MarshalJSON satisfies the Marshaler interface, so that we can automatically marshal
+// UIDs as JSON
+func (uid UID) MarshalJSON() ([]byte, error) {
 	ret := make([]byte, 20) // 9 bytes (18 chars in hex) + 2 quotes
 	copy(ret[1:], []byte(uid.String()))
 	ret[0] = '"'
@@ -95,12 +98,33 @@ func (uid uid) MarshalJSON() ([]byte, error) {
 	return ret, nil
 }
 
+// UnmarshalJSON satisfies the Unmarshaler interface
+// (we need a pointer here, because we'll be writing to it)
+func (uid *UID) UnmarshalJSON(data []byte) error {
+	if len(data) != 20 {
+		return errors.New("unexpected byte array used for UIDs")
+	}
+	data = data[1:19] // strip quotes
+	unhexed := make([]byte, 9)
+	dec, err := hex.Decode(unhexed, data)
+	if err != nil {
+		return err
+	}
+	if dec != len(unhexed) {
+		return errors.New("failed to decode UID")
+	}
+
+	uid.otype = otype(unhexed[0])
+	uid.oid = binary.LittleEndian.Uint64(unhexed[1:9])
+	return nil
+}
+
 // Dataset contains metadata for a given dataset, which at this point means a table
 type Dataset struct {
-	ID            uid            `json:"id"`
+	ID            UID            `json:"id"`
 	Name          string         `json:"name"`
 	Schema        []columnSchema `json:"schema"`
-	Stripes       []uid          `json:"-"`
+	Stripes       []UID          `json:"-"`
 	LocalFilepath string         `json:"-"`
 }
 

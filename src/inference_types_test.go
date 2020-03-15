@@ -35,6 +35,23 @@ func TestDtypeStringer(t *testing.T) {
 	}
 }
 
+func TestDtypeJSONRoundtrip(t *testing.T) {
+	for _, dt := range []dtype{dtypeInvalid, dtypeNull, dtypeInt, dtypeFloat, dtypeBool, dtypeString} {
+		bt, err := json.Marshal(dt)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		var dt2 dtype
+		if err := json.Unmarshal(bt, &dt2); err != nil {
+			t.Error(err)
+		}
+		if dt != dt2 {
+			t.Errorf("dtype roundtrip failed, expected %v, got %v", dt, dt2)
+		}
+	}
+}
+
 func TestBasicTypeInference(t *testing.T) {
 	tt := []struct {
 		input    []string

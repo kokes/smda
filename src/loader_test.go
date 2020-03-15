@@ -3,6 +3,7 @@ package smda
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -96,6 +97,18 @@ func TestReadingFromStripes(t *testing.T) {
 	cols := col.(*columnInts)
 	if cols.length != 2 {
 		t.Fatalf("expecting the length to be %v, got %v", 2, cols.length)
+	}
+}
+
+func TestColumnSchemaMarshalingRoundtrips(t *testing.T) {
+	cs := columnSchema{Name: "foo", Dtype: dtypeBool, Nullable: true}
+	dt, err := json.Marshal(cs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cs2 columnSchema
+	if err := json.Unmarshal(dt, &cs2); err != nil {
+		t.Fatal(err)
 	}
 }
 
