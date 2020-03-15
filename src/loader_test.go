@@ -87,7 +87,7 @@ func TestReadingFromStripes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(db.WorkingDirectory)
-	buf := strings.NewReader("foo,bar,baz\n1,12,13\n1444,112,13")
+	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
 	ds, err := db.loadDatasetFromReaderAuto(buf)
 	if err != nil {
@@ -99,7 +99,28 @@ func TestReadingFromStripes(t *testing.T) {
 	}
 	cols := col.(*columnInts)
 	if cols.length != 2 {
-		t.Fatalf("expecting the length to be %v, got %v", 2, cols.length)
+		t.Errorf("expecting the length to be %v, got %v", 2, cols.length)
+	}
+
+	col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	colb := col.(*columnBools)
+	if colb.length != 2 {
+		t.Errorf("expecting the length to be %v, got %v", 2, colb.length)
+	}
+	if !colb.nullable {
+		t.Errorf("expecting the second column to be nullable")
+	}
+
+	col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	colf := col.(*columnFloats)
+	if colf.length != 2 {
+		t.Errorf("expecting the length to be %v, got %v", 2, colf.length)
 	}
 }
 
@@ -200,16 +221,27 @@ func TestBasicFileCaching(t *testing.T) {
 	}
 }
 
-// func (db *Database) LoadRawDataset(r io.Reader) (*Dataset, error) {
+func TestLoadingOfRawDatasets(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+
+	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
+	ds, err := db.LoadRawDataset(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ds.Schema != nil {
+		t.Error("expecting a temp raw dataset not to have a schema")
+	}
+}
+
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
-// func newDataStripe() *dataStripe {
 // func (ds *dataStripe) writeToWriter(w io.Writer) error {
 // func (ds *dataStripe) writeToFile(rootDir, datasetID string) error {
 // func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
-// 		// perhaps wrap this in an init function that returns a schema, so that we have less cruft here
 // func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset, error) {
-// func (db *Database) readColumnFromStripe(ds *Dataset, stripeID uid, nthColumn int) (typedColumn, error) {
 // func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
 // func (db *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {
-// func (db *Database) loadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
-// func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) {
