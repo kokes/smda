@@ -75,9 +75,9 @@ func deserialiseBitmapFromReader(r io.Reader) (*Bitmap, error) {
 // ALSO, this interface is a bit misnamed - it's not the whole column, just a given chunk within a stripe
 type typedColumn interface {
 	addValue(string) error
-	serializeInto(io.Writer) (int64, error)
+	serializeInto(io.Writer) (int, error)
 	MarshalJSON() ([]byte, error)
-	// TODO: Len? (lookup where we use the columnXyz.length and replace it)
+	Len() uint32 // I'm not super convinced we should expose (internal) users to uint32, why not just int?
 }
 
 func newTypedColumnFromSchema(schema columnSchema) typedColumn {
@@ -102,30 +102,30 @@ type columnStrings struct {
 	offsets     []uint32
 	nullable    bool
 	nullability *Bitmap
-	length      int64 // can't we just limit all chunks to be uint32 in length max.? we'd also have to limit MaxRowsPerStripe
+	length      uint32
 }
 type columnInts struct {
 	data        []int64
 	nullable    bool
 	nullability *Bitmap
-	length      int64
+	length      uint32
 }
 type columnFloats struct {
 	data        []float64
 	nullable    bool
 	nullability *Bitmap
-	length      int64
+	length      uint32
 }
 type columnBools struct {
 	data        []bool // TODO: bitmap
 	nullable    bool
 	nullability *Bitmap
-	length      int64
+	length      uint32
 }
 
 // if it's all nulls, we only need to know how many there are
 type columnNulls struct {
-	length int64
+	length uint32
 }
 
 func newColumnStrings(isNullable bool) *columnStrings {
@@ -164,6 +164,22 @@ func newColumnNulls() *columnNulls {
 	}
 }
 
+func (rc *columnBools) Len() uint32 {
+	return rc.length
+}
+func (rc *columnFloats) Len() uint32 {
+	return rc.length
+}
+func (rc *columnInts) Len() uint32 {
+	return rc.length
+}
+func (rc *columnNulls) Len() uint32 {
+	return rc.length
+}
+func (rc *columnStrings) Len() uint32 {
+	return rc.length
+}
+
 func (rc *columnStrings) addValue(s string) error {
 	rc.data = append(rc.data, []byte(s)...)
 
@@ -178,7 +194,7 @@ func (rc *columnStrings) addValue(s string) error {
 // TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
 // BUT, we're sort of using it for type inference - so maybe caveat it with a note that it's only to be used with
 // not nullable columns?
-func (rc *columnStrings) nthValue(n int64) string {
+func (rc *columnStrings) nthValue(n uint32) string {
 	offsetStart := rc.offsets[n]
 	offsetEnd := rc.offsets[n+1]
 	return string(rc.data[offsetStart:offsetEnd])
@@ -308,7 +324,7 @@ func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
 		offsets:     offsets,
 		nullable:    nullable,
 		nullability: bitmap,
-		length:      int64(lenOffsets) - 1,
+		length:      lenOffsets - 1,
 	}, nil
 }
 
@@ -334,7 +350,7 @@ func deserializeColumnInts(r io.Reader) (*columnInts, error) {
 		data:        data,
 		nullable:    nullable,
 		nullability: bitmap,
-		length:      int64(nelements),
+		length:      nelements,
 	}, nil
 }
 
@@ -359,7 +375,7 @@ func deserializeColumnFloats(r io.Reader) (*columnFloats, error) {
 		data:        data,
 		nullable:    nullable,
 		nullability: bitmap,
-		length:      int64(nelements),
+		length:      nelements,
 	}, nil
 }
 
@@ -384,7 +400,7 @@ func deserializeColumnBools(r io.Reader) (*columnBools, error) {
 		data:        data,
 		nullable:    nullable,
 		nullability: bitmap,
-		length:      int64(nelements),
+		length:      nelements,
 	}, nil
 }
 
@@ -394,11 +410,11 @@ func deserializeColumnNulls(r io.Reader) (*columnNulls, error) {
 		return nil, err
 	}
 	return &columnNulls{
-		length: int64(length),
+		length: length,
 	}, nil
 }
 
-func (rc *columnStrings) serializeInto(w io.Writer) (int64, error) {
+func (rc *columnStrings) serializeInto(w io.Writer) (int, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return 0, err
 	}
@@ -423,11 +439,11 @@ func (rc *columnStrings) serializeInto(w io.Writer) (int64, error) {
 	if bdata != len(rc.data) {
 		return 0, errors.New("not enough data written")
 	}
-	bwritten := int64(1 + bnull + 4 + len(rc.offsets)*4 + 4 + bdata)
+	bwritten := 1 + bnull + 4 + len(rc.offsets)*4 + 4 + bdata
 	return bwritten, err
 }
 
-func (rc *columnInts) serializeInto(w io.Writer) (int64, error) {
+func (rc *columnInts) serializeInto(w io.Writer) (int, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return 0, err
 	}
@@ -440,10 +456,10 @@ func (rc *columnInts) serializeInto(w io.Writer) (int64, error) {
 	}
 	// OPTIM: find the largest int and possibly use a smaller container than int64
 	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return 1 + int64(bnull) + 4 + rc.length*8, err
+	return 1 + bnull + 4 + int(rc.length)*8, err
 }
 
-func (rc *columnFloats) serializeInto(w io.Writer) (int64, error) {
+func (rc *columnFloats) serializeInto(w io.Writer) (int, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return 0, err
 	}
@@ -455,10 +471,10 @@ func (rc *columnFloats) serializeInto(w io.Writer) (int64, error) {
 		return 0, err
 	}
 	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return 1 + int64(bnull) + 4 + rc.length*8, err
+	return 1 + bnull + 4 + int(rc.length)*8, err
 }
 
-func (rc *columnBools) serializeInto(w io.Writer) (int64, error) {
+func (rc *columnBools) serializeInto(w io.Writer) (int, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return 0, err
 	}
@@ -471,11 +487,11 @@ func (rc *columnBools) serializeInto(w io.Writer) (int64, error) {
 	}
 	err = binary.Write(w, binary.LittleEndian, rc.data)
 	// writing one byte per entry, will change with bitmaps (1-2 bits)
-	return 1 + int64(bnull) + 4 + rc.length, err
+	return 1 + bnull + 4 + int(rc.length), err
 }
 
-func (rc *columnNulls) serializeInto(w io.Writer) (int64, error) {
-	length := uint32(rc.length)
+func (rc *columnNulls) serializeInto(w io.Writer) (int, error) {
+	length := rc.length
 	if err := binary.Write(w, binary.LittleEndian, length); err != nil {
 		return 0, err
 	}
@@ -487,7 +503,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 	// OPTIM: if nullable, but no nulls in this stripe, use this branch as well
 	if !rc.nullable {
 		res := make([]string, 0, int(rc.length))
-		for j := int64(0); j < rc.length; j++ {
+		for j := uint32(0); j < rc.Len(); j++ {
 			res = append(res, rc.nthValue(j))
 		}
 
@@ -495,7 +511,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 	}
 
 	dt := make([]*string, 0, rc.length)
-	for j := int64(0); j < rc.length; j++ {
+	for j := uint32(0); j < rc.Len(); j++ {
 		val := rc.nthValue(j)
 		dt = append(dt, &val)
 	}

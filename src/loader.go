@@ -230,7 +230,7 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 				return nil, err
 			}
 			scol := col.(*columnStrings)
-			for rowNum := int64(0); rowNum < scol.length; rowNum++ {
+			for rowNum := uint32(0); rowNum < scol.Len(); rowNum++ {
 				newCol.addValue(scol.nthValue(rowNum))
 			}
 			newStripe.columns = append(newStripe.columns, newCol)
