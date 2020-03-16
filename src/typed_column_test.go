@@ -9,19 +9,18 @@ import (
 	"testing"
 )
 
-// func TestBitmapSetsGets(t *testing.T) {
-// 	vals := []bool{true, false, false, false, true, true, false}
-// 	b := NewBitmap(0)
-// 	for j, v := range vals {
-// 		b.set(j, v)
-// 	}
-// 	fmt.Println(b)
-// 	for j, v := range vals {
-// 		if b.get(j) != v {
-// 			t.Fatalf("expected %v, got %v", v, b.get(j))
-// 		}
-// 	}
-// }
+func TestBitmapSetsGets(t *testing.T) {
+	vals := []bool{true, false, false, false, true, true, false}
+	bm := NewBitmap(0)
+	for j, v := range vals {
+		bm.set(j, v)
+	}
+	for j, v := range vals {
+		if bm.get(j) != v {
+			t.Fatalf("position %v: expected %v, got %v", j, v, bm.get(j))
+		}
+	}
+}
 
 func TestBitmapRoundtrip(t *testing.T) {
 	bitmaps := []*Bitmap{
@@ -30,6 +29,9 @@ func TestBitmapRoundtrip(t *testing.T) {
 		NewBitmap(1),
 		NewBitmap(9),
 		NewBitmap(64),
+		NewBitmap(128),
+		NewBitmap(129),
+		NewBitmap(1000),
 		NewBitmap(1000_000),
 	}
 	for _, b := range bitmaps {
@@ -41,7 +43,7 @@ func TestBitmapRoundtrip(t *testing.T) {
 		}
 		br := bytes.NewReader(bf.Bytes())
 
-		b2, err := deserialiseBitmapFromReader(br)
+		b2, err := deserializeBitmapFromReader(br)
 		if err != nil {
 			t.Error(err)
 			return

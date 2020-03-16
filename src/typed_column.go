@@ -9,62 +9,84 @@ import (
 	"math"
 )
 
-// Bitmap holds a series of boolean values, at this point it's a plain []bool, but we plan
-// to migrate it to a more compact format - []byte or []uint64 with each value taking one bit
+// Bitmap holds a series of boolean values, efficiently encoded as bits of uint64s
 type Bitmap struct {
-	data []bool // to be a []byte or []uint64
+	data []uint64
+}
+
+// Cap denotes how many values can fit in this bitmap
+func (bm *Bitmap) cap() int {
+	return len(bm.data) * 64
+}
+
+func (bm *Bitmap) ensure(n int) {
+	if bm.data != nil && n <= bm.cap() {
+		return
+	}
+	nvals := n / 64
+	if n%64 != 0 {
+		nvals++
+	}
+	nvals -= len(bm.data)
+	bm.data = append(bm.data, make([]uint64, nvals)...)
 }
 
 // NewBitmap allocates a bitmap to hold at least n values
 func NewBitmap(n int) *Bitmap {
-	return &Bitmap{
-		data: make([]bool, 0, n),
-	}
+	bm := &Bitmap{}
+	bm.ensure(n)
+	return bm
 }
 
 // NewBitmapFromBools initialises a bitmap from a pre-existing bool slice
 func NewBitmapFromBools(data []bool) *Bitmap {
-	return &Bitmap{
-		data: data,
+	bm := NewBitmap(len(data))
+	for j, el := range data {
+		bm.set(j, el)
+	}
+	return bm
+}
+
+// NewBitmapFromBits leverages a pre-existing bitmap (usually from a file or a reader) and copies
+// it into a new bitmap
+func NewBitmapFromBits(data []uint64) *Bitmap {
+	bm := NewBitmap(64 * len(data))
+	copy(bm.data, data)
+	return bm
+}
+
+func (bm *Bitmap) set(n int, val bool) {
+	bm.ensure(n + 1)
+	if val {
+		bm.data[n/64] |= uint64(1 << (n % 64))
+	} else {
+		bm.data[n/64] &= ^uint64(1 << (n % 64))
 	}
 }
 
-func (b *Bitmap) set(n int, val bool) {
-	if len(b.data) <= n {
-		newvals := make([]bool, n-len(b.data)+1)
-		b.data = append(b.data, newvals...)
-	}
-	b.data[n] = val
+func (bm *Bitmap) get(n int) bool {
+	bm.ensure(n + 1) // to avoid panics?
+	return (bm.data[n/64] & uint64(1<<(n%64))) > 0
 }
 
-func (b *Bitmap) get(n int) bool {
-	if n >= len(b.data) {
-		// panic("out of range")
-		// we have sparse bitmaps, so this is our way to signify this is valid, but out of range?
-		// TODO: perhaps we should keep a "length" property on the bitmap, which would get potentially modified with every set?
-		return false
-	}
-	return b.data[n]
-}
-
-func (b *Bitmap) serialize(w io.Writer) (int, error) {
-	nbytes := uint32(len(b.data))
-	if err := binary.Write(w, binary.LittleEndian, nbytes); err != nil {
+func (bm *Bitmap) serialize(w io.Writer) (int, error) {
+	nelements := uint32(len(bm.data))
+	if err := binary.Write(w, binary.LittleEndian, nelements); err != nil {
 		return 0, err
 	}
-	return 4 + int(nbytes), binary.Write(w, binary.LittleEndian, b.data)
+	return 4 + 8*int(nelements), binary.Write(w, binary.LittleEndian, bm.data)
 }
 
-func deserialiseBitmapFromReader(r io.Reader) (*Bitmap, error) {
-	var nbytes uint32
-	if err := binary.Read(r, binary.LittleEndian, &nbytes); err != nil {
+func deserializeBitmapFromReader(r io.Reader) (*Bitmap, error) {
+	var nelements uint32
+	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
 		return nil, err
 	}
-	data := make([]bool, int(nbytes))
+	data := make([]uint64, int(nelements))
 	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
 		return nil, err
 	}
-	bitmap := NewBitmapFromBools(data)
+	bitmap := NewBitmapFromBits(data)
 	return bitmap, nil
 }
 
@@ -295,7 +317,7 @@ func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
 	}
-	bitmap, err := deserialiseBitmapFromReader(r)
+	bitmap, err := deserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +356,7 @@ func deserializeColumnInts(r io.Reader) (*columnInts, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
 	}
-	bitmap, err := deserialiseBitmapFromReader(r)
+	bitmap, err := deserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +381,7 @@ func deserializeColumnFloats(r io.Reader) (*columnFloats, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
 	}
-	bitmap, err := deserialiseBitmapFromReader(r)
+	bitmap, err := deserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +406,7 @@ func deserializeColumnBools(r io.Reader) (*columnBools, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
 	}
-	bitmap, err := deserialiseBitmapFromReader(r)
+	bitmap, err := deserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
 	}
