@@ -122,6 +122,7 @@ func TestBasicIntColumn(t *testing.T) {
 	}
 }
 
+// what about infites?
 func TestBasicFloatColumn(t *testing.T) {
 	tt := [][]string{
 		[]string{"1", "2", "3"},
@@ -137,7 +138,7 @@ func TestBasicFloatColumn(t *testing.T) {
 		[]string{"1", "", "1.2"},
 	}
 	for _, vals := range tt {
-		nc := newColumnFloats()
+		nc := newColumnFloats(true)
 		for _, val := range vals {
 			if err := nc.addValue(val); err != nil {
 				t.Error(err)
@@ -204,7 +205,7 @@ func TestInvalidFloats(t *testing.T) {
 	tt := []string{"1e123003030303", ".e", "123f"}
 
 	for _, testCase := range tt {
-		nc := newColumnFloats()
+		nc := newColumnFloats(false)
 		if err := nc.addValue(testCase); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid float", testCase)
 		}
@@ -266,7 +267,11 @@ func TestJSONMarshaling(t *testing.T) {
 		{newColumnInts(true), []string{"123", "456"}, "[123,456]"},
 		{newColumnInts(false), []string{"123", "456"}, "[123,456]"},
 		{newColumnInts(true), []string{"123", "", "", "456"}, "[123,null,null,456]"},
-		// TODO: floats
+		{newColumnFloats(false), []string{"123", "456"}, "[123,456]"},
+		{newColumnFloats(false), []string{"123.456", "456.789"}, "[123.456,456.789]"},
+		{newColumnFloats(true), []string{"123", "", "456"}, "[123,null,456]"},
+		{newColumnFloats(true), []string{"123", "", "nan"}, "[123,null,null]"},
+		// {newColumnFloats(true), []string{"123", "+infty", "-infty"}, "[123,+infty,-infty]"}, // no infty support yet
 		{newColumnStrings(true), []string{}, "[]"},
 		{newColumnStrings(false), []string{}, "[]"},
 		{newColumnStrings(true), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},

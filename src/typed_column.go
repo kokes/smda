@@ -87,7 +87,7 @@ func newTypedColumnFromSchema(schema columnSchema) typedColumn {
 	case dtypeInt:
 		return newColumnInts(schema.Nullable)
 	case dtypeFloat:
-		return newColumnFloats()
+		return newColumnFloats(schema.Nullable)
 	case dtypeBool:
 		return newColumnBools(schema.Nullable)
 	case dtypeNull:
@@ -111,10 +111,10 @@ type columnInts struct {
 	length      int64
 }
 type columnFloats struct {
-	data []float64
-	// no bitmap needed for nullability, can leverage nans in float64
-	// buuut, it would be quite consistent, wouldn't it?
-	length int64
+	data        []float64
+	nullable    bool
+	nullability *Bitmap
+	length      int64
 }
 type columnBools struct {
 	data        []bool // TODO: bitmap
@@ -143,9 +143,11 @@ func newColumnInts(isNullable bool) *columnInts {
 		nullability: NewBitmap(0),
 	}
 }
-func newColumnFloats() *columnFloats {
+func newColumnFloats(isNullable bool) *columnFloats {
 	return &columnFloats{
-		data: make([]float64, 0),
+		data:        make([]float64, 0),
+		nullable:    isNullable,
+		nullability: NewBitmap(0),
 	}
 }
 func newColumnBools(isNullable bool) *columnBools {
@@ -213,6 +215,15 @@ func (rc *columnFloats) addValue(s string) error {
 		if err != nil {
 			return err
 		}
+	}
+	if math.IsNaN(val) {
+		if !rc.nullable {
+			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", s)
+		}
+		rc.nullability.set(int(rc.length), true)
+		rc.data = append(rc.data, math.NaN()) // this value is not meant to be read
+		rc.length++
+		return nil
 	}
 
 	rc.data = append(rc.data, val)
@@ -328,6 +339,14 @@ func deserializeColumnInts(r io.Reader) (*columnInts, error) {
 }
 
 func deserializeColumnFloats(r io.Reader) (*columnFloats, error) {
+	var nullable bool
+	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
+		return nil, err
+	}
+	bitmap, err := deserialiseBitmapFromReader(r)
+	if err != nil {
+		return nil, err
+	}
 	var nelements uint32
 	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
 		return nil, err
@@ -337,8 +356,10 @@ func deserializeColumnFloats(r io.Reader) (*columnFloats, error) {
 		return nil, err
 	}
 	return &columnFloats{
-		data:   data,
-		length: int64(nelements),
+		data:        data,
+		nullable:    nullable,
+		nullability: bitmap,
+		length:      int64(nelements),
 	}, nil
 }
 
@@ -423,11 +444,18 @@ func (rc *columnInts) serializeInto(w io.Writer) (int64, error) {
 }
 
 func (rc *columnFloats) serializeInto(w io.Writer) (int64, error) {
+	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
+		return 0, err
+	}
+	bnull, err := rc.nullability.serialize(w)
+	if err != nil {
+		return 0, err
+	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
 		return 0, err
 	}
-	err := binary.Write(w, binary.LittleEndian, rc.data)
-	return 4 + rc.length*8, err
+	err = binary.Write(w, binary.LittleEndian, rc.data)
+	return 1 + int64(bnull) + 4 + rc.length*8, err
 }
 
 func (rc *columnBools) serializeInto(w io.Writer) (int64, error) {
@@ -500,7 +528,25 @@ func (rc *columnInts) MarshalJSON() ([]byte, error) {
 }
 
 func (rc *columnFloats) MarshalJSON() ([]byte, error) {
-	return json.Marshal(rc.data)
+	// I thought we didn't need a nullability branch here, because while we do use a bitmap for nullables,
+	// we also store NaNs in the data themselves, so this should be serialised automatically
+	// that's NOT the case, MarshalJSON does not allow NaNs and Infties https://github.com/golang/go/issues/3480
+	// OPTIM: if nullable, but no nulls in this stripe, use this branch as well
+	if !rc.nullable {
+		return json.Marshal(rc.data)
+	}
+
+	dt := make([]*float64, 0, rc.length)
+	for j := range rc.data {
+		dt = append(dt, &rc.data[j])
+	}
+
+	for j := 0; j < int(rc.length); j++ {
+		if rc.nullability.get(j) {
+			dt[j] = nil
+		}
+	}
+	return json.Marshal(dt)
 }
 
 func (rc *columnBools) MarshalJSON() ([]byte, error) {
