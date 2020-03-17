@@ -139,7 +139,7 @@ type columnFloats struct {
 	length      uint32
 }
 type columnBools struct {
-	data        []bool // TODO: bitmap
+	data        *Bitmap
 	nullable    bool
 	nullability *Bitmap
 	length      uint32
@@ -174,7 +174,7 @@ func newColumnFloats(isNullable bool) *columnFloats {
 }
 func newColumnBools(isNullable bool) *columnBools {
 	return &columnBools{
-		data:        make([]bool, 0),
+		data:        NewBitmap(0),
 		nullable:    isNullable,
 		nullability: NewBitmap(0),
 	}
@@ -275,7 +275,7 @@ func (rc *columnBools) addValue(s string) error {
 			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", s)
 		}
 		rc.nullability.set(int(rc.length), true)
-		rc.data = append(rc.data, false) // this value is not meant to be read
+		rc.data.set(int(rc.length), false) // this value is not meant to be read
 		rc.length++
 		return nil
 	}
@@ -283,7 +283,7 @@ func (rc *columnBools) addValue(s string) error {
 	if err != nil {
 		return err
 	}
-	rc.data = append(rc.data, val)
+	rc.data.set(int(rc.length), val)
 	rc.length++
 	return nil
 }
@@ -414,8 +414,8 @@ func deserializeColumnBools(r io.Reader) (*columnBools, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
 		return nil, err
 	}
-	data := make([]bool, nelements)
-	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
+	data, err := deserializeBitmapFromReader(r)
+	if err != nil {
 		return nil, err
 	}
 	return &columnBools{
@@ -504,12 +504,16 @@ func (rc *columnBools) serializeInto(w io.Writer) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
+	// the data bitmap doesn't have a "length", just a capacity (64 aligned), so we
+	// need to explicitly write the length of this column chunk
+	if err := binary.Write(w, binary.LittleEndian, rc.length); err != nil {
 		return 0, err
 	}
-	err = binary.Write(w, binary.LittleEndian, rc.data)
-	// writing one byte per entry, will change with bitmaps (1-2 bits)
-	return 1 + bnull + 4 + int(rc.length), err
+	bdata, err := rc.data.serialize(w)
+	if err != nil {
+		return 0, err
+	}
+	return 1 + bnull + 4 + bdata, err
 }
 
 func (rc *columnNulls) serializeInto(w io.Writer) (int, error) {
@@ -590,19 +594,23 @@ func (rc *columnFloats) MarshalJSON() ([]byte, error) {
 func (rc *columnBools) MarshalJSON() ([]byte, error) {
 	// OPTIM: if nullable, but no nulls in this stripe, use this branch as well
 	if !rc.nullable {
-		return json.Marshal(rc.data)
-	}
-
-	dt := make([]*bool, 0, rc.length)
-	for j := range rc.data {
-		dt = append(dt, &rc.data[j])
-	}
-
-	for j := 0; j < int(rc.length); j++ {
-		if rc.nullability.get(j) {
-			dt[j] = nil
+		dt := make([]bool, 0, rc.Len())
+		for j := 0; j < int(rc.Len()); j++ {
+			dt = append(dt, rc.data.get(j))
 		}
+		return json.Marshal(dt)
 	}
+
+	dt := make([]*bool, 0, rc.Len())
+	for j := 0; j < int(rc.Len()); j++ {
+		if rc.nullability.get(j) {
+			dt = append(dt, nil)
+			continue
+		}
+		val := rc.data.get(j)
+		dt = append(dt, &val)
+	}
+
 	return json.Marshal(dt)
 }
 
