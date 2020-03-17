@@ -3,6 +3,7 @@ package smda
 import (
 	"encoding/binary"
 	"io"
+	"math/bits"
 )
 
 // Bitmap holds a series of boolean values, efficiently encoded as bits of uint64s
@@ -13,6 +14,15 @@ type Bitmap struct {
 // Cap denotes how many values can fit in this bitmap
 func (bm *Bitmap) cap() int {
 	return len(bm.data) * 64
+}
+
+// Count returns the number of true values in a bitmap
+func (bm *Bitmap) Count() int {
+	ret := 0
+	for _, val := range bm.data {
+		ret += bits.OnesCount64(val)
+	}
+	return ret
 }
 
 func (bm *Bitmap) ensure(n int) {

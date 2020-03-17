@@ -443,10 +443,8 @@ func (rc *columnNulls) serializeInto(w io.Writer) (int, error) {
 	return 4, nil
 }
 
-// TODO: support nullability
 func (rc *columnStrings) MarshalJSON() ([]byte, error) {
-	// OPTIM: if nullable, but no nulls in this stripe, use this branch as well
-	if !rc.nullable {
+	if !(rc.nullable && rc.nullability.Count() > 0) {
 		res := make([]string, 0, int(rc.length))
 		for j := uint32(0); j < rc.Len(); j++ {
 			res = append(res, rc.nthValue(j))
@@ -470,8 +468,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 }
 
 func (rc *columnInts) MarshalJSON() ([]byte, error) {
-	// OPTIM: if nullable, but no nulls in this stripe, use this branch as well
-	if !rc.nullable {
+	if !(rc.nullable && rc.nullability.Count() > 0) {
 		return json.Marshal(rc.data)
 	}
 
@@ -492,8 +489,7 @@ func (rc *columnFloats) MarshalJSON() ([]byte, error) {
 	// I thought we didn't need a nullability branch here, because while we do use a bitmap for nullables,
 	// we also store NaNs in the data themselves, so this should be serialised automatically
 	// that's NOT the case, MarshalJSON does not allow NaNs and Infties https://github.com/golang/go/issues/3480
-	// OPTIM: if nullable, but no nulls in this stripe, use this branch as well
-	if !rc.nullable {
+	if !(rc.nullable && rc.nullability.Count() > 0) {
 		return json.Marshal(rc.data)
 	}
 
@@ -511,8 +507,7 @@ func (rc *columnFloats) MarshalJSON() ([]byte, error) {
 }
 
 func (rc *columnBools) MarshalJSON() ([]byte, error) {
-	// OPTIM: if nullable, but no nulls in this stripe, use this branch as well
-	if !rc.nullable {
+	if !(rc.nullable && rc.nullability.Count() > 0) {
 		dt := make([]bool, 0, rc.Len())
 		for j := 0; j < int(rc.Len()); j++ {
 			dt = append(dt, rc.data.get(j))

@@ -54,6 +54,7 @@ func TestBitmapRoundtrip(t *testing.T) {
 
 // func NewBitmap(n int) *bitmap {
 // func NewBitmapFromBools(data []bool) *bitmap {
+// func (bm *Bitmap) Count() int {
 // func (b *bitmap) set(n int, val bool) {
 // func (b *bitmap) get(n int) bool {
 // func (b *bitmap) serialize(w io.Writer) (int, error) {
