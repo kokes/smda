@@ -59,3 +59,5 @@ func TestBitmapRoundtrip(t *testing.T) {
 // func (b *bitmap) get(n int) bool {
 // func (b *bitmap) serialize(w io.Writer) (int, error) {
 // func deserialiseBitmapFromReader(r io.Reader) (*bitmap, error) {
+
+// invert - testing inverting an empty bitmap

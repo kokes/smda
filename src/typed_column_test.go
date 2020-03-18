@@ -255,6 +255,34 @@ func TestJSONMarshaling(t *testing.T) {
 	}
 }
 
+func TestBasicFilters(t *testing.T) {
+	tests := []struct {
+		rc     typedColumn
+		values []string
+		op     operator
+		val    string
+		count  int
+	}{
+		{newColumnBools(false), []string{"true", "false", "true"}, opEqual, "true", 2},
+		{newColumnBools(false), []string{"false", "true", "false"}, opEqual, "false", 2},
+		{newColumnBools(false), []string{"false", "false", "false"}, opEqual, "true", 0},
+		// TODO: notEqual (and other ops, if we have them)
+		// TODO: other data types
+	}
+	for _, test := range tests {
+		for _, val := range test.values {
+			if err := test.rc.addValue(val); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		filtered := test.rc.Filter(test.op, test.val)
+		if filtered.Count() != test.count {
+			t.Errorf("expected that filtering %v in %v would result in %v rows, got %v", test.val, test.values, test.count, filtered.Count())
+		}
+	}
+}
+
 // func newTypedColumnFromSchema(schema columnSchema) typedColumn {
 // func newColumnStrings(isNullable bool) *columnStrings {
 // func newColumnInts(isNullable bool) *columnInts {
@@ -280,3 +308,8 @@ func TestJSONMarshaling(t *testing.T) {
 // func (rc *columnBools) MarshalJSON() ([]byte, error) {
 
 // tests for columnNulls
+
+// func (rc *columnInts) Filter(expr string) *FilterResult   { return nil }
+// func (rc *columnFloats) Filter(expr string) *FilterResult { return nil }
+// func (rc *columnBools) Filter(expr string) *FilterResult  { return nil }
+// func (rc *columnNulls) Filter(expr string) *FilterResult  { return nil }

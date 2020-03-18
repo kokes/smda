@@ -1,6 +1,7 @@
 package smda
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -19,7 +20,25 @@ type typedColumn interface {
 	serializeInto(io.Writer) (int, error)
 	MarshalJSON() ([]byte, error)
 	Len() uint32 // I'm not super convinced we should expose (internal) users to uint32, why not just int?
+	// for now it takes a string expression, it will be parsed beforehand in the future
+	// also, we should consider if this should return a new typedColumn with the filtered values already?
+	Filter(operator, string) *Bitmap
 }
+
+type operator uint8
+
+const (
+	opNone operator = iota
+	opEqual
+	opNotEqual
+	// opIsNull
+	// opIsNotNull
+	// opGt
+	// opGte
+	// opLt
+	// opLte
+	// opIn
+)
 
 func newTypedColumnFromSchema(schema columnSchema) typedColumn {
 	switch schema.Dtype {
@@ -531,4 +550,111 @@ func (rc *columnBools) MarshalJSON() ([]byte, error) {
 func (rc *columnNulls) MarshalJSON() ([]byte, error) {
 	ret := make([]*uint8, rc.length) // how else can we create a [null, null, null, ...] in JSON?
 	return json.Marshal(ret)
+}
+
+func (rc *columnStrings) Filter(op operator, expr string) *Bitmap {
+	switch op {
+	case opEqual:
+		// if we can't match the expression even across value boundaries, there's no way we'll match it properly
+		if !bytes.Contains(rc.data, []byte(expr)) {
+			return nil
+		}
+		var bm *Bitmap
+		// OPTIM: we don't have to go value by value, we can do the whole bytes.Contains and go from there - find out
+		// if the boundaries match an entry etc.
+		for j := uint32(0); j < rc.Len(); j++ {
+			if rc.nthValue(j) == expr {
+				if bm == nil {
+					bm = NewBitmap(int(rc.Len()))
+				}
+				bm.set(int(j), true)
+			}
+		}
+
+		return bm
+	default:
+		panic(fmt.Sprintf("op not supported: %v", op))
+	}
+}
+
+func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
+	switch op {
+	case opEqual:
+		val, err := parseInt(expr)
+		if err != nil {
+			panic(err)
+		}
+		var bm *Bitmap
+		for j := 0; j < int(rc.Len()); j++ {
+			if rc.data[j] == val {
+				if bm == nil {
+					bm = NewBitmap(int(rc.Len()))
+				}
+				bm.set(j, true)
+			}
+		}
+
+		return bm
+	default:
+		panic(fmt.Sprintf("op not supported: %v", op))
+	}
+}
+
+func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
+	switch op {
+	case opEqual:
+		val, err := parseFloat(expr)
+		if err != nil {
+			panic(err)
+		}
+		var bm *Bitmap
+		for j := 0; j < int(rc.Len()); j++ {
+			if rc.data[j] == val {
+				if bm == nil {
+					bm = NewBitmap(int(rc.Len()))
+				}
+				bm.set(j, true)
+			}
+		}
+
+		return bm
+	default:
+		panic(fmt.Sprintf("op not supported: %v", op))
+	}
+}
+
+func (rc *columnBools) Filter(op operator, expr string) *Bitmap {
+	switch op {
+	case opEqual:
+		val, err := parseBool(expr)
+		if err != nil {
+			panic(err)
+		}
+		// if we're looking for true values, we already have them in our bitmap
+		if val {
+			return rc.data
+		}
+		// otherwise we just flip all the relevant bits
+		bm := rc.data.Clone()
+		bm.invert()
+
+		return bm
+	default:
+		panic(fmt.Sprintf("op not supported %v", op))
+	}
+}
+
+// OPTIM: we shouldn't need to return a full bitmap - it will always be all ones or all zeroes
+func (rc *columnNulls) Filter(op operator, expr string) *Bitmap {
+	switch op {
+	case opEqual:
+		bm := NewBitmap(int(rc.Len()))
+		if isNull(expr) {
+			bm.invert()
+		}
+
+		return bm
+	default:
+		panic(fmt.Sprintf("op not supported %v", op))
+	}
 }
