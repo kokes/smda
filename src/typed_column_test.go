@@ -303,6 +303,45 @@ func TestBasicFilters(t *testing.T) {
 	}
 }
 
+func TestBasicPruning(t *testing.T) {
+	tests := []struct {
+		rc     typedColumn
+		values []string
+		bm     *Bitmap
+		count  int
+	}{
+		{newColumnBools(false), []string{"true", "false", "true"}, NewBitmapFromBools([]bool{true, true, true}), 3},
+		{newColumnBools(false), []string{"true", "false", "true"}, NewBitmapFromBools([]bool{false, false, false}), 0},
+		{newColumnBools(false), []string{"true", "false", "true"}, NewBitmapFromBools([]bool{false, true, false}), 1},
+
+		{newColumnInts(false), []string{"1", "2", "3"}, NewBitmapFromBools([]bool{false, true, false}), 1},
+		{newColumnFloats(false), []string{"1.23", "+0", "1e3"}, NewBitmapFromBools([]bool{false, true, false}), 1},
+		{newColumnStrings(false), []string{"foo", "bar", "foo"}, NewBitmapFromBools([]bool{false, true, false}), 1},
+
+		// nullable columns
+		{newColumnInts(true), []string{"1", "", ""}, NewBitmapFromBools([]bool{false, true, false}), 1},
+		{newColumnInts(true), []string{"1", "", ""}, NewBitmapFromBools([]bool{false, false, false}), 0},
+		{newColumnInts(true), []string{"1", "", ""}, NewBitmapFromBools([]bool{true, true, true}), 3},
+
+		{newColumnBools(true), []string{"true", "", "true"}, NewBitmapFromBools([]bool{true, true, false}), 2},
+		{newColumnFloats(true), []string{"1.23", "+0", ""}, NewBitmapFromBools([]bool{false, true, false}), 1},
+		{newColumnStrings(true), []string{"foo", "", ""}, NewBitmapFromBools([]bool{true, true, true}), 3},
+	}
+	for _, test := range tests {
+		for _, val := range test.values {
+			if err := test.rc.addValue(val); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		pruned := test.rc.Prune(test.bm)
+		count := int(pruned.Len())
+		if count != test.count {
+			t.Errorf("expected that pruning %v would result in %v rows, got %v", test.values, test.count, count)
+		}
+	}
+}
+
 // func newTypedColumnFromSchema(schema columnSchema) typedColumn {
 // func newColumnStrings(isNullable bool) *columnStrings {
 // func newColumnInts(isNullable bool) *columnInts {

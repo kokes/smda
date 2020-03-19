@@ -19,6 +19,7 @@ type typedColumn interface {
 	addValue(string) error
 	serializeInto(io.Writer) (int, error)
 	MarshalJSON() ([]byte, error)
+	Prune(*Bitmap) typedColumn
 	Len() uint32 // I'm not super convinced we should expose (internal) users to uint32, why not just int?
 	// for now it takes a string expression, it will be parsed beforehand in the future
 	// also, we should consider if this should return a new typedColumn with the filtered values already?
@@ -232,6 +233,124 @@ func (rc *columnNulls) addValue(s string) error {
 	}
 	rc.length++
 	return nil
+}
+
+func (rc *columnStrings) Prune(bm *Bitmap) typedColumn {
+	if bm.cap != int(rc.Len()) {
+		panic("pruning bitmap does not align with the dataset")
+	}
+
+	// if we're not pruning anything, we might just return ourselves
+	// we don't need to clone anything, since the typedColumn itself is immutable, right?
+	if bm.Count() == int(rc.Len()) {
+		return rc
+	}
+
+	nc := newColumnStrings(rc.nullable)
+	// OPTIM: nthValue is not the fastest, just iterate over offsets directly
+	// OR, just iterate over positive bits in our Bitmap - this will be super fast for sparse bitmaps
+	// the bitmap iteration could be implemented in all the typed columns
+	for j := 0; j < int(rc.Len()); j++ {
+		if !bm.get(j) {
+			continue
+		}
+		// be careful here, addValue has its own nullability logic and we don't want to mess with that
+		nc.addValue(rc.nthValue(uint32(j)))
+		if rc.nullable && rc.nullability.get(j) {
+			nc.nullability.set(j, true)
+		}
+		// nc.length++ // once we remove addValue, we'll need this
+	}
+
+	return nc
+}
+
+func (rc *columnInts) Prune(bm *Bitmap) typedColumn {
+	if bm.cap != int(rc.Len()) {
+		panic("pruning bitmap does not align with the dataset")
+	}
+
+	if bm.Count() == int(rc.Len()) {
+		return rc
+	}
+
+	nc := newColumnInts(rc.nullable)
+	for j := 0; j < int(rc.Len()); j++ {
+		if !bm.get(j) {
+			continue
+		}
+		nc.data = append(nc.data, rc.data[j])
+		if rc.nullable && rc.nullability.get(j) {
+			nc.nullability.set(j, true)
+		}
+		nc.length++
+	}
+
+	return nc
+}
+
+func (rc *columnFloats) Prune(bm *Bitmap) typedColumn {
+	if bm.cap != int(rc.Len()) {
+		panic("pruning bitmap does not align with the dataset")
+	}
+
+	if bm.Count() == int(rc.Len()) {
+		return rc
+	}
+
+	nc := newColumnFloats(rc.nullable)
+	for j := 0; j < int(rc.Len()); j++ {
+		if !bm.get(j) {
+			continue
+		}
+		nc.data = append(nc.data, rc.data[j])
+		if rc.nullable && rc.nullability.get(j) {
+			nc.nullability.set(j, true)
+		}
+		nc.length++
+	}
+
+	return nc
+}
+
+func (rc *columnBools) Prune(bm *Bitmap) typedColumn {
+	if bm.cap != int(rc.Len()) {
+		panic("pruning bitmap does not align with the dataset")
+	}
+
+	if bm.Count() == int(rc.Len()) {
+		return rc
+	}
+
+	nc := newColumnBools(rc.nullable)
+	for j := 0; j < int(rc.Len()); j++ {
+		if !bm.get(j) {
+			continue
+		}
+		// OPTIM: not need to set false values, we already have them set as zero
+		nc.data.set(j, rc.data.get(j))
+		if rc.nullable && rc.nullability.get(j) {
+			nc.nullability.set(j, true)
+		}
+		nc.length++
+	}
+
+	return nc
+}
+
+func (rc *columnNulls) Prune(bm *Bitmap) typedColumn {
+	if bm.cap != int(rc.Len()) {
+		panic("pruning bitmap does not align with the dataset")
+	}
+
+	if bm.Count() == int(rc.Len()) {
+		return rc
+	}
+
+	nc := newColumnNulls()
+	nc.length = uint32(bm.Count())
+
+	return nc
 }
 
 func deserializeColumn(r io.Reader, dtype dtype) (typedColumn, error) {
