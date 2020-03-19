@@ -3,6 +3,7 @@ package smda
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 )
 
@@ -28,9 +29,23 @@ func (db *Database) setupRoutes() {
 func (db *Database) RunWebserver(port int) {
 	db.setupRoutes()
 
-	sport := fmt.Sprintf(":%v", port)
-	db.server.Addr = sport
-	log.Printf("listening on http://localhost%v", sport)
-	// log.Fatal(http.ListenAndServe(sport, d.mux))
-	log.Fatal(db.server.ListenAndServe())
+	// we're trying to find an available port, but this is for end users only - we may need to add
+	// some guarantees in the future - bind to a port XYZ or die (TODO)
+	for j := 0; j < 100; j++ {
+		nport := port + j
+		sport := fmt.Sprintf(":%v", nport)
+		listener, err := net.Listen("tcp", sport)
+		if err != nil {
+			if err.(*net.OpError).Err.Error() == "bind: address already in use" {
+				log.Printf("port %v busy, trying %v", nport, nport+1)
+				continue
+			}
+
+			log.Fatal(err)
+		}
+		db.server.Addr = sport
+		log.Printf("listening on http://localhost%v", sport)
+		log.Fatal(db.server.Serve(listener))
+	}
+	log.Fatal("could not find an available port, aborting")
 }
