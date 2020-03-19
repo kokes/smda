@@ -630,6 +630,7 @@ func (rc *columnBools) Filter(op operator, expr string) *Bitmap {
 		if err != nil {
 			panic(err)
 		}
+		// OPTIM: if we get zero matches, let's return nil (.Count is fast)
 		// if we're looking for true values, we already have them in our bitmap
 		if val {
 			return rc.data

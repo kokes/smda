@@ -266,8 +266,24 @@ func TestBasicFilters(t *testing.T) {
 		{newColumnBools(false), []string{"true", "false", "true"}, opEqual, "true", 2},
 		{newColumnBools(false), []string{"false", "true", "false"}, opEqual, "false", 2},
 		{newColumnBools(false), []string{"false", "false", "false"}, opEqual, "true", 0},
+
+		{newColumnInts(false), []string{"1", "2", "3"}, opEqual, "0", 0},
+		{newColumnInts(false), []string{"1", "2", "3"}, opEqual, "3", 1},
+		{newColumnInts(false), []string{"1", "2", "3"}, opEqual, "10000", 0},
+
+		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1.2300", 1},
+		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1.230000001", 0},
+		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opEqual, "+0", 2},
+		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1000", 1},
+
+		{newColumnStrings(false), []string{"foo", "bar", "baz", "foo"}, opEqual, "baz", 1},
+		{newColumnStrings(false), []string{"foo", "bar", "baz", "foo"}, opEqual, "foo", 2},
+		{newColumnStrings(false), []string{"foo", "bar", "baz", "foo"}, opEqual, "FOO", 0},
+
+		// we don't need to test null columns, because we might just delete all the opEqual code, it probably
+		// isn't useful for anyone
+
 		// TODO: notEqual (and other ops, if we have them)
-		// TODO: other data types
 	}
 	for _, test := range tests {
 		for _, val := range test.values {
@@ -277,8 +293,12 @@ func TestBasicFilters(t *testing.T) {
 		}
 
 		filtered := test.rc.Filter(test.op, test.val)
-		if filtered.Count() != test.count {
-			t.Errorf("expected that filtering %v in %v would result in %v rows, got %v", test.val, test.values, test.count, filtered.Count())
+		count := 0
+		if filtered != nil {
+			count = filtered.Count()
+		}
+		if count != test.count {
+			t.Errorf("expected that filtering %v in %v would result in %v rows, got %v", test.val, test.values, test.count, count)
 		}
 	}
 }
@@ -308,8 +328,3 @@ func TestBasicFilters(t *testing.T) {
 // func (rc *columnBools) MarshalJSON() ([]byte, error) {
 
 // tests for columnNulls
-
-// func (rc *columnInts) Filter(expr string) *FilterResult   { return nil }
-// func (rc *columnFloats) Filter(expr string) *FilterResult { return nil }
-// func (rc *columnBools) Filter(expr string) *FilterResult  { return nil }
-// func (rc *columnNulls) Filter(expr string) *FilterResult  { return nil }
