@@ -179,28 +179,36 @@ func TestInvalidBools(t *testing.T) {
 	}
 }
 
-func TestSerialisationRoundtripStrings(t *testing.T) {
-	tests := [][]string{
-		[]string{"foo", "bar", "baz"},
-		[]string{},
-		[]string{"single value here"},
-		// we currently don't have nullable string columns - there's no way to define what a null string is
-		// if it's empty, it will just be an empty string
-		// []string{"how", "about", "", "nulls?"},
+// TODO: merge all the tests above into this one
+func TestSerialisationRoundtrip(t *testing.T) {
+	tests := []struct {
+		schema columnSchema
+		vals   []string
+	}{
+		{columnSchema{"", dtypeString, true}, []string{"foo", "bar", "baz"}},
+		{columnSchema{"", dtypeString, false}, []string{"foo", "bar", "baz"}},
+		{columnSchema{"", dtypeString, true}, []string{}},
+		{columnSchema{"", dtypeString, true}, []string{""}},
+		// add other types (from earlier tests)
 	}
-	for _, vals := range tests {
-		col := newColumnStrings(true)
-		for _, val := range vals {
+	for _, test := range tests {
+		col := newTypedColumnFromSchema(test.schema)
+		for _, val := range test.vals {
 			col.addValue(val)
 		}
 		bf := new(bytes.Buffer)
-		if _, err := col.serializeInto(bf); err != nil {
-			t.Fatal(err)
-		}
-		col2, err := deserializeColumnStrings(bytes.NewReader(bf.Bytes()))
+		n, err := col.serializeInto(bf)
 		if err != nil {
 			t.Fatal(err)
 		}
+		if n != len(bf.Bytes()) {
+			t.Fatalf("expected to write %v bytes, got %v instead", n, len(bf.Bytes()))
+		}
+		col2, err := deserializeColumn(bf, test.schema.Dtype)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		if !reflect.DeepEqual(col, col2) {
 			t.Fatalf("expecting %v, got %v", col, col2)
 		}
@@ -209,7 +217,7 @@ func TestSerialisationRoundtripStrings(t *testing.T) {
 
 func TestJSONMarshaling(t *testing.T) {
 	tests := []struct {
-		rc       typedColumn
+		rc       typedColumn // use newTypedColumnFromSchema instead
 		values   []string
 		expected string
 	}{
@@ -257,7 +265,7 @@ func TestJSONMarshaling(t *testing.T) {
 
 func TestBasicFilters(t *testing.T) {
 	tests := []struct {
-		rc     typedColumn
+		rc     typedColumn // we don't need to initiate rcs here, we can supply dtype and nullability and use newTypedColumnFromSchema
 		values []string
 		op     operator
 		val    string
@@ -303,6 +311,8 @@ func TestBasicFilters(t *testing.T) {
 	}
 }
 
+// TODO: equality testing in filtering can be done without nthValue! We just need to construct a new typedColumn and deepEqual them!
+
 func TestBasicPruning(t *testing.T) {
 	tests := []struct {
 		rc     typedColumn
@@ -343,27 +353,5 @@ func TestBasicPruning(t *testing.T) {
 }
 
 // func newTypedColumnFromSchema(schema columnSchema) typedColumn {
-// func newColumnStrings(isNullable bool) *columnStrings {
-// func newColumnInts(isNullable bool) *columnInts {
-// func newColumnFloats() *columnFloats {
-// func newColumnBools(isNullable bool) *columnBools {
-// func (rc *columnStrings) addValue(s string) error {
-// func (rc *columnStrings) nthValue(n int64) string {
-// func (rc *columnInts) addValue(s string) error {
-// func (rc *columnFloats) addValue(s string) error {
-// func (rc *columnBools) addValue(s string) error {
-// func (rc *columnStrings) serializeInto(w io.Writer) (int64, error) {
-// func deserializeColumn(r io.Reader, dtype dtype) (typedColumn, error) {
-// func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
-// func deserializeColumnInts(r io.Reader) (*columnInts, error) {
-// func deserializeColumnFloats(r io.Reader) (*columnFloats, error) {
-// func deserializeColumnBools(r io.Reader) (*columnBools, error) {
-// func (rc *columnInts) serializeInto(w io.Writer) (int64, error) {
-// func (rc *columnFloats) serializeInto(w io.Writer) (int64, error) {
-// func (rc *columnBools) serializeInto(w io.Writer) (int64, error) {
-// func (rc *columnStrings) MarshalJSON() ([]byte, error) {
-// func (rc *columnInts) MarshalJSON() ([]byte, error) {
-// func (rc *columnFloats) MarshalJSON() ([]byte, error) {
-// func (rc *columnBools) MarshalJSON() ([]byte, error) {
 
 // tests for columnNulls

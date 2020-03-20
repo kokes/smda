@@ -216,7 +216,12 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 	if len(ds.Schema) != len(newSchema) {
 		return nil, errors.New("schema mismatch")
 	}
-	// check that the existing schema is all strings?
+	// check that the existing schema is all strings
+	for _, col := range ds.Schema {
+		if col.Dtype != dtypeString {
+			return nil, errors.New("can only cast from string columns")
+		}
+	}
 
 	newDsID := newUID(otypeDataset)
 	newStripeIDs := make([]UID, 0, len(newSchema))
