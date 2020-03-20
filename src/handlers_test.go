@@ -245,8 +245,13 @@ func TestHandlingQueries(t *testing.T) {
 	defer srv.Close()
 
 	for _, ds := range dss {
-		url := fmt.Sprintf("%s/api/query?dataset=%v", srv.URL, ds.ID)
-		resp, err := http.Get(url)
+		url := fmt.Sprintf("%s/api/query", srv.URL)
+		query := Query{Dataset: ds.ID}
+		body, err := json.Marshal(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := http.Post(url, "application/json", bytes.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}

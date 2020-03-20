@@ -131,9 +131,9 @@ type Dataset struct {
 // not efficient in this implementation, but we don't have a map-like structure
 // to store our datasets - we keep them in a slice, so that we have predictable order
 // -> we need a sorted map
-func (db *Database) getDataset(datasetID string) (*Dataset, error) {
+func (db *Database) getDataset(datasetID UID) (*Dataset, error) {
 	for _, dataset := range db.Datasets {
-		if dataset.ID.String() == datasetID {
+		if dataset.ID == datasetID {
 			return dataset, nil
 		}
 	}

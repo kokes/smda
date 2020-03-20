@@ -56,11 +56,16 @@ func (db *Database) handleDatasets(w http.ResponseWriter, r *http.Request) {
 
 func (db *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	urlQuery := r.URL.Query()
-	q := Query{
-		Dataset: urlQuery.Get("dataset"),
+	if r.Method != http.MethodPost {
+		responseError(w, http.StatusMethodNotAllowed, "only POST requests allowed for /api/query")
+		return
 	}
-	res, err := db.query(q)
+	var query Query
+	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+		responseError(w, http.StatusBadRequest, "did not supply correct query parameters")
+		return
+	}
+	res, err := db.query(query)
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed this query: %v", err))
 		return
@@ -84,6 +89,7 @@ func (db *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// data as quickly as possible
 	// 2) we want to have a local copy if we need to reprocess it
 	ds, err := db.LoadRawDataset(r.Body)
+	defer r.Body.Close()
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("not able to accept this file: %v", err))
 		return
@@ -105,6 +111,7 @@ func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ds, err := db.LoadRawDataset(r.Body)
+	defer r.Body.Close()
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("not able to accept this file: %v", err))
 		return

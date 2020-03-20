@@ -104,7 +104,7 @@ func TestAddingDatasets(t *testing.T) {
 	ds := &Dataset{ID: newUID(otypeDataset)}
 	db.addDataset(ds)
 
-	ds2, err := db.getDataset(ds.ID.String())
+	ds2, err := db.getDataset(ds.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestRemovingDatasets(t *testing.T) {
 	db.addDataset(ds)
 	db.removeDataset(ds)
 
-	_, err = db.getDataset(ds.ID.String())
+	_, err = db.getDataset(ds.ID)
 	if err == nil {
 		// TODO: should probably check for the right error (though we're not wrapping now)
 		t.Fatal("should not be able to retrieve a deleted dataset")
@@ -139,7 +139,7 @@ func TestGettingNewDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds2, err := db.getDataset(ds.ID.String())
+	ds2, err := db.getDataset(ds.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

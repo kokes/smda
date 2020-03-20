@@ -57,12 +57,16 @@
         return '?' + Object.entries(params).map(k => k.map(encodeURIComponent).join('=')).join('&');
     }
 
-    async function getDatasetData(dataset) {
-        const params = {
+    async function getDatasetData(datasetID) {
+        const body = {
             // limit: limit || 15,
-            dataset,
+            dataset: datasetID,
         }
-        const req = await fetch('/api/query' + encodeQueryParams(params));
+        const req = await fetch('/api/query', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        })
         return await req.json();
     }
 
