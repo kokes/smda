@@ -39,10 +39,7 @@ func (fe *FilterExpression) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// TODO: maybe this doesn't need to return a dataset - if we're doing projections, grouping,
-// having etc., we don't have to materialise this at this point (there could be tons of extra
-// columns here) - let's just return a slice of bitmaps? We can run Dataset.Prune(bitmaps) later
-func (db *Database) Filter(ds *Dataset, fe *FilterExpression) (*Dataset, error) {
+func (db *Database) Filter(ds *Dataset, fe *FilterExpression) ([]*Bitmap, error) {
 	if fe.Operator != "=" {
 		return nil, errors.New("TODO")
 	}
@@ -57,37 +54,16 @@ func (db *Database) Filter(ds *Dataset, fe *FilterExpression) (*Dataset, error) 
 		return nil, fmt.Errorf("could not filter out `%v` in dataset %v, column not found", fe.Column, ds.ID)
 	}
 
-	newDs := NewDataset()
-	newDs.Schema = ds.Schema
+	bms := make([]*Bitmap, 0, len(ds.Stripes))
 	for _, stripe := range ds.Stripes {
-		newStripe := newDataStripe()
-		// first let's filter the column in question
 		col, err := db.readColumnFromStripe(ds, stripe, colIndex)
 		if err != nil {
 			return nil, err
 		}
 		bm := col.Filter(opEqual, fe.Argument)
-		// OPTIM: if bm.Count() is the same length as the columns in this stripe, we don't need to do this
-		// now prune all the columns and assign to a new stripe
-		for j := range ds.Schema {
-			col, err := db.readColumnFromStripe(ds, stripe, j)
-			if err != nil {
-				return nil, err
-			}
-			newStripe.columns = append(newStripe.columns, col.Prune(bm))
-		}
-		// can we perhaps keep it in memory? given some condition?
-		// TODO: also - this will live on - how do we gc this? and if we do gc it, how do we recreate it,
-		// if somebody asks for it?
-		// TODO: this is quite a serious issue at this point, because we don't even register this dataset
-		// in a database, so there's no record of this, no way to gc it, reuse it or anything
-		// perhaps give it a TTL and register it? or durable: false and a creation timestamp?
-		if err := newStripe.writeToFile(db.WorkingDirectory, newDs.ID.String()); err != nil {
-			return nil, err
-		}
-		newDs.Stripes = append(newDs.Stripes, newStripe.id)
+		bms = append(bms, bm)
 	}
-	return newDs, nil
+	return bms, nil
 }
 
 // QueryResult holds the result of a query, at this point it's fairly literal - in the future we may want
@@ -110,8 +86,9 @@ func (db *Database) query(q Query) (*QueryResult, error) {
 		return nil, err
 	}
 
+	var bms []*Bitmap
 	if q.Filter != nil {
-		ds, err = db.Filter(ds, q.Filter)
+		bms, err = db.Filter(ds, q.Filter)
 		if err != nil {
 			return nil, err
 		}
@@ -122,11 +99,14 @@ func (db *Database) query(q Query) (*QueryResult, error) {
 	}
 
 	// so far just loading the first stripe, let's see where we get from here
-	for _, stripeID := range ds.Stripes[:1] {
+	for stripeIndex, stripeID := range ds.Stripes[:1] {
 		for j := range ds.Schema {
 			col, err := db.readColumnFromStripe(ds, stripeID, j)
 			if err != nil {
 				return nil, err
+			}
+			if bms != nil {
+				col = col.Prune(bms[stripeIndex])
 			}
 			res.Data = append(res.Data, col)
 		}

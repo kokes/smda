@@ -63,6 +63,9 @@
             dataset: datasetID,
             // filter: ["durationCompiling", "=", "1884"],
         }
+        // if (datasetID === '01683c712d778591c3') {
+        //     body.filter = ['VendorID', '=', '1']
+        // }
         const req = await fetch('/api/query', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
