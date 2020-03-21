@@ -128,6 +128,10 @@ type Dataset struct {
 	LocalFilepath string         `json:"-"`
 }
 
+func NewDataset() *Dataset {
+	return &Dataset{ID: newUID(otypeDataset)}
+}
+
 // not efficient in this implementation, but we don't have a map-like structure
 // to store our datasets - we keep them in a slice, so that we have predictable order
 // -> we need a sorted map

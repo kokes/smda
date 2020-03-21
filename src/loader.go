@@ -59,7 +59,7 @@ func cacheIncomingFile(r io.Reader, path string) error {
 // cacheIncomingFile directly) - but let's keep in mind that we might need to reprocess the raw
 // dataset at a later point (if schema changes, if we need to infer it again etc.)
 func (db *Database) LoadRawDataset(r io.Reader) (*Dataset, error) {
-	d := &Dataset{ID: newUID(otypeDataset)}
+	d := NewDataset()
 	d.LocalFilepath = filepath.Join(db.WorkingDirectory, d.ID.String())
 
 	if err := cacheIncomingFile(r, d.LocalFilepath); err != nil {
@@ -138,6 +138,7 @@ func (ds *dataStripe) writeToWriter(w io.Writer) error {
 	return binary.Write(w, binary.LittleEndian, offsets)
 }
 
+// TODO: this whole API is just wrong - we should have a `db.writestripe(ds, stripe) error`
 func (ds *dataStripe) writeToFile(rootDir, datasetID string) error {
 	tdir := filepath.Join(rootDir, datasetID)
 	if err := os.MkdirAll(tdir, os.ModePerm); err != nil {
@@ -222,8 +223,8 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 			return nil, errors.New("can only cast from string columns")
 		}
 	}
+	newDs := NewDataset()
 
-	newDsID := newUID(otypeDataset)
 	newStripeIDs := make([]UID, 0, len(newSchema))
 	for _, stripeID := range ds.Stripes {
 		newStripe := newDataStripe()
@@ -244,12 +245,13 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 		newStripeIDs = append(newStripeIDs, newStripe.id)
 
 		// TODO: d.localfile
-		if err := newStripe.writeToFile(db.WorkingDirectory, newDsID.String()); err != nil {
+		if err := newStripe.writeToFile(db.WorkingDirectory, newDs.ID.String()); err != nil {
 			return nil, err
 		}
 	}
 
-	newDs := &Dataset{ID: newDsID, Schema: newSchema, Stripes: newStripeIDs}
+	newDs.Schema = newSchema
+	newDs.Stripes = newStripeIDs
 	db.addDataset(newDs)
 	return newDs, nil
 }
@@ -293,7 +295,7 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 // This is how data gets in! This is the main entrypoint
 // TODO: log dependency on the raw dataset somehow? lineage?
 func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
-	datasetID := newUID(otypeDataset)
+	dataset := NewDataset()
 	rl, err := newRawLoader(r, settings)
 	if err != nil {
 		return nil, err
@@ -307,7 +309,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*
 		stripes = append(stripes, ds.id)
 
 		// TODO: shouldn't this be d.LocalFilePath?
-		if err := ds.writeToFile(db.WorkingDirectory, datasetID.String()); err != nil {
+		if err := ds.writeToFile(db.WorkingDirectory, dataset.ID.String()); err != nil {
 			return nil, err
 		}
 
@@ -316,9 +318,10 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*
 		}
 	}
 
-	ds := &Dataset{ID: datasetID, Schema: rl.settings.schema, Stripes: stripes}
-	db.addDataset(ds)
-	return ds, nil
+	dataset.Schema = rl.settings.schema
+	dataset.Stripes = stripes
+	db.addDataset(dataset)
+	return dataset, nil
 }
 
 // convenience wrapper

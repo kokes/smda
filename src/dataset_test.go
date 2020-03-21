@@ -101,7 +101,7 @@ func TestAddingDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds := &Dataset{ID: newUID(otypeDataset)}
+	ds := NewDataset()
 	db.addDataset(ds)
 
 	ds2, err := db.getDataset(ds.ID)
@@ -118,7 +118,7 @@ func TestRemovingDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds := &Dataset{ID: newUID(otypeDataset)}
+	ds := NewDataset()
 	db.addDataset(ds)
 	db.removeDataset(ds)
 

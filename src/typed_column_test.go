@@ -336,6 +336,12 @@ func TestBasicPruning(t *testing.T) {
 		{newColumnBools(true), []string{"true", "", "true"}, NewBitmapFromBools([]bool{true, true, false}), 2},
 		{newColumnFloats(true), []string{"1.23", "+0", ""}, NewBitmapFromBools([]bool{false, true, false}), 1},
 		{newColumnStrings(true), []string{"foo", "", ""}, NewBitmapFromBools([]bool{true, true, true}), 3},
+
+		// not pruning anything by leveraging nil pointers
+		{newColumnInts(true), []string{"1", "", ""}, nil, 0},
+		{newColumnBools(true), []string{"true", "", "true"}, nil, 0},
+		{newColumnFloats(true), []string{"1.23", "+0", ""}, nil, 0},
+		{newColumnStrings(true), []string{"foo", "", ""}, nil, 0},
 	}
 	for _, test := range tests {
 		for _, val := range test.values {

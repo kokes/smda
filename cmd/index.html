@@ -61,6 +61,7 @@
         const body = {
             // limit: limit || 15,
             dataset: datasetID,
+            // filter: ["durationCompiling", "=", "1884"],
         }
         const req = await fetch('/api/query', {
             method: 'POST',

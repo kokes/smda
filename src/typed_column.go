@@ -236,6 +236,10 @@ func (rc *columnNulls) addValue(s string) error {
 }
 
 func (rc *columnStrings) Prune(bm *Bitmap) typedColumn {
+	nc := newColumnStrings(rc.nullable)
+	if bm == nil {
+		return nc
+	}
 	if bm.cap != int(rc.Len()) {
 		panic("pruning bitmap does not align with the dataset")
 	}
@@ -246,7 +250,6 @@ func (rc *columnStrings) Prune(bm *Bitmap) typedColumn {
 		return rc
 	}
 
-	nc := newColumnStrings(rc.nullable)
 	// OPTIM: nthValue is not the fastest, just iterate over offsets directly
 	// OR, just iterate over positive bits in our Bitmap - this will be super fast for sparse bitmaps
 	// the bitmap iteration could be implemented in all the typed columns
@@ -266,6 +269,10 @@ func (rc *columnStrings) Prune(bm *Bitmap) typedColumn {
 }
 
 func (rc *columnInts) Prune(bm *Bitmap) typedColumn {
+	nc := newColumnInts(rc.nullable)
+	if bm == nil {
+		return nc
+	}
 	if bm.cap != int(rc.Len()) {
 		panic("pruning bitmap does not align with the dataset")
 	}
@@ -274,7 +281,6 @@ func (rc *columnInts) Prune(bm *Bitmap) typedColumn {
 		return rc
 	}
 
-	nc := newColumnInts(rc.nullable)
 	for j := 0; j < int(rc.Len()); j++ {
 		if !bm.get(j) {
 			continue
@@ -290,6 +296,10 @@ func (rc *columnInts) Prune(bm *Bitmap) typedColumn {
 }
 
 func (rc *columnFloats) Prune(bm *Bitmap) typedColumn {
+	nc := newColumnFloats(rc.nullable)
+	if bm == nil {
+		return nc
+	}
 	if bm.cap != int(rc.Len()) {
 		panic("pruning bitmap does not align with the dataset")
 	}
@@ -298,7 +308,6 @@ func (rc *columnFloats) Prune(bm *Bitmap) typedColumn {
 		return rc
 	}
 
-	nc := newColumnFloats(rc.nullable)
 	for j := 0; j < int(rc.Len()); j++ {
 		if !bm.get(j) {
 			continue
@@ -314,6 +323,10 @@ func (rc *columnFloats) Prune(bm *Bitmap) typedColumn {
 }
 
 func (rc *columnBools) Prune(bm *Bitmap) typedColumn {
+	nc := newColumnBools(rc.nullable)
+	if bm == nil {
+		return nc
+	}
 	if bm.cap != int(rc.Len()) {
 		panic("pruning bitmap does not align with the dataset")
 	}
@@ -322,7 +335,6 @@ func (rc *columnBools) Prune(bm *Bitmap) typedColumn {
 		return rc
 	}
 
-	nc := newColumnBools(rc.nullable)
 	for j := 0; j < int(rc.Len()); j++ {
 		if !bm.get(j) {
 			continue
@@ -339,6 +351,10 @@ func (rc *columnBools) Prune(bm *Bitmap) typedColumn {
 }
 
 func (rc *columnNulls) Prune(bm *Bitmap) typedColumn {
+	nc := newColumnNulls()
+	if bm == nil {
+		return nc
+	}
 	if bm.cap != int(rc.Len()) {
 		panic("pruning bitmap does not align with the dataset")
 	}
@@ -347,7 +363,6 @@ func (rc *columnNulls) Prune(bm *Bitmap) typedColumn {
 		return rc
 	}
 
-	nc := newColumnNulls()
 	nc.length = uint32(bm.Count())
 
 	return nc

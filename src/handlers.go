@@ -62,7 +62,7 @@ func (db *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	var query Query
 	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
-		responseError(w, http.StatusBadRequest, "did not supply correct query parameters")
+		responseError(w, http.StatusBadRequest, fmt.Sprintf("did not supply correct query parameters: %v", err))
 		return
 	}
 	res, err := db.query(query)
