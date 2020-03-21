@@ -61,11 +61,10 @@
         const body = {
             // limit: limit || 15,
             dataset: datasetID,
-            // filter: ["durationCompiling", "=", "1884"],
         }
-        // if (datasetID === '01683c712d778591c3') {
-        //     body.filter = ['VendorID', '=', '1']
-        // }
+        if (datasetID === '016cac6cc85f89971c') {
+            body.filter = {column: 'PULocationID', operator: '>', arg: '50'}
+        }
         const req = await fetch('/api/query', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},

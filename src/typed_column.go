@@ -28,18 +28,61 @@ type typedColumn interface {
 
 type operator uint8
 
+// make sure to update the stringer and marshaler
 const (
 	opNone operator = iota
+	opIsNull
+	opIsNotNull
 	opEqual
 	opNotEqual
-	// opIsNull
-	// opIsNotNull
-	// opGt
-	// opGte
-	// opLt
-	// opLte
-	// opIn
+	opGt
+	opGte
+	opLt
+	opLte
+	// contains (icontains? for case insensitive?)
+	// opIn // make sure we disallow nulls in this list
 )
+
+// OPTIM: ...
+// support '<>' as opNotEqual?
+// and 'is not null' as opIsNotNull?
+func (op operator) String() string {
+	return []string{"none", "is null", "not null", "=", "!=", ">", ">=", "<", "<="}[op]
+}
+
+func (op operator) MarshalJSON() ([]byte, error) {
+	return append(append([]byte("\""), []byte(op.String())...), '"'), nil
+}
+
+func (op *operator) UnmarshalJSON(data []byte) error {
+	if !(len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"') {
+		return errors.New("unexpected string to be unmarshaled into a dtype")
+	}
+	sdata := string(data[1 : len(data)-1])
+	switch sdata {
+	case "none":
+		*op = opNone
+	case "=":
+		*op = opEqual
+	case "!=":
+		*op = opNotEqual
+	case "is null":
+		*op = opIsNull
+	case "not null":
+		*op = opIsNotNull
+	case ">":
+		*op = opGt
+	case ">=":
+		*op = opGte
+	case "<":
+		*op = opLt
+	case "<=":
+		*op = opLte
+	default:
+		return fmt.Errorf("operator does not exist: %v", sdata)
+	}
+	return nil
+}
 
 func newTypedColumnFromSchema(schema columnSchema) typedColumn {
 	switch schema.Dtype {
@@ -709,21 +752,45 @@ func (rc *columnStrings) Filter(op operator, expr string) *Bitmap {
 		}
 
 		return bm
+	case opNotEqual:
+		var bm *Bitmap
+		for j := uint32(0); j < rc.Len(); j++ {
+			if rc.nthValue(j) != expr {
+				if bm == nil {
+					bm = NewBitmap(int(rc.Len()))
+				}
+				bm.set(int(j), true)
+			}
+		}
+
+		return bm
 	default:
 		panic(fmt.Sprintf("op not supported: %v", op))
 	}
 }
 
 func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
+	val, err := parseInt(expr)
+	if err != nil {
+		panic(err)
+	}
 	switch op {
 	case opEqual:
-		val, err := parseInt(expr)
-		if err != nil {
-			panic(err)
-		}
 		var bm *Bitmap
 		for j := 0; j < int(rc.Len()); j++ {
 			if rc.data[j] == val {
+				if bm == nil {
+					bm = NewBitmap(int(rc.Len()))
+				}
+				bm.set(j, true)
+			}
+		}
+
+		return bm
+	case opNotEqual:
+		var bm *Bitmap
+		for j := 0; j < int(rc.Len()); j++ {
+			if rc.data[j] != val {
 				if bm == nil {
 					bm = NewBitmap(int(rc.Len()))
 				}
@@ -738,15 +805,27 @@ func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
 }
 
 func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
+	val, err := parseFloat(expr)
+	if err != nil {
+		panic(err)
+	}
 	switch op {
 	case opEqual:
-		val, err := parseFloat(expr)
-		if err != nil {
-			panic(err)
-		}
 		var bm *Bitmap
 		for j := 0; j < int(rc.Len()); j++ {
 			if rc.data[j] == val {
+				if bm == nil {
+					bm = NewBitmap(int(rc.Len()))
+				}
+				bm.set(j, true)
+			}
+		}
+
+		return bm
+	case opNotEqual:
+		var bm *Bitmap
+		for j := 0; j < int(rc.Len()); j++ {
+			if rc.data[j] != val {
 				if bm == nil {
 					bm = NewBitmap(int(rc.Len()))
 				}
@@ -761,15 +840,26 @@ func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
 }
 
 func (rc *columnBools) Filter(op operator, expr string) *Bitmap {
+	val, err := parseBool(expr)
+	if err != nil {
+		panic(err)
+	}
 	switch op {
 	case opEqual:
-		val, err := parseBool(expr)
-		if err != nil {
-			panic(err)
-		}
 		// OPTIM: if we get zero matches, let's return nil (.Count is fast)
 		// if we're looking for true values, we already have them in our bitmap
 		if val {
+			return rc.data
+		}
+		// otherwise we just flip all the relevant bits
+		bm := rc.data.Clone()
+		bm.invert()
+
+		return bm
+	case opNotEqual:
+		// OPTIM: if we get zero matches, let's return nil (.Count is fast)
+		// if we're looking for true values, we already have them in our bitmap
+		if !val {
 			return rc.data
 		}
 		// otherwise we just flip all the relevant bits
@@ -783,16 +873,18 @@ func (rc *columnBools) Filter(op operator, expr string) *Bitmap {
 }
 
 // OPTIM: we shouldn't need to return a full bitmap - it will always be all ones or all zeroes
+// let's not support any ops for now, we don't know what we'll do with this column
 func (rc *columnNulls) Filter(op operator, expr string) *Bitmap {
-	switch op {
-	case opEqual:
-		bm := NewBitmap(int(rc.Len()))
-		if isNull(expr) {
-			bm.invert()
-		}
+	// switch op {
+	// case opEqual:
+	// 	bm := NewBitmap(int(rc.Len()))
+	// 	if isNull(expr) {
+	// 		bm.invert()
+	// 	}
 
-		return bm
-	default:
-		panic(fmt.Sprintf("op not supported %v", op))
-	}
+	// 	return bm
+	// default:
+	// 	panic(fmt.Sprintf("op not supported %v", op))
+	// }
+	panic(fmt.Sprintf("op not supported %v", op))
 }

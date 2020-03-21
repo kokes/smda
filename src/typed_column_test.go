@@ -274,24 +274,32 @@ func TestBasicFilters(t *testing.T) {
 		{newColumnBools(false), []string{"true", "false", "true"}, opEqual, "true", 2},
 		{newColumnBools(false), []string{"false", "true", "false"}, opEqual, "false", 2},
 		{newColumnBools(false), []string{"false", "false", "false"}, opEqual, "true", 0},
+		{newColumnBools(false), []string{"false", "false", "false"}, opNotEqual, "false", 0},
+		{newColumnBools(false), []string{"false", "true", "false"}, opNotEqual, "false", 1},
 
 		{newColumnInts(false), []string{"1", "2", "3"}, opEqual, "0", 0},
 		{newColumnInts(false), []string{"1", "2", "3"}, opEqual, "3", 1},
 		{newColumnInts(false), []string{"1", "2", "3"}, opEqual, "10000", 0},
+		{newColumnInts(false), []string{"1", "2", "3"}, opNotEqual, "1", 2},
+		{newColumnInts(false), []string{"1", "2", "3"}, opNotEqual, "4", 3},
+		{newColumnInts(false), []string{"1", "1", "1"}, opNotEqual, "1", 0},
 
 		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1.2300", 1},
 		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1.230000001", 0},
 		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opEqual, "+0", 2},
 		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1000", 1},
+		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opNotEqual, "0", 2},
+		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opNotEqual, "1000", 3},
+		{newColumnFloats(false), []string{"1.23", "+0", "-0", "1e3"}, opNotEqual, "1234", 4},
 
 		{newColumnStrings(false), []string{"foo", "bar", "baz", "foo"}, opEqual, "baz", 1},
 		{newColumnStrings(false), []string{"foo", "bar", "baz", "foo"}, opEqual, "foo", 2},
 		{newColumnStrings(false), []string{"foo", "bar", "baz", "foo"}, opEqual, "FOO", 0},
+		{newColumnStrings(false), []string{"foo", "bar", "baz", "foo"}, opNotEqual, "foo", 2},
+		{newColumnStrings(false), []string{"foo", "bar", "baz", "foo"}, opNotEqual, "FOO", 4},
 
 		// we don't need to test null columns, because we might just delete all the opEqual code, it probably
 		// isn't useful for anyone
-
-		// TODO: notEqual (and other ops, if we have them)
 	}
 	for _, test := range tests {
 		for _, val := range test.values {
@@ -306,12 +314,10 @@ func TestBasicFilters(t *testing.T) {
 			count = filtered.Count()
 		}
 		if count != test.count {
-			t.Errorf("expected that filtering %v in %v would result in %v rows, got %v", test.val, test.values, test.count, count)
+			t.Errorf("expected that filtering %v using %v in %v would result in %v rows, got %v", test.val, test.op, test.values, test.count, count)
 		}
 	}
 }
-
-// TODO: equality testing in filtering can be done without nthValue! We just need to construct a new typedColumn and deepEqual them!
 
 func TestBasicPruning(t *testing.T) {
 	tests := []struct {
@@ -356,6 +362,10 @@ func TestBasicPruning(t *testing.T) {
 			t.Errorf("expected that pruning %v would result in %v rows, got %v", test.values, test.count, count)
 		}
 	}
+}
+
+func TestFilterAndPrune(t *testing.T) {
+	// TODO
 }
 
 // func newTypedColumnFromSchema(schema columnSchema) typedColumn {

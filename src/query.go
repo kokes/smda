@@ -1,8 +1,6 @@
 package smda
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 )
 
@@ -20,29 +18,12 @@ type Query struct {
 
 // type FilterTree - to be used once we have AND and OR clauses
 type FilterExpression struct {
-	Column   string // this will be a projection, not just a column (e.g. NULLIF(a, b) > 3)
-	Operator string // TODO: change to `operator` and add an unmarshaler
-	Argument string // this might need to be an array perhaps, when we get BETWEEN etc.
-}
-
-func (fe *FilterExpression) UnmarshalJSON(data []byte) error {
-	var raw []string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	if len(raw) != 3 {
-		return fmt.Errorf("expecting three parts to a filter expression, got %v: %v", len(raw), raw)
-	}
-	fe.Column = raw[0]
-	fe.Operator = raw[1] // convert to `operator` once we get that one working
-	fe.Argument = raw[2]
-	return nil
+	Column   string   `json:"column"`   // this will be a projection, not just a column (e.g. NULLIF(a, b) > 3)
+	Operator operator `json:"operator"` // TODO: change to `operator` and add an unmarshaler
+	Argument string   `json:"arg"`      // this might need to be an array perhaps, when we get BETWEEN etc.
 }
 
 func (db *Database) Filter(ds *Dataset, fe *FilterExpression) ([]*Bitmap, error) {
-	if fe.Operator != "=" {
-		return nil, errors.New("TODO")
-	}
 	colIndex := -1
 	for j, col := range ds.Schema {
 		if col.Name == fe.Column {
@@ -60,7 +41,10 @@ func (db *Database) Filter(ds *Dataset, fe *FilterExpression) ([]*Bitmap, error)
 		if err != nil {
 			return nil, err
 		}
-		bm := col.Filter(opEqual, fe.Argument)
+		// TODO: the thing with typedColumn.Filter not returning an error is that it panic
+		// when using a non-supported operator - this does not lead to good user experience, plus
+		// it allows the user to crash the system without a great logging experience
+		bm := col.Filter(fe.Operator, fe.Argument)
 		bms = append(bms, bm)
 	}
 	return bms, nil
