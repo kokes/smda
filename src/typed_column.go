@@ -775,22 +775,22 @@ func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
 		panic(err)
 	}
 	switch op {
-	case opEqual:
+	case opEqual, opNotEqual, opLt, opLte, opGt, opGte:
 		var bm *Bitmap
+		var match bool
 		for j := 0; j < int(rc.Len()); j++ {
-			if rc.data[j] == val {
-				if bm == nil {
-					bm = NewBitmap(int(rc.Len()))
-				}
-				bm.set(j, true)
+			match = false
+			diff := rc.data[j] - val
+			// OPTIM: collapse into one big if?
+			if diff == 0 && (op == opEqual || op == opLte || op == opGte) {
+				match = true
+			} else if diff < 0 && (op == opNotEqual || op == opLt || op == opLte) {
+				match = true
+			} else if diff > 0 && (op == opNotEqual || op == opGt || op == opGte) {
+				match = true
 			}
-		}
 
-		return bm
-	case opNotEqual:
-		var bm *Bitmap
-		for j := 0; j < int(rc.Len()); j++ {
-			if rc.data[j] != val {
+			if match {
 				if bm == nil {
 					bm = NewBitmap(int(rc.Len()))
 				}
@@ -810,22 +810,22 @@ func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
 		panic(err)
 	}
 	switch op {
-	case opEqual:
+	case opEqual, opNotEqual, opLt, opLte, opGt, opGte:
 		var bm *Bitmap
+		var match bool
 		for j := 0; j < int(rc.Len()); j++ {
-			if rc.data[j] == val {
-				if bm == nil {
-					bm = NewBitmap(int(rc.Len()))
-				}
-				bm.set(j, true)
+			match = false
+			diff := rc.data[j] - val
+			// OPTIM: collapse into one big if?
+			if diff == 0 && (op == opEqual || op == opLte || op == opGte) {
+				match = true
+			} else if diff < 0 && (op == opNotEqual || op == opLt || op == opLte) {
+				match = true
+			} else if diff > 0 && (op == opNotEqual || op == opGt || op == opGte) {
+				match = true
 			}
-		}
 
-		return bm
-	case opNotEqual:
-		var bm *Bitmap
-		for j := 0; j < int(rc.Len()); j++ {
-			if rc.data[j] != val {
+			if match {
 				if bm == nil {
 					bm = NewBitmap(int(rc.Len()))
 				}
