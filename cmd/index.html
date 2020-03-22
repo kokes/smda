@@ -59,11 +59,11 @@
 
     async function getDatasetData(datasetID) {
         const body = {
-            // limit: limit || 15,
+            limit: 25,
             dataset: datasetID,
         }
-        if (datasetID === '016cac6cc85f89971c') {
-            body.filter = {column: 'PULocationID', operator: '>', arg: '50'}
+        if (datasetID === '01e33a73da3776806e') {
+            body.filter = {column: 'VendorID', operator: '>', arg: '1'}
         }
         const req = await fetch('/api/query', {
             method: 'POST',
@@ -88,19 +88,18 @@
             }
             table.appendChild(thead);
 
-            let colsLength = data.data[0].length; // TODO: what if we get nothing?
-            if (colsLength > 20) {
-                colsLength = 20;
-            }
+            let nstripes = data.data.length; // TODO: what if we get nothing?
 
-            for (let j = 0; j < colsLength; j++) {
-                const row = document.createElement('tr');
-                for (let colNum = 0; colNum < data.columns.length; colNum++) {
-                    const cell = document.createElement('td');
-                    cell.innerText = data.data[colNum][j];
-                    row.appendChild(cell);
+            for (let j = 0; j < nstripes; j++) {
+                for (let rowNum=0; rowNum < data.data[j][0].length; rowNum++) {
+                    const row = document.createElement('tr');
+                    for (let colNum = 0; colNum < data.columns.length; colNum++) {
+                        const cell = document.createElement('td');
+                        cell.innerText = data.data[j][colNum][rowNum];
+                        row.appendChild(cell);
+                    }
+                    table.appendChild(row);
                 }
-                table.appendChild(row);
             }
 
             target.appendChild(heading);

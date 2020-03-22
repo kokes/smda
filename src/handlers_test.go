@@ -246,7 +246,7 @@ func TestHandlingQueries(t *testing.T) {
 
 	for _, ds := range dss {
 		url := fmt.Sprintf("%s/api/query", srv.URL)
-		query := Query{Dataset: ds.ID}
+		query := Query{Dataset: ds.ID, Limit: 100}
 		body, err := json.Marshal(query)
 		if err != nil {
 			t.Fatal(err)
@@ -265,8 +265,8 @@ func TestHandlingQueries(t *testing.T) {
 		defer resp.Body.Close()
 
 		var dec struct {
-			Columns []string `json:"columns"`
-			Data    [][]int  `json:"data"`
+			Columns []string  `json:"columns"`
+			Data    [][][]int `json:"data"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
 			t.Fatal(err)
@@ -276,7 +276,7 @@ func TestHandlingQueries(t *testing.T) {
 		if !reflect.DeepEqual(expCol, dec.Columns) {
 			t.Errorf("expected the columns to be %v, got %v", expCol, dec.Columns)
 		}
-		if !(len(dec.Data) == 2 && len(dec.Data[0]) == 2) {
+		if !(len(dec.Data) == 1 && len(dec.Data[0][0]) == 2) {
 			t.Errorf("unexpected payload: %v", dec.Data)
 		}
 	}

@@ -21,6 +21,31 @@ func (bm *Bitmap) Count() int {
 	return ret
 }
 
+// does not truncate the underlying storage - the cap is still the same - perhaps we should do this?
+// once we hit the n == count condition, we can discard the rest and lower the cap? will require a fair bit
+// of testing, but should be doable
+func (bm *Bitmap) KeepFirstN(n int) {
+	if n >= bm.Count() {
+		return
+	}
+	for j, el := range bm.data {
+		if n <= 0 {
+			bm.data[j] = 0
+			continue
+		}
+		count := bits.OnesCount64(el)
+		if count > n {
+			for b := 63; b > 0; b-- {
+				bm.data[j] &= (1 << b) - 1
+				if bits.OnesCount64(bm.data[j]) == n {
+					break
+				}
+			}
+		}
+		n -= count
+	}
+}
+
 func (bm *Bitmap) Clone() *Bitmap {
 	data := make([]uint64, len(bm.data))
 	copy(data, bm.data)
@@ -31,11 +56,11 @@ func (bm *Bitmap) Clone() *Bitmap {
 }
 
 func (bm *Bitmap) ensure(n int) {
-	if n > bm.cap {
-		bm.cap = n
-	}
 	if bm.data != nil && n <= bm.cap {
 		return
+	}
+	if n > bm.cap {
+		bm.cap = n
 	}
 	nvals := n / 64
 	if n%64 != 0 {

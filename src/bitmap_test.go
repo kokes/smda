@@ -52,6 +52,18 @@ func TestBitmapRoundtrip(t *testing.T) {
 	}
 }
 
+// fuzz it perhaps? or at least increase the size of the raw set
+func TestKeepingFirstN(t *testing.T) {
+	raw := []bool{true, true, false, true, false, true}
+	for j := 0; j < NewBitmapFromBools(raw).Count(); j++ {
+		bm := NewBitmapFromBools(raw)
+		bm.KeepFirstN(j)
+		if bm.Count() != j {
+			t.Errorf("expecting truncating to %v to keep that many values, got %v", j, bm.Count())
+		}
+	}
+}
+
 // func NewBitmap(n int) *bitmap {
 // func NewBitmapFromBools(data []bool) *bitmap {
 // func (bm *Bitmap) Count() int {

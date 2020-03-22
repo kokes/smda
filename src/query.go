@@ -14,6 +14,7 @@ import (
 type Query struct {
 	Dataset UID               `json:"dataset"`
 	Filter  *FilterExpression `json:"filter"`
+	Limit   int               `json:"limit"`
 }
 
 // type FilterTree - to be used once we have AND and OR clauses
@@ -53,8 +54,8 @@ func (db *Database) Filter(ds *Dataset, fe *FilterExpression) ([]*Bitmap, error)
 // QueryResult holds the result of a query, at this point it's fairly literal - in the future we may want
 // a QueryResult to be a Dataset of its own (for better interoperability, persistence, caching etc.)
 type QueryResult struct {
-	Columns []string      `json:"columns"`
-	Data    []typedColumn `json:"data"`
+	Columns []string        `json:"columns"`
+	Data    [][]typedColumn `json:"data"`
 }
 
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
@@ -62,7 +63,7 @@ type QueryResult struct {
 func (db *Database) query(q Query) (*QueryResult, error) {
 	res := &QueryResult{
 		Columns: make([]string, 0),
-		Data:    make([]typedColumn, 0),
+		Data:    make([][]typedColumn, 0),
 	}
 
 	ds, err := db.getDataset(q.Dataset)
@@ -82,17 +83,55 @@ func (db *Database) query(q Query) (*QueryResult, error) {
 		res.Columns = append(res.Columns, col.Name)
 	}
 
-	// so far just loading the first stripe, let's see where we get from here
-	for stripeIndex, stripeID := range ds.Stripes[:1] {
+	limit := q.Limit
+	for stripeIndex, stripeID := range ds.Stripes {
+		// if no relevant data in this stripe, skip it
+		if bms != nil {
+			filteredLen := bms[stripeIndex].Count()
+			if filteredLen == 0 {
+				continue
+			}
+			if filteredLen > limit {
+				bms[stripeIndex].KeepFirstN(limit)
+				limit -= filteredLen
+			}
+		}
+		stripeData := make([]typedColumn, 0, len(ds.Schema))
+		var bmnf *Bitmap // bitmap for non-filtered data - I really dislike the way this is handled (TODO)
 		for j := range ds.Schema {
 			col, err := db.readColumnFromStripe(ds, stripeID, j)
 			if err != nil {
 				return nil, err
 			}
+			// prune when filtering
 			if bms != nil {
 				col = col.Prune(bms[stripeIndex])
 			}
-			res.Data = append(res.Data, col)
+			// prune non-filtered stripes as well (when limit is applied)
+			// for each stripe, set up the bitmap when in the first column (because we don't
+			// know the columns' length before that)
+			if j == 0 && bms == nil {
+				ln := int(col.Len())
+				if ln <= limit {
+					limit -= ln
+				} else {
+					bmnf = NewBitmap(ln)
+					bmnf.invert()
+					bmnf.KeepFirstN(limit)
+				}
+			}
+			if bmnf != nil {
+				col = col.Prune(bmnf)
+			}
+			stripeData = append(stripeData, col)
+		}
+		if bmnf != nil {
+			limit -= bmnf.Count()
+			bmnf = nil
+		}
+		res.Data = append(res.Data, stripeData)
+		if limit <= 0 {
+			break
 		}
 	}
 
