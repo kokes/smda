@@ -3,6 +3,7 @@ package smda
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"strconv"
@@ -366,6 +367,59 @@ func TestBasicPruning(t *testing.T) {
 
 func TestFilterAndPrune(t *testing.T) {
 	// TODO
+}
+
+func TestAppending(t *testing.T) {
+	tests := []struct {
+		dtype    dtype
+		nullable bool
+		a        []string
+		b        []string
+		res      []string
+	}{
+		{dtypeString, false, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
+		{dtypeInt, false, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
+		{dtypeFloat, false, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
+		{dtypeBool, false, []string{"T", "F", "T"}, []string{"F", "F", "T"}, []string{"T", "F", "T", "F", "F", "T"}},
+
+		// nullable (makes no sense for strings, we don't support them?)
+		// {dtypeString, true, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
+		// {dtypeString, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
+		{dtypeInt, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
+		// TODO: I think this hits https://github.com/golang/go/issues/12025 - failure for reflect.DeepEqual to compare nested NaNs
+		// {dtypeFloat, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
+		{dtypeBool, true, []string{"", "", ""}, []string{"F", "F", ""}, []string{"", "", "", "F", "F", ""}},
+	}
+	for _, test := range tests {
+		rc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype, Nullable: test.nullable})
+		nrc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype, Nullable: test.nullable})
+		rrc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype, Nullable: test.nullable})
+		for _, el := range test.a {
+			if err := rc.addValue(el); err != nil {
+				t.Error(err)
+			}
+		}
+		for _, el := range test.b {
+			if err := nrc.addValue(el); err != nil {
+				t.Error(err)
+			}
+		}
+		for _, el := range test.res {
+			if err := rrc.addValue(el); err != nil {
+				t.Error(err)
+			}
+		}
+		if err := rc.Append(nrc); err != nil {
+			t.Error(err)
+		}
+		if !reflect.DeepEqual(rc, rrc) {
+			fmt.Println(rc.(*columnFloats).nullability)
+			fmt.Println(rrc.(*columnFloats).nullability)
+			fmt.Println(rc, rrc)
+			t.Errorf("expected that %v plus %v results in %v", test.a, test.b, test.res)
+		}
+
+	}
 }
 
 // func newTypedColumnFromSchema(schema columnSchema) typedColumn {

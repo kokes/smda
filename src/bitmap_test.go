@@ -64,6 +64,28 @@ func TestKeepingFirstN(t *testing.T) {
 	}
 }
 
+func TestBitmapAppending(t *testing.T) {
+	tests := []struct {
+		a, b, res []bool
+	}{
+		{[]bool{true, false, true}, []bool{false, true}, []bool{true, false, true, false, true}},
+		{[]bool{}, []bool{}, []bool{}},
+		{[]bool{true}, []bool{}, []bool{true}},
+		{[]bool{}, []bool{true}, []bool{true}},
+	}
+
+	for _, test := range tests {
+		bm1 := NewBitmapFromBools(test.a)
+		bm2 := NewBitmapFromBools(test.b)
+		bm3 := NewBitmapFromBools(test.res)
+
+		bm1.Append(bm2)
+		if !reflect.DeepEqual(bm1, bm3) {
+			t.Errorf("could not concat %v and %v to get %v", test.a, test.b, test.res)
+		}
+	}
+}
+
 // func NewBitmap(n int) *bitmap {
 // func NewBitmapFromBools(data []bool) *bitmap {
 // func (bm *Bitmap) Count() int {

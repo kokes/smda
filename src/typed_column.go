@@ -20,6 +20,7 @@ type typedColumn interface {
 	serializeInto(io.Writer) (int, error)
 	MarshalJSON() ([]byte, error)
 	Prune(*Bitmap) typedColumn
+	Append(typedColumn) error
 	Len() int
 	// for now it takes a string expression, it will be parsed beforehand in the future
 	// also, we should consider if this should return a new typedColumn with the filtered values already?
@@ -221,6 +222,10 @@ func (rc *columnInts) addValue(s string) error {
 	}
 	rc.data = append(rc.data, val)
 	rc.length++
+	// make sure the nullability bitmap aligns with the length of the chunk (TODO: test this explicitly)
+	if rc.nullable {
+		rc.nullability.ensure(int(rc.length))
+	}
 	return nil
 }
 
@@ -248,6 +253,10 @@ func (rc *columnFloats) addValue(s string) error {
 
 	rc.data = append(rc.data, val)
 	rc.length++
+	// make sure the nullability bitmap aligns with the length of the chunk
+	if rc.nullable {
+		rc.nullability.ensure(int(rc.length))
+	}
 	return nil
 }
 
@@ -267,6 +276,10 @@ func (rc *columnBools) addValue(s string) error {
 	}
 	rc.data.set(rc.Len(), val)
 	rc.length++
+	// make sure the nullability bitmap aligns with the length of the chunk
+	if rc.nullable {
+		rc.nullability.ensure(int(rc.length))
+	}
 	return nil
 }
 
@@ -275,6 +288,91 @@ func (rc *columnNulls) addValue(s string) error {
 		return fmt.Errorf("a null column expects null values, got: %v", s)
 	}
 	rc.length++
+	return nil
+}
+
+func (rc *columnStrings) Append(tc typedColumn) error {
+	nrc, ok := tc.(*columnStrings)
+	if !ok {
+		return errors.New("cannot append chunks of differing types")
+	}
+	if rc.nullable != nrc.nullable {
+		return errors.New("when appending, both chunks need to have the same nullability") // TODO: fix in all of these appends? Makes little sense
+	}
+	if rc.nullable {
+		rc.nullability.Append(nrc.nullability)
+	}
+	rc.data = append(rc.data, nrc.data...)
+	rc.length += nrc.length
+
+	off := uint32(0)
+	if rc.length > 0 {
+		off = rc.offsets[len(rc.offsets)-1]
+	}
+	for _, el := range nrc.offsets[1:] {
+		rc.offsets = append(rc.offsets, el+off)
+	}
+
+	return nil
+}
+func (rc *columnInts) Append(tc typedColumn) error {
+	nrc, ok := tc.(*columnInts)
+	if !ok {
+		return errors.New("cannot append chunks of differing types")
+	}
+	if rc.nullable != nrc.nullable {
+		return errors.New("when appending, both chunks need to have the same nullability") // TODO: fix in all of these appends? Makes little sense
+	}
+	if rc.nullable {
+		rc.nullability.Append(nrc.nullability)
+	}
+
+	rc.data = append(rc.data, nrc.data...)
+	rc.length += nrc.length
+
+	return nil
+}
+func (rc *columnFloats) Append(tc typedColumn) error {
+	nrc, ok := tc.(*columnFloats)
+	if !ok {
+		return errors.New("cannot append chunks of differing types")
+	}
+	if rc.nullable != nrc.nullable {
+		return errors.New("when appending, both chunks need to have the same nullability") // TODO: fix in all of these appends? Makes little sense
+	}
+	if rc.nullable {
+		rc.nullability.Append(nrc.nullability)
+	}
+
+	rc.data = append(rc.data, nrc.data...)
+	rc.length += nrc.length
+
+	return nil
+}
+func (rc *columnBools) Append(tc typedColumn) error {
+	nrc, ok := tc.(*columnBools)
+	if !ok {
+		return errors.New("cannot append chunks of differing types")
+	}
+	if rc.nullable != nrc.nullable {
+		return errors.New("when appending, both chunks need to have the same nullability") // TODO: fix in all of these appends? Makes little sense
+	}
+	if rc.nullable {
+		rc.nullability.Append(nrc.nullability)
+	}
+
+	rc.data.Append(nrc.data)
+	rc.length += nrc.length
+
+	return nil
+}
+func (rc *columnNulls) Append(tc typedColumn) error {
+	nrc, ok := tc.(*columnBools)
+	if !ok {
+		return errors.New("cannot append chunks of differing types")
+	}
+	rc.length += nrc.length
+
 	return nil
 }
 

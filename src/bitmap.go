@@ -46,6 +46,13 @@ func (bm *Bitmap) KeepFirstN(n int) {
 	}
 }
 
+func (bm *Bitmap) Append(obm *Bitmap) {
+	cap := bm.cap
+	for j := 0; j < obm.cap; j++ {
+		bm.set(cap+j, obm.get(j))
+	}
+}
+
 func (bm *Bitmap) Clone() *Bitmap {
 	data := make([]uint64, len(bm.data))
 	copy(data, bm.data)
