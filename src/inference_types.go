@@ -182,7 +182,7 @@ func (db *Database) inferTypes(ds *Dataset) ([]columnSchema, error) {
 			}
 			// OPTIM: in many cases we already know we can't have all ints/floats/bools, so it doesn't make sense
 			// to check types any more - it's only useful for reporting - will we use it for that ever?
-			for j := uint32(0); j < schunk.Len(); j++ {
+			for j := 0; j < schunk.Len(); j++ {
 				tg.addValue(schunk.nthValue(j))
 			}
 		}

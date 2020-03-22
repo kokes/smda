@@ -27,7 +27,7 @@ func TestBasicStringColumn(t *testing.T) {
 		// TODO: this is the only test with roundtrips, because we don't have nth value implemented anywhere else
 		// that's because we would have to have interface{} as the return value, and that's no good for individual values
 		for j, val := range vals {
-			got := nc.nthValue(uint32(j))
+			got := nc.nthValue(j)
 			if got != val {
 				t.Errorf("expecting %v, got %v", val, got)
 				return
@@ -357,7 +357,7 @@ func TestBasicPruning(t *testing.T) {
 		}
 
 		pruned := test.rc.Prune(test.bm)
-		count := int(pruned.Len())
+		count := pruned.Len()
 		if count != test.count {
 			t.Errorf("expected that pruning %v would result in %v rows, got %v", test.values, test.count, count)
 		}

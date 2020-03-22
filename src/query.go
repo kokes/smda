@@ -111,7 +111,7 @@ func (db *Database) query(q Query) (*QueryResult, error) {
 			// for each stripe, set up the bitmap when in the first column (because we don't
 			// know the columns' length before that)
 			if j == 0 && bms == nil {
-				ln := int(col.Len())
+				ln := col.Len()
 				if ln <= limit {
 					limit -= ln
 				} else {
