@@ -88,18 +88,16 @@
             }
             table.appendChild(thead);
 
-            let nstripes = data.data.length; // TODO: what if we get nothing?
+            let nrows = data.data[0].length; // TODO: what if we get nothing?
 
-            for (let j = 0; j < nstripes; j++) {
-                for (let rowNum=0; rowNum < data.data[j][0].length; rowNum++) {
-                    const row = document.createElement('tr');
-                    for (let colNum = 0; colNum < data.columns.length; colNum++) {
-                        const cell = document.createElement('td');
-                        cell.innerText = data.data[j][colNum][rowNum];
-                        row.appendChild(cell);
-                    }
-                    table.appendChild(row);
+            for (let rowNum=0; rowNum < nrows; rowNum++) {
+                const row = document.createElement('tr');
+                for (let colNum = 0; colNum < data.columns.length; colNum++) {
+                    const cell = document.createElement('td');
+                    cell.innerText = data.data[colNum][rowNum];
+                    row.appendChild(cell);
                 }
+                table.appendChild(row);
             }
 
             target.appendChild(heading);

@@ -54,8 +54,8 @@ func (db *Database) Filter(ds *Dataset, fe *FilterExpression) ([]*Bitmap, error)
 // QueryResult holds the result of a query, at this point it's fairly literal - in the future we may want
 // a QueryResult to be a Dataset of its own (for better interoperability, persistence, caching etc.)
 type QueryResult struct {
-	Columns []string        `json:"columns"`
-	Data    [][]typedColumn `json:"data"`
+	Columns []string      `json:"columns"`
+	Data    []typedColumn `json:"data"`
 }
 
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
@@ -63,7 +63,7 @@ type QueryResult struct {
 func (db *Database) query(q Query) (*QueryResult, error) {
 	res := &QueryResult{
 		Columns: make([]string, 0),
-		Data:    make([][]typedColumn, 0),
+		Data:    make([]typedColumn, 0),
 	}
 
 	ds, err := db.getDataset(q.Dataset)
@@ -81,6 +81,7 @@ func (db *Database) query(q Query) (*QueryResult, error) {
 
 	for _, col := range ds.Schema {
 		res.Columns = append(res.Columns, col.Name)
+		res.Data = append(res.Data, newTypedColumnFromSchema(col))
 	}
 
 	limit := q.Limit
@@ -96,7 +97,6 @@ func (db *Database) query(q Query) (*QueryResult, error) {
 				limit -= filteredLen
 			}
 		}
-		stripeData := make([]typedColumn, 0, len(ds.Schema))
 		var bmnf *Bitmap // bitmap for non-filtered data - I really dislike the way this is handled (TODO)
 		for j := range ds.Schema {
 			col, err := db.readColumnFromStripe(ds, stripeID, j)
@@ -123,13 +123,12 @@ func (db *Database) query(q Query) (*QueryResult, error) {
 			if bmnf != nil {
 				col = col.Prune(bmnf)
 			}
-			stripeData = append(stripeData, col)
+			res.Data[j].Append(col)
 		}
 		if bmnf != nil {
 			limit -= bmnf.Count()
 			bmnf = nil
 		}
-		res.Data = append(res.Data, stripeData)
 		if limit <= 0 {
 			break
 		}
