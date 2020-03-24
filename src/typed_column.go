@@ -830,6 +830,9 @@ func (rc *columnNulls) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ret)
 }
 
+// if we end up implementing nullable string columns, this will be quite painful,
+// because we'll need to distinguish between empty strings and null values (see AndNot calls
+// in the other dtypes)
 func (rc *columnStrings) Filter(op operator, expr string) *Bitmap {
 	switch op {
 	case opEqual:
@@ -895,6 +898,13 @@ func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
 				bm.set(j, true)
 			}
 		}
+		// account for nulls
+		// OPTIM: there is a way of knowing if we care about null values or not,
+		// e.g. if we do =2, then we don't have to worry about this. But I worry
+		// there will be too many edge cases for this to be worthwhile
+		if bm != nil && rc.nullable {
+			bm.AndNot(rc.nullability)
+		}
 
 		return bm
 	default:
@@ -930,6 +940,10 @@ func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
 				bm.set(j, true)
 			}
 		}
+		// account for nulls
+		if bm != nil && rc.nullable {
+			bm.AndNot(rc.nullability)
+		}
 
 		return bm
 	default:
@@ -943,26 +957,20 @@ func (rc *columnBools) Filter(op operator, expr string) *Bitmap {
 		panic(err)
 	}
 	switch op {
-	case opEqual:
+	case opEqual, opNotEqual:
 		// OPTIM: if we get zero matches, let's return nil (.Count is fast)
 		// if we're looking for true values, we already have them in our bitmap
-		if val {
-			return rc.data
+		var bm *Bitmap
+		if (val && op == opEqual) || (!val && op == opNotEqual) {
+			bm = rc.data
+		} else {
+			// otherwise we just flip all the relevant bits
+			bm = rc.data.Clone()
+			bm.invert()
 		}
-		// otherwise we just flip all the relevant bits
-		bm := rc.data.Clone()
-		bm.invert()
-
-		return bm
-	case opNotEqual:
-		// OPTIM: if we get zero matches, let's return nil (.Count is fast)
-		// if we're looking for true values, we already have them in our bitmap
-		if !val {
-			return rc.data
+		if rc.nullable {
+			bm.AndNot(rc.nullability)
 		}
-		// otherwise we just flip all the relevant bits
-		bm := rc.data.Clone()
-		bm.invert()
 
 		return bm
 	default:

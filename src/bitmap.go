@@ -62,6 +62,16 @@ func (bm *Bitmap) Clone() *Bitmap {
 	}
 }
 
+func (bm *Bitmap) AndNot(obm *Bitmap) {
+	if bm.cap != obm.cap {
+		panic("cannot &^ two not aligned bitmaps")
+	}
+
+	for j, el := range obm.data {
+		bm.data[j] &= ^el
+	}
+}
+
 func (bm *Bitmap) ensure(n int) {
 	if bm.data != nil && n <= bm.cap {
 		return

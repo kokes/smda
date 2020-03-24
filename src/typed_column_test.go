@@ -266,68 +266,77 @@ func TestJSONMarshaling(t *testing.T) {
 
 func TestBasicFilters(t *testing.T) {
 	tests := []struct {
-		dtype    dtype
-		nullable bool
-		values   []string
-		op       operator
-		val      string
-		count    int
+		dtype  dtype
+		values []string
+		op     operator
+		val    string
+		count  int
 	}{
-		{dtypeBool, false, []string{"true", "false", "true"}, opEqual, "true", 2},
-		{dtypeBool, false, []string{"false", "true", "false"}, opEqual, "false", 2},
-		{dtypeBool, false, []string{"false", "false", "false"}, opEqual, "true", 0},
-		{dtypeBool, false, []string{"false", "false", "false"}, opNotEqual, "false", 0},
-		{dtypeBool, false, []string{"false", "true", "false"}, opNotEqual, "false", 1},
+		{dtypeBool, []string{"true", "false", "true"}, opEqual, "true", 2},
+		{dtypeBool, []string{"false", "true", "false"}, opEqual, "false", 2},
+		{dtypeBool, []string{"false", "false", "false"}, opEqual, "true", 0},
+		{dtypeBool, []string{"false", "false", "false"}, opNotEqual, "false", 0},
+		{dtypeBool, []string{"false", "true", "false"}, opNotEqual, "false", 1},
 
-		{dtypeInt, false, []string{"1", "2", "3"}, opEqual, "0", 0},
-		{dtypeInt, false, []string{"1", "2", "3"}, opEqual, "3", 1},
-		{dtypeInt, false, []string{"1", "2", "3"}, opEqual, "10000", 0},
-		{dtypeInt, false, []string{"1", "2", "3"}, opNotEqual, "1", 2},
-		{dtypeInt, false, []string{"1", "2", "3"}, opNotEqual, "4", 3},
-		{dtypeInt, false, []string{"1", "1", "1"}, opNotEqual, "1", 0},
-		{dtypeInt, false, []string{"1", "1", "1"}, opGt, "0", 3},
-		{dtypeInt, false, []string{"1", "2", "3"}, opGt, "2", 1},
-		{dtypeInt, false, []string{"1", "2", "3"}, opGte, "2", 2},
-		{dtypeInt, false, []string{"1", "2", "3"}, opLt, "6", 3},
-		{dtypeInt, false, []string{"1", "2", "3"}, opLte, "2", 2},
+		{dtypeInt, []string{"1", "2", "3"}, opEqual, "0", 0},
+		{dtypeInt, []string{"1", "2", "3"}, opEqual, "3", 1},
+		{dtypeInt, []string{"1", "2", "3"}, opEqual, "10000", 0},
+		{dtypeInt, []string{"1", "2", "3"}, opNotEqual, "1", 2},
+		{dtypeInt, []string{"1", "2", "3"}, opNotEqual, "4", 3},
+		{dtypeInt, []string{"1", "1", "1"}, opNotEqual, "1", 0},
+		{dtypeInt, []string{"1", "1", "1"}, opGt, "0", 3},
+		{dtypeInt, []string{"1", "2", "3"}, opGt, "2", 1},
+		{dtypeInt, []string{"1", "2", "3"}, opGte, "2", 2},
+		{dtypeInt, []string{"1", "2", "3"}, opLt, "6", 3},
+		{dtypeInt, []string{"1", "2", "3"}, opLte, "2", 2},
 
-		{dtypeFloat, false, []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1.2300", 1},
-		{dtypeFloat, false, []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1.230000001", 0},
-		{dtypeFloat, false, []string{"1.23", "+0", "-0", "1e3"}, opEqual, "+0", 2},
-		{dtypeFloat, false, []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1000", 1},
-		{dtypeFloat, false, []string{"1.23", "+0", "-0", "1e3"}, opNotEqual, "0", 2},
-		{dtypeFloat, false, []string{"1.23", "+0", "-0", "1e3"}, opNotEqual, "1000", 3},
-		{dtypeFloat, false, []string{"1.23", "+0", "-0", "1e3"}, opNotEqual, "1234", 4},
-		{dtypeFloat, false, []string{"1", "1", "1"}, opGt, "0", 3},
-		{dtypeFloat, false, []string{"1", "2", "3"}, opGt, "2", 1},
-		{dtypeFloat, false, []string{"1", "2", "3"}, opGte, "2", 2},
-		{dtypeFloat, false, []string{"1", "2", "3"}, opLt, "6", 3},
-		{dtypeFloat, false, []string{"1", "2", "3"}, opLte, "2", 2},
+		{dtypeFloat, []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1.2300", 1},
+		{dtypeFloat, []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1.230000001", 0},
+		{dtypeFloat, []string{"1.23", "+0", "-0", "1e3"}, opEqual, "+0", 2},
+		{dtypeFloat, []string{"1.23", "+0", "-0", "1e3"}, opEqual, "1000", 1},
+		{dtypeFloat, []string{"1.23", "+0", "-0", "1e3"}, opNotEqual, "0", 2},
+		{dtypeFloat, []string{"1.23", "+0", "-0", "1e3"}, opNotEqual, "1000", 3},
+		{dtypeFloat, []string{"1.23", "+0", "-0", "1e3"}, opNotEqual, "1234", 4},
+		{dtypeFloat, []string{"1", "1", "1"}, opGt, "0", 3},
+		{dtypeFloat, []string{"1", "2", "3"}, opGt, "2", 1},
+		{dtypeFloat, []string{"1", "2", "3"}, opGte, "2", 2},
+		{dtypeFloat, []string{"1", "2", "3"}, opLt, "6", 3},
+		{dtypeFloat, []string{"1", "2", "3"}, opLte, "2", 2},
 
-		{dtypeString, false, []string{"foo", "bar", "baz", "foo"}, opEqual, "baz", 1},
-		{dtypeString, false, []string{"foo", "bar", "baz", "foo"}, opEqual, "foo", 2},
-		{dtypeString, false, []string{"foo", "bar", "baz", "foo"}, opEqual, "FOO", 0},
-		{dtypeString, false, []string{"foo", "bar", "baz", "foo"}, opNotEqual, "foo", 2},
-		{dtypeString, false, []string{"foo", "bar", "baz", "foo"}, opNotEqual, "FOO", 4},
+		{dtypeString, []string{"foo", "bar", "baz", "foo"}, opEqual, "baz", 1},
+		{dtypeString, []string{"foo", "bar", "baz", "foo"}, opEqual, "foo", 2},
+		{dtypeString, []string{"foo", "bar", "baz", "foo"}, opEqual, "FOO", 0},
+		{dtypeString, []string{"foo", "bar", "baz", "foo"}, opNotEqual, "foo", 2},
+		{dtypeString, []string{"foo", "bar", "baz", "foo"}, opNotEqual, "FOO", 4},
 
 		// we don't need to test null columns, because we might just delete all the opEqual code, it probably
 		// isn't useful for anyone
 	}
 	for _, test := range tests {
-		rc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype, Nullable: test.nullable})
-		for _, val := range test.values {
-			if err := rc.addValue(val); err != nil {
-				t.Fatal(err)
+		for _, nullable := range []bool{true, false} {
+			rc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype, Nullable: nullable})
+			// for nullable columns, sprinkle in some null values in the mix and make sure the filter
+			// works the same way
+			for j, val := range test.values {
+				// no support for nullable strings (or rather their addition), so we're exluding them for now
+				if nullable && j%2 == 0 && test.dtype != dtypeString {
+					if err := rc.addValue(""); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := rc.addValue(val); err != nil {
+					t.Fatal(err)
+				}
 			}
-		}
 
-		filtered := rc.Filter(test.op, test.val)
-		count := 0
-		if filtered != nil {
-			count = filtered.Count()
-		}
-		if count != test.count {
-			t.Errorf("expected that filtering %v using %v in %v would result in %v rows, got %v", test.val, test.op, test.values, test.count, count)
+			filtered := rc.Filter(test.op, test.val)
+			count := 0
+			if filtered != nil {
+				count = filtered.Count()
+			}
+			if count != test.count {
+				t.Errorf("expected that filtering %v using %v in %v would result in %v rows, got %v", test.val, test.op, test.values, test.count, count)
+			}
 		}
 	}
 }

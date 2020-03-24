@@ -95,3 +95,4 @@ func TestBitmapAppending(t *testing.T) {
 // func deserialiseBitmapFromReader(r io.Reader) (*bitmap, error) {
 
 // invert - testing inverting an empty bitmap
+// AndNot
