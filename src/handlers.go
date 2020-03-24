@@ -65,7 +65,7 @@ func (db *Database) handleQuery(w http.ResponseWriter, r *http.Request) {
 		responseError(w, http.StatusBadRequest, fmt.Sprintf("did not supply correct query parameters: %v", err))
 		return
 	}
-	res, err := db.query(query)
+	res, err := db.Query(query)
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed this query: %v", err))
 		return

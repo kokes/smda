@@ -101,6 +101,7 @@ func TestAddingDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(db.WorkingDirectory)
 	ds := NewDataset()
 	db.addDataset(ds)
 
@@ -118,6 +119,7 @@ func TestRemovingDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(db.WorkingDirectory)
 	ds := NewDataset()
 	db.addDataset(ds)
 	db.removeDataset(ds)
@@ -134,6 +136,7 @@ func TestGettingNewDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(db.WorkingDirectory)
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
 	ds, err := db.loadDatasetFromReaderAuto(data)
 	if err != nil {

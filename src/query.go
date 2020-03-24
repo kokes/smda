@@ -60,7 +60,7 @@ type QueryResult struct {
 
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
 // the former should result in a 4xx, the latter in a 5xx
-func (db *Database) query(q Query) (*QueryResult, error) {
+func (db *Database) Query(q Query) (*QueryResult, error) {
 	res := &QueryResult{
 		Columns: make([]string, 0),
 		Data:    make([]typedColumn, 0),
