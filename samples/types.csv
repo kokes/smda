@@ -1,0 +1,12 @@
+strings,strings_null,ints,ints_null,floats,floats_null,bools,bools_null,nulls
+foo,,123,194,13,13.2,true,false,
+bar,foo,1900,123,123.123,123.3,t,t,
+baz,,0,,1999.9,,f,f,
+bak,,-121231231,123,.3,.0001,false,,
+bar,,1412412313,,-.5,,true,,
+bar,baz,3223,1231213,1e3,,true,,
+bar,bak,0,1,1e18,1e12,false,false,
+foo,bar,+0,-1000,3.4e12,,f,true,
+baz,baz,-123,+123,.000001,,false,f,
+baz,baz,+123,-11,0,-0,true,t,
+foo,foo,+1239392,123,-0,1e21,true,,
