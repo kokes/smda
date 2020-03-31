@@ -10,6 +10,9 @@ run:
 test:
 	go test -timeout 5s -coverprofile=coverage.out ./...
 
+bench:
+	go test -bench=. -benchmem ./...
+
 testv:
 	go test -test.v -timeout 5s -coverprofile=coverage.out ./...
 

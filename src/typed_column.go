@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"math"
 )
@@ -17,10 +18,12 @@ import (
 // ALSO, this interface is a bit misnamed - it's not the whole column, just a given chunk within a stripe
 type typedColumn interface {
 	addValue(string) error
+	addValues([]string) error // just a utility thing, mostly for tests
 	serializeInto(io.Writer) (int, error)
 	MarshalJSON() ([]byte, error)
 	Prune(*Bitmap) typedColumn
 	Append(typedColumn) error
+	Hash([]uint64)
 	Len() int
 	// for now it takes a string expression, it will be parsed beforehand in the future
 	// also, we should consider if this should return a new typedColumn with the filtered values already?
@@ -185,6 +188,73 @@ func (rc *columnStrings) Len() int {
 	return int(rc.length)
 }
 
+// TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
+// BUT, we're sort of using it for type inference - so maybe caveat it with a note that it's only to be used with
+// not nullable columns?
+func (rc *columnStrings) nthValue(n int) string {
+	offsetStart := rc.offsets[n]
+	offsetEnd := rc.offsets[n+1]
+	return string(rc.data[offsetStart:offsetEnd])
+}
+
+// TODO: none of these Hash methods accounts for nulls
+// also we don't check that rc.Len() == len(hashes) - should panic otherwise
+func (rc *columnBools) Hash(hashes []uint64) {
+	for j := 0; j < rc.Len(); j++ {
+		// xor it with a random big integer - we'll need something similar for bool handling
+		// rand.Seed(time.Now().UnixNano())
+		// for j := 0; j < 2; j++ {
+		// 	val := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
+		// 	fmt.Printf("%x, %v\n", val, bits.OnesCount64(val))
+		// }
+		if rc.data.get(j) {
+			hashes[j] ^= 0x5a320fa8dfcfe3a7
+		} else {
+			hashes[j] ^= 0x1549571b97ff2995
+		}
+	}
+}
+func (rc *columnFloats) Hash(hashes []uint64) {
+	var buf [8]byte
+	hasher := fnv.New64()
+	for j, el := range rc.data {
+		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(el))
+		hasher.Write(buf[:])
+		hashes[j] ^= hasher.Sum64()
+		hasher.Reset()
+	}
+}
+
+// OPTIM: maphash might be faster than fnv or maphash? test it and if it is so, implement
+// everywhere, but be careful about the seed (needs to be the same for all chunks)
+func (rc *columnInts) Hash(hashes []uint64) {
+	var buf [8]byte
+	hasher := fnv.New64()
+	for j, el := range rc.data {
+		binary.PutVarint(buf[:], el) // not a huge fan of varints, but it might just work here
+		hasher.Write(buf[:])
+		// XOR is pretty bad here, but it'll do for now
+		// since it's commutative, we'll need something to preserve order - something like
+		// an odd multiplier (as a new argument)
+		hashes[j] ^= hasher.Sum64()
+		hasher.Reset()
+	}
+}
+
+func (rc *columnNulls) Hash(hashes []uint64) {
+	panic("not implemented")
+}
+func (rc *columnStrings) Hash(hashes []uint64) {
+	hasher := fnv.New64()
+	for j := 0; j < rc.Len(); j++ {
+		offsetStart := rc.offsets[j]
+		offsetEnd := rc.offsets[j+1]
+		hasher.Write(rc.data[offsetStart:offsetEnd])
+		hashes[j] ^= hasher.Sum64()
+		hasher.Reset()
+	}
+}
+
 func (rc *columnStrings) addValue(s string) error {
 	rc.data = append(rc.data, []byte(s)...)
 
@@ -194,15 +264,6 @@ func (rc *columnStrings) addValue(s string) error {
 
 	rc.length++
 	return nil
-}
-
-// TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
-// BUT, we're sort of using it for type inference - so maybe caveat it with a note that it's only to be used with
-// not nullable columns?
-func (rc *columnStrings) nthValue(n int) string {
-	offsetStart := rc.offsets[n]
-	offsetEnd := rc.offsets[n+1]
-	return string(rc.data[offsetStart:offsetEnd])
 }
 
 func (rc *columnInts) addValue(s string) error {
@@ -288,6 +349,47 @@ func (rc *columnNulls) addValue(s string) error {
 		return fmt.Errorf("a null column expects null values, got: %v", s)
 	}
 	rc.length++
+	return nil
+}
+
+func (rc *columnBools) addValues(vals []string) error {
+	for _, el := range vals {
+		if err := rc.addValue(el); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (rc *columnFloats) addValues(vals []string) error {
+	for _, el := range vals {
+		if err := rc.addValue(el); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (rc *columnInts) addValues(vals []string) error {
+	for _, el := range vals {
+		if err := rc.addValue(el); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (rc *columnNulls) addValues(vals []string) error {
+	for _, el := range vals {
+		if err := rc.addValue(el); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (rc *columnStrings) addValues(vals []string) error {
+	for _, el := range vals {
+		if err := rc.addValue(el); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

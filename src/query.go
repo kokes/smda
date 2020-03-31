@@ -12,12 +12,14 @@ import (
 //    to the Query struct (the Unmarshaler should mostly take care of this)
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
-	Dataset UID               `json:"dataset"`
-	Filter  *FilterExpression `json:"filter"`
-	Limit   int               `json:"limit"`
+	Dataset   UID               `json:"dataset"`
+	Filter    *FilterExpression `json:"filter"`
+	Aggregate []string          `json:"aggregate"` // this will be *Expr at some point
+	Limit     int               `json:"limit"`     // TODO: we don't distinguish between limit = 0 and a missing value
 }
 
 // type FilterTree - to be used once we have AND and OR clauses
+// this really shouldn't be here - it should be a generic bool expression of any kind
 type FilterExpression struct {
 	Column   string   `json:"column"`   // this will be a projection, not just a column (e.g. NULLIF(a, b) > 3)
 	Operator operator `json:"operator"` // TODO: change to `operator` and add an unmarshaler
@@ -25,7 +27,7 @@ type FilterExpression struct {
 }
 
 func (db *Database) Filter(ds *Dataset, fe *FilterExpression) ([]*Bitmap, error) {
-	colIndex := -1
+	colIndex := -1 // TODO: this should be a dataset method
 	for j, col := range ds.Schema {
 		if col.Name == fe.Column {
 			colIndex = j
@@ -49,6 +51,63 @@ func (db *Database) Filter(ds *Dataset, fe *FilterExpression) ([]*Bitmap, error)
 		bms = append(bms, bm)
 	}
 	return bms, nil
+}
+
+func (db *Database) Aggregate(ds *Dataset, exprs []string) ([]typedColumn, error) {
+	// TODO: fail if len(exprs) == 0? it will panic later anyway
+
+	nrc := make([]typedColumn, 0, len(exprs))
+	colIndices := make([]int, 0, len(exprs))
+	// TODO: this should be partly/fully abstracted away
+	for _, expr := range exprs {
+		found := false
+		for j, col := range ds.Schema {
+			if col.Name == expr {
+				nrc = append(nrc, newTypedColumnFromSchema(col))
+				colIndices = append(colIndices, j)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("column `%v` not found", expr)
+		}
+	}
+
+	groups := make(map[uint64]int)
+	for _, stripeID := range ds.Stripes {
+		rcs := make([]typedColumn, 0, len(exprs))
+		for _, colIndex := range colIndices {
+			rc, err := db.readColumnFromStripe(ds, stripeID, colIndex)
+			if err != nil {
+				return nil, err
+			}
+			rcs = append(rcs, rc)
+		}
+
+		// we don't have a stripe length property - should we?
+		ln := rcs[0].Len()
+		hashes := make([]uint64, ln) // preserves unique rows (their hashes)
+		bm := NewBitmap(ln)          // denotes which rows are the unique ones
+		for _, rc := range rcs {
+			rc.Hash(hashes)
+		}
+		for row, hash := range hashes {
+			if _, ok := groups[hash]; !ok {
+				groups[hash] = len(groups)
+				// it's a new value, set our bitmap, so that we can prune it later
+				bm.set(row, true)
+			}
+		}
+
+		// we have identified new rows in our stripe, add it to our existing columns
+		for j, rc := range rcs {
+			nrc[j].Append(rc.Prune(bm))
+		}
+		// also add some meta slice of "group ID" and return it or incorporate it in the []typedColumn
+	}
+
+	return nrc, nil
 }
 
 // QueryResult holds the result of a query, at this point it's fairly literal - in the future we may want
@@ -78,6 +137,19 @@ func (db *Database) Query(q Query) (*QueryResult, error) {
 			return nil, err
 		}
 	}
+
+	if q.Aggregate != nil {
+		columns, err := db.Aggregate(ds, q.Aggregate)
+		if err != nil {
+			return nil, err
+		}
+		res.Columns = q.Aggregate // no projections yet
+		res.Data = columns
+		return res, nil
+		// no limit?
+	}
+
+	// this is a branch for non-aggregate queries
 
 	for _, col := range ds.Schema {
 		res.Columns = append(res.Columns, col.Name)

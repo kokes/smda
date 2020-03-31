@@ -61,9 +61,7 @@
         const body = {
             limit: 25,
             dataset: datasetID,
-        }
-        if (datasetID === '01e33a73da3776806e') {
-            body.filter = {column: 'VendorID', operator: '>', arg: '1'}
+            // aggregate: ['strings', 'bools'],
         }
         const req = await fetch('/api/query', {
             method: 'POST',

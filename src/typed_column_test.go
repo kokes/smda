@@ -19,11 +19,8 @@ func TestBasicStringColumn(t *testing.T) {
 	}
 	for _, vals := range tt {
 		nc := newColumnStrings(false)
-		for _, val := range vals {
-			if err := nc.addValue(val); err != nil {
-				t.Error(err)
-				return
-			}
+		if err := nc.addValues(vals); err != nil {
+			t.Error(err)
 		}
 		// TODO: this is the only test with roundtrips, because we don't have nth value implemented anywhere else
 		// that's because we would have to have interface{} as the return value, and that's no good for individual values
@@ -59,11 +56,8 @@ func TestBasicIntColumn(t *testing.T) {
 	}
 	for _, vals := range tt {
 		nc := newColumnInts(true)
-		for _, val := range vals {
-			if err := nc.addValue(val); err != nil {
-				t.Error(err)
-				return
-			}
+		if err := nc.addValues(vals); err != nil {
+			t.Error(err)
 		}
 
 		buf := new(bytes.Buffer)
@@ -96,11 +90,8 @@ func TestBasicFloatColumn(t *testing.T) {
 	}
 	for _, vals := range tt {
 		nc := newColumnFloats(true)
-		for _, val := range vals {
-			if err := nc.addValue(val); err != nil {
-				t.Error(err)
-				return
-			}
+		if err := nc.addValues(vals); err != nil {
+			t.Error(err)
 		}
 
 		buf := new(bytes.Buffer)
@@ -127,11 +118,8 @@ func TestBasicBoolColumn(t *testing.T) {
 	}
 	for _, vals := range tt {
 		nc := newColumnBools(true)
-		for _, val := range vals {
-			if err := nc.addValue(val); err != nil {
-				t.Error(err)
-				return
-			}
+		if err := nc.addValues(vals); err != nil {
+			t.Error(err)
 		}
 
 		buf := new(bytes.Buffer)
@@ -194,8 +182,8 @@ func TestSerialisationRoundtrip(t *testing.T) {
 	}
 	for _, test := range tests {
 		col := newTypedColumnFromSchema(test.schema)
-		for _, val := range test.vals {
-			col.addValue(val)
+		if err := col.addValues(test.vals); err != nil {
+			t.Error(err)
 		}
 		bf := new(bytes.Buffer)
 		n, err := col.serializeInto(bf)
@@ -248,10 +236,8 @@ func TestJSONMarshaling(t *testing.T) {
 		// {newColumnStrings(true), []string{"", "bar", ""}, "[null,\"bar\",null]"},
 	}
 	for _, test := range tests {
-		for _, val := range test.values {
-			if err := test.rc.addValue(val); err != nil {
-				t.Fatal(err)
-			}
+		if err := test.rc.addValues(test.values); err != nil {
+			t.Error(err)
 		}
 		w := new(bytes.Buffer)
 		if err := json.NewEncoder(w).Encode(test.rc); err != nil {
@@ -372,10 +358,8 @@ func TestBasicPruning(t *testing.T) {
 		{newColumnStrings(true), []string{"foo", "", ""}, nil, 0},
 	}
 	for _, test := range tests {
-		for _, val := range test.values {
-			if err := test.rc.addValue(val); err != nil {
-				t.Fatal(err)
-			}
+		if err := test.rc.addValues(test.values); err != nil {
+			t.Error(err)
 		}
 
 		pruned := test.rc.Prune(test.bm)
@@ -415,20 +399,15 @@ func TestAppending(t *testing.T) {
 		rc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype, Nullable: test.nullable})
 		nrc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype, Nullable: test.nullable})
 		rrc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype, Nullable: test.nullable})
-		for _, el := range test.a {
-			if err := rc.addValue(el); err != nil {
-				t.Error(err)
-			}
+
+		if err := rc.addValues(test.a); err != nil {
+			t.Error(err)
 		}
-		for _, el := range test.b {
-			if err := nrc.addValue(el); err != nil {
-				t.Error(err)
-			}
+		if err := nrc.addValues(test.b); err != nil {
+			t.Error(err)
 		}
-		for _, el := range test.res {
-			if err := rrc.addValue(el); err != nil {
-				t.Error(err)
-			}
+		if err := rrc.addValues(test.res); err != nil {
+			t.Error(err)
 		}
 		if err := rc.Append(nrc); err != nil {
 			t.Error(err)
@@ -441,6 +420,48 @@ func TestAppending(t *testing.T) {
 		}
 
 	}
+}
+
+func TestHashing(t *testing.T) {
+	tests := []struct {
+		dtype dtype
+		data  []string
+	}{
+		{dtypeString, []string{"foo", "bar", "baz"}},
+	}
+
+	for _, test := range tests {
+		rc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype})
+		if err := rc.addValues(test.data); err != nil {
+			t.Fatal(err)
+		}
+		hashes1 := make([]uint64, len(test.data))
+		hashes2 := make([]uint64, len(test.data))
+		rc.Hash(hashes1)
+		rc.Hash(hashes2)
+
+		if !reflect.DeepEqual(hashes1, hashes2) {
+			t.Errorf("hashing twice did not result in the same slice: %v vs. %v", hashes1, hashes2)
+		}
+	}
+}
+
+// TODO: we absolutely need to make sure the column spans more stripes,
+// so that we can test that we don't mess with the seeds or anything (e.g. using
+// plain maphash would pass tests, but it would be very incorrect)
+func BenchmarkHashingInts(b *testing.B) {
+	n := 10000
+	col := newColumnInts(false)
+	for j := 0; j < n; j++ {
+		col.addValue(strconv.Itoa(j))
+	}
+	b.ResetTimer()
+
+	hashes := make([]uint64, col.Len())
+	for j := 0; j < b.N; j++ {
+		col.Hash(hashes)
+	}
+	b.SetBytes(int64(8 * n))
 }
 
 // func newTypedColumnFromSchema(schema columnSchema) typedColumn {

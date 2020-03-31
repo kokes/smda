@@ -91,3 +91,60 @@ func TestLimitsInQueries(t *testing.T) {
 		}
 	}
 }
+
+// TODO: test that this works across stripes (we may need to push the stripe length
+// configuration into the database initialiser, to have more control over it)
+// TODO: not testing nulls here
+func TestBasicAggregation(t *testing.T) {
+	tests := []struct {
+		input     string
+		aggregate []string
+		output    string
+	}{
+		{"foo\na\nb\nc", []string{"foo"}, "foo\na\nb\nc"},
+		{"foo\na\na\na", []string{"foo"}, "foo\na"},
+		{"foo,bar\na,b\nb,a", []string{"foo"}, "foo\na\nb"},
+		{"foo,bar\na,b\nb,a", []string{"bar"}, "bar\nb\na"},
+		{"foo,bar\na,b\nc,d", []string{"foo", "bar"}, "foo,bar\na,b\nc,d"},
+		{"foo,bar\na,b\nd,a", []string{"foo", "bar"}, "foo,bar\na,b\nd,a"},
+		{"foo,bar\na,b\na,b", []string{"foo", "bar"}, "foo,bar\na,b"},
+		{"foo,bar\n1,2\n2,3", []string{"foo"}, "foo\n1\n2"},
+		{"foo,bar\nt,f\nt,f", []string{"foo"}, "foo\ntrue"},
+		{"foo,bar\n1,t\n2,f", []string{"foo"}, "foo,bar\n1,true\n2,false"},
+		// {"foo,bar\na,b\nb,a", []string{"foo", "bar"}, "foo,bar\na,b\nb,a"}, // TODO: enable once we add order-preserving hashing
+	}
+
+	for testNo, test := range tests {
+		db, err := NewDatabaseTemp()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.RemoveAll(db.WorkingDirectory)
+		ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(test.input))
+		if err != nil {
+			t.Fatal(err)
+		}
+		db.addDataset(ds)
+
+		dso, err := db.loadDatasetFromReaderAuto(strings.NewReader(test.output))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		nrc, err := db.Aggregate(ds, test.aggregate)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for j, col := range nrc {
+			expcol, err := db.readColumnFromStripe(dso, dso.Stripes[0], j)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(col, expcol) {
+				// log.Println(string(col.(*columnStrings).data))
+				t.Errorf("[%d] failed to aggregate %v", testNo, test.input)
+			}
+		}
+	}
+}
