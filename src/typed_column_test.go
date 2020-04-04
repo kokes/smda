@@ -329,43 +329,55 @@ func TestBasicFilters(t *testing.T) {
 
 func TestBasicPruning(t *testing.T) {
 	tests := []struct {
-		rc     typedColumn
-		values []string
-		bm     *Bitmap
-		count  int
+		dtype    dtype
+		nullable bool
+		values   []string
+		bools    []bool
+		expected []string
 	}{
-		{newColumnBools(false), []string{"true", "false", "true"}, NewBitmapFromBools([]bool{true, true, true}), 3},
-		{newColumnBools(false), []string{"true", "false", "true"}, NewBitmapFromBools([]bool{false, false, false}), 0},
-		{newColumnBools(false), []string{"true", "false", "true"}, NewBitmapFromBools([]bool{false, true, false}), 1},
+		{dtypeBool, false, []string{"true", "false", "true"}, []bool{true, true, true}, []string{"true", "false", "true"}},
+		{dtypeBool, false, []string{"true", "false", "true"}, []bool{false, false, false}, nil},
+		{dtypeBool, false, []string{"true", "false", "true"}, []bool{false, true, false}, []string{"false"}},
 
-		{newColumnInts(false), []string{"1", "2", "3"}, NewBitmapFromBools([]bool{false, true, false}), 1},
-		{newColumnFloats(false), []string{"1.23", "+0", "1e3"}, NewBitmapFromBools([]bool{false, true, false}), 1},
-		{newColumnStrings(false), []string{"foo", "bar", "foo"}, NewBitmapFromBools([]bool{false, true, false}), 1},
+		{dtypeInt, false, []string{"1", "2", "3"}, []bool{false, true, false}, []string{"2"}},
+		{dtypeFloat, false, []string{"1.23", "+0", "1e3"}, []bool{false, true, false}, []string{"0"}},
+		{dtypeString, false, []string{"foo", "bar", "foo"}, []bool{false, true, false}, []string{"bar"}},
 
 		// nullable columns
-		{newColumnInts(true), []string{"1", "", ""}, NewBitmapFromBools([]bool{false, true, false}), 1},
-		{newColumnInts(true), []string{"1", "", ""}, NewBitmapFromBools([]bool{false, false, false}), 0},
-		{newColumnInts(true), []string{"1", "", ""}, NewBitmapFromBools([]bool{true, true, true}), 3},
+		{dtypeInt, true, []string{"1", "", ""}, []bool{false, true, false}, []string{""}},
+		{dtypeInt, true, []string{"1", "", ""}, []bool{false, false, false}, nil},
+		{dtypeInt, true, []string{"1", "", ""}, []bool{true, true, true}, []string{"1", "", ""}},
 
-		{newColumnBools(true), []string{"true", "", "true"}, NewBitmapFromBools([]bool{true, true, false}), 2},
-		{newColumnFloats(true), []string{"1.23", "+0", ""}, NewBitmapFromBools([]bool{false, true, false}), 1},
-		{newColumnStrings(true), []string{"foo", "", ""}, NewBitmapFromBools([]bool{true, true, true}), 3},
+		{dtypeBool, true, []string{"true", "", "true"}, []bool{true, true, false}, []string{"t", ""}},
+		{dtypeFloat, true, []string{"1.23", "+0", ""}, []bool{false, true, false}, []string{"0"}},
+		{dtypeString, true, []string{"foo", "", ""}, []bool{true, true, true}, []string{"foo", "", ""}},
 
 		// not pruning anything by leveraging nil pointers
-		{newColumnInts(true), []string{"1", "", ""}, nil, 0},
-		{newColumnBools(true), []string{"true", "", "true"}, nil, 0},
-		{newColumnFloats(true), []string{"1.23", "+0", ""}, nil, 0},
-		{newColumnStrings(true), []string{"foo", "", ""}, nil, 0},
+		{dtypeInt, true, []string{"1", "", ""}, nil, nil},
+		{dtypeBool, true, []string{"true", "", "true"}, nil, nil},
+		{dtypeFloat, true, []string{"1.23", "+0", ""}, nil, nil},
+		{dtypeString, true, []string{"foo", "", ""}, nil, nil},
 	}
 	for _, test := range tests {
-		if err := test.rc.addValues(test.values); err != nil {
+		testSchema := columnSchema{Dtype: test.dtype, Nullable: test.nullable}
+		rc := newTypedColumnFromSchema(testSchema)
+		if err := rc.addValues(test.values); err != nil {
 			t.Error(err)
+			continue
 		}
 
-		pruned := test.rc.Prune(test.bm)
-		count := pruned.Len()
-		if count != test.count {
-			t.Errorf("expected that pruning %v would result in %v rows, got %v", test.values, test.count, count)
+		var bm *Bitmap
+		if test.bools != nil {
+			bm = NewBitmapFromBools(test.bools)
+		}
+		pruned := rc.Prune(bm)
+		expected := newTypedColumnFromSchema(testSchema)
+		if err := expected.addValues(test.expected); err != nil {
+			t.Error(err)
+			continue
+		}
+		if !reflect.DeepEqual(pruned, expected) {
+			t.Errorf("expected that pruning %v using %v would result in %v", test.values, test.bools, test.expected)
 		}
 	}
 }

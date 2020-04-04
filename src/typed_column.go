@@ -496,6 +496,7 @@ func (rc *columnStrings) Prune(bm *Bitmap) typedColumn {
 	// OPTIM: nthValue is not the fastest, just iterate over offsets directly
 	// OR, just iterate over positive bits in our Bitmap - this will be super fast for sparse bitmaps
 	// the bitmap iteration could be implemented in all the typed columns
+	index := 0
 	for j := 0; j < rc.Len(); j++ {
 		if !bm.get(j) {
 			continue
@@ -503,9 +504,15 @@ func (rc *columnStrings) Prune(bm *Bitmap) typedColumn {
 		// be careful here, addValue has its own nullability logic and we don't want to mess with that
 		nc.addValue(rc.nthValue(j))
 		if rc.nullable && rc.nullability.get(j) {
-			nc.nullability.set(j, true)
+			nc.nullability.set(index, true)
 		}
 		// nc.length++ // once we remove addValue, we'll need this
+		index++
+	}
+
+	// make sure the nullability vector aligns with the data
+	if rc.nullable {
+		nc.nullability.ensure(nc.Len())
 	}
 
 	return nc
@@ -524,15 +531,22 @@ func (rc *columnInts) Prune(bm *Bitmap) typedColumn {
 		return rc
 	}
 
+	index := 0
 	for j := 0; j < rc.Len(); j++ {
 		if !bm.get(j) {
 			continue
 		}
 		nc.data = append(nc.data, rc.data[j])
 		if rc.nullable && rc.nullability.get(j) {
-			nc.nullability.set(j, true)
+			nc.nullability.set(index, true)
 		}
 		nc.length++
+		index++
+	}
+
+	// make sure the nullability vector aligns with the data
+	if rc.nullable {
+		nc.nullability.ensure(nc.Len())
 	}
 
 	return nc
@@ -551,15 +565,22 @@ func (rc *columnFloats) Prune(bm *Bitmap) typedColumn {
 		return rc
 	}
 
+	index := 0
 	for j := 0; j < rc.Len(); j++ {
 		if !bm.get(j) {
 			continue
 		}
 		nc.data = append(nc.data, rc.data[j])
 		if rc.nullable && rc.nullability.get(j) {
-			nc.nullability.set(j, true)
+			nc.nullability.set(index, true)
 		}
 		nc.length++
+		index++
+	}
+
+	// make sure the nullability vector aligns with the data
+	if rc.nullable {
+		nc.nullability.ensure(nc.Len())
 	}
 
 	return nc
@@ -578,16 +599,23 @@ func (rc *columnBools) Prune(bm *Bitmap) typedColumn {
 		return rc
 	}
 
+	index := 0
 	for j := 0; j < rc.Len(); j++ {
 		if !bm.get(j) {
 			continue
 		}
 		// OPTIM: not need to set false values, we already have them set as zero
-		nc.data.set(j, rc.data.get(j))
+		nc.data.set(index, rc.data.get(j))
 		if rc.nullable && rc.nullability.get(j) {
-			nc.nullability.set(j, true)
+			nc.nullability.set(index, true)
 		}
 		nc.length++
+		index++
+	}
+
+	// make sure the nullability vector aligns with the data
+	if rc.nullable {
+		nc.nullability.ensure(nc.Len())
 	}
 
 	return nc
