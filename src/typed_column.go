@@ -469,7 +469,7 @@ func (rc *columnBools) Append(tc typedColumn) error {
 	return nil
 }
 func (rc *columnNulls) Append(tc typedColumn) error {
-	nrc, ok := tc.(*columnBools)
+	nrc, ok := tc.(*columnNulls)
 	if !ok {
 		return errors.New("cannot append chunks of differing types")
 	}

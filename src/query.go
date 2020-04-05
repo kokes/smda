@@ -102,7 +102,9 @@ func (db *Database) Aggregate(ds *Dataset, exprs []string) ([]typedColumn, error
 
 		// we have identified new rows in our stripe, add it to our existing columns
 		for j, rc := range rcs {
-			nrc[j].Append(rc.Prune(bm))
+			if err := nrc[j].Append(rc.Prune(bm)); err != nil {
+				return nil, err
+			}
 		}
 		// also add some meta slice of "group ID" and return it or incorporate it in the []typedColumn
 	}
@@ -195,7 +197,9 @@ func (db *Database) Query(q Query) (*QueryResult, error) {
 			if bmnf != nil {
 				col = col.Prune(bmnf)
 			}
-			res.Data[j].Append(col)
+			if err := res.Data[j].Append(col); err != nil {
+				return nil, err
+			}
 		}
 		if bmnf != nil {
 			limit -= bmnf.Count()
