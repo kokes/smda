@@ -1,3 +1,5 @@
+.PHONY: build buildw run test bench testv coverstats
+
 build:
 	go build cmd/server.go
 
