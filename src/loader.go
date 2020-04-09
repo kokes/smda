@@ -258,6 +258,7 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
+// OPTIM: this does not buffer any reads... but it only reads things twice, so it shouldn't matter, right?
 func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (typedColumn, error) {
 	// TODO: d.LocalFilePath? (is probably not filled in here)
 	path := filepath.Join(db.WorkingDirectory, ds.ID.String(), stripeID.String())

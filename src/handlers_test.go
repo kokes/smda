@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -361,4 +363,95 @@ func TestBasicAutoUpload(t *testing.T) {
 		t.Errorf("expecting the schema to be inferred as %v, got %v", es, dec.Schema)
 	}
 
+}
+
+func randomStringFuncer(n int) func() []byte {
+	return func() []byte {
+		ret := make([]byte, 0, n)
+		for j := 0; j < n; j++ {
+			char := byte('a') + byte(rand.Intn(26))
+			ret = append(ret, char)
+		}
+		return ret
+	}
+}
+
+func randomIntFuncer(n int) func() []byte {
+	return func() []byte {
+		rnd := rand.Intn(n)
+		rnds := strconv.Itoa(rnd)
+		return []byte(rnds)
+	}
+}
+
+func BenchmarkAutoUpload(b *testing.B) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+
+	srv := httptest.NewServer(db.server.Handler)
+	defer srv.Close()
+	url := fmt.Sprintf("%s/upload/auto", srv.URL)
+
+	tests := []struct {
+		name       string
+		ncols      int
+		nrows      int
+		randomData func() []byte
+	}{
+		{"short strings", 10, 300_000, randomStringFuncer(3)},
+		{"medium strings", 10, 300_000, randomStringFuncer(15)},
+		{"small ints", 10, 300_000, randomIntFuncer(128)},
+		{"medium ints", 10, 300_000, randomIntFuncer(100_000)},
+		{"large ints", 10, 300_000, randomIntFuncer(10_000_000_000)},
+	}
+
+	for _, test := range tests {
+		b.Run(test.name, func(b *testing.B) {
+			bf := new(bytes.Buffer)
+
+			for nr := 0; nr < test.nrows; nr++ {
+				for nc := 0; nc < test.ncols; nc++ {
+					if nr == 0 {
+						if _, err := fmt.Fprintf(bf, "col%v", nc+1); err != nil {
+							b.Fatal(err)
+						}
+						sep := byte(',')
+						if nc == test.ncols-1 {
+							sep = '\n'
+						}
+						if err := bf.WriteByte(sep); err != nil {
+							b.Fatal(err)
+						}
+						continue
+					}
+
+					if _, err := bf.Write(test.randomData()); err != nil {
+						b.Fatal(err)
+					}
+					sep := byte(',')
+					if nc == test.ncols-1 {
+						sep = '\n'
+					}
+					if err := bf.WriteByte(sep); err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+			b.ResetTimer()
+			len := bf.Len()
+			for j := 0; j < b.N; j++ {
+				resp, err := http.Post(url, "text/csv", bytes.NewReader(bf.Bytes()))
+				if err != nil {
+					b.Fatal(err)
+				}
+				if resp.StatusCode != 200 {
+					b.Fatalf("unexpected status: %v", resp.Status)
+				}
+			}
+			b.SetBytes(int64(len))
+		})
+	}
 }

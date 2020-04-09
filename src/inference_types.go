@@ -89,6 +89,8 @@ func parseBool(s string) (bool, error) {
 }
 
 // does NOT care about NULL inference, that's what isNull is for
+// OPTIM: this function is weird, because it does allocate when benchmarking - but not when individual
+// subfunctions are called - where are the allocations coming from? Improper inlining?
 func guessType(s string) dtype {
 	if _, err := parseInt(s); err == nil {
 		return dtypeInt
@@ -182,6 +184,9 @@ func (db *Database) inferTypes(ds *Dataset) ([]columnSchema, error) {
 			}
 			// OPTIM: in many cases we already know we can't have all ints/floats/bools, so it doesn't make sense
 			// to check types any more - it's only useful for reporting - will we use it for that ever?
+			// there's one sad reality - we can't quite do this easily, because we will lose information about nullability
+			// - that is, if we break on first inference of a string, we won't know if it's a nullable string or not
+			// What we could do: test for nullability (fast), but only test for types if we haven't settled on strings yet
 			for j := 0; j < schunk.Len(); j++ {
 				tg.addValue(schunk.nthValue(j))
 			}

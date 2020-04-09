@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"os"
 	"reflect"
 	"strconv"
@@ -351,4 +352,87 @@ func TestDatasetTypeInference(t *testing.T) {
 			t.Errorf("expecting %v to be inferred as %v, got %v", dataset.raw, dataset.cs, cs)
 		}
 	}
+}
+
+func BenchmarkIntDetection(b *testing.B) {
+	n := 1000
+	strvals := make([]string, 0, n)
+	nbytes := 0
+	for j := 0; j < n; j++ {
+		val := strconv.Itoa(j)
+		nbytes += len(val)
+		strvals = append(strvals, val)
+	}
+	b.ResetTimer()
+	for j := 0; j < b.N; j++ {
+		for _, el := range strvals {
+			if _, err := parseInt(el); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	b.SetBytes(int64(nbytes))
+}
+
+func BenchmarkFloatDetection(b *testing.B) {
+	n := 1000
+	strvals := make([]string, 0, n)
+	nbytes := 0
+	for j := 0; j < n; j++ {
+		fl := rand.Float64()
+		val := fmt.Sprintf("%v", fl)
+		nbytes += len(val)
+		strvals = append(strvals, val)
+	}
+	b.ResetTimer()
+	for j := 0; j < b.N; j++ {
+		for _, el := range strvals {
+			if _, err := parseFloat(el); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	b.SetBytes(int64(nbytes))
+}
+
+func BenchmarkBoolDetection(b *testing.B) {
+	n := 1000
+	strvals := make([]string, 0, n)
+	nbytes := 0
+	for j := 0; j < n; j++ {
+		rnd := rand.Intn(2)
+		val := "true"
+		if rnd == 1 {
+			val = "false"
+		}
+		nbytes += len(val)
+		strvals = append(strvals, val)
+	}
+	b.ResetTimer()
+	for j := 0; j < b.N; j++ {
+		for _, el := range strvals {
+			if _, err := parseBool(el); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	b.SetBytes(int64(nbytes))
+}
+
+func BenchmarkStringDetection(b *testing.B) {
+	n := 1000
+	strvals := make([]string, 0, n)
+	nbytes := 0
+	for j := 0; j < n; j++ {
+		val := strconv.Itoa(j) + "foo"
+		nbytes += len(val)
+		strvals = append(strvals, val)
+	}
+	b.ResetTimer()
+	for j := 0; j < b.N; j++ {
+		for _, el := range strvals {
+			guessType(el)
+		}
+	}
+	b.SetBytes(int64(nbytes))
 }
