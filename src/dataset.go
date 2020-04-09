@@ -16,6 +16,8 @@ import (
 
 // Database is the main struct that contains it all - notably the datasets' metadata and the webserver
 // Having the webserver here makes it convenient for testing - we can spawn new servers at a moment's notice
+// TODO: create a destructor, which deletes all local data - primarily for use in tests, but could be of use elsewhere
+//       we should also run `errcheck`, because this will inevitably solve a lot of issues with defer `os.RemovaAll`
 type Database struct {
 	sync.Mutex
 	Datasets         []*Dataset

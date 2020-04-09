@@ -182,6 +182,8 @@ func (db *Database) inferTypes(ds *Dataset) ([]columnSchema, error) {
 			}
 			// OPTIM: in many cases we already know we can't have all ints/floats/bools, so it doesn't make sense
 			// to check types any more - it's only useful for reporting - will we use it for that ever?
+			// there's one sad reality - we can't quite do this easily, because we will lose information about nullability
+			// - that is, if we break on first inference of a string, we won't know if it's a nullable string or not
 			for j := 0; j < schunk.Len(); j++ {
 				tg.addValue(schunk.nthValue(j))
 			}
