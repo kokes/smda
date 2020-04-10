@@ -84,23 +84,54 @@ func parseFloat(s string) (float64, error) {
 	return strconv.ParseFloat(s, 64)
 }
 
+// OPTIM: this seems slower than strconv.parseBool - test it and maybe revert it
+// but be careful, parseBool parses 0/1 as bools (as it does True/False)
 func parseBool(s string) (bool, error) {
-	return strconv.ParseBool(s)
+	if s == "t" || s == "T" || s == "true" || s == "TRUE" {
+		return true, nil
+	}
+	if s == "f" || s == "F" || s == "false" || s == "FALSE" {
+		return false, nil
+	}
+
+	return false, errors.New("not a bool")
+}
+
+// we need an early exit since parseInt and parseFloat are expensive
+// does NOT cover infties, but we don't support them anyway (for now)
+func containsDigit(s string) bool {
+	bytes := []byte(s)
+	// TODO: we're checking only the first 100 chars, but what is the maximum number of characters
+	// a float can be represented in?
+	if len(bytes) > 100 {
+		bytes = bytes[:100]
+	}
+	for _, char := range bytes {
+		if char >= '0' && char <= '9' {
+			return true
+		}
+	}
+	return false
 }
 
 // does NOT care about NULL inference, that's what isNull is for
 // OPTIM: this function is weird, because it does allocate when benchmarking - but not when individual
 // subfunctions are called - where are the allocations coming from? Improper inlining?
 func guessType(s string) dtype {
-	if _, err := parseInt(s); err == nil {
-		return dtypeInt
-	}
-	if _, err := parseFloat(s); err == nil {
-		return dtypeFloat
-	}
+	// this is the fastest, so let's do this first
 	if _, err := parseBool(s); err == nil {
 		return dtypeBool
 	}
+	// early exit - only makes sense to do parse(Int|Float) if there's at least one digit
+	if containsDigit(s) {
+		if _, err := parseInt(s); err == nil {
+			return dtypeInt
+		}
+		if _, err := parseFloat(s); err == nil {
+			return dtypeFloat
+		}
+	}
+
 	return dtypeString
 }
 

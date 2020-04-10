@@ -112,7 +112,6 @@ func TestBasicBoolColumn(t *testing.T) {
 		[]string{"true", "false"},
 		[]string{"true", "FALSE"},
 		[]string{"T", "F"},
-		[]string{"True", "False"}, // not sure I like this
 		[]string{},
 		[]string{"T", "F", ""},
 	}

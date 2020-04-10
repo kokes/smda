@@ -110,6 +110,16 @@ func TestBasicTypeInference(t *testing.T) {
 			false,
 		},
 		{
+			[]string{"true", "false", "TRUE", "1"},
+			dtypeString, // 1/0 should not be booleans (strconv.parseBool does consider them as such)
+			false,
+		},
+		{
+			[]string{"true", "false", "TRUE", "0"},
+			dtypeString,
+			false,
+		},
+		{
 			[]string{"true", "false", "TRue"},
 			dtypeString,
 			false,
@@ -242,8 +252,6 @@ func TestBoolCoercion(t *testing.T) {
 		{"false", false},
 		{"TRUE", true},
 		{"FALSE", false},
-		{"True", true}, // we should drop this impl at some point
-		{"False", false},
 	}
 
 	for _, test := range tests {
@@ -258,7 +266,7 @@ func TestBoolCoercion(t *testing.T) {
 }
 
 func TestBoolCoercionErrs(t *testing.T) {
-	tests := []string{"true ", "  false", "N", "Y"} // add True and False once we drop it
+	tests := []string{"true ", "  false", "N", "Y", "1", "0"} // add True and False once we drop it
 
 	for _, test := range tests {
 		_, err := parseBool(test)
@@ -366,9 +374,7 @@ func BenchmarkIntDetection(b *testing.B) {
 	b.ResetTimer()
 	for j := 0; j < b.N; j++ {
 		for _, el := range strvals {
-			if _, err := parseInt(el); err != nil {
-				b.Fatal(err)
-			}
+			guessType(el)
 		}
 	}
 	b.SetBytes(int64(nbytes))
@@ -387,9 +393,7 @@ func BenchmarkFloatDetection(b *testing.B) {
 	b.ResetTimer()
 	for j := 0; j < b.N; j++ {
 		for _, el := range strvals {
-			if _, err := parseFloat(el); err != nil {
-				b.Fatal(err)
-			}
+			guessType(el)
 		}
 	}
 	b.SetBytes(int64(nbytes))
@@ -411,9 +415,7 @@ func BenchmarkBoolDetection(b *testing.B) {
 	b.ResetTimer()
 	for j := 0; j < b.N; j++ {
 		for _, el := range strvals {
-			if _, err := parseBool(el); err != nil {
-				b.Fatal(err)
-			}
+			guessType(el)
 		}
 	}
 	b.SetBytes(int64(nbytes))
@@ -435,4 +437,20 @@ func BenchmarkStringDetection(b *testing.B) {
 		}
 	}
 	b.SetBytes(int64(nbytes))
+}
+
+func TestContainsDigit(t *testing.T) {
+	trues := []string{"1", "+2", "-0", ".5", "123", "foo123"}
+	falses := []string{"", "abc", "foobar", ".", "infty", "nan"}
+
+	for _, val := range trues {
+		if !containsDigit(val) {
+			t.Errorf("expected %v to contain a digit", val)
+		}
+	}
+	for _, val := range falses {
+		if containsDigit(val) {
+			t.Errorf("expected %v not to contain a digit", val)
+		}
+	}
 }
