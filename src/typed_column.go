@@ -642,6 +642,7 @@ func (rc *columnNulls) Prune(bm *Bitmap) typedColumn {
 // this shouldn't really accept a dtype - at this point we're requiring it, because we don't serialize dtypes
 // into the binary representation - but that's just because we always have the schema at hand... but will we always have it?
 // shouldn't the files be readable as standalone files?
+// OPTIM: shouldn't we deserialize based on a byte slice instead? We already have it, so we're just duplicating it using a byte buffer
 func deserializeColumn(r io.Reader, dtype dtype) (typedColumn, error) {
 	switch dtype {
 	case dtypeString:

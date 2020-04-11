@@ -124,6 +124,52 @@ func TestReadingFromStripes(t *testing.T) {
 	}
 }
 
+func BenchmarkReadingFromStripes(b *testing.B) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
+
+	ds, err := db.loadDatasetFromReaderAuto(buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for j := 0; j < b.N; j++ {
+		col, err := db.readColumnFromStripe(ds, ds.Stripes[0], 0)
+		if err != nil {
+			b.Fatal(err)
+		}
+		cols := col.(*columnInts)
+		if cols.length != 2 {
+			b.Errorf("expecting the length to be %v, got %v", 2, cols.length)
+		}
+
+		col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 1)
+		if err != nil {
+			b.Fatal(err)
+		}
+		colb := col.(*columnBools)
+		if colb.length != 2 {
+			b.Errorf("expecting the length to be %v, got %v", 2, colb.length)
+		}
+		if !colb.nullable {
+			b.Errorf("expecting the second column to be nullable")
+		}
+
+		col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 2)
+		if err != nil {
+			b.Fatal(err)
+		}
+		colf := col.(*columnFloats)
+		if colf.length != 2 {
+			b.Errorf("expecting the length to be %v, got %v", 2, colf.length)
+		}
+	}
+}
+
 func TestColumnSchemaMarshalingRoundtrips(t *testing.T) {
 	cs := columnSchema{Name: "foo", Dtype: dtypeBool, Nullable: true}
 	dt, err := json.Marshal(cs)
