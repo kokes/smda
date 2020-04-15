@@ -4,13 +4,14 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/kokes/smda/src/csv"
 )
 
 // TODO: to be revised once we're done with testing
@@ -103,6 +104,7 @@ func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 		// we purposefully chose a single byte instead of a rune as a delimiter
 		cr.Comma = rune(settings.delimiter)
 	}
+	cr.ReuseRecord = true
 
 	return &rawLoader{settings: settings, cr: cr}, nil
 }
@@ -170,7 +172,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 		rl.settings.schema = make([]columnSchema, 0, len(hd))
 		for _, val := range hd {
 			rl.settings.schema = append(rl.settings.schema, columnSchema{
-				Name:     val,
+				Name:     string(val),
 				Dtype:    dtypeString,
 				Nullable: false,
 			})
@@ -200,7 +202,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 		}
 		for j, val := range row {
 			bytesLoaded += len(val)
-			ds.columns[j].addValue([]byte(val))
+			ds.columns[j].addValue(val)
 		}
 		rowsLoaded++
 
