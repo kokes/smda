@@ -48,8 +48,7 @@ func TestBasicQueries(t *testing.T) {
 		t.Error("expecting three columns of data")
 	}
 	firstCol := newColumnInts(false)
-	firstCol.addValue("1")
-	firstCol.addValue("4")
+	firstCol.addValues([]string{"1", "4"})
 	if !reflect.DeepEqual(qr.Data[0], firstCol) {
 		t.Errorf("first column does not match what's expected: %v vs. %v", qr.Data[0], firstCol)
 	}
@@ -84,7 +83,7 @@ func TestLimitsInQueries(t *testing.T) {
 			if j >= limit {
 				break
 			}
-			firstCol.addValue(val)
+			firstCol.addValue([]byte(val))
 		}
 		if !reflect.DeepEqual(qr.Data[0], firstCol) {
 			t.Errorf("first column does not match what's expected: %v vs. %v", qr.Data[0], firstCol)

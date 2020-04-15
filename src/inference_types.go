@@ -1,9 +1,11 @@
 package smda
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
+	"unsafe"
 )
 
 type dtype uint8
@@ -69,28 +71,30 @@ func newTypeGuesser() *typeGuesser {
 	}
 }
 
-func isNull(s string) bool {
-	return s == "" // TODO: add custom null values as options (e.g. NA, N/A etc.)
+func isNull(b []byte) bool {
+	return len(b) == 0 // TODO: add custom null values as options (e.g. NA, N/A etc.)
 }
 
 // OPTIM: could we early exit by checking the input is all digits with a possible leading +-? are there any other constraints?
 // basic microbenchmarks suggest a 2x speedup - thanks to being less general
 // the one downside is that we'd be slower in the happy path (due to extra work) - so this would be beneficial if we have fewer ints than non-ints in general
-func parseInt(s string) (int64, error) {
+func parseInt(b []byte) (int64, error) {
+	s := *(*string)(unsafe.Pointer(&b))
 	return strconv.ParseInt(s, 10, 64)
 }
 
-func parseFloat(s string) (float64, error) {
+func parseFloat(b []byte) (float64, error) {
+	s := *(*string)(unsafe.Pointer(&b))
 	return strconv.ParseFloat(s, 64)
 }
 
 // OPTIM: this seems slower than strconv.parseBool - test it and maybe revert it
 // but be careful, parseBool parses 0/1 as bools (as it does True/False)
-func parseBool(s string) (bool, error) {
-	if s == "t" || s == "T" || s == "true" || s == "TRUE" {
+func parseBool(b []byte) (bool, error) {
+	if bytes.Equal(b, []byte("t")) || bytes.Equal(b, []byte("T")) || bytes.Equal(b, []byte("true")) || bytes.Equal(b, []byte("TRUE")) {
 		return true, nil
 	}
-	if s == "f" || s == "F" || s == "false" || s == "FALSE" {
+	if bytes.Equal(b, []byte("f")) || bytes.Equal(b, []byte("F")) || bytes.Equal(b, []byte("false")) || bytes.Equal(b, []byte("FALSE")) {
 		return false, nil
 	}
 
@@ -99,14 +103,13 @@ func parseBool(s string) (bool, error) {
 
 // we need an early exit since parseInt and parseFloat are expensive
 // does NOT cover infties, but we don't support them anyway (for now)
-func containsDigit(s string) bool {
-	bytes := []byte(s)
+func containsDigit(b []byte) bool {
 	// TODO: we're checking only the first 100 chars, but what is the maximum number of characters
 	// a float can be represented in?
-	if len(bytes) > 100 {
-		bytes = bytes[:100]
+	if len(b) > 100 {
+		b = b[:100]
 	}
-	for _, char := range bytes {
+	for _, char := range b {
 		if char >= '0' && char <= '9' {
 			return true
 		}
@@ -117,17 +120,17 @@ func containsDigit(s string) bool {
 // does NOT care about NULL inference, that's what isNull is for
 // OPTIM: this function is weird, because it does allocate when benchmarking - but not when individual
 // subfunctions are called - where are the allocations coming from? Improper inlining?
-func guessType(s string) dtype {
+func guessType(b []byte) dtype {
 	// this is the fastest, so let's do this first
-	if _, err := parseBool(s); err == nil {
+	if _, err := parseBool(b); err == nil {
 		return dtypeBool
 	}
 	// early exit - only makes sense to do parse(Int|Float) if there's at least one digit
-	if containsDigit(s) {
-		if _, err := parseInt(s); err == nil {
+	if containsDigit(b) {
+		if _, err := parseInt(b); err == nil {
 			return dtypeInt
 		}
-		if _, err := parseFloat(s); err == nil {
+		if _, err := parseFloat(b); err == nil {
 			return dtypeFloat
 		}
 	}
@@ -135,7 +138,7 @@ func guessType(s string) dtype {
 	return dtypeString
 }
 
-func (tg *typeGuesser) addValue(s string) {
+func (tg *typeGuesser) addValue(s []byte) {
 	tg.nrows++
 	if isNull(s) {
 		tg.nullable = true

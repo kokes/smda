@@ -26,7 +26,7 @@ func TestBasicStringColumn(t *testing.T) {
 		// that's because we would have to have interface{} as the return value, and that's no good for individual values
 		for j, val := range vals {
 			got := nc.nthValue(j)
-			if got != val {
+			if !bytes.Equal(got, []byte(val)) {
 				t.Errorf("expecting %v, got %v", val, got)
 				return
 			}
@@ -139,7 +139,7 @@ func TestInvalidInts(t *testing.T) {
 
 	for _, testCase := range tt {
 		nc := newColumnInts(false)
-		if err := nc.addValue(testCase); err == nil {
+		if err := nc.addValue([]byte(testCase)); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid int", testCase)
 		}
 	}
@@ -150,7 +150,7 @@ func TestInvalidFloats(t *testing.T) {
 
 	for _, testCase := range tt {
 		nc := newColumnFloats(false)
-		if err := nc.addValue(testCase); err == nil {
+		if err := nc.addValue([]byte(testCase)); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid float", testCase)
 		}
 	}
@@ -161,7 +161,7 @@ func TestInvalidBools(t *testing.T) {
 
 	for _, testCase := range tt {
 		nc := newColumnBools(false)
-		if err := nc.addValue(testCase); err == nil {
+		if err := nc.addValue([]byte(testCase)); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid bool", testCase)
 		}
 	}
@@ -305,11 +305,11 @@ func TestBasicFilters(t *testing.T) {
 			for j, val := range test.values {
 				// no support for nullable strings (or rather their addition), so we're exluding them for now
 				if nullable && j%2 == 0 && test.dtype != dtypeString {
-					if err := rc.addValue(""); err != nil {
+					if err := rc.addValue([]byte("")); err != nil {
 						t.Fatal(err)
 					}
 				}
-				if err := rc.addValue(val); err != nil {
+				if err := rc.addValue([]byte(val)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -464,7 +464,7 @@ func BenchmarkHashingInts(b *testing.B) {
 	n := 10000
 	col := newColumnInts(false)
 	for j := 0; j < n; j++ {
-		col.addValue(strconv.Itoa(j))
+		col.addValue([]byte(strconv.Itoa(j)))
 	}
 	b.ResetTimer()
 

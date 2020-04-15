@@ -17,8 +17,8 @@ import (
 // but without measuring this, I'm holding back for now
 // ALSO, this interface is a bit misnamed - it's not the whole column, just a given chunk within a stripe
 type typedColumn interface {
-	addValue(string) error
-	addValues([]string) error // just a utility thing, mostly for tests
+	addValue([]byte) error
+	addValues([]string) error // just a utility thing, mostly for tests (TODO: make this variadic, so the former is []byte receiver, and this a string one)
 	serializeInto(io.Writer) (int, error)
 	MarshalJSON() ([]byte, error)
 	Prune(*Bitmap) typedColumn
@@ -191,10 +191,10 @@ func (rc *columnStrings) Len() int {
 // TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
 // BUT, we're sort of using it for type inference - so maybe caveat it with a note that it's only to be used with
 // not nullable columns?
-func (rc *columnStrings) nthValue(n int) string {
+func (rc *columnStrings) nthValue(n int) []byte {
 	offsetStart := rc.offsets[n]
 	offsetEnd := rc.offsets[n+1]
-	return string(rc.data[offsetStart:offsetEnd])
+	return rc.data[offsetStart:offsetEnd]
 }
 
 // TODO: none of these Hash methods accounts for nulls
@@ -255,10 +255,10 @@ func (rc *columnStrings) Hash(hashes []uint64) {
 	}
 }
 
-func (rc *columnStrings) addValue(s string) error {
-	rc.data = append(rc.data, []byte(s)...)
+func (rc *columnStrings) addValue(b []byte) error {
+	rc.data = append(rc.data, b...)
 
-	valLen := uint32(len([]byte(s)))
+	valLen := uint32(len(b))
 	valLen += rc.offsets[len(rc.offsets)-1]
 	rc.offsets = append(rc.offsets, valLen)
 
@@ -266,10 +266,10 @@ func (rc *columnStrings) addValue(s string) error {
 	return nil
 }
 
-func (rc *columnInts) addValue(s string) error {
-	if isNull(s) {
+func (rc *columnInts) addValue(b []byte) error {
+	if isNull(b) {
 		if !rc.nullable {
-			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", s)
+			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", string(b))
 		}
 		rc.nullability.set(rc.Len(), true)
 		rc.data = append(rc.data, 0) // this value is not meant to be read
@@ -277,7 +277,7 @@ func (rc *columnInts) addValue(s string) error {
 		return nil
 	}
 
-	val, err := parseInt(s)
+	val, err := parseInt(b)
 	if err != nil {
 		return err
 	}
@@ -291,20 +291,20 @@ func (rc *columnInts) addValue(s string) error {
 }
 
 // let's really consider adding standard nulls here, it will probably make our lives a lot easier
-func (rc *columnFloats) addValue(s string) error {
+func (rc *columnFloats) addValue(b []byte) error {
 	var val float64
 	var err error
-	if isNull(s) {
+	if isNull(b) {
 		val = math.NaN()
 	} else {
-		val, err = parseFloat(s)
+		val, err = parseFloat(b)
 		if err != nil {
 			return err
 		}
 	}
 	if math.IsNaN(val) {
 		if !rc.nullable {
-			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", s)
+			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", string(b))
 		}
 		rc.nullability.set(rc.Len(), true)
 		rc.data = append(rc.data, math.NaN()) // this value is not meant to be read
@@ -321,17 +321,17 @@ func (rc *columnFloats) addValue(s string) error {
 	return nil
 }
 
-func (rc *columnBools) addValue(s string) error {
-	if isNull(s) {
+func (rc *columnBools) addValue(b []byte) error {
+	if isNull(b) {
 		if !rc.nullable {
-			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", s)
+			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", string(b))
 		}
 		rc.nullability.set(rc.Len(), true)
 		rc.data.set(rc.Len(), false) // this value is not meant to be read
 		rc.length++
 		return nil
 	}
-	val, err := parseBool(s)
+	val, err := parseBool(b)
 	if err != nil {
 		return err
 	}
@@ -344,9 +344,9 @@ func (rc *columnBools) addValue(s string) error {
 	return nil
 }
 
-func (rc *columnNulls) addValue(s string) error {
-	if !isNull(s) {
-		return fmt.Errorf("a null column expects null values, got: %v", s)
+func (rc *columnNulls) addValue(b []byte) error {
+	if !isNull(b) {
+		return fmt.Errorf("a null column expects null values, got: %v", string(b))
 	}
 	rc.length++
 	return nil
@@ -354,7 +354,7 @@ func (rc *columnNulls) addValue(s string) error {
 
 func (rc *columnBools) addValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.addValue([]byte(el)); err != nil {
 			return err
 		}
 	}
@@ -362,7 +362,7 @@ func (rc *columnBools) addValues(vals []string) error {
 }
 func (rc *columnFloats) addValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.addValue([]byte(el)); err != nil {
 			return err
 		}
 	}
@@ -370,7 +370,7 @@ func (rc *columnFloats) addValues(vals []string) error {
 }
 func (rc *columnInts) addValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.addValue([]byte(el)); err != nil {
 			return err
 		}
 	}
@@ -378,7 +378,7 @@ func (rc *columnInts) addValues(vals []string) error {
 }
 func (rc *columnNulls) addValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.addValue([]byte(el)); err != nil {
 			return err
 		}
 	}
@@ -386,7 +386,7 @@ func (rc *columnNulls) addValues(vals []string) error {
 }
 func (rc *columnStrings) addValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.addValue([]byte(el)); err != nil {
 			return err
 		}
 	}
@@ -875,7 +875,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 	if !(rc.nullable && rc.nullability.Count() > 0) {
 		res := make([]string, 0, int(rc.length))
 		for j := 0; j < rc.Len(); j++ {
-			res = append(res, rc.nthValue(j))
+			res = append(res, string(rc.nthValue(j)))
 		}
 
 		return json.Marshal(res)
@@ -883,7 +883,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 
 	dt := make([]*string, 0, rc.length)
 	for j := 0; j < rc.Len(); j++ {
-		val := rc.nthValue(j)
+		val := string(rc.nthValue(j))
 		dt = append(dt, &val)
 	}
 
@@ -965,6 +965,7 @@ func (rc *columnNulls) MarshalJSON() ([]byte, error) {
 // because we'll need to distinguish between empty strings and null values (see AndNot calls
 // in the other dtypes)
 func (rc *columnStrings) Filter(op operator, expr string) *Bitmap {
+	bexpr := []byte(expr)
 	switch op {
 	case opEqual:
 		// if we can't match the expression even across value boundaries, there's no way we'll match it properly
@@ -975,7 +976,7 @@ func (rc *columnStrings) Filter(op operator, expr string) *Bitmap {
 		// OPTIM: we don't have to go value by value, we can do the whole bytes.Contains and go from there - find out
 		// if the boundaries match an entry etc.
 		for j := 0; j < rc.Len(); j++ {
-			if rc.nthValue(j) == expr {
+			if bytes.Equal(rc.nthValue(j), bexpr) {
 				if bm == nil {
 					bm = NewBitmap(rc.Len())
 				}
@@ -987,7 +988,7 @@ func (rc *columnStrings) Filter(op operator, expr string) *Bitmap {
 	case opNotEqual:
 		var bm *Bitmap
 		for j := 0; j < rc.Len(); j++ {
-			if rc.nthValue(j) != expr {
+			if !bytes.Equal(rc.nthValue(j), bexpr) {
 				if bm == nil {
 					bm = NewBitmap(rc.Len())
 				}
@@ -1002,7 +1003,7 @@ func (rc *columnStrings) Filter(op operator, expr string) *Bitmap {
 }
 
 func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
-	val, err := parseInt(expr)
+	val, err := parseInt([]byte(expr))
 	if err != nil {
 		panic(err)
 	}
@@ -1044,7 +1045,7 @@ func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
 }
 
 func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
-	val, err := parseFloat(expr)
+	val, err := parseFloat([]byte(expr))
 	if err != nil {
 		panic(err)
 	}
@@ -1083,7 +1084,7 @@ func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
 }
 
 func (rc *columnBools) Filter(op operator, expr string) *Bitmap {
-	val, err := parseBool(expr)
+	val, err := parseBool([]byte(expr))
 	if err != nil {
 		panic(err)
 	}

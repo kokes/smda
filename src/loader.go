@@ -200,7 +200,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 		}
 		for j, val := range row {
 			bytesLoaded += len(val)
-			ds.columns[j].addValue(val)
+			ds.columns[j].addValue([]byte(val))
 		}
 		rowsLoaded++
 

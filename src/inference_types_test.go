@@ -143,7 +143,7 @@ func TestBasicTypeInference(t *testing.T) {
 	for _, test := range tt {
 		guesser := newTypeGuesser()
 		for _, val := range test.input {
-			guesser.addValue(val)
+			guesser.addValue([]byte(val))
 		}
 		schema := guesser.inferredType()
 		if schema.Dtype != test.dtype {
@@ -156,13 +156,13 @@ func TestBasicTypeInference(t *testing.T) {
 }
 
 func TestNullability(t *testing.T) {
-	if !isNull("") {
+	if !isNull([]byte("")) {
 		t.Errorf("an empty string should be considered null")
 	}
 
 	// at some point we'll have custom null values, but for now it's just empty strings
 	for _, val := range []string{"foo", "bar", " ", "\t", "\n", "-", "NA", "N/A"} {
-		if isNull(val) {
+		if isNull([]byte(val)) {
 			t.Errorf("only empty strings should be considered null, got \"%v\"", val)
 		}
 	}
@@ -180,7 +180,7 @@ func TestIntCoercion(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		resp, err := parseInt(test.input)
+		resp, err := parseInt([]byte(test.input))
 		if err != nil {
 			t.Error(err)
 		}
@@ -194,7 +194,7 @@ func TestIntCoercionErrs(t *testing.T) {
 	tests := []string{"123 ", "", "1.2", "1e3", "foo"}
 
 	for _, test := range tests {
-		_, err := parseInt(test)
+		_, err := parseInt([]byte(test))
 		if err == nil {
 			t.Errorf("expected %v to err, but it did not", test)
 		}
@@ -220,7 +220,7 @@ func TestFloatCoercion(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		resp, err := parseFloat(test.input)
+		resp, err := parseFloat([]byte(test.input))
 		if err != nil {
 			t.Error(err)
 		}
@@ -234,7 +234,7 @@ func TestFloatCoercionErrs(t *testing.T) {
 	tests := []string{"123 ", "", "foo", "1e1900000"}
 
 	for _, test := range tests {
-		_, err := parseFloat(test)
+		_, err := parseFloat([]byte(test))
 		if err == nil {
 			t.Errorf("expected %v to err, but it did not", test)
 		}
@@ -255,7 +255,7 @@ func TestBoolCoercion(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		resp, err := parseBool(test.input)
+		resp, err := parseBool([]byte(test.input))
 		if err != nil {
 			t.Error(err)
 		}
@@ -269,7 +269,7 @@ func TestBoolCoercionErrs(t *testing.T) {
 	tests := []string{"true ", "  false", "N", "Y", "1", "0"} // add True and False once we drop it
 
 	for _, test := range tests {
-		_, err := parseBool(test)
+		_, err := parseBool([]byte(test))
 		if err == nil {
 			t.Errorf("expected %v to err, but it did not", test)
 		}
@@ -293,8 +293,9 @@ func TestBasicTypeGuessing(t *testing.T) {
 		{"", dtypeString}, // we don't do null inference in guessType
 	}
 	for _, test := range tests {
-		if guessType(test.str) != test.dtype {
-			t.Errorf("expected %v to be guessed as a %v, but got %v", test.str, test.dtype, guessType(test.str))
+		gt := guessType([]byte(test.str))
+		if gt != test.dtype {
+			t.Errorf("expected %v to be guessed as a %v, but got %v", test.str, test.dtype, gt)
 		}
 	}
 }
@@ -364,10 +365,10 @@ func TestDatasetTypeInference(t *testing.T) {
 
 func BenchmarkIntDetection(b *testing.B) {
 	n := 1000
-	strvals := make([]string, 0, n)
+	strvals := make([][]byte, 0, n)
 	nbytes := 0
 	for j := 0; j < n; j++ {
-		val := strconv.Itoa(j)
+		val := []byte(strconv.Itoa(j))
 		nbytes += len(val)
 		strvals = append(strvals, val)
 	}
@@ -382,11 +383,11 @@ func BenchmarkIntDetection(b *testing.B) {
 
 func BenchmarkFloatDetection(b *testing.B) {
 	n := 1000
-	strvals := make([]string, 0, n)
+	strvals := make([][]byte, 0, n)
 	nbytes := 0
 	for j := 0; j < n; j++ {
 		fl := rand.Float64()
-		val := fmt.Sprintf("%v", fl)
+		val := []byte(fmt.Sprintf("%v", fl))
 		nbytes += len(val)
 		strvals = append(strvals, val)
 	}
@@ -401,13 +402,13 @@ func BenchmarkFloatDetection(b *testing.B) {
 
 func BenchmarkBoolDetection(b *testing.B) {
 	n := 1000
-	strvals := make([]string, 0, n)
+	strvals := make([][]byte, 0, n)
 	nbytes := 0
 	for j := 0; j < n; j++ {
 		rnd := rand.Intn(2)
-		val := "true"
+		val := []byte("true")
 		if rnd == 1 {
-			val = "false"
+			val = []byte("false")
 		}
 		nbytes += len(val)
 		strvals = append(strvals, val)
@@ -423,10 +424,10 @@ func BenchmarkBoolDetection(b *testing.B) {
 
 func BenchmarkStringDetection(b *testing.B) {
 	n := 1000
-	strvals := make([]string, 0, n)
+	strvals := make([][]byte, 0, n)
 	nbytes := 0
 	for j := 0; j < n; j++ {
-		val := strconv.Itoa(j) + "foo"
+		val := []byte(strconv.Itoa(j) + "foo")
 		nbytes += len(val)
 		strvals = append(strvals, val)
 	}
@@ -444,12 +445,12 @@ func TestContainsDigit(t *testing.T) {
 	falses := []string{"", "abc", "foobar", ".", "infty", "nan"}
 
 	for _, val := range trues {
-		if !containsDigit(val) {
+		if !containsDigit([]byte(val)) {
 			t.Errorf("expected %v to contain a digit", val)
 		}
 	}
 	for _, val := range falses {
-		if containsDigit(val) {
+		if containsDigit([]byte(val)) {
 			t.Errorf("expected %v not to contain a digit", val)
 		}
 	}
