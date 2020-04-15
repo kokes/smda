@@ -99,6 +99,7 @@ func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 		return nil, err
 	}
 	cr := csv.NewReader(ur)
+	cr.ReuseRecord = true
 	if settings.delimiter != delimiterNone {
 		// we purposefully chose a single byte instead of a rune as a delimiter
 		cr.Comma = rune(settings.delimiter)
