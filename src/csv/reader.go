@@ -182,8 +182,18 @@ func NewReader(r io.Reader) *Reader {
 // If there is no data left to be read, Read returns nil, io.EOF.
 // If ReuseRecord is true, the returned slice may be shared
 // between multiple calls to Read.
-func (r *Reader) Read() (record [][]byte, err error) {
-	return r.readRecord()
+func (r *Reader) Read() ([][]byte, error) {
+	offsets, bytes, err := r.ReadRecord()
+	if err != nil {
+		return nil, err
+	}
+	ret := make([][]byte, len(offsets))
+	var preIdx int
+	for i, idx := range offsets {
+		ret[i] = bytes[preIdx:idx]
+		preIdx = idx
+	}
+	return ret, nil
 }
 
 // ReadAll reads all the remaining records from r.
@@ -191,18 +201,18 @@ func (r *Reader) Read() (record [][]byte, err error) {
 // A successful call returns err == nil, not err == io.EOF. Because ReadAll is
 // defined to read until EOF, it does not treat end of file as an error to be
 // reported.
-func (r *Reader) ReadAll() (records [][][]byte, err error) {
-	for {
-		record, err := r.readRecord()
-		if err == io.EOF {
-			return records, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		records = append(records, record)
-	}
-}
+// func (r *Reader) ReadAll() (records [][][]byte, err error) {
+// 	for {
+// 		record, err := r.readRecord()
+// 		if err == io.EOF {
+// 			return records, nil
+// 		}
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		records = append(records, record)
+// 	}
+// }
 
 // readLine reads the next line (with the trailing endline).
 // If EOF is hit without a trailing endline, it will be omitted.
@@ -248,9 +258,9 @@ func nextRune(b []byte) rune {
 	return r
 }
 
-func (r *Reader) readRecord() ([][]byte, error) {
+func (r *Reader) ReadRecord() ([]int, []byte, error) {
 	if r.Comma == r.Comment || !validDelim(r.Comma) || (r.Comment != 0 && !validDelim(r.Comment)) {
-		return nil, errInvalidDelim
+		return nil, nil, errInvalidDelim
 	}
 
 	// Read line (automatically skipping past empty lines and any comments).
@@ -270,7 +280,7 @@ func (r *Reader) readRecord() ([][]byte, error) {
 		break
 	}
 	if errRead == io.EOF {
-		return nil, errRead
+		return nil, nil, errRead
 	}
 
 	// Parse each field in the record.
@@ -371,20 +381,20 @@ parseField:
 
 	// Create a single string and create slices out of it.
 	// This pins the memory of the fields together, but allocates once.
-	ret := make([][]byte, len(r.fieldIndexes))
-	var preIdx int
-	for i, idx := range r.fieldIndexes {
-		ret[i] = r.recordBuffer[preIdx:idx]
-		preIdx = idx
-	}
+	// ret := make([][]byte, len(r.fieldIndexes))
+	// var preIdx int
+	// for i, idx := range r.fieldIndexes {
+	// 	ret[i] = r.recordBuffer[preIdx:idx]
+	// 	preIdx = idx
+	// }
 
 	// Check or update the expected fields per record.
 	if r.FieldsPerRecord > 0 {
-		if len(ret) != r.FieldsPerRecord && err == nil {
+		if len(r.fieldIndexes) != r.FieldsPerRecord && err == nil {
 			err = &ParseError{StartLine: recLine, Line: recLine, Err: ErrFieldCount}
 		}
 	} else if r.FieldsPerRecord == 0 {
-		r.FieldsPerRecord = len(ret)
+		r.FieldsPerRecord = len(r.fieldIndexes)
 	}
-	return ret, err
+	return r.fieldIndexes, r.recordBuffer, err
 }

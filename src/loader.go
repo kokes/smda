@@ -189,7 +189,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 	var bytesLoaded int
 	var rowsLoaded int
 	for {
-		row, err := rl.cr.Read()
+		offsets, bytes, err := rl.cr.ReadRecord()
 		// we don't want to trigger the internal ErrFieldCount,
 		// we will handle column counts ourselves
 		if err != nil && err != csv.ErrFieldCount {
@@ -200,9 +200,11 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 			}
 			return nil, err
 		}
-		for j, val := range row {
-			bytesLoaded += len(val)
-			ds.columns[j].addValue(val)
+		var preIdx int
+		for j, idx := range offsets {
+			bytesLoaded += idx - preIdx
+			ds.columns[j].addValue(bytes[preIdx:idx])
+			preIdx = idx
 		}
 		rowsLoaded++
 
