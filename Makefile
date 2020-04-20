@@ -1,10 +1,10 @@
 .PHONY: build buildw run test bench testv coverstats
 
 build:
-	go build cmd/server.go
+	CGO_ENABLED=0 go build cmd/server.go
 
 buildw:
-	go build -ldflags -w cmd/server.go
+	CGO_ENABLED=0 go build -ldflags -w cmd/server.go
 
 build-docker:
 	docker build . -t kokes/smda:latest
@@ -17,13 +17,16 @@ run-docker:
 	docker run --rm -p 8822:8822 kokes/smda:latest
 
 test:
-	go test -timeout 5s -coverprofile=coverage.out ./...
+	CGO_ENABLED=0 go test -timeout 5s -coverprofile=coverage.out ./...
+
+test-docker:
+	docker run --rm -v $(pwd):/smda golang:alpine sh -c "apk add --no-cache make && cd /smda && make test"
 
 bench:
-	go test -run=NONE -bench=. -benchmem ./...
+	CGO_ENABLED=0 go test -run=NONE -bench=. -benchmem ./...
 
 testv:
-	go test -test.v -timeout 5s -coverprofile=coverage.out ./...
+	CGO_ENABLED=0 go test -test.v -timeout 5s -coverprofile=coverage.out ./...
 
 coverstats:
-	go tool cover -func=coverage.out
+	CGO_ENABLED=0 go tool cover -func=coverage.out

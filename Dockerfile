@@ -9,14 +9,13 @@ COPY Makefile go.mod ./
 COPY src src
 COPY cmd cmd
 COPY samples samples
-ENV CGO_ENABLED 0
 RUN make build
 
 FROM alpine:latest
 RUN mkdir -p /smda/
 WORKDIR /smda/
 COPY --from=build /smda/server .
-# TODO: this will be not necessary once we include artifacts in our binary
+# TODO: this will not be necessary once we include artifacts in our binary
 COPY --from=build /smda/cmd cmd
 COPY --from=build /smda/samples samples
 
