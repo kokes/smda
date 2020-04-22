@@ -112,6 +112,12 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\nt,f\nt,f", []string{"foo"}, "foo\ntrue"},
 		{"foo,bar\n1,t\n2,f", []string{"foo"}, "foo,bar\n1,true\n2,false"},
 		// {"foo,bar\na,b\nb,a", []string{"foo", "bar"}, "foo,bar\na,b\nb,a"}, // TODO: enable once we add order-preserving hashing
+		// nulls in aggregation:
+		{"foo,bar\n,1\n0,2", []string{"foo"}, "foo,bar\n,1\n0,2"},
+		{"foo,bar\n1,1\n,2", []string{"foo"}, "foo,bar\n1,1\n,2"},
+		// {"foo,bar\n,1\n.3,2", []string{"foo"}, "foo,bar\n,1\n.3,2"}, // TODO: can't test floats as deepEqual doesn't like NaNs
+		{"foo,bar\n,1\nt,2", []string{"foo"}, "foo,bar\n,1\nt,2"},
+		// TODO: nullable strings tests
 	}
 
 	for testNo, test := range tests {

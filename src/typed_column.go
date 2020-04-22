@@ -197,6 +197,8 @@ func (rc *columnStrings) nthValue(n int) string {
 	return string(rc.data[offsetStart:offsetEnd])
 }
 
+const nullXorHash = 0xe96766e0d6221951
+
 // TODO: none of these Hash methods accounts for nulls
 // also we don't check that rc.Len() == len(hashes) - should panic otherwise
 func (rc *columnBools) Hash(hashes []uint64) {
@@ -207,6 +209,10 @@ func (rc *columnBools) Hash(hashes []uint64) {
 		// 	val := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
 		// 	fmt.Printf("%x, %v\n", val, bits.OnesCount64(val))
 		// }
+		if rc.nullable && rc.nullability.get(j) {
+			hashes[j] ^= nullXorHash
+			continue
+		}
 		if rc.data.get(j) {
 			hashes[j] ^= 0x5a320fa8dfcfe3a7
 		} else {
@@ -218,6 +224,10 @@ func (rc *columnFloats) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
 	for j, el := range rc.data {
+		if rc.nullable && rc.nullability.get(j) {
+			hashes[j] ^= nullXorHash
+			continue
+		}
 		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(el))
 		hasher.Write(buf[:])
 		hashes[j] ^= hasher.Sum64()
@@ -231,6 +241,10 @@ func (rc *columnInts) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
 	for j, el := range rc.data {
+		if rc.nullable && rc.nullability.get(j) {
+			hashes[j] ^= nullXorHash
+			continue
+		}
 		binary.PutVarint(buf[:], el) // not a huge fan of varints, but it might just work here
 		hasher.Write(buf[:])
 		// XOR is pretty bad here, but it'll do for now
@@ -247,6 +261,10 @@ func (rc *columnNulls) Hash(hashes []uint64) {
 func (rc *columnStrings) Hash(hashes []uint64) {
 	hasher := fnv.New64()
 	for j := 0; j < rc.Len(); j++ {
+		if rc.nullable && rc.nullability.get(j) {
+			hashes[j] ^= nullXorHash
+			continue
+		}
 		offsetStart := rc.offsets[j]
 		offsetEnd := rc.offsets[j+1]
 		hasher.Write(rc.data[offsetStart:offsetEnd])
