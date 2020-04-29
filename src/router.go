@@ -26,7 +26,7 @@ func (db *Database) setupRoutes() {
 }
 
 // RunWebserver sets up all the necessities for a server to run (namely routes) and launches one
-func (db *Database) RunWebserver(port int) {
+func (db *Database) RunWebserver(port int, ensurePort bool) {
 	db.setupRoutes()
 
 	// we're trying to find an available port, but this is for end users only - we may need to add
@@ -37,6 +37,9 @@ func (db *Database) RunWebserver(port int) {
 		listener, err := net.Listen("tcp", sport)
 		if err != nil {
 			if err.(*net.OpError).Err.Error() == "bind: address already in use" {
+				if ensurePort {
+					log.Fatalf("port %v busy", nport)
+				}
 				log.Printf("port %v busy, trying %v", nport, nport+1)
 				continue
 			}

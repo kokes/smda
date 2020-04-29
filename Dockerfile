@@ -20,5 +20,4 @@ COPY --from=build /smda/cmd cmd
 COPY --from=build /smda/samples samples
 
 EXPOSE 8822
-# TODO: does not bind the port if it's (for any reason) busy
-CMD ["./server", "-port", "8822", "-samples"]
+CMD ["./server", "-port", "8822", "-ensure-port", "-samples"]

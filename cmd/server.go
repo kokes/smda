@@ -8,7 +8,8 @@ import (
 )
 
 func main() {
-	port := flag.Int("port", 8080, "port to listen on")
+	port := flag.Int("port", 8822, "port to listen on")
+	ensurePort := flag.Bool("ensure-port", false, "if the specified port is busy, do not attept any other ports")
 	wdir := flag.String("wdir", "tmp", "working directory for the database")
 	loadSamples := flag.Bool("samples", false, "load sample datasets")
 	flag.Parse()
@@ -28,5 +29,5 @@ func main() {
 		}
 	}
 
-	d.RunWebserver(*port)
+	d.RunWebserver(*port, *ensurePort)
 }
