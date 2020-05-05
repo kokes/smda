@@ -47,8 +47,8 @@ func (d delimiter) String() string {
 func inferCompression(buffer []byte) (compression, error) {
 	// 1) detect compression from contents, not filename
 	signatures := map[compression][]byte{
-		compressionGzip:  []byte{0x1f, 0x8b},
-		compressionBzip2: []byte{0x42, 0x5A, 0x68},
+		compressionGzip:  {0x1f, 0x8b},
+		compressionBzip2: {0x42, 0x5A, 0x68},
 	}
 
 	for ctype, signature := range signatures {

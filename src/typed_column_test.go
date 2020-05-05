@@ -12,10 +12,10 @@ import (
 
 func TestBasicStringColumn(t *testing.T) {
 	tt := [][]string{
-		[]string{"foo", "bar", "baz"},
-		[]string{},
-		[]string{"", "", "", "foo", ""},
-		[]string{""},
+		{"foo", "bar", "baz"},
+		{},
+		{"", "", "", "foo", ""},
+		{""},
 	}
 	for _, vals := range tt {
 		nc := newColumnStrings(false)
@@ -46,13 +46,13 @@ func TestBasicStringColumn(t *testing.T) {
 
 func TestBasicIntColumn(t *testing.T) {
 	tt := [][]string{
-		[]string{"1", "2", "3"},
-		[]string{"1", "2", "30923091239123"},
-		[]string{"-1", "2", "30923091239123"},
-		[]string{"0", "-0"},
-		[]string{},
-		[]string{strconv.Itoa(math.MaxInt64), strconv.Itoa(math.MinInt64)},
-		[]string{"1", "2", ""},
+		{"1", "2", "3"},
+		{"1", "2", "30923091239123"},
+		{"-1", "2", "30923091239123"},
+		{"0", "-0"},
+		{},
+		{strconv.Itoa(math.MaxInt64), strconv.Itoa(math.MinInt64)},
+		{"1", "2", ""},
 	}
 	for _, vals := range tt {
 		nc := newColumnInts(true)
@@ -76,17 +76,17 @@ func TestBasicIntColumn(t *testing.T) {
 // what about infites?
 func TestBasicFloatColumn(t *testing.T) {
 	tt := [][]string{
-		[]string{"1", "2", "3"},
-		[]string{"+1", "-2", "+0"},
-		[]string{".1", ".2", ".3"},
-		[]string{"0", "-0", "+0"},
-		[]string{strconv.FormatFloat(math.MaxInt64, 'E', -1, 64), strconv.FormatFloat(math.MinInt64, 'E', -1, 64)},
-		[]string{strconv.FormatFloat(math.MaxFloat64, 'E', -1, 64), strconv.FormatFloat(math.SmallestNonzeroFloat64, 'E', -1, 64)},
-		[]string{strconv.FormatFloat(math.MaxFloat32, 'E', -1, 32), strconv.FormatFloat(math.SmallestNonzeroFloat32, 'E', -1, 32)},
-		[]string{"nan", "NAN"},
-		[]string{},
-		[]string{"", "", ""}, // -> nulls
-		[]string{"1", "", "1.2"},
+		{"1", "2", "3"},
+		{"+1", "-2", "+0"},
+		{".1", ".2", ".3"},
+		{"0", "-0", "+0"},
+		{strconv.FormatFloat(math.MaxInt64, 'E', -1, 64), strconv.FormatFloat(math.MinInt64, 'E', -1, 64)},
+		{strconv.FormatFloat(math.MaxFloat64, 'E', -1, 64), strconv.FormatFloat(math.SmallestNonzeroFloat64, 'E', -1, 64)},
+		{strconv.FormatFloat(math.MaxFloat32, 'E', -1, 32), strconv.FormatFloat(math.SmallestNonzeroFloat32, 'E', -1, 32)},
+		{"nan", "NAN"},
+		{},
+		{"", "", ""}, // -> nulls
+		{"1", "", "1.2"},
 	}
 	for _, vals := range tt {
 		nc := newColumnFloats(true)
@@ -109,11 +109,11 @@ func TestBasicFloatColumn(t *testing.T) {
 
 func TestBasicBoolColumn(t *testing.T) {
 	tt := [][]string{
-		[]string{"true", "false"},
-		[]string{"true", "FALSE"},
-		[]string{"T", "F"},
-		[]string{},
-		[]string{"T", "F", ""},
+		{"true", "false"},
+		{"true", "FALSE"},
+		{"T", "F"},
+		{},
+		{"T", "F", ""},
 	}
 	for _, vals := range tt {
 		nc := newColumnBools(true)
