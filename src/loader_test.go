@@ -124,49 +124,53 @@ func TestReadingFromStripes(t *testing.T) {
 	}
 }
 
+// note that this measures throughput in terms of the original file size, not the size it takes on the disk
 func BenchmarkReadingFromStripes(b *testing.B) {
 	db, err := NewDatabaseTemp()
 	if err != nil {
 		b.Fatal(err)
 	}
 	defer os.RemoveAll(db.WorkingDirectory)
-	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
+	header := "foo,bar,baz\n"
+	row := "1,true,1.23\n"
+	for _, nrows := range []int{1, 100, 1000, 1000_000} {
+		bName := strconv.Itoa(nrows)
+		b.Run(bName, func(b *testing.B) {
+			buf := new(bytes.Buffer)
+			if _, err := buf.Write([]byte(header)); err != nil {
+				b.Fatal(err)
+			}
+			for j := 0; j < nrows; j++ {
+				if _, err := buf.Write([]byte(row)); err != nil {
+					b.Fatal(err)
+				}
+			}
 
-	ds, err := db.loadDatasetFromReaderAuto(buf)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.ResetTimer()
-	for j := 0; j < b.N; j++ {
-		col, err := db.readColumnFromStripe(ds, ds.Stripes[0], 0)
-		if err != nil {
-			b.Fatal(err)
-		}
-		cols := col.(*columnInts)
-		if cols.length != 2 {
-			b.Errorf("expecting the length to be %v, got %v", 2, cols.length)
-		}
+			b.SetBytes(int64(buf.Len()))
 
-		col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 1)
-		if err != nil {
-			b.Fatal(err)
-		}
-		colb := col.(*columnBools)
-		if colb.length != 2 {
-			b.Errorf("expecting the length to be %v, got %v", 2, colb.length)
-		}
-		if !colb.nullable {
-			b.Errorf("expecting the second column to be nullable")
-		}
+			ds, err := db.loadDatasetFromReaderAuto(buf)
+			if err != nil {
+				b.Fatal(err)
+			}
 
-		col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 2)
-		if err != nil {
-			b.Fatal(err)
-		}
-		colf := col.(*columnFloats)
-		if colf.length != 2 {
-			b.Errorf("expecting the length to be %v, got %v", 2, colf.length)
-		}
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				for cn := 0; cn < 3; cn++ {
+					crows := 0
+					for _, stripeID := range ds.Stripes {
+						col, err := db.readColumnFromStripe(ds, stripeID, cn)
+						if err != nil {
+							b.Fatal(err)
+						}
+						crows += col.Len()
+					}
+
+					if crows != nrows {
+						b.Errorf("expecting %v rows, got %v", nrows, crows)
+					}
+				}
+			}
+		})
 	}
 }
 
