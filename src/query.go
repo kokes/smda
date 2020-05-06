@@ -1,6 +1,7 @@
 package smda
 
 import (
+	"bytes"
 	"fmt"
 )
 
@@ -39,8 +40,9 @@ func (db *Database) Filter(ds *Dataset, fe *FilterExpression) ([]*Bitmap, error)
 	}
 
 	bms := make([]*Bitmap, 0, len(ds.Stripes))
+	buf := new(bytes.Buffer)
 	for _, stripe := range ds.Stripes {
-		col, err := db.readColumnFromStripe(ds, stripe, colIndex)
+		col, err := db.readColumnFromStripe(buf, ds, stripe, colIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -75,10 +77,11 @@ func (db *Database) Aggregate(ds *Dataset, exprs []string) ([]typedColumn, error
 	}
 
 	groups := make(map[uint64]int)
+	buf := new(bytes.Buffer)
 	for _, stripeID := range ds.Stripes {
 		rcs := make([]typedColumn, 0, len(exprs))
 		for _, colIndex := range colIndices {
-			rc, err := db.readColumnFromStripe(ds, stripeID, colIndex)
+			rc, err := db.readColumnFromStripe(buf, ds, stripeID, colIndex)
 			if err != nil {
 				return nil, err
 			}
@@ -172,8 +175,9 @@ func (db *Database) Query(q Query) (*QueryResult, error) {
 			}
 		}
 		var bmnf *Bitmap // bitmap for non-filtered data - I really dislike the way this is handled (TODO)
+		buf := new(bytes.Buffer)
 		for j := range ds.Schema {
-			col, err := db.readColumnFromStripe(ds, stripeID, j)
+			col, err := db.readColumnFromStripe(buf, ds, stripeID, j)
 			if err != nil {
 				return nil, err
 			}

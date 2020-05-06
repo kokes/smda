@@ -1,6 +1,7 @@
 package smda
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
@@ -201,11 +202,12 @@ func (db *Database) inferTypes(ds *Dataset) ([]columnSchema, error) {
 	// column at a time (and could be useful in the future, if we track unique values etc.)
 	// or we go stripe by stripe, which will be more file IO efficient
 	// let's do column by column for now, because we don't have efficient stripe reading anyway
+	buf := new(bytes.Buffer)
 	for colNum, col := range ds.Schema {
 		// log.Println("Processing", col.Name)
 		tg := newTypeGuesser()
 		for _, stripeID := range ds.Stripes {
-			chunk, err := db.readColumnFromStripe(ds, stripeID, colNum)
+			chunk, err := db.readColumnFromStripe(buf, ds, stripeID, colNum)
 			if err != nil {
 				return nil, err
 			}

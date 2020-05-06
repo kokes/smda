@@ -1,6 +1,7 @@
 package smda
 
 import (
+	"bytes"
 	"os"
 	"reflect"
 	"strings"
@@ -142,8 +143,9 @@ func TestBasicAggregation(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		buf := new(bytes.Buffer)
 		for j, col := range nrc {
-			expcol, err := db.readColumnFromStripe(dso, dso.Stripes[0], j)
+			expcol, err := db.readColumnFromStripe(buf, dso, dso.Stripes[0], j)
 			if err != nil {
 				t.Fatal(err)
 			}

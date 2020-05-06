@@ -87,13 +87,14 @@ func TestReadingFromStripes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(db.WorkingDirectory)
-	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
+	data := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
-	ds, err := db.loadDatasetFromReaderAuto(buf)
+	buf := new(bytes.Buffer)
+	ds, err := db.loadDatasetFromReaderAuto(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	col, err := db.readColumnFromStripe(ds, ds.Stripes[0], 0)
+	col, err := db.readColumnFromStripe(buf, ds, ds.Stripes[0], 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +103,7 @@ func TestReadingFromStripes(t *testing.T) {
 		t.Errorf("expecting the length to be %v, got %v", 2, cols.length)
 	}
 
-	col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 1)
+	col, err = db.readColumnFromStripe(buf, ds, ds.Stripes[0], 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestReadingFromStripes(t *testing.T) {
 		t.Errorf("expecting the second column to be nullable")
 	}
 
-	col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 2)
+	col, err = db.readColumnFromStripe(buf, ds, ds.Stripes[0], 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,10 +156,11 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
+				buf := new(bytes.Buffer)
 				for cn := 0; cn < 3; cn++ {
 					crows := 0
 					for _, stripeID := range ds.Stripes {
-						col, err := db.readColumnFromStripe(ds, stripeID, cn)
+						col, err := db.readColumnFromStripe(buf, ds, stripeID, cn)
 						if err != nil {
 							b.Fatal(err)
 						}

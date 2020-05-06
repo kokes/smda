@@ -227,12 +227,13 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 	newDs := NewDataset()
 
 	newStripeIDs := make([]UID, 0, len(newSchema))
+	buf := new(bytes.Buffer)
 	for _, stripeID := range ds.Stripes {
 		newStripe := newDataStripe()
 
 		for colNum, schema := range newSchema {
 			newCol := newTypedColumnFromSchema(schema)
-			col, err := db.readColumnFromStripe(ds, stripeID, colNum)
+			col, err := db.readColumnFromStripe(buf, ds, stripeID, colNum)
 			if err != nil {
 				return nil, err
 			}
@@ -260,7 +261,15 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
 // OPTIM: this does not buffer any reads... but it only reads things twice, so it shouldn't matter, right?
-func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (typedColumn, error) {
+// OPTIM: pass in an optional bytes buffer, which we can reuse between runs (not concurrency safe, but it's up
+// to the caller to ensure that. If buffer == nil, we create a new one)
+func (db *Database) readColumnFromStripe(buf *bytes.Buffer, ds *Dataset, stripeID UID, nthColumn int) (typedColumn, error) {
+	if buf == nil {
+		buf = new(bytes.Buffer)
+	} else {
+		buf.Reset()
+	}
+
 	// TODO: d.LocalFilePath? (is probably not filled in here)
 	path := filepath.Join(db.WorkingDirectory, ds.ID.String(), stripeID.String())
 	f, err := os.Open(path)
@@ -281,17 +290,20 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 	}
 	offsetStart, offsetEnd := offsets[nthColumn], offsets[nthColumn+1]
 
-	buf := make([]byte, offsetEnd-offsetStart)
-	n, err := f.ReadAt(buf, int64(offsetStart))
+	blen := offsetEnd - offsetStart
+	buf.Grow(int(blen))
+	if _, err := f.Seek(int64(offsetStart), io.SeekStart); err != nil {
+		return nil, err
+	}
+	n, err := io.CopyN(buf, f, int64(blen))
 	if err != nil {
 		return nil, err
 	}
-	if n != len(buf) {
-		return nil, fmt.Errorf("expected to read %v bytes, but only got %v", len(buf), n)
+	if n != int64(buf.Len()) {
+		return nil, fmt.Errorf("expected to read %v bytes, but only got %v", buf.Len(), n)
 	}
 
-	br := bytes.NewReader(buf)
-	return deserializeColumn(br, ds.Schema[nthColumn].Dtype)
+	return deserializeColumn(buf, ds.Schema[nthColumn].Dtype)
 }
 
 // This is how data gets in! This is the main entrypoint
