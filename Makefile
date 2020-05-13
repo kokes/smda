@@ -25,6 +25,9 @@ test-docker:
 bench:
 	CGO_ENABLED=0 go test -run=NONE -bench=. -benchmem ./...
 
+bench-many:
+	for i in {1..10}; do make bench; done | tee $(shell eval git rev-parse --abbrev-ref HEAD).txt
+
 testv:
 	CGO_ENABLED=0 go test -test.v -timeout 5s -coverprofile=coverage.out ./...
 
