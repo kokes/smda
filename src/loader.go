@@ -13,10 +13,9 @@ import (
 	"path/filepath"
 )
 
-// TODO: to be revised once we're done with testing
 const (
-	maxRowsPerStripe  = 5_000
-	maxBytesPerStripe = 500_000
+	maxRowsPerStripe  = 100_000
+	maxBytesPerStripe = 10_000_000
 )
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
