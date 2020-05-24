@@ -284,6 +284,42 @@ func TestHandlingQueries(t *testing.T) {
 	}
 }
 
+// At this point we only test that when passed an unexpected parameter, the query fails
+func TestInvalidQueries(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(db.WorkingDirectory)
+
+	data := "foo\n1\n2\n3"
+	ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(db.server.Handler)
+	defer srv.Close()
+
+	url := fmt.Sprintf("%s/api/query", srv.URL)
+	body := fmt.Sprintf(`{"dataset": "%v", "foobar": 123}`, ds.ID)
+	resp, err := http.Post(url, "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %v", resp.Status)
+	}
+	var rerr map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&rerr); err != nil {
+		t.Fatal(err)
+	}
+	if rerr["error"] != `did not supply correct query parameters: json: unknown field "foobar"` {
+		t.Fatalf("expected query to fail with an unexpected query parameter, but got: %v", rerr["error"])
+	}
+}
+
 func TestBasicRawUpload(t *testing.T) {
 	db, err := NewDatabaseTemp()
 	if err != nil {
