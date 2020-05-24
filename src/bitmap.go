@@ -25,6 +25,9 @@ func (bm *Bitmap) Count() int {
 // once we hit the n == count condition, we can discard the rest and lower the cap? will require a fair bit
 // of testing, but should be doable
 func (bm *Bitmap) KeepFirstN(n int) {
+	if n < 0 {
+		panic("disallowed value")
+	}
 	if n >= bm.Count() {
 		return
 	}

@@ -248,7 +248,8 @@ func TestHandlingQueries(t *testing.T) {
 
 	for _, ds := range dss {
 		url := fmt.Sprintf("%s/api/query", srv.URL)
-		query := Query{Dataset: ds.ID, Limit: 100}
+		limit := 100
+		query := Query{Dataset: ds.ID, Limit: &limit}
 		body, err := json.Marshal(query)
 		if err != nil {
 			t.Fatal(err)

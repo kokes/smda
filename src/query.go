@@ -15,7 +15,7 @@ type Query struct {
 	Dataset   UID               `json:"dataset"`
 	Filter    *FilterExpression `json:"filter"`
 	Aggregate []string          `json:"aggregate"` // this will be *Expr at some point
-	Limit     int               `json:"limit"`     // TODO: we don't distinguish between limit = 0 and a missing value
+	Limit     *int              `json:"limit,omitempty"`
 }
 
 // type FilterTree - to be used once we have AND and OR clauses
@@ -158,7 +158,13 @@ func (db *Database) Query(q Query) (*QueryResult, error) {
 		res.Data = append(res.Data, newTypedColumnFromSchema(col))
 	}
 
-	limit := q.Limit
+	limit := -1
+	if q.Limit != nil {
+		if *q.Limit < 0 {
+			return nil, fmt.Errorf("invalid limit value: %v", *q.Limit)
+		}
+		limit = *q.Limit
+	}
 	for stripeIndex, stripeID := range ds.Stripes {
 		// if no relevant data in this stripe, skip it
 		if bms != nil {
@@ -166,10 +172,10 @@ func (db *Database) Query(q Query) (*QueryResult, error) {
 			if filteredLen == 0 {
 				continue
 			}
-			if filteredLen > limit {
+			if limit >= 0 && filteredLen > limit {
 				bms[stripeIndex].KeepFirstN(limit)
-				limit -= filteredLen
 			}
+			limit -= filteredLen
 		}
 		var bmnf *Bitmap // bitmap for non-filtered data - I really dislike the way this is handled (TODO)
 		for j := range ds.Schema {
@@ -184,7 +190,7 @@ func (db *Database) Query(q Query) (*QueryResult, error) {
 			// prune non-filtered stripes as well (when limit is applied)
 			// for each stripe, set up the bitmap when in the first column (because we don't
 			// know the columns' length before that)
-			if j == 0 && bms == nil {
+			if limit >= 0 && j == 0 && bms == nil {
 				ln := col.Len()
 				if ln <= limit {
 					limit -= ln

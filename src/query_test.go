@@ -15,7 +15,8 @@ func TestQueryingEmptyDatasets(t *testing.T) {
 	defer os.RemoveAll(db.WorkingDirectory)
 	ds := NewDataset()
 	db.addDataset(ds)
-	q := Query{Dataset: ds.ID, Limit: 100}
+	limit := 100
+	q := Query{Dataset: ds.ID, Limit: &limit}
 
 	qr, err := db.Query(q)
 	if err != nil {
@@ -38,7 +39,8 @@ func TestBasicQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	db.addDataset(ds)
-	q := Query{Dataset: ds.ID, Limit: 100}
+	limit := 100
+	q := Query{Dataset: ds.ID, Limit: &limit}
 
 	qr, err := db.Query(q)
 	if err != nil {
@@ -55,6 +57,8 @@ func TestBasicQueries(t *testing.T) {
 	}
 }
 
+// TODO: test that a limit omitted is equivalent to loading all data (test with and without filters)
+// also test negative limits
 func TestLimitsInQueries(t *testing.T) {
 	db, err := NewDatabaseTemp()
 	if err != nil {
@@ -70,7 +74,7 @@ func TestLimitsInQueries(t *testing.T) {
 
 	firstColRaw := []string{"1", "4", "7"}
 	for limit := 0; limit < 100; limit++ {
-		q := Query{Dataset: ds.ID, Limit: limit}
+		q := Query{Dataset: ds.ID, Limit: &limit}
 
 		qr, err := db.Query(q)
 		if err != nil {
