@@ -29,8 +29,7 @@ func (db *Database) setupRoutes() {
 func (db *Database) RunWebserver(port int, ensurePort, expose bool) {
 	db.setupRoutes()
 
-	// we're trying to find an available port, but this is for end users only - we may need to add
-	// some guarantees in the future - bind to a port XYZ or die (TODO)
+	// we're trying to find an available port, but this is for end users only
 	for j := 0; j < 100; j++ {
 		nport := port + j
 		address := fmt.Sprintf("localhost:%v", nport)
