@@ -90,6 +90,10 @@
                     console.error(`unexpected route base: "${hash[0]}"`);
             }
         }
+        // upon a page reload, there is no hashchange even triggered, so we need to fire it manually
+        if (window.location.hash.length > 1) {
+            window.dispatchEvent(new Event('hashchange'));
+        }
 
         // link all the datasets we have
         const dss = document.getElementById('datasets');
