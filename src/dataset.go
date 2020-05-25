@@ -154,14 +154,32 @@ func (db *Database) addDataset(ds *Dataset) {
 	db.Unlock()
 }
 
-func (db *Database) removeDataset(ds *Dataset) {
+// TODO: test for deletion
+func (db *Database) removeDataset(ds *Dataset) error {
 	db.Lock()
 	defer db.Unlock()
 	for j, dataset := range db.Datasets {
 		if dataset == ds {
 			db.Datasets = append(db.Datasets[:j], db.Datasets[j+1:]...)
-			break
+			break // TODO: what if dataset is not found? return an error that we'll ignore?
 		}
 	}
-	// TODO: remove data at some point
+	// TODO: this path stitching is omnipresent, get rid of it
+	// this directory contains all the stripes a given dataset has
+	// but it might as well be a file (for raw datasets)
+	localDir := filepath.Join(db.WorkingDirectory, ds.ID.String())
+
+	for _, stripeID := range ds.Stripes {
+		filename := filepath.Join(localDir, stripeID.String())
+		if err := os.Remove(filename); err != nil {
+			return err
+		}
+	}
+	if err := os.Remove(localDir); err != nil {
+		// TODO: ignore if "directory not empty"? Because other datasets might claim this directory
+		// and we only want to remove it if it's actually empty, so this error is fine.
+		return err
+	}
+
+	return nil
 }

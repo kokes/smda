@@ -113,6 +113,7 @@ func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ds, err := db.LoadRawDataset(r.Body)
+	defer db.removeDataset(ds)
 	defer r.Body.Close()
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("not able to accept this file: %v", err))
