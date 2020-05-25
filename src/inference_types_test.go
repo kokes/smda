@@ -3,6 +3,7 @@ package smda
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
@@ -346,12 +347,15 @@ func TestDatasetTypeInference(t *testing.T) {
 		// {"foo\nfoo\n\ntrue", []columnSchema{{"foo", dtypeBool, true}}}, // this should be nullable, but we keep saying it is not
 	}
 	for _, dataset := range datasets {
-		ds, err := db.loadDatasetFromReader(strings.NewReader(dataset.raw), loadSettings{}) // loadSettings{} -> nil, once we migrate this to be accepting pointers
+		f, err := ioutil.TempFile("", "")
 		if err != nil {
-			t.Error(err)
-			continue
+			t.Fatal(err)
 		}
-		cs, err := db.inferTypes(ds)
+		defer os.Remove(f.Name())
+		if err := cacheIncomingFile(strings.NewReader(dataset.raw), f.Name()); err != nil {
+			t.Fatal(err)
+		}
+		cs, err := inferTypes(f.Name(), loadSettings{})
 		if err != nil {
 			t.Error(err)
 			continue

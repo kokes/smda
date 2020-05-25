@@ -295,9 +295,21 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 
 // This is how data gets in! This is the main entrypoint
 // TODO: log dependency on the raw dataset somehow? lineage?
+// TODO: we have quite an inconsistency here - loadDatasetFromReaderAuto caches incoming data and loads them then,
+// this reads it without any caching (at the same time... if we cache it here, we'll be caching it twice,
+// because we load it from our Auto methods - we'd have to call the file reader here [should be fine])
 func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
 	dataset := NewDataset()
 	rl, err := newRawLoader(r, settings)
+	if err != nil {
+		return nil, err
+	}
+	if rl.settings.schema == nil {
+		return nil, errors.New("cannot load data without a schema")
+	}
+	// we don't need the first row - it's the header... should we perhaps validate it? (TODO)
+	// that could be a loadSetting option for non-auto uploads - check that the header conforms to the schema
+	_, err = rl.cr.Read()
 	if err != nil {
 		return nil, err
 	}
@@ -336,68 +348,34 @@ func (db *Database) loadDatasetFromLocalFile(path string, settings loadSettings)
 }
 
 func (db *Database) loadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
-	header := make([]byte, 64)
-	n, err := r.Read(header)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-	header = header[:n] // we'd otherwise have null-byte padding after whatever we loaded
-	ctype, err := inferCompression(header)
+	f, err := ioutil.TempFile("", "")
 	if err != nil {
 		return nil, err
 	}
-	mr := io.MultiReader(bytes.NewReader(header), r)
-	uf, err := wrapCompressed(mr, ctype)
-
-	// now read some uncompressed data to determine a delimiter
-	uheader := make([]byte, 64*1024)
-	n, err = uf.Read(uheader)
-	if err != nil && err != io.EOF {
+	defer os.Remove(f.Name())
+	if err := cacheIncomingFile(r, f.Name()); err != nil {
 		return nil, err
 	}
-	uheader = uheader[:n]
-	umr := io.MultiReader(bytes.NewReader(uheader), uf)
 
-	dlim, err := inferDelimiter(uheader)
+	return db.loadDatasetFromLocalFileAuto(f.Name())
+}
+
+func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) {
+	ctype, dlim, err := inferCompressionAndDelimiter(path)
 	if err != nil {
 		return nil, err
 	}
 
 	ls := loadSettings{
-		// we no longer need to let the loader know it's compressed
-		// because we've already uncompressed it here to determine the delimiter
-		// compression: ctype,
-		delimiter: dlim,
+		compression: ctype,
+		delimiter:   dlim,
 	}
 
-	// OPTIM: we don't need to load the whole dataset here in most cases
-	// we could infer types on the raw data and then load the dataset with the correct schema
-	// one thing to keep in mind: the schema from the first 1000 rows may differ from the whole file
-	//  - do we fail on a load then? do we allow for runtime changes? (e.g. int -> float, not nullable -> nullable etc.)
-	ds, err := db.loadDatasetFromReader(umr, ls)
+	schema, err := inferTypes(path, ls)
 	if err != nil {
 		return nil, err
 	}
+	ls.schema = schema
 
-	schema, err := db.inferTypes(ds)
-	if err != nil {
-		return nil, err
-	}
-	defer db.removeDataset(ds) // remove the string-only dataset
-	// now that we have inferred a schema from strings, we have two options
-	// 1) we pass this schema to our CSV reader and let all the existing code do its work
-	// 2) write a new method, which will take our binary files and resave them using this new schema
-	// the second option, while longer, will be much more performant
-	// also, we don't have the CSV anymore - we used a reader after all
-	return db.castDataset(ds, schema)
-}
-
-func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	return db.loadDatasetFromReaderAuto(f)
+	return db.loadDatasetFromLocalFile(path, ls)
 }

@@ -1,8 +1,11 @@
 package smda
 
 import (
+	"encoding/csv"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 )
 
@@ -184,6 +187,7 @@ func (tg *typeGuesser) inferredType() columnSchema {
 	}
 }
 
+// we should keep this, but maybe rename it as inferTypesFromTypedColumns or something (TODO)
 func (db *Database) inferTypes(ds *Dataset) ([]columnSchema, error) {
 	for _, col := range ds.Schema {
 		if col.Dtype != dtypeString {
@@ -227,6 +231,57 @@ func (db *Database) inferTypes(ds *Dataset) ([]columnSchema, error) {
 		itype := tg.inferredType()
 		itype.Name = col.Name
 		ret = append(ret, itype)
+	}
+
+	return ret, nil
+}
+
+func inferTypes(path string, settings loadSettings) ([]columnSchema, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	rl, err := newRawLoader(f, settings)
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := rl.cr.Read()
+	if err != nil {
+		return nil, err // TODO: EOF handling?
+	}
+	hd := make([]string, len(row))
+	copy(hd, row) // we're reusing records, so we need to copy here
+
+	tgs := make([]*typeGuesser, 0, len(hd))
+	for range hd {
+		tgs = append(tgs, newTypeGuesser())
+	}
+
+	for {
+		row, err := rl.cr.Read()
+		// we don't want to trigger the internal ErrFieldCount,
+		// we will handle column counts ourselves
+		// TODO: we're duplicating this logic elsewhere (grep for `ErrFieldCount`)
+		// maybe we should move this to the RawLoader
+		if err != nil && err != csv.ErrFieldCount {
+			// I think we need to report EOFs, because that will signalise to downstream
+			// that no more stripe reads will be possible
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		for j, val := range row {
+			tgs[j].addValue(val)
+		}
+
+	}
+	ret := make([]columnSchema, len(tgs))
+	for j, tg := range tgs {
+		ret[j] = tg.inferredType()
+		ret[j].Name = hd[j]
 	}
 
 	return ret, nil

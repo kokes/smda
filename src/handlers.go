@@ -112,20 +112,14 @@ func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
 		responseError(w, http.StatusMethodNotAllowed, "only POST requests allowed for /upload/auto")
 		return
 	}
-	ds, err := db.LoadRawDataset(r.Body)
-	defer db.removeDataset(ds)
-	defer r.Body.Close()
-	if err != nil {
-		responseError(w, http.StatusInternalServerError, fmt.Sprintf("not able to accept this file: %v", err))
-		return
-	}
 
-	pds, err := db.loadDatasetFromLocalFileAuto(ds.LocalFilepath)
+	ds, err := db.loadDatasetFromReaderAuto(r.Body)
+	defer r.Body.Close()
 	if err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed to parse a given file: %v", err))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(pds); err != nil {
+	if err := json.NewEncoder(w).Encode(ds); err != nil {
 		panic(err)
 	}
 }
