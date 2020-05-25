@@ -33,8 +33,10 @@ func (db *Database) RunWebserver(port int, ensurePort bool) {
 	// some guarantees in the future - bind to a port XYZ or die (TODO)
 	for j := 0; j < 100; j++ {
 		nport := port + j
-		sport := fmt.Sprintf(":%v", nport)
-		listener, err := net.Listen("tcp", sport)
+		// TODO: we set the local address to be localhost:port, but that probably won't
+		// work for hosted solutions - we may need a CLI flag for this
+		localAddress := fmt.Sprintf("localhost:%v", nport)
+		listener, err := net.Listen("tcp", localAddress)
 		if err != nil {
 			if err.(*net.OpError).Err.Error() == "bind: address already in use" {
 				if ensurePort {
@@ -46,8 +48,8 @@ func (db *Database) RunWebserver(port int, ensurePort bool) {
 
 			log.Fatal(err)
 		}
-		db.server.Addr = sport
-		log.Printf("listening on http://localhost%v", sport)
+		db.server.Addr = localAddress
+		log.Printf("listening on http://%v", localAddress)
 		log.Fatal(db.server.Serve(listener))
 	}
 	log.Fatal("could not find an available port, aborting")
