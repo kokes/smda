@@ -26,17 +26,18 @@ func (db *Database) setupRoutes() {
 }
 
 // RunWebserver sets up all the necessities for a server to run (namely routes) and launches one
-func (db *Database) RunWebserver(port int, ensurePort bool) {
+func (db *Database) RunWebserver(port int, ensurePort, expose bool) {
 	db.setupRoutes()
 
 	// we're trying to find an available port, but this is for end users only - we may need to add
 	// some guarantees in the future - bind to a port XYZ or die (TODO)
 	for j := 0; j < 100; j++ {
 		nport := port + j
-		// TODO: we set the local address to be localhost:port, but that probably won't
-		// work for hosted solutions - we may need a CLI flag for this
-		localAddress := fmt.Sprintf("localhost:%v", nport)
-		listener, err := net.Listen("tcp", localAddress)
+		address := fmt.Sprintf("localhost:%v", nport)
+		if expose {
+			address = fmt.Sprintf(":%v", nport)
+		}
+		listener, err := net.Listen("tcp", address)
 		if err != nil {
 			if err.(*net.OpError).Err.Error() == "bind: address already in use" {
 				if ensurePort {
@@ -48,8 +49,8 @@ func (db *Database) RunWebserver(port int, ensurePort bool) {
 
 			log.Fatal(err)
 		}
-		db.server.Addr = localAddress
-		log.Printf("listening on http://%v", localAddress)
+		db.server.Addr = address
+		log.Printf("listening on %v", address)
 		log.Fatal(db.server.Serve(listener))
 	}
 	log.Fatal("could not find an available port, aborting")

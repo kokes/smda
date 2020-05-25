@@ -8,6 +8,7 @@ import (
 )
 
 func main() {
+	expose := flag.Bool("expose", false, "expose the server on the network, do not run it just locally")
 	port := flag.Int("port", 8822, "port to listen on")
 	ensurePort := flag.Bool("ensure-port", false, "if the specified port is busy, do not attept any other ports")
 	wdir := flag.String("wdir", "tmp", "working directory for the database")
@@ -29,5 +30,5 @@ func main() {
 		}
 	}
 
-	d.RunWebserver(*port, *ensurePort)
+	d.RunWebserver(*port, *ensurePort, *expose)
 }
