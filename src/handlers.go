@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
+	"path/filepath"
 )
 
 func responseError(w http.ResponseWriter, status int, error string) {
@@ -34,7 +34,7 @@ func (db *Database) handleRoot(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	if strings.HasSuffix(wd, "/src") {
+	if filepath.Base(wd) == "src" {
 		fn = "../cmd/index.html"
 	}
 	http.ServeFile(w, r, fn)
