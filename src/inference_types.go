@@ -87,16 +87,36 @@ func parseFloat(s string) (float64, error) {
 	return strconv.ParseFloat(s, 64)
 }
 
-// OPTIM: this seems slower than strconv.parseBool - test it and maybe revert it
-// but be careful, parseBool parses 0/1 as bools (as it does True/False)
+// OPTIM: this seems slower than strconv.parseBool (it seemed before the refactor, retest now!)
+// test it and maybe revert it, but be careful, parseBool parses 0/1 as bools (as it does True/False)
 func parseBool(s string) (bool, error) {
-	if s == "t" || s == "T" || s == "true" || s == "TRUE" {
-		return true, nil
-	}
-	if s == "f" || s == "F" || s == "false" || s == "FALSE" {
-		return false, nil
-	}
+	ln := len(s)
 
+	switch ln {
+	case 0:
+		goto err
+	case 1:
+		if s == "t" || s == "T" {
+			return true, nil
+		}
+		if s == "f" || s == "F" {
+			return false, nil
+		}
+		goto err
+	case 4:
+		if s == "true" || s == "TRUE" {
+			return true, nil
+		}
+		goto err
+	case 5:
+		if s == "false" || s == "FALSE" {
+			return false, nil
+		}
+		goto err
+	default:
+		goto err
+	}
+err:
 	return false, errors.New("not a bool")
 }
 
