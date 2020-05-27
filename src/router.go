@@ -1,10 +1,10 @@
 package smda
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 )
 
 func (db *Database) setupRoutes() {
@@ -29,13 +29,15 @@ func (db *Database) setupRoutes() {
 func (db *Database) RunWebserver(port int, ensurePort, expose bool) {
 	db.setupRoutes()
 
+	host := "localhost"
+	if expose {
+		host = ""
+	}
+
 	// we're trying to find an available port, but this is for end users only
 	for j := 0; j < 100; j++ {
 		nport := port + j
-		address := fmt.Sprintf("localhost:%v", nport)
-		if expose {
-			address = fmt.Sprintf(":%v", nport)
-		}
+		address := net.JoinHostPort(host, strconv.Itoa(nport))
 		listener, err := net.Listen("tcp", address)
 		if err != nil {
 			if err.(*net.OpError).Err.Error() == "bind: address already in use" {
