@@ -200,7 +200,9 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 		}
 		for j, val := range row {
 			bytesLoaded += len(val)
-			ds.columns[j].addValue(val)
+			if err := ds.columns[j].addValue(val); err != nil {
+				return nil, fmt.Errorf("failed to populate column %v: %w", rl.settings.schema[j].Name, err)
+			}
 		}
 		rowsLoaded++
 
@@ -237,7 +239,11 @@ func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset
 			}
 			scol := col.(*columnStrings)
 			for rowNum := 0; rowNum < scol.Len(); rowNum++ {
-				newCol.addValue(scol.nthValue(rowNum))
+				if err := newCol.addValue(scol.nthValue(rowNum)); err != nil {
+					// TODO: test this - this can happen if we do limited type inference
+					// we currently infer types on all the data, so it cannot happen, but we might ease that in the future
+					return nil, fmt.Errorf("failed to cast value in column %v: %w", schema.Name, err)
+				}
 			}
 			newStripe.columns = append(newStripe.columns, newCol)
 		}
