@@ -1,10 +1,7 @@
-.PHONY: build buildw run test bench testv coverstats
+.PHONY: build run test bench coverstats build-docker run-docker test-docker bench-many
 
 build:
 	CGO_ENABLED=0 go build cmd/server.go
-
-buildw:
-	CGO_ENABLED=0 go build -ldflags -w cmd/server.go
 
 build-docker:
 	docker build . -t kokes/smda:latest
@@ -20,16 +17,13 @@ test:
 	CGO_ENABLED=0 go test -timeout 5s -coverprofile=coverage.out ./...
 
 test-docker:
-	docker run --rm -v $(pwd):/smda golang:alpine sh -c "apk add --no-cache make && cd /smda && make test"
+	docker run --rm -v $(PWD):/smda golang:alpine sh -c "apk add --no-cache make && cd /smda && make test"
 
 bench:
 	CGO_ENABLED=0 go test -run=NONE -bench=. -benchmem ./...
 
 bench-many:
 	for i in {1..10}; do make bench; done | tee $(shell eval git rev-parse --abbrev-ref HEAD).txt
-
-testv:
-	CGO_ENABLED=0 go test -test.v -timeout 5s -coverprofile=coverage.out ./...
 
 coverstats:
 	CGO_ENABLED=0 go tool cover -func=coverage.out
