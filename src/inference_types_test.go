@@ -300,34 +300,6 @@ func TestBasicTypeGuessing(t *testing.T) {
 	}
 }
 
-// func (db *Database) inferTypes(ds *Dataset) ([]columnSchema, error) {
-
-func TestDatasetTypeInferenceErr(t *testing.T) {
-	db, err := NewDatabaseTemp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := db.Drop(); err != nil {
-			panic(err)
-		}
-	}()
-
-	datasets := []string{
-		"foo,bar,baz\n1,fo,ba\n4,ba,bak", // "foo" will be inferred as an int column
-		// "", // TODO: panics
-	}
-	for _, dataset := range datasets {
-		ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(dataset))
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		if _, err := db.inferTypes(ds); err == nil {
-			t.Errorf("should not be able to infer a schema from %v, but did", string(dataset))
-		}
-	}
-}
 func TestDatasetTypeInference(t *testing.T) {
 	db, err := NewDatabaseTemp()
 	if err != nil {

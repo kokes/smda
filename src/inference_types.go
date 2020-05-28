@@ -207,55 +207,6 @@ func (tg *typeGuesser) inferredType() columnSchema {
 	}
 }
 
-// we should keep this, but maybe rename it as inferTypesFromTypedColumns or something (TODO)
-func (db *Database) inferTypes(ds *Dataset) ([]columnSchema, error) {
-	for _, col := range ds.Schema {
-		if col.Dtype != dtypeString {
-			return nil, errors.New("can only infer types from strings")
-		}
-		if col.Nullable {
-			return nil, errors.New("can only infer from non-nullable columns")
-		}
-	}
-
-	ret := make([]columnSchema, 0, len(ds.Schema))
-
-	// there are now two ways of inference order - either we load column by column, which
-	// will be more memory efficient, because we'll need to keep metadata in memory for only one
-	// column at a time (and could be useful in the future, if we track unique values etc.)
-	// or we go stripe by stripe, which will be more file IO efficient
-	// let's do column by column for now, because we don't have efficient stripe reading anyway
-	for colNum, col := range ds.Schema {
-		// log.Println("Processing", col.Name)
-		tg := newTypeGuesser()
-		for _, stripeID := range ds.Stripes {
-			chunk, err := db.readColumnFromStripe(ds, stripeID, colNum)
-			if err != nil {
-				return nil, err
-			}
-			schunk, ok := chunk.(*columnStrings)
-			if !ok {
-				return nil, errors.New("unexpected type error")
-			}
-			// OPTIM: in many cases we already know we can't have all ints/floats/bools, so it doesn't make sense
-			// to check types any more - it's only useful for reporting - will we use it for that ever?
-			// there's one sad reality - we can't quite do this easily, because we will lose information about nullability
-			// - that is, if we break on first inference of a string, we won't know if it's a nullable string or not
-			// What we could do: test for nullability (fast), but only test for types if we haven't settled on strings yet
-			for j := 0; j < schunk.Len(); j++ {
-				tg.addValue(schunk.nthValue(j))
-			}
-		}
-		// we infer a type from the given column, but we don't know the name,
-		// so we need to get it from the original, string-only, schema
-		itype := tg.inferredType()
-		itype.Name = col.Name
-		ret = append(ret, itype)
-	}
-
-	return ret, nil
-}
-
 func inferTypes(path string, settings loadSettings) ([]columnSchema, error) {
 	f, err := os.Open(path)
 	if err != nil {
