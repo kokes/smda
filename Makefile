@@ -9,7 +9,7 @@ build-docker:
 run:
 	mkdir -p tmp && rm -r tmp && go run cmd/server.go -port 8822 -samples -wdir tmp
 
-run-docker:
+run-docker: build-docker
 	# ephemeral run - will destroy the container after exiting
 	docker run --rm -p 8822:8822 kokes/smda:latest
 

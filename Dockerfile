@@ -20,4 +20,4 @@ COPY --from=build /smda/cmd cmd
 COPY --from=build /smda/samples samples
 
 EXPOSE 8822
-CMD ["./server", "-port", "8822", "-ensure-port", "-samples"]
+CMD ["./server", "-port", "8822", "-ensure-port", "-expose", "-samples"]
