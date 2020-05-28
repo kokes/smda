@@ -307,7 +307,11 @@ func TestDatasetTypeInferenceErr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
 
 	datasets := []string{
 		"foo,bar,baz\n1,fo,ba\n4,ba,bak", // "foo" will be inferred as an int column
@@ -329,7 +333,11 @@ func TestDatasetTypeInference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
 
 	datasets := []struct {
 		raw string

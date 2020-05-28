@@ -8,7 +8,11 @@ package smda
 // 	if err != nil {
 // 		t.Fatal(err)
 // 	}
-// 	defer os.RemoveAll(db.WorkingDirectory)
+// 	defer func() {
+// 	if err := db.Drop(); err != nil {
+// 		panic(err)
+// 	}
+// }()
 
 // 	port := 1234
 // 	go func() {

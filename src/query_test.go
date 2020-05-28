@@ -1,7 +1,6 @@
 package smda
 
 import (
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -12,7 +11,12 @@ func TestQueryingEmptyDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	ds := NewDataset()
 	db.addDataset(ds)
 	limit := 100
@@ -32,7 +36,12 @@ func TestBasicQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
 	ds, err := db.loadDatasetFromReaderAuto(data)
 	if err != nil {
@@ -64,7 +73,12 @@ func TestLimitsInQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6\n7,8,9")
 	ds, err := db.loadDatasetFromReaderAuto(data)
 	if err != nil {
@@ -129,7 +143,12 @@ func TestBasicAggregation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(db.WorkingDirectory)
+		defer func() {
+			if err := db.Drop(); err != nil {
+				panic(err)
+			}
+		}()
+
 		ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(test.input))
 		if err != nil {
 			t.Fatal(err)

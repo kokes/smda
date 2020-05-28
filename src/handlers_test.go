@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -21,7 +20,12 @@ func TestStatusHandling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	srv := httptest.NewServer(db.server.Handler)
 	defer srv.Close()
 
@@ -53,7 +57,12 @@ func TestRootHandling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	srv := httptest.NewServer(db.server.Handler)
 	defer srv.Close()
 	url := fmt.Sprintf("%s/", srv.URL)
@@ -84,7 +93,12 @@ func TestRootDoesNotHandle404(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	srv := httptest.NewServer(db.server.Handler)
 	defer srv.Close()
 	for _, path := range []string{"foo", "bar", "foo/bar"} {
@@ -114,7 +128,12 @@ func TestDatasetListing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	dsets := []string{"foo,bar,baz\n1,2,3\n4,5,6", "foo,bar\ntrue,false\nfalse,true"}
 	for _, dset := range dsets {
 		_, err := db.loadDatasetFromReaderAuto(strings.NewReader(dset))
@@ -169,7 +188,11 @@ func TestDatasetListingNoDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
 
 	srv := httptest.NewServer(db.server.Handler)
 	defer srv.Close()
@@ -232,7 +255,12 @@ func TestHandlingQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	dsets := []string{"foo,bar\n1,3\n4,6", "foo,bar\n9,8\n1,2"}
 	dss := make([]*Dataset, 0, len(dsets))
 	for _, dset := range dsets {
@@ -291,7 +319,11 @@ func TestInvalidQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
 
 	data := "foo\n1\n2\n3"
 	ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(data))
@@ -326,7 +358,11 @@ func TestBasicRawUpload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
 
 	srv := httptest.NewServer(db.server.Handler)
 	defer srv.Close()
@@ -364,7 +400,11 @@ func TestBasicAutoUpload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
 
 	srv := httptest.NewServer(db.server.Handler)
 	defer srv.Close()
@@ -426,7 +466,11 @@ func BenchmarkAutoUpload(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
 
 	srv := httptest.NewServer(db.server.Handler)
 	defer srv.Close()

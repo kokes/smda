@@ -86,7 +86,12 @@ func TestReadingFromStripes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
 	ds, err := db.loadDatasetFromReaderAuto(buf)
@@ -130,7 +135,12 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
 	header := "foo,bar,baz\n"
 	row := "1,true,1.23\n"
 	for _, nrows := range []int{1, 100, 1000, 1000_000} {
@@ -191,7 +201,11 @@ func TestLoadingSampleData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
 
 	tmpdir, err := ioutil.TempDir("", "sample_data")
 	if err != nil {
@@ -276,7 +290,11 @@ func TestLoadingOfRawDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(db.WorkingDirectory)
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
 
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
 	ds, err := db.LoadRawDataset(data)
