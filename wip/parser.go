@@ -58,6 +58,7 @@ func (ts *tokenScanner) peek(n int) []byte {
 }
 
 // TODO: check coverage of the switch statement
+// TODO: it'd be nice to have a nice error reporting mechanism (we'll need positions to be embedded in the errors for that)
 func (ts *tokenScanner) Scan() token {
 	if ts.position >= len(ts.code) {
 		return token{tokenEOF, nil}
