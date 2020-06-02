@@ -1,22 +1,26 @@
 package smda
 
+import (
+	"bytes"
+)
+
 type token uint8
 
 // TODO: stringer
 const (
 	tokenInvalid token = iota
 	// tokenIdentifier
-	// tokenComment
+	tokenComment
 	tokenAdd
 	tokenSub
 	tokenMul
 	tokenQuo
 	tokenEq
-	tokenNeq // !=, but what about <>?
-	// tokenGt
-	// tokenLt
-	// tokenGte
-	// tokenLte
+	tokenNeq
+	tokenGt
+	tokenLt
+	tokenGte
+	tokenLte
 	tokenLparen
 	tokenRparen
 	tokenComma
@@ -24,8 +28,6 @@ const (
 	// tokenLiteralFloat
 	// tokenLiteralString
 	// tokenLiteralBool
-	// tokenAnd
-	// tokenOr
 	tokenEOF // to signify end of parsing
 )
 
@@ -40,17 +42,44 @@ func NewTokenScanner(s []byte) *tokenScanner {
 	}
 }
 
+func (ts *tokenScanner) peek(n int) []byte {
+	ret := make([]byte, n)
+	newpos := ts.position + n
+
+	if newpos > len(ts.code) {
+		newpos = len(ts.code)
+	}
+	copy(ret, ts.code[ts.position:newpos])
+	return ret
+}
+
+// TODO: check coverage of the switch statement
 func (ts *tokenScanner) Scan() (tok token, value []byte) {
 	if ts.position >= len(ts.code) {
 		return tokenEOF, nil
 	}
 	char := ts.code[ts.position]
 	switch char {
+	// TODO: what about other utf whitespace? if we choose not to consider it as whitespace, test for it
+	case ' ', '\t', '\n':
+		ts.position++
+		return ts.Scan()
 	case '+':
 		ts.position++
 		return tokenAdd, nil
 	case '-':
-		// TODO: handle comments
+		next := ts.peek(2)
+		if bytes.Equal(next, []byte("--")) {
+			// we have a comment, everything up until the end of this line is its content
+			newline := bytes.IndexByte(ts.code[ts.position:], '\n')
+			endpos := ts.position + newline
+			if newline == -1 {
+				endpos = len(ts.code)
+			}
+			ret := ts.code[ts.position+2 : endpos]
+			ts.position += endpos - ts.position + 1
+			return tokenComment, ret
+		}
 		ts.position++
 		return tokenSub, nil
 	case '*':
@@ -68,22 +97,27 @@ func (ts *tokenScanner) Scan() (tok token, value []byte) {
 	case ')':
 		ts.position++
 		return tokenRparen, nil
+	case '>':
+		next := ts.peek(2)
+		if bytes.Equal(next, []byte(">=")) {
+			ts.position += 2
+			return tokenGte, nil
+		}
+		ts.position++
+		return tokenGt, nil
+	case '<':
+		next := ts.peek(2)
+		if bytes.Equal(next, []byte("<=")) {
+			ts.position += 2
+			return tokenLte, nil
+		}
+		if bytes.Equal(next, []byte("<>")) {
+			ts.position += 2
+			return tokenNeq, nil
+		}
+		ts.position++
+		return tokenLt, nil
 	default:
 		panic("unknown token")
 	}
 }
-
-// func tokenise(input []byte) ([]token, error) {
-// 	cPos := 0
-// 	var tokens []token
-// 	for cPos < len(input) {
-// 		cChar := input[cPos]
-// 		switch cChar {
-// 		case '+':
-// 			tokens = append(tokens, tokenAdd)
-
-// 		}
-// 		cPos++
-// 	}
-// 	return nil, nil
-// }
