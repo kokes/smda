@@ -154,9 +154,10 @@ func guessType(s string) dtype {
 	return dtypeString
 }
 
+// OPTIM: cost is 82, can be almost inlined (though it will get more expensive once isNull is fully defined)
 func (tg *typeGuesser) addValue(s string) {
 	tg.nrows++
-	if isNull(s) {
+	if s == "" {
 		tg.nullable = true
 		return
 	}

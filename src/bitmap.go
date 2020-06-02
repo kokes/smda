@@ -114,6 +114,7 @@ func NewBitmapFromBits(data []uint64) *Bitmap {
 	return bm
 }
 
+// OPTIM: cost is 84, can be almost inlined
 func (bm *Bitmap) set(n int, val bool) {
 	bm.ensure(n + 1)
 	if val {
