@@ -27,3 +27,7 @@ bench-many:
 
 coverstats:
 	CGO_ENABLED=0 go tool cover -func=coverage.out
+
+pprof:
+	CGO_ENABLED=0 go test -cpuprofile cpu.prof -memprofile mem.prof -bench=. ./src/
+	go tool pprof src.test cpu.prof

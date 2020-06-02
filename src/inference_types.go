@@ -123,13 +123,9 @@ err:
 // we need an early exit since parseInt and parseFloat are expensive
 // does NOT cover infties, but we don't support them anyway (for now)
 func containsDigit(s string) bool {
-	bytes := []byte(s)
 	// TODO: we're checking only the first 100 chars, but what is the maximum number of characters
 	// a float can be represented in?
-	if len(bytes) > 100 {
-		bytes = bytes[:100]
-	}
-	for _, char := range bytes {
+	for _, char := range s {
 		if char >= '0' && char <= '9' {
 			return true
 		}
@@ -165,6 +161,8 @@ func (tg *typeGuesser) addValue(s string) {
 		return
 	}
 
+	// OPTIM: we could use a slice instead of a map - it would improve insert performance, but the inferredType
+	// logic would get more complicated - but it might be worthwhile - we run addValue way more often
 	tg.types[guessType(s)]++
 }
 

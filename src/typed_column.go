@@ -276,7 +276,7 @@ func (rc *columnStrings) Hash(hashes []uint64) {
 func (rc *columnStrings) addValue(s string) error {
 	rc.data = append(rc.data, []byte(s)...)
 
-	valLen := uint32(len([]byte(s)))
+	valLen := uint32(len(s))
 	valLen += rc.offsets[len(rc.offsets)-1]
 	rc.offsets = append(rc.offsets, valLen)
 
