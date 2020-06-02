@@ -2,6 +2,7 @@ package smda
 
 import (
 	"bytes"
+	"strconv"
 )
 
 type token uint8
@@ -24,10 +25,9 @@ const (
 	tokenLparen
 	tokenRparen
 	tokenComma
-	// tokenLiteralInt
-	// tokenLiteralFloat
+	tokenLiteralInt
+	tokenLiteralFloat
 	// tokenLiteralString
-	// tokenLiteralBool
 	tokenEOF // to signify end of parsing
 )
 
@@ -64,6 +64,9 @@ func (ts *tokenScanner) Scan() (tok token, value []byte) {
 	case ' ', '\t', '\n':
 		ts.position++
 		return ts.Scan()
+	case ',':
+		ts.position++
+		return tokenComma, nil
 	case '+':
 		ts.position++
 		return tokenAdd, nil
@@ -105,6 +108,14 @@ func (ts *tokenScanner) Scan() (tok token, value []byte) {
 		}
 		ts.position++
 		return tokenGt, nil
+	case '!':
+		next := ts.peek(2)
+		if bytes.Equal(next, []byte("!=")) {
+			ts.position += 2
+			return tokenNeq, nil
+		}
+		// return tokenInvalid, nil
+		panic("unknown token") // TODO: improve error handling
 	case '<':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("<=")) {
@@ -117,7 +128,40 @@ func (ts *tokenScanner) Scan() (tok token, value []byte) {
 		}
 		ts.position++
 		return tokenLt, nil
+	case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		// TODO: well, test this thoroughly
+		floatChars := []byte("0123456789e.-") // the minus here is not a unary minus, but for exponents - e.g. 2e-12
+		intChars := []byte("0123456789")
+
+		floatCandidate := sliceUntil(ts.code[ts.position:], floatChars)
+		intCandidate := sliceUntil(ts.code[ts.position:], intChars)
+		if len(intCandidate) == len(floatCandidate) {
+			if _, err := strconv.ParseInt(string(intCandidate), 10, 64); err != nil {
+				panic(err) // TODO: improve error handling (but make sure to return!)
+			}
+			ts.position += len(intCandidate)
+			return tokenLiteralInt, intCandidate
+		}
+		if _, err := strconv.ParseFloat(string(floatCandidate), 64); err != nil {
+			panic(err) // TODO: improve error handling
+		}
+		ts.position += len(floatCandidate)
+		return tokenLiteralFloat, floatCandidate
+	// case '\'': // string literal
+	// case '\"': // quoted identifier
 	default:
 		panic("unknown token")
 	}
+}
+
+// slice a given input as long as all the bytes are within the chars slice
+// e.g. ("foobar", "of") would yield "foo"
+// it's linearly scanning chars each time, wasteful, but shouldn't matter for such small inputs we're using
+func sliceUntil(s []byte, chars []byte) []byte {
+	for j, c := range s {
+		if bytes.IndexByte(chars, c) == -1 {
+			return s[:j]
+		}
+	}
+	return s
 }
