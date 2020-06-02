@@ -136,24 +136,29 @@ type columnNulls struct {
 	length uint32
 }
 
+// preallocate column data, so that slice appends don't trigger new reallocations
+const defaultColumnCap = 512
+
 func newColumnStrings(isNullable bool) *columnStrings {
+	offsets := make([]uint32, 1, defaultColumnCap)
+	offsets[0] = 0
 	return &columnStrings{
-		data:        make([]byte, 0),
-		offsets:     []uint32{0},
+		data:        make([]byte, 0, defaultColumnCap),
+		offsets:     offsets,
 		nullable:    isNullable,
 		nullability: NewBitmap(0),
 	}
 }
 func newColumnInts(isNullable bool) *columnInts {
 	return &columnInts{
-		data:        make([]int64, 0),
+		data:        make([]int64, 0, defaultColumnCap),
 		nullable:    isNullable,
 		nullability: NewBitmap(0),
 	}
 }
 func newColumnFloats(isNullable bool) *columnFloats {
 	return &columnFloats{
-		data:        make([]float64, 0),
+		data:        make([]float64, 0, defaultColumnCap),
 		nullable:    isNullable,
 		nullability: NewBitmap(0),
 	}
