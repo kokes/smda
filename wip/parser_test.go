@@ -9,31 +9,31 @@ import (
 func TestBasicTokenisation(t *testing.T) {
 	tt := []struct {
 		source   string
-		expected []token
+		expected []tokenType
 	}{
 		{"", nil},
 		{" ", nil},
-		{"*/", []token{tokenMul, tokenQuo}},
-		{"()", []token{tokenLparen, tokenRparen}},
-		{">", []token{tokenGt}},
-		{">=", []token{tokenGte}},
-		{"!=*", []token{tokenNeq, tokenMul}},
-		{"*<>", []token{tokenMul, tokenNeq}},
-		{"*,*", []token{tokenMul, tokenComma, tokenMul}},
+		{"*/", []tokenType{tokenMul, tokenQuo}},
+		{"()", []tokenType{tokenLparen, tokenRparen}},
+		{">", []tokenType{tokenGt}},
+		{">=", []tokenType{tokenGte}},
+		{"!=*", []tokenType{tokenNeq, tokenMul}},
+		{"*<>", []tokenType{tokenMul, tokenNeq}},
+		{"*,*", []tokenType{tokenMul, tokenComma, tokenMul}},
 	}
 
 	for _, test := range tt {
 		ts := NewTokenScanner([]byte(test.source))
-		var tokens []token
+		var tokens []tokenType
 		for {
-			tok, body := ts.Scan()
-			if body != nil {
-				t.Errorf("token %v in %v should not have a body, got %v", tok, test.source, body)
+			token := ts.Scan()
+			if token.value != nil {
+				t.Errorf("token %v in %v should not have a value, got %v", token.ttype, test.source, token.value)
 			}
-			if tok == tokenEOF {
+			if token.ttype == tokenEOF {
 				break
 			}
-			tokens = append(tokens, tok)
+			tokens = append(tokens, token.ttype)
 		}
 
 		if !reflect.DeepEqual(tokens, test.expected) {
@@ -63,35 +63,33 @@ func TestSlicingUntil(t *testing.T) {
 }
 
 func TestTokenisationWithValues(t *testing.T) {
-	type tokenWithValue struct {
-		tok  token
-		body []byte
-	}
 	tt := []struct {
 		source   string
-		expected []tokenWithValue
+		expected []token
 	}{
-		{"/--", []tokenWithValue{{tokenQuo, nil}, {tokenComment, []byte("")}}},
-		{"/-- ", []tokenWithValue{{tokenQuo, nil}, {tokenComment, []byte(" ")}}},
-		{"/-- ahoy\n*", []tokenWithValue{{tokenQuo, nil}, {tokenComment, []byte(" ahoy")}, {tokenMul, nil}}},
-		{"2.34", []tokenWithValue{{tokenLiteralFloat, []byte("2.34")}}},
-		{"2.34e12", []tokenWithValue{{tokenLiteralFloat, []byte("2.34e12")}}},
-		{".5", []tokenWithValue{{tokenLiteralFloat, []byte(".5")}}},
-		{".5e3", []tokenWithValue{{tokenLiteralFloat, []byte(".5e3")}}},
-		{".5e-3", []tokenWithValue{{tokenLiteralFloat, []byte(".5e-3")}}},
-		{"234", []tokenWithValue{{tokenLiteralInt, []byte("234")}}},
-		{"1232349000", []tokenWithValue{{tokenLiteralInt, []byte("1232349000")}}},
+		{"/--", []token{{tokenQuo, nil}, {tokenComment, []byte("")}}},
+		{"/-- ", []token{{tokenQuo, nil}, {tokenComment, []byte(" ")}}},
+		{"/-- ahoy\n*", []token{{tokenQuo, nil}, {tokenComment, []byte(" ahoy")}, {tokenMul, nil}}},
+		{"2.34", []token{{tokenLiteralFloat, []byte("2.34")}}},
+		{"2.34e12", []token{{tokenLiteralFloat, []byte("2.34e12")}}},
+		{".5", []token{{tokenLiteralFloat, []byte(".5")}}},
+		{".5e3", []token{{tokenLiteralFloat, []byte(".5e3")}}},
+		{".5e-3", []token{{tokenLiteralFloat, []byte(".5e-3")}}},
+		{"234", []token{{tokenLiteralInt, []byte("234")}}},
+		{"1232349000", []token{{tokenLiteralInt, []byte("1232349000")}}},
+		{"234*3", []token{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
+		{"234*3", []token{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
 	}
 
 	for _, test := range tt {
 		ts := NewTokenScanner([]byte(test.source))
-		var tokens []tokenWithValue
+		var tokens []token
 		for {
-			tok, value := ts.Scan()
-			if tok == tokenEOF {
+			token := ts.Scan()
+			if token.ttype == tokenEOF {
 				break
 			}
-			tokens = append(tokens, tokenWithValue{tok, value})
+			tokens = append(tokens, token)
 		}
 
 		if !reflect.DeepEqual(tokens, test.expected) {

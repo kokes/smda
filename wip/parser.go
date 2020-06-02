@@ -5,11 +5,15 @@ import (
 	"strconv"
 )
 
-type token uint8
+type tokenType uint8
+type token struct {
+	ttype tokenType
+	value []byte
+}
 
 // TODO: stringer
 const (
-	tokenInvalid token = iota
+	tokenInvalid tokenType = iota
 	// tokenIdentifier
 	tokenComment
 	tokenAdd
@@ -54,9 +58,9 @@ func (ts *tokenScanner) peek(n int) []byte {
 }
 
 // TODO: check coverage of the switch statement
-func (ts *tokenScanner) Scan() (tok token, value []byte) {
+func (ts *tokenScanner) Scan() token {
 	if ts.position >= len(ts.code) {
-		return tokenEOF, nil
+		return token{tokenEOF, nil}
 	}
 	char := ts.code[ts.position]
 	switch char {
@@ -66,10 +70,10 @@ func (ts *tokenScanner) Scan() (tok token, value []byte) {
 		return ts.Scan()
 	case ',':
 		ts.position++
-		return tokenComma, nil
+		return token{tokenComma, nil}
 	case '+':
 		ts.position++
-		return tokenAdd, nil
+		return token{tokenAdd, nil}
 	case '-':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("--")) {
@@ -81,55 +85,55 @@ func (ts *tokenScanner) Scan() (tok token, value []byte) {
 			}
 			ret := ts.code[ts.position+2 : endpos]
 			ts.position += endpos - ts.position + 1
-			return tokenComment, ret
+			return token{tokenComment, ret}
 		}
 		ts.position++
-		return tokenSub, nil
+		return token{tokenSub, nil}
 	case '*':
 		ts.position++
-		return tokenMul, nil
+		return token{tokenMul, nil}
 	case '/':
 		ts.position++
-		return tokenQuo, nil
+		return token{tokenQuo, nil}
 	case '=':
 		ts.position++
-		return tokenEq, nil
+		return token{tokenEq, nil}
 	case '(':
 		ts.position++
-		return tokenLparen, nil
+		return token{tokenLparen, nil}
 	case ')':
 		ts.position++
-		return tokenRparen, nil
+		return token{tokenRparen, nil}
 	case '>':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte(">=")) {
 			ts.position += 2
-			return tokenGte, nil
+			return token{tokenGte, nil}
 		}
 		ts.position++
-		return tokenGt, nil
+		return token{tokenGt, nil}
 	case '!':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("!=")) {
 			ts.position += 2
-			return tokenNeq, nil
+			return token{tokenNeq, nil}
 		}
-		// return tokenInvalid, nil
+		// return token{tokenInvalid, nil}
 		panic("unknown token") // TODO: improve error handling
 	case '<':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("<=")) {
 			ts.position += 2
-			return tokenLte, nil
+			return token{tokenLte, nil}
 		}
 		if bytes.Equal(next, []byte("<>")) {
 			ts.position += 2
-			return tokenNeq, nil
+			return token{tokenNeq, nil}
 		}
 		ts.position++
-		return tokenLt, nil
+		return token{tokenLt, nil}
 	case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		// TODO: well, test this thoroughly
+		// TODO: well, test this thoroughly (especially the sad paths)
 		floatChars := []byte("0123456789e.-") // the minus here is not a unary minus, but for exponents - e.g. 2e-12
 		intChars := []byte("0123456789")
 
@@ -140,13 +144,13 @@ func (ts *tokenScanner) Scan() (tok token, value []byte) {
 				panic(err) // TODO: improve error handling (but make sure to return!)
 			}
 			ts.position += len(intCandidate)
-			return tokenLiteralInt, intCandidate
+			return token{tokenLiteralInt, intCandidate}
 		}
 		if _, err := strconv.ParseFloat(string(floatCandidate), 64); err != nil {
 			panic(err) // TODO: improve error handling
 		}
 		ts.position += len(floatCandidate)
-		return tokenLiteralFloat, floatCandidate
+		return token{tokenLiteralFloat, floatCandidate}
 	// case '\'': // string literal
 	// case '\"': // quoted identifier
 	default:
