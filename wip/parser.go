@@ -164,7 +164,6 @@ func (ts *tokenScanner) Scan() token {
 
 const apostrophe = '\''
 
-// TODO: disallow newlines in string literals
 func (ts *tokenScanner) consumeStringLiteral() token {
 	tok := token{tokenLiteralString, nil}
 	tok.value = make([]byte, 0)
@@ -173,7 +172,11 @@ func (ts *tokenScanner) consumeStringLiteral() token {
 		if idx == -1 {
 			panic("unmatched string ending") // TODO: improve error handling
 		}
-		tok.value = append(tok.value, ts.code[ts.position+1:ts.position+idx+1]...)
+		chunk := ts.code[ts.position+1 : ts.position+idx+1]
+		if bytes.IndexByte(chunk, '\n') > -1 {
+			panic("cannot have a newline in a string literal")
+		}
+		tok.value = append(tok.value, chunk...)
 		ts.position += idx + 1
 		next := ts.peek(2)
 		// apostrophes can be in string literals, but they need to be escaped by another apostrophe
