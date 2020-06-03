@@ -88,6 +88,14 @@ func TestTokenisationWithValues(t *testing.T) {
 		{"2.3e2 * 3e12", []token{{tokenLiteralFloat, []byte("2.3e2")}, {tokenMul, nil}, {tokenLiteralFloat, []byte("3e12")}}},
 		{"2.3e2 + 3e12", []token{{tokenLiteralFloat, []byte("2.3e2")}, {tokenAdd, nil}, {tokenLiteralFloat, []byte("3e12")}}},
 		{"2.3e2 - 3e12", []token{{tokenLiteralFloat, []byte("2.3e2")}, {tokenSub, nil}, {tokenLiteralFloat, []byte("3e12")}}},
+		{"''", []token{{tokenLiteralString, []byte("")}}},
+		{"'ahoy'*", []token{{tokenLiteralString, []byte("ahoy")}, {tokenMul, nil}}},
+		{"''''*", []token{{tokenLiteralString, []byte("'")}, {tokenMul, nil}}},
+		{"''''''*", []token{{tokenLiteralString, []byte("''")}, {tokenMul, nil}}},
+		{"'ah''oy'*", []token{{tokenLiteralString, []byte("ah'oy")}, {tokenMul, nil}}},
+		{"'ah''''oy'*", []token{{tokenLiteralString, []byte("ah''oy")}, {tokenMul, nil}}},
+		{"'ah''''''oy'*", []token{{tokenLiteralString, []byte("ah'''oy")}, {tokenMul, nil}}},
+		{"'ah'' '' '' '' ''oy'*", []token{{tokenLiteralString, []byte("ah' ' ' ' 'oy")}, {tokenMul, nil}}},
 	}
 
 	for _, test := range tt {

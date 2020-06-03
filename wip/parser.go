@@ -31,7 +31,7 @@ const (
 	tokenComma
 	tokenLiteralInt
 	tokenLiteralFloat
-	// tokenLiteralString
+	tokenLiteralString
 	tokenEOF // to signify end of parsing
 )
 
@@ -135,6 +135,8 @@ func (ts *tokenScanner) Scan() token {
 		return token{tokenLt, nil}
 	case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		// TODO: well, test this thoroughly (especially the sad paths)
+		// TODO: refactor into a method, that returns (token, error), just like consumeStringLiteral
+		//       this could also advance the position
 		floatChars := []byte("0123456789e.-") // the minus here is not a unary minus, but for exponents - e.g. 2e-12
 		intChars := []byte("0123456789")
 
@@ -152,11 +154,39 @@ func (ts *tokenScanner) Scan() token {
 		}
 		ts.position += len(floatCandidate)
 		return token{tokenLiteralFloat, floatCandidate}
-	// case '\'': // string literal
+	case '\'': // string literal
+		return ts.consumeStringLiteral()
 	// case '\"': // quoted identifier
 	default:
 		panic("unknown token")
 	}
+}
+
+const apostrophe = '\''
+
+// TODO: disallow newlines in string literals
+func (ts *tokenScanner) consumeStringLiteral() token {
+	tok := token{tokenLiteralString, nil}
+	tok.value = make([]byte, 0)
+	for {
+		idx := bytes.IndexByte(ts.code[ts.position+1:], apostrophe)
+		if idx == -1 {
+			panic("unmatched string ending") // TODO: improve error handling
+		}
+		tok.value = append(tok.value, ts.code[ts.position+1:ts.position+idx+1]...)
+		ts.position += idx + 1
+		next := ts.peek(2)
+		// apostrophes can be in string literals, but they need to be escaped by another apostrophe
+		if bytes.Equal(next, []byte("''")) {
+			ts.position++
+			tok.value = append(tok.value, apostrophe)
+		} else {
+			break
+		}
+	}
+
+	ts.position++
+	return tok
 }
 
 // slice a given input as long as all the bytes are within the chars slice
