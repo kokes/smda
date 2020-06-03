@@ -17,9 +17,14 @@ func TestBasicTokenisation(t *testing.T) {
 		{"()", []tokenType{tokenLparen, tokenRparen}},
 		{">", []tokenType{tokenGt}},
 		{">=", []tokenType{tokenGte}},
+		{"<", []tokenType{tokenLt}},
+		{"<=", []tokenType{tokenLte}},
+		{"=", []tokenType{tokenEq}},
+		{"==", []tokenType{tokenEq, tokenEq}},
 		{"!=*", []tokenType{tokenNeq, tokenMul}},
 		{"*<>", []tokenType{tokenMul, tokenNeq}},
 		{"*,*", []tokenType{tokenMul, tokenComma, tokenMul}},
+		{"- -", []tokenType{tokenSub, tokenSub}},
 	}
 
 	for _, test := range tt {
@@ -81,6 +86,8 @@ func TestTokenisationWithValues(t *testing.T) {
 		{"234*3", []token{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
 		{"234\n\t*\n\t3", []token{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
 		{"2.3e2 * 3e12", []token{{tokenLiteralFloat, []byte("2.3e2")}, {tokenMul, nil}, {tokenLiteralFloat, []byte("3e12")}}},
+		{"2.3e2 + 3e12", []token{{tokenLiteralFloat, []byte("2.3e2")}, {tokenAdd, nil}, {tokenLiteralFloat, []byte("3e12")}}},
+		{"2.3e2 - 3e12", []token{{tokenLiteralFloat, []byte("2.3e2")}, {tokenSub, nil}, {tokenLiteralFloat, []byte("3e12")}}},
 	}
 
 	for _, test := range tt {
