@@ -99,3 +99,35 @@ func TestTokenisationWithValues(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenisationInvariants(t *testing.T) {
+	tt := [][]string{
+		{"2*3", "2 * 3", "2\t*\t\t\t\t\n3\t\n"},
+		{"2\t/1234", "2/1234"},
+		{"2\n3", "2 3"},
+		{"", "\t\n "},
+	}
+
+	for _, test := range tt {
+		var first []token
+		for j, source := range test {
+			ts := NewTokenScanner([]byte(source))
+			var tokens []token
+			for {
+				token := ts.Scan()
+				if token.ttype == tokenEOF {
+					break
+				}
+				tokens = append(tokens, token)
+			}
+			if j == 0 {
+				first = tokens
+				continue
+			}
+			if !reflect.DeepEqual(tokens, first) {
+				t.Errorf("expected %q to tokenise as %q, got %q", source, first, tokens)
+			}
+		}
+
+	}
+}
