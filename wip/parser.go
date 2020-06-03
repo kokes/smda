@@ -14,7 +14,8 @@ type token struct {
 // TODO: stringer
 const (
 	tokenInvalid tokenType = iota
-	// tokenIdentifier
+	tokenIdentifier
+	tokenIdentifierQuoted
 	tokenComment
 	tokenAdd
 	tokenSub
@@ -33,6 +34,7 @@ const (
 	tokenLiteralFloat
 	tokenLiteralString
 	tokenEOF // to signify end of parsing
+	// potential additions: || (string concatenation), :: (casting), &|^ (bitwise operations), ** (power)
 )
 
 type tokenScanner struct {
@@ -156,10 +158,34 @@ func (ts *tokenScanner) Scan() token {
 		return token{tokenLiteralFloat, floatCandidate}
 	case '\'': // string literal
 		return ts.consumeStringLiteral()
-	// case '\"': // quoted identifier
+	case '"': // quoted identifier
+		// TODO: move all this logic to consumeIdentifier? (peek first, see if it starts with a quote etc.)
+		ts.position++
+		ident := ts.consumeIdentifier()
+		next := ts.peek(1)
+		if !bytes.Equal(next, []byte("\"")) {
+			panic("a quoted identifier has to end with a quotation mark") // TODO: improve err handling (+ add context - what did we find instead?)
+		}
+		ts.position++ // this is for the endquote
+		ident.ttype = tokenIdentifierQuoted
+		return ident
 	default:
-		panic("unknown token")
+		return ts.consumeIdentifier()
 	}
+}
+
+func (ts *tokenScanner) consumeIdentifier() token {
+	// OPTIM: use a function with inequalities instead of this linear scan
+	// TODO: make sure we restrict columns to be this format
+	identChars := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")
+	identCandidate := sliceUntil(ts.code[ts.position:], identChars)
+	if len(identCandidate) == 0 {
+		// TODO: this is not quite the right error (it would be if we were quoted)
+		// this actually means there's nothing identifier-like here
+		panic("cannot have an empty identifier") // TODO: improve err handling
+	}
+	ts.position += len(identCandidate)
+	return token{tokenIdentifier, identCandidate}
 }
 
 const apostrophe = '\''

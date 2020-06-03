@@ -96,6 +96,10 @@ func TestTokenisationWithValues(t *testing.T) {
 		{"'ah''''oy'*", []token{{tokenLiteralString, []byte("ah''oy")}, {tokenMul, nil}}},
 		{"'ah''''''oy'*", []token{{tokenLiteralString, []byte("ah'''oy")}, {tokenMul, nil}}},
 		{"'ah'' '' '' '' ''oy'*", []token{{tokenLiteralString, []byte("ah' ' ' ' 'oy")}, {tokenMul, nil}}},
+		{"ahoy", []token{{tokenIdentifier, []byte("ahoy")}}},
+		{"hello_world", []token{{tokenIdentifier, []byte("hello_world")}}},
+		{"\"ahoy\"", []token{{tokenIdentifierQuoted, []byte("ahoy")}}},
+		{"+\"ahoy\"+", []token{{tokenAdd, nil}, {tokenIdentifierQuoted, []byte("ahoy")}, {tokenAdd, nil}}},
 	}
 
 	for _, test := range tt {
