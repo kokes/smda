@@ -1,3 +1,11 @@
+// major TODOs:
+// - error handling (just panics now)
+// - stringer
+// - sad paths in tests
+// methods: isOperator, isLiteral, isKeyword etc.
+// isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
+//   - then build an expression parser with precedence built in
+// - potentially: positions of errors (for very clear error handling)
 package smda
 
 import (
