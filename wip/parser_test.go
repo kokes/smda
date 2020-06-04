@@ -31,7 +31,10 @@ func TestBasicTokenisation(t *testing.T) {
 		ts := NewTokenScanner([]byte(test.source))
 		var tokens []tokenType
 		for {
-			token := ts.Scan()
+			token, err := ts.Scan()
+			if err != nil {
+				t.Fatal(err)
+			}
 			if token.value != nil {
 				t.Errorf("token %v in %v should not have a value, got %v", token.ttype, test.source, token.value)
 			}
@@ -106,7 +109,10 @@ func TestTokenisationWithValues(t *testing.T) {
 		ts := NewTokenScanner([]byte(test.source))
 		var tokens []token
 		for {
-			token := ts.Scan()
+			token, err := ts.Scan()
+			if err != nil {
+				t.Fatal(err)
+			}
 			if token.ttype == tokenEOF {
 				break
 			}
@@ -133,7 +139,10 @@ func TestTokenisationInvariants(t *testing.T) {
 			ts := NewTokenScanner([]byte(source))
 			var tokens []token
 			for {
-				token := ts.Scan()
+				token, err := ts.Scan()
+				if err != nil {
+					t.Fatal(err)
+				}
 				if token.ttype == tokenEOF {
 					break
 				}

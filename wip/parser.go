@@ -1,5 +1,4 @@
 // major TODOs:
-// - error handling (just panics now)
 // - stringer
 // - sad paths in tests
 // methods: isOperator, isLiteral, isKeyword etc.
@@ -10,8 +9,15 @@ package smda
 
 import (
 	"bytes"
+	"errors"
 	"strconv"
 )
+
+var errUnknownToken = errors.New("unknown token")
+var errInvalidInteger = errors.New("invalid integer")
+var errInvalidFloat = errors.New("invalid floating point number")
+var errInvalidString = errors.New("invalid string literal")
+var errInvalidIdentifier = errors.New("invalid identifier")
 
 type tokenType uint8
 type token struct {
@@ -69,9 +75,9 @@ func (ts *tokenScanner) peek(n int) []byte {
 
 // TODO: check coverage of the switch statement
 // TODO: it'd be nice to have a nice error reporting mechanism (we'll need positions to be embedded in the errors for that)
-func (ts *tokenScanner) Scan() token {
+func (ts *tokenScanner) Scan() (token, error) {
 	if ts.position >= len(ts.code) {
-		return token{tokenEOF, nil}
+		return token{tokenEOF, nil}, nil
 	}
 	char := ts.code[ts.position]
 	switch char {
@@ -81,10 +87,10 @@ func (ts *tokenScanner) Scan() token {
 		return ts.Scan()
 	case ',':
 		ts.position++
-		return token{tokenComma, nil}
+		return token{tokenComma, nil}, nil
 	case '+':
 		ts.position++
-		return token{tokenAdd, nil}
+		return token{tokenAdd, nil}, nil
 	case '-':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("--")) {
@@ -96,53 +102,52 @@ func (ts *tokenScanner) Scan() token {
 			}
 			ret := ts.code[ts.position+2 : endpos]
 			ts.position += endpos - ts.position + 1
-			return token{tokenComment, ret}
+			return token{tokenComment, ret}, nil
 		}
 		ts.position++
-		return token{tokenSub, nil}
+		return token{tokenSub, nil}, nil
 	case '*':
 		ts.position++
-		return token{tokenMul, nil}
+		return token{tokenMul, nil}, nil
 	case '/':
 		ts.position++
-		return token{tokenQuo, nil}
+		return token{tokenQuo, nil}, nil
 	case '=':
 		ts.position++
-		return token{tokenEq, nil}
+		return token{tokenEq, nil}, nil
 	case '(':
 		ts.position++
-		return token{tokenLparen, nil}
+		return token{tokenLparen, nil}, nil
 	case ')':
 		ts.position++
-		return token{tokenRparen, nil}
+		return token{tokenRparen, nil}, nil
 	case '>':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte(">=")) {
 			ts.position += 2
-			return token{tokenGte, nil}
+			return token{tokenGte, nil}, nil
 		}
 		ts.position++
-		return token{tokenGt, nil}
+		return token{tokenGt, nil}, nil
 	case '!':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("!=")) {
 			ts.position += 2
-			return token{tokenNeq, nil}
+			return token{tokenNeq, nil}, nil
 		}
-		// return token{tokenInvalid, nil}
-		panic("unknown token") // TODO: improve error handling
+		return token{}, errUnknownToken
 	case '<':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("<=")) {
 			ts.position += 2
-			return token{tokenLte, nil}
+			return token{tokenLte, nil}, nil
 		}
 		if bytes.Equal(next, []byte("<>")) {
 			ts.position += 2
-			return token{tokenNeq, nil}
+			return token{tokenNeq, nil}, nil
 		}
 		ts.position++
-		return token{tokenLt, nil}
+		return token{tokenLt, nil}, nil
 	case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		// TODO: well, test this thoroughly (especially the sad paths)
 		// TODO: refactor into a method, that returns (token, error), just like consumeStringLiteral
@@ -154,35 +159,38 @@ func (ts *tokenScanner) Scan() token {
 		intCandidate := sliceUntil(ts.code[ts.position:], intChars)
 		if len(intCandidate) == len(floatCandidate) {
 			if _, err := strconv.ParseInt(string(intCandidate), 10, 64); err != nil {
-				panic(err) // TODO: improve error handling (but make sure to return!)
+				return token{}, errInvalidInteger
 			}
 			ts.position += len(intCandidate)
-			return token{tokenLiteralInt, intCandidate}
+			return token{tokenLiteralInt, intCandidate}, nil
 		}
 		if _, err := strconv.ParseFloat(string(floatCandidate), 64); err != nil {
-			panic(err) // TODO: improve error handling
+			return token{}, errInvalidFloat
 		}
 		ts.position += len(floatCandidate)
-		return token{tokenLiteralFloat, floatCandidate}
+		return token{tokenLiteralFloat, floatCandidate}, nil
 	case '\'': // string literal
 		return ts.consumeStringLiteral()
 	case '"': // quoted identifier
 		// TODO: move all this logic to consumeIdentifier? (peek first, see if it starts with a quote etc.)
 		ts.position++
-		ident := ts.consumeIdentifier()
+		ident, err := ts.consumeIdentifier()
+		if err != nil {
+			return token{}, err
+		}
 		next := ts.peek(1)
 		if !bytes.Equal(next, []byte("\"")) {
-			panic("a quoted identifier has to end with a quotation mark") // TODO: improve err handling (+ add context - what did we find instead?)
+			return token{}, errInvalidIdentifier
 		}
 		ts.position++ // this is for the endquote
 		ident.ttype = tokenIdentifierQuoted
-		return ident
+		return ident, nil
 	default:
 		return ts.consumeIdentifier()
 	}
 }
 
-func (ts *tokenScanner) consumeIdentifier() token {
+func (ts *tokenScanner) consumeIdentifier() (token, error) {
 	// OPTIM: use a function with inequalities instead of this linear scan
 	// TODO: make sure we restrict columns to be this format
 	identChars := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")
@@ -190,25 +198,25 @@ func (ts *tokenScanner) consumeIdentifier() token {
 	if len(identCandidate) == 0 {
 		// TODO: this is not quite the right error (it would be if we were quoted)
 		// this actually means there's nothing identifier-like here
-		panic("cannot have an empty identifier") // TODO: improve err handling
+		return token{}, errInvalidIdentifier
 	}
 	ts.position += len(identCandidate)
-	return token{tokenIdentifier, identCandidate}
+	return token{tokenIdentifier, identCandidate}, nil
 }
 
 const apostrophe = '\''
 
-func (ts *tokenScanner) consumeStringLiteral() token {
+func (ts *tokenScanner) consumeStringLiteral() (token, error) {
 	tok := token{tokenLiteralString, nil}
 	tok.value = make([]byte, 0)
 	for {
 		idx := bytes.IndexByte(ts.code[ts.position+1:], apostrophe)
 		if idx == -1 {
-			panic("unmatched string ending") // TODO: improve error handling
+			return token{}, errInvalidString
 		}
 		chunk := ts.code[ts.position+1 : ts.position+idx+1]
 		if bytes.IndexByte(chunk, '\n') > -1 {
-			panic("cannot have a newline in a string literal")
+			return token{}, errInvalidString // TODO: add context: cannot have a newline there
 		}
 		tok.value = append(tok.value, chunk...)
 		ts.position += idx + 1
@@ -223,7 +231,7 @@ func (ts *tokenScanner) consumeStringLiteral() token {
 	}
 
 	ts.position++
-	return tok
+	return tok, nil
 }
 
 // slice a given input as long as all the bytes are within the chars slice
