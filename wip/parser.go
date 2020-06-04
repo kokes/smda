@@ -112,6 +112,11 @@ func (ts *tokenScanner) Scan() (token, error) {
 		ts.position++
 		return token{tokenQuo, nil}, nil
 	case '=':
+		next := ts.peek(2)
+		if bytes.Equal(next, []byte("==")) {
+			ts.position++
+			return token{}, errUnknownToken
+		}
 		ts.position++
 		return token{tokenEq, nil}, nil
 	case '(':

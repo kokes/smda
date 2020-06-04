@@ -20,7 +20,6 @@ func TestBasicTokenisation(t *testing.T) {
 		{"<", []tokenType{tokenLt}},
 		{"<=", []tokenType{tokenLte}},
 		{"=", []tokenType{tokenEq}},
-		{"==", []tokenType{tokenEq, tokenEq}},
 		{"!=*", []tokenType{tokenNeq, tokenMul}},
 		{"*<>", []tokenType{tokenMul, tokenNeq}},
 		{"*,*", []tokenType{tokenMul, tokenComma, tokenMul}},
@@ -172,6 +171,7 @@ func TestTokenisationErrors(t *testing.T) {
 		{"\"fooba$", []error{errInvalidIdentifier}},
 		{"\"\"", []error{errInvalidIdentifier}},
 		{"123 !! 456", []error{errUnknownToken, errUnknownToken}},
+		{"2 == 3", []error{errUnknownToken}}, // we disallow == as an equality test, we use SQL's '='
 		{"'some text\nother text'", []error{errInvalidString, errInvalidString}},
 	}
 
