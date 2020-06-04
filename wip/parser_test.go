@@ -156,6 +156,42 @@ func TestTokenisationInvariants(t *testing.T) {
 				t.Errorf("expected %q to tokenise as %q, got %q", source, first, tokens)
 			}
 		}
+	}
+}
 
+func TestTokenisationErrors(t *testing.T) {
+	tt := []struct {
+		source string
+		errs   []error
+	}{
+		{"123 * 345", nil},
+		{"123.3.3 * 345", []error{errInvalidFloat}},
+		{"123 / 3453123121241241231231231231231", []error{errInvalidInteger}},
+		{"ahoy'", []error{errInvalidString}},
+		{"fooba$", []error{errInvalidIdentifier}},
+		{"\"fooba$", []error{errInvalidIdentifier}},
+		{"\"\"", []error{errInvalidIdentifier}},
+		{"123 !! 456", []error{errUnknownToken, errUnknownToken}},
+		{"'some text\nother text'", []error{errInvalidString, errInvalidString}},
+	}
+
+	for _, test := range tt {
+		ts := NewTokenScanner([]byte(test.source))
+		var tokens []token
+		var errs []error
+		for {
+			token, err := ts.Scan()
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if token.ttype == tokenEOF {
+				break
+			}
+			tokens = append(tokens, token)
+		}
+		// TODO: it's not best pratice to use DeepEqual with errors, fix
+		if !reflect.DeepEqual(errs, test.errs) {
+			t.Errorf("expecting %v to trigger %v, but got %v", test.source, test.errs, errs)
+		}
 	}
 }

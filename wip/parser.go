@@ -1,6 +1,5 @@
 // major TODOs:
 // - stringer
-// - sad paths in tests
 // methods: isOperator, isLiteral, isKeyword etc.
 // isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
 //   - then build an expression parser with precedence built in
@@ -135,6 +134,7 @@ func (ts *tokenScanner) Scan() (token, error) {
 			ts.position += 2
 			return token{tokenNeq, nil}, nil
 		}
+		ts.position++ // we need to advance the position, so that we don't get stuck
 		return token{}, errUnknownToken
 	case '<':
 		next := ts.peek(2)
@@ -158,16 +158,16 @@ func (ts *tokenScanner) Scan() (token, error) {
 		floatCandidate := sliceUntil(ts.code[ts.position:], floatChars)
 		intCandidate := sliceUntil(ts.code[ts.position:], intChars)
 		if len(intCandidate) == len(floatCandidate) {
+			ts.position += len(intCandidate)
 			if _, err := strconv.ParseInt(string(intCandidate), 10, 64); err != nil {
 				return token{}, errInvalidInteger
 			}
-			ts.position += len(intCandidate)
 			return token{tokenLiteralInt, intCandidate}, nil
 		}
+		ts.position += len(floatCandidate)
 		if _, err := strconv.ParseFloat(string(floatCandidate), 64); err != nil {
 			return token{}, errInvalidFloat
 		}
-		ts.position += len(floatCandidate)
 		return token{tokenLiteralFloat, floatCandidate}, nil
 	case '\'': // string literal
 		return ts.consumeStringLiteral()
@@ -179,10 +179,10 @@ func (ts *tokenScanner) Scan() (token, error) {
 			return token{}, err
 		}
 		next := ts.peek(1)
+		ts.position++ // this is for the endquote
 		if !bytes.Equal(next, []byte("\"")) {
 			return token{}, errInvalidIdentifier
 		}
-		ts.position++ // this is for the endquote
 		ident.ttype = tokenIdentifierQuoted
 		return ident, nil
 	default:
@@ -195,12 +195,13 @@ func (ts *tokenScanner) consumeIdentifier() (token, error) {
 	// TODO: make sure we restrict columns to be this format
 	identChars := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")
 	identCandidate := sliceUntil(ts.code[ts.position:], identChars)
+	ts.position += len(identCandidate)
 	if len(identCandidate) == 0 {
 		// TODO: this is not quite the right error (it would be if we were quoted)
 		// this actually means there's nothing identifier-like here
+		ts.position++
 		return token{}, errInvalidIdentifier
 	}
-	ts.position += len(identCandidate)
 	return token{tokenIdentifier, identCandidate}, nil
 }
 
@@ -212,10 +213,12 @@ func (ts *tokenScanner) consumeStringLiteral() (token, error) {
 	for {
 		idx := bytes.IndexByte(ts.code[ts.position+1:], apostrophe)
 		if idx == -1 {
+			ts.position++
 			return token{}, errInvalidString
 		}
 		chunk := ts.code[ts.position+1 : ts.position+idx+1]
 		if bytes.IndexByte(chunk, '\n') > -1 {
+			ts.position++
 			return token{}, errInvalidString // TODO: add context: cannot have a newline there
 		}
 		tok.value = append(tok.value, chunk...)
