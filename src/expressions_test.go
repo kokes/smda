@@ -72,41 +72,41 @@ func TestSlicingUntil(t *testing.T) {
 func TestTokenisationWithValues(t *testing.T) {
 	tt := []struct {
 		source   string
-		expected []token
+		expected []tok
 	}{
-		{"/--", []token{{tokenQuo, nil}, {tokenComment, []byte("")}}},
-		{"/-- ", []token{{tokenQuo, nil}, {tokenComment, []byte(" ")}}},
-		{"/-- ahoy\n*", []token{{tokenQuo, nil}, {tokenComment, []byte(" ahoy")}, {tokenMul, nil}}},
-		{"2.34", []token{{tokenLiteralFloat, []byte("2.34")}}},
-		{"2.34e12", []token{{tokenLiteralFloat, []byte("2.34e12")}}},
-		{".5", []token{{tokenLiteralFloat, []byte(".5")}}},
-		{".5e3", []token{{tokenLiteralFloat, []byte(".5e3")}}},
-		{".5e-3", []token{{tokenLiteralFloat, []byte(".5e-3")}}},
-		{"234", []token{{tokenLiteralInt, []byte("234")}}},
-		{"1232349000", []token{{tokenLiteralInt, []byte("1232349000")}}},
-		{"234*3", []token{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
-		{"234*3", []token{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
-		{"234\n\t*\n\t3", []token{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
-		{"2.3e2 * 3e12", []token{{tokenLiteralFloat, []byte("2.3e2")}, {tokenMul, nil}, {tokenLiteralFloat, []byte("3e12")}}},
-		{"2.3e2 + 3e12", []token{{tokenLiteralFloat, []byte("2.3e2")}, {tokenAdd, nil}, {tokenLiteralFloat, []byte("3e12")}}},
-		{"2.3e2 - 3e12", []token{{tokenLiteralFloat, []byte("2.3e2")}, {tokenSub, nil}, {tokenLiteralFloat, []byte("3e12")}}},
-		{"''", []token{{tokenLiteralString, []byte("")}}},
-		{"'ahoy'*", []token{{tokenLiteralString, []byte("ahoy")}, {tokenMul, nil}}},
-		{"''''*", []token{{tokenLiteralString, []byte("'")}, {tokenMul, nil}}},
-		{"''''''*", []token{{tokenLiteralString, []byte("''")}, {tokenMul, nil}}},
-		{"'ah''oy'*", []token{{tokenLiteralString, []byte("ah'oy")}, {tokenMul, nil}}},
-		{"'ah''''oy'*", []token{{tokenLiteralString, []byte("ah''oy")}, {tokenMul, nil}}},
-		{"'ah''''''oy'*", []token{{tokenLiteralString, []byte("ah'''oy")}, {tokenMul, nil}}},
-		{"'ah'' '' '' '' ''oy'*", []token{{tokenLiteralString, []byte("ah' ' ' ' 'oy")}, {tokenMul, nil}}},
-		{"ahoy", []token{{tokenIdentifier, []byte("ahoy")}}},
-		{"hello_world", []token{{tokenIdentifier, []byte("hello_world")}}},
-		{"\"ahoy\"", []token{{tokenIdentifierQuoted, []byte("ahoy")}}},
-		{"+\"ahoy\"+", []token{{tokenAdd, nil}, {tokenIdentifierQuoted, []byte("ahoy")}, {tokenAdd, nil}}},
+		{"/--", []tok{{tokenQuo, nil}, {tokenComment, []byte("")}}},
+		{"/-- ", []tok{{tokenQuo, nil}, {tokenComment, []byte(" ")}}},
+		{"/-- ahoy\n*", []tok{{tokenQuo, nil}, {tokenComment, []byte(" ahoy")}, {tokenMul, nil}}},
+		{"2.34", []tok{{tokenLiteralFloat, []byte("2.34")}}},
+		{"2.34e12", []tok{{tokenLiteralFloat, []byte("2.34e12")}}},
+		{".5", []tok{{tokenLiteralFloat, []byte(".5")}}},
+		{".5e3", []tok{{tokenLiteralFloat, []byte(".5e3")}}},
+		{".5e-3", []tok{{tokenLiteralFloat, []byte(".5e-3")}}},
+		{"234", []tok{{tokenLiteralInt, []byte("234")}}},
+		{"1232349000", []tok{{tokenLiteralInt, []byte("1232349000")}}},
+		{"234*3", []tok{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
+		{"234*3", []tok{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
+		{"234\n\t*\n\t3", []tok{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
+		{"2.3e2 * 3e12", []tok{{tokenLiteralFloat, []byte("2.3e2")}, {tokenMul, nil}, {tokenLiteralFloat, []byte("3e12")}}},
+		{"2.3e2 + 3e12", []tok{{tokenLiteralFloat, []byte("2.3e2")}, {tokenAdd, nil}, {tokenLiteralFloat, []byte("3e12")}}},
+		{"2.3e2 - 3e12", []tok{{tokenLiteralFloat, []byte("2.3e2")}, {tokenSub, nil}, {tokenLiteralFloat, []byte("3e12")}}},
+		{"''", []tok{{tokenLiteralString, []byte("")}}},
+		{"'ahoy'*", []tok{{tokenLiteralString, []byte("ahoy")}, {tokenMul, nil}}},
+		{"''''*", []tok{{tokenLiteralString, []byte("'")}, {tokenMul, nil}}},
+		{"''''''*", []tok{{tokenLiteralString, []byte("''")}, {tokenMul, nil}}},
+		{"'ah''oy'*", []tok{{tokenLiteralString, []byte("ah'oy")}, {tokenMul, nil}}},
+		{"'ah''''oy'*", []tok{{tokenLiteralString, []byte("ah''oy")}, {tokenMul, nil}}},
+		{"'ah''''''oy'*", []tok{{tokenLiteralString, []byte("ah'''oy")}, {tokenMul, nil}}},
+		{"'ah'' '' '' '' ''oy'*", []tok{{tokenLiteralString, []byte("ah' ' ' ' 'oy")}, {tokenMul, nil}}},
+		{"ahoy", []tok{{tokenIdentifier, []byte("ahoy")}}},
+		{"hello_world", []tok{{tokenIdentifier, []byte("hello_world")}}},
+		{"\"ahoy\"", []tok{{tokenIdentifierQuoted, []byte("ahoy")}}},
+		{"+\"ahoy\"+", []tok{{tokenAdd, nil}, {tokenIdentifierQuoted, []byte("ahoy")}, {tokenAdd, nil}}},
 	}
 
 	for _, test := range tt {
 		ts := NewTokenScanner([]byte(test.source))
-		var tokens []token
+		var tokens []tok
 		for {
 			token, err := ts.Scan()
 			if err != nil {
@@ -133,10 +133,10 @@ func TestTokenisationInvariants(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		var first []token
+		var first []tok
 		for j, source := range test {
 			ts := NewTokenScanner([]byte(source))
-			var tokens []token
+			var tokens []tok
 			for {
 				token, err := ts.Scan()
 				if err != nil {
@@ -177,7 +177,7 @@ func TestTokenisationErrors(t *testing.T) {
 
 	for _, test := range tt {
 		ts := NewTokenScanner([]byte(test.source))
-		var tokens []token
+		var tokens []tok
 		var errs []error
 		for {
 			token, err := ts.Scan()
