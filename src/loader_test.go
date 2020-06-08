@@ -306,7 +306,67 @@ func TestLoadingOfRawDatasets(t *testing.T) {
 	}
 }
 
-// TODO: test checksum - write data into a bytes buffer, flip a bit or two and then try to read it back in
+// if we flip any single bit in the file - apart from the checksums and version, we should get a checksum error
+// TODO: guard against offset bit rot? We do get a panic due to `buf := make([]byte, offsetEnd-offsetStart)` allocating too much
+func TestChecksumValidation(t *testing.T) {
+	db, err := NewDatabaseTemp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
+	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
+
+	ds, err := db.loadDatasetFromReaderAuto(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// this should work fine
+	stripeID := ds.Stripes[0]
+	readStripes := func() error {
+		for colNum := 0; colNum < 3; colNum++ {
+			_, err := db.readColumnFromStripe(ds, stripeID, colNum)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := readStripes(); err != nil {
+		t.Fatal(err)
+	}
+	// TODO: as always, avoid this when we get a better API
+	path := filepath.Join(db.WorkingDirectory, ds.ID.String(), stripeID.String())
+	stripeData, err := ioutil.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mut := make([]byte, len(stripeData))
+	// we don't read the first two bytes (format version)
+	// and the last 32 (4 offsets, 8 bytes each)
+	for j := 2; j < len(stripeData)-32; j++ {
+		copy(mut, stripeData) // copy fresh data, so that we can mutate them
+		for pos := 0; pos < 8; pos++ {
+			if mut[j]&(1<<pos) > 0 {
+				mut[j] &^= 1 << pos
+			} else {
+				mut[j] |= 1 << pos
+			}
+			if err := ioutil.WriteFile(path, mut, os.ModePerm); err != nil {
+				t.Error(err)
+				continue
+			}
+			if err := readStripes(); err != errIncorrectChecksum {
+				t.Errorf("flipping bits should trigger %v, got %v instead", errIncorrectChecksum, err)
+			}
+		}
+	}
+}
+
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 // func (ds *dataStripe) writeToWriter(w io.Writer) error {
 // func (ds *dataStripe) writeToFile(rootDir, datasetID string) error {
