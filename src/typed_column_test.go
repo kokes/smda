@@ -32,14 +32,10 @@ func TestBasicStringColumn(t *testing.T) {
 			}
 		}
 
-		buf := new(bytes.Buffer)
-		n, err := nc.serializeInto(buf)
+		_, err := nc.MarshalBinary()
 		if err != nil {
 			t.Error(err)
 			return
-		}
-		if int(n) != len(buf.Bytes()) {
-			t.Errorf("wrote %v bytes, but reported %v", len(buf.Bytes()), n)
 		}
 	}
 }
@@ -60,14 +56,10 @@ func TestBasicIntColumn(t *testing.T) {
 			t.Error(err)
 		}
 
-		buf := new(bytes.Buffer)
-		n, err := nc.serializeInto(buf)
+		_, err := nc.MarshalBinary()
 		if err != nil {
 			t.Error(err)
 			return
-		}
-		if int(n) != len(buf.Bytes()) {
-			t.Errorf("wrote %v bytes, but reported %v", len(buf.Bytes()), n)
 		}
 
 	}
@@ -94,16 +86,11 @@ func TestBasicFloatColumn(t *testing.T) {
 			t.Error(err)
 		}
 
-		buf := new(bytes.Buffer)
-		n, err := nc.serializeInto(buf)
+		_, err := nc.MarshalBinary()
 		if err != nil {
 			t.Error(err)
 			return
 		}
-		if int(n) != len(buf.Bytes()) {
-			t.Errorf("wrote %v bytes, but reported %v", len(buf.Bytes()), n)
-		}
-
 	}
 }
 
@@ -121,16 +108,11 @@ func TestBasicBoolColumn(t *testing.T) {
 			t.Error(err)
 		}
 
-		buf := new(bytes.Buffer)
-		n, err := nc.serializeInto(buf)
+		_, err := nc.MarshalBinary()
 		if err != nil {
 			t.Error(err)
 			return
 		}
-		if int(n) != len(buf.Bytes()) {
-			t.Errorf("wrote %v bytes, but reported %v", len(buf.Bytes()), n)
-		}
-
 	}
 }
 
@@ -184,15 +166,11 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		if err := col.addValues(test.vals); err != nil {
 			t.Error(err)
 		}
-		bf := new(bytes.Buffer)
-		n, err := col.serializeInto(bf)
+		b, err := col.MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if n != len(bf.Bytes()) {
-			t.Fatalf("expected to write %v bytes, got %v instead", n, len(bf.Bytes()))
-		}
-		col2, err := deserializeColumn(bf, test.schema.Dtype)
+		col2, err := deserializeColumn(bytes.NewReader(b), test.schema.Dtype)
 		if err != nil {
 			t.Fatal(err)
 		}

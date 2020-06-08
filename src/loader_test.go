@@ -306,6 +306,7 @@ func TestLoadingOfRawDatasets(t *testing.T) {
 	}
 }
 
+// TODO: test checksum - write data into a bytes buffer, flip a bit or two and then try to read it back in
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 // func (ds *dataStripe) writeToWriter(w io.Writer) error {
 // func (ds *dataStripe) writeToFile(rootDir, datasetID string) error {

@@ -19,7 +19,7 @@ import (
 type typedColumn interface {
 	addValue(string) error
 	addValues([]string) error // just a utility thing, mostly for tests
-	serializeInto(io.Writer) (int, error)
+	MarshalBinary() ([]byte, error)
 	MarshalJSON() ([]byte, error)
 	Prune(*Bitmap) typedColumn
 	Append(typedColumn) error
@@ -806,92 +806,96 @@ func deserializeColumnNulls(r io.Reader) (*columnNulls, error) {
 	}, nil
 }
 
-func (rc *columnStrings) serializeInto(w io.Writer) (int, error) {
+func (rc *columnStrings) MarshalBinary() ([]byte, error) {
+	w := new(bytes.Buffer)
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
-		return 0, err
+		return nil, err
 	}
-	bnull, err := rc.nullability.serialize(w)
+	_, err := rc.nullability.serialize(w)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.offsets))); err != nil {
-		return 0, err
+		return nil, err
 	}
 	// OPTIM: find the largest offset (the last one) and if it's less than 1<<16, use a smaller uint etc.
 	if err := binary.Write(w, binary.LittleEndian, rc.offsets); err != nil {
-		return 0, err
+		return nil, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return 0, err
+		return nil, err
 	}
 	bdata, err := w.Write(rc.data)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	if bdata != len(rc.data) {
-		return 0, errors.New("not enough data written")
+		return nil, errors.New("not enough data written")
 	}
-	bwritten := 1 + bnull + 4 + len(rc.offsets)*4 + 4 + bdata
-	return bwritten, err
+	return w.Bytes(), err
 }
 
-func (rc *columnInts) serializeInto(w io.Writer) (int, error) {
+func (rc *columnInts) MarshalBinary() ([]byte, error) {
+	w := new(bytes.Buffer)
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
-		return 0, err
+		return nil, err
 	}
-	bnull, err := rc.nullability.serialize(w)
+	_, err := rc.nullability.serialize(w)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return 0, err
+		return nil, err
 	}
 	// OPTIM: find the largest int and possibly use a smaller container than int64
 	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return 1 + bnull + 4 + int(rc.length)*8, err
+	return w.Bytes(), err
 }
 
-func (rc *columnFloats) serializeInto(w io.Writer) (int, error) {
+func (rc *columnFloats) MarshalBinary() ([]byte, error) {
+	w := new(bytes.Buffer)
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
-		return 0, err
+		return nil, err
 	}
-	bnull, err := rc.nullability.serialize(w)
+	_, err := rc.nullability.serialize(w)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return 0, err
+		return nil, err
 	}
 	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return 1 + bnull + 4 + int(rc.length)*8, err
+	return w.Bytes(), err
 }
 
-func (rc *columnBools) serializeInto(w io.Writer) (int, error) {
+func (rc *columnBools) MarshalBinary() ([]byte, error) {
+	w := new(bytes.Buffer)
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
-		return 0, err
+		return nil, err
 	}
-	bnull, err := rc.nullability.serialize(w)
+	_, err := rc.nullability.serialize(w)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	// the data bitmap doesn't have a "length", just a capacity (64 aligned), so we
 	// need to explicitly write the length of this column chunk
 	if err := binary.Write(w, binary.LittleEndian, rc.length); err != nil {
-		return 0, err
+		return nil, err
 	}
-	bdata, err := rc.data.serialize(w)
+	_, err = rc.data.serialize(w)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return 1 + bnull + 4 + bdata, err
+	return w.Bytes(), nil
 }
 
-func (rc *columnNulls) serializeInto(w io.Writer) (int, error) {
+func (rc *columnNulls) MarshalBinary() ([]byte, error) {
+	w := new(bytes.Buffer)
 	length := rc.length
 	if err := binary.Write(w, binary.LittleEndian, length); err != nil {
-		return 0, err
+		return nil, err
 	}
-	return 4, nil
+	return w.Bytes(), nil
 }
 
 func (rc *columnStrings) MarshalJSON() ([]byte, error) {

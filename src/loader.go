@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"io/ioutil"
 	"os"
@@ -17,6 +18,8 @@ const (
 	maxRowsPerStripe  = 100_000
 	maxBytesPerStripe = 10_000_000
 )
+
+var errIncorrectChecksum = errors.New("could not validate data on disk: incorrect checksum")
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
 // using default settings
@@ -128,11 +131,25 @@ func (ds *dataStripe) writeToWriter(w io.Writer) error {
 	offsets := make([]uint64, 0, len(ds.columns))
 	offsets = append(offsets, 0)
 	for _, column := range ds.columns {
-		n, err := column.serializeInto(w)
+		// OPTIM: we used to write column data directly into the underlying writer, but we introduced
+		// a method that returns a slice, so that we can checksum it - this increased our allocations, so
+		// we may want to reconsider this and perhaps checksum on the fly, feed in a bytes buffer or something
+		b, err := column.MarshalBinary()
 		if err != nil {
 			return err
 		}
-		totalOffset += uint64(n)
+		checksum := crc32.ChecksumIEEE(b)
+		if err := binary.Write(w, binary.LittleEndian, checksum); err != nil {
+			return err
+		}
+		n, err := w.Write(b)
+		if n != len(b) {
+			return fmt.Errorf("failed to serialise a column, expecting to write %v bytes, wrote %b", len(b), n)
+		}
+		if err != nil {
+			return err
+		}
+		totalOffset += uint64(len(b)) + 4 // byte slice length + checksum
 		offsets = append(offsets, totalOffset)
 	}
 	return binary.Write(w, binary.LittleEndian, offsets)
@@ -295,7 +312,14 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 		return nil, fmt.Errorf("expected to read %v bytes, but only got %v", len(buf), n)
 	}
 
-	br := bytes.NewReader(buf)
+	// IEEE CRC32 is in the first four bytes of this slice
+	checksumExpected := binary.LittleEndian.Uint32(buf[:4])
+	checksumGot := crc32.ChecksumIEEE(buf[4:])
+	if checksumExpected != checksumGot {
+		return nil, errIncorrectChecksum
+	}
+
+	br := bytes.NewReader(buf[4:])
 	return deserializeColumn(br, ds.Schema[nthColumn].Dtype)
 }
 
