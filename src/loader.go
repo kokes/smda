@@ -63,13 +63,11 @@ func cacheIncomingFile(r io.Reader, path string) error {
 // cacheIncomingFile directly) - but let's keep in mind that we might need to reprocess the raw
 // dataset at a later point (if schema changes, if we need to infer it again etc.)
 func (db *Database) LoadRawDataset(r io.Reader) (*Dataset, error) {
-	d := NewDataset()
-	d.LocalFilepath = filepath.Join(db.WorkingDirectory, d.ID.String())
-
-	if err := cacheIncomingFile(r, d.LocalFilepath); err != nil {
+	ds := NewDataset()
+	if err := cacheIncomingFile(r, db.datasetPath(ds)); err != nil {
 		return nil, err
 	}
-	return d, nil
+	return ds, nil
 }
 
 type columnSchema struct {
@@ -163,16 +161,12 @@ func (ds *dataStripe) writeToWriter(w io.Writer) error {
 	return binary.Write(w, binary.LittleEndian, offsets)
 }
 
-// TODO: this whole API is just wrong - we should have a `db.writestripe(ds, stripe) error`
-func (ds *dataStripe) writeToFile(rootDir, datasetID string) error {
-	tdir := filepath.Join(rootDir, datasetID)
-	if err := os.MkdirAll(tdir, os.ModePerm); err != nil {
+func (db *Database) writeStripeToFile(ds *Dataset, stripe *dataStripe) error {
+	if err := os.MkdirAll(db.datasetPath(ds), os.ModePerm); err != nil {
 		return err
 	}
 
-	// TODO: d.LocalFilepath? (though we don't have access to `d` here)
-	path := filepath.Join(tdir, ds.id.String())
-	f, err := os.Create(path)
+	f, err := os.Create(db.stripePath(ds, stripe.id))
 	if err != nil {
 		return err
 	}
@@ -180,7 +174,7 @@ func (ds *dataStripe) writeToFile(rootDir, datasetID string) error {
 	bw := bufio.NewWriter(f)
 	defer bw.Flush()
 
-	return ds.writeToWriter(bw)
+	return stripe.writeToWriter(bw)
 }
 
 func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
@@ -275,8 +269,7 @@ func (db *Database) castDataset(ds *Dataset, newSchema tableSchema) (*Dataset, e
 
 		newStripeIDs = append(newStripeIDs, newStripe.id)
 
-		// TODO: d.localfile
-		if err := newStripe.writeToFile(db.WorkingDirectory, newDs.ID.String()); err != nil {
+		if err := db.writeStripeToFile(newDs, newStripe); err != nil {
 			return nil, err
 		}
 	}
@@ -291,9 +284,7 @@ func (db *Database) castDataset(ds *Dataset, newSchema tableSchema) (*Dataset, e
 // by using this, we will open and close the file every time we want a column
 // OPTIM: this does not buffer any reads... but it only reads things twice, so it shouldn't matter, right?
 func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (typedColumn, error) {
-	// TODO: d.LocalFilePath? (is probably not filled in here)
-	path := filepath.Join(db.WorkingDirectory, ds.ID.String(), stripeID.String())
-	f, err := os.Open(path)
+	f, err := os.Open(db.stripePath(ds, stripeID))
 	if err != nil {
 		return nil, err
 	}
@@ -368,8 +359,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*
 		}
 		stripes = append(stripes, ds.id)
 
-		// TODO: shouldn't this be d.LocalFilePath?
-		if err := ds.writeToFile(db.WorkingDirectory, dataset.ID.String()); err != nil {
+		if err := db.writeStripeToFile(dataset, ds); err != nil {
 			return nil, err
 		}
 

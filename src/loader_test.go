@@ -339,8 +339,7 @@ func TestChecksumValidation(t *testing.T) {
 	if err := readStripes(); err != nil {
 		t.Fatal(err)
 	}
-	// TODO: as always, avoid this when we get a better API
-	path := filepath.Join(db.WorkingDirectory, ds.ID.String(), stripeID.String())
+	path := db.stripePath(ds, stripeID)
 	stripeData, err := ioutil.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -369,7 +368,7 @@ func TestChecksumValidation(t *testing.T) {
 
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 // func (ds *dataStripe) writeToWriter(w io.Writer) error {
-// func (ds *dataStripe) writeToFile(rootDir, datasetID string) error {
+// func (ds *dataStripe) writeToFile(rootDir, datasetID string) error { -- signature has changed, it's now writeStripeToFile
 // func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
 // func (db *Database) castDataset(ds *Dataset, newSchema tableSchema) (*Dataset, error) {
 // func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {

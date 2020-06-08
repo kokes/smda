@@ -125,15 +125,22 @@ func (uid *UID) UnmarshalJSON(data []byte) error {
 
 // Dataset contains metadata for a given dataset, which at this point means a table
 type Dataset struct {
-	ID            UID         `json:"id"`
-	Name          string      `json:"name"`
-	Schema        tableSchema `json:"schema"`
-	Stripes       []UID       `json:"-"`
-	LocalFilepath string      `json:"-"`
+	ID      UID         `json:"id"`
+	Name    string      `json:"name"`
+	Schema  tableSchema `json:"schema"`
+	Stripes []UID       `json:"-"`
 }
 
 func NewDataset() *Dataset {
 	return &Dataset{ID: newUID(otypeDataset)}
+}
+
+func (db *Database) datasetPath(ds *Dataset) string {
+	return filepath.Join(db.WorkingDirectory, ds.ID.String())
+}
+
+func (db *Database) stripePath(ds *Dataset, stripeID UID) string {
+	return filepath.Join(db.WorkingDirectory, ds.ID.String(), stripeID.String())
 }
 
 // not efficient in this implementation, but we don't have a map-like structure
@@ -156,7 +163,7 @@ func (db *Database) addDataset(ds *Dataset) {
 	db.Unlock()
 }
 
-// TODO: test for deletion
+// TODO: test for deletion (fort both slices and raw files)
 func (db *Database) removeDataset(ds *Dataset) error {
 	db.Lock()
 	defer db.Unlock()
@@ -166,18 +173,13 @@ func (db *Database) removeDataset(ds *Dataset) error {
 			break // TODO: what if dataset is not found? return an error that we'll ignore?
 		}
 	}
-	// TODO: this path stitching is omnipresent, get rid of it
-	// this directory contains all the stripes a given dataset has
-	// but it might as well be a file (for raw datasets)
-	localDir := filepath.Join(db.WorkingDirectory, ds.ID.String())
 
 	for _, stripeID := range ds.Stripes {
-		filename := filepath.Join(localDir, stripeID.String())
-		if err := os.Remove(filename); err != nil {
+		if err := os.Remove(db.stripePath(ds, stripeID)); err != nil {
 			return err
 		}
 	}
-	if err := os.Remove(localDir); err != nil {
+	if err := os.Remove(db.datasetPath(ds)); err != nil {
 		// TODO: ignore if "directory not empty"? Because other datasets might claim this directory
 		// and we only want to remove it if it's actually empty, so this error is fine.
 		return err
