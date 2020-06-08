@@ -206,7 +206,7 @@ func (tg *typeGuesser) inferredType() columnSchema {
 	}
 }
 
-func inferTypes(path string, settings loadSettings) ([]columnSchema, error) {
+func inferTypes(path string, settings loadSettings) (tableSchema, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -248,7 +248,7 @@ func inferTypes(path string, settings loadSettings) ([]columnSchema, error) {
 		}
 
 	}
-	ret := make([]columnSchema, len(tgs))
+	ret := make(tableSchema, len(tgs))
 	for j, tg := range tgs {
 		ret[j] = tg.inferredType()
 		ret[j].Name = hd[j]

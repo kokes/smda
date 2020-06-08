@@ -125,11 +125,11 @@ func (uid *UID) UnmarshalJSON(data []byte) error {
 
 // Dataset contains metadata for a given dataset, which at this point means a table
 type Dataset struct {
-	ID            UID            `json:"id"`
-	Name          string         `json:"name"`
-	Schema        []columnSchema `json:"schema"`
-	Stripes       []UID          `json:"-"`
-	LocalFilepath string         `json:"-"`
+	ID            UID         `json:"id"`
+	Name          string      `json:"name"`
+	Schema        tableSchema `json:"schema"`
+	Stripes       []UID       `json:"-"`
+	LocalFilepath string      `json:"-"`
 }
 
 func NewDataset() *Dataset {

@@ -313,18 +313,18 @@ func TestDatasetTypeInference(t *testing.T) {
 
 	datasets := []struct {
 		raw string
-		cs  []columnSchema
+		cs  tableSchema
 	}{
-		{"foo\n1\n2", []columnSchema{{"foo", dtypeInt, false}}},
-		{"foo,bar\n1,2\n2,false", []columnSchema{{"foo", dtypeInt, false}, {"bar", dtypeString, false}}},
-		{"foo\ntrue\nFALSE", []columnSchema{{"foo", dtypeBool, false}}},
-		{"foo,bar\na,b\nc,", []columnSchema{{"foo", dtypeString, false}, {"bar", dtypeString, true}}}, // we do have nullable strings
-		{"foo,bar\n1,\n2,3", []columnSchema{{"foo", dtypeInt, false}, {"bar", dtypeInt, true}}},
-		{"foo,bar\n1,\n2,", []columnSchema{{"foo", dtypeInt, false}, {"bar", dtypeNull, true}}},
+		{"foo\n1\n2", tableSchema{{"foo", dtypeInt, false}}},
+		{"foo,bar\n1,2\n2,false", tableSchema{{"foo", dtypeInt, false}, {"bar", dtypeString, false}}},
+		{"foo\ntrue\nFALSE", tableSchema{{"foo", dtypeBool, false}}},
+		{"foo,bar\na,b\nc,", tableSchema{{"foo", dtypeString, false}, {"bar", dtypeString, true}}}, // we do have nullable strings
+		{"foo,bar\n1,\n2,3", tableSchema{{"foo", dtypeInt, false}, {"bar", dtypeInt, true}}},
+		{"foo,bar\n1,\n2,", tableSchema{{"foo", dtypeInt, false}, {"bar", dtypeNull, true}}},
 		// the following issues are linked to the fact that encoding/csv skips empty rows (???)
-		// {"foo\n\n\n", []columnSchema{{"foo", dtypeNull, true}}}, // this should work, but we keep returning invalid
-		// {"foo\ntrue\n", []columnSchema{{"foo", dtypeBool, true}}}, // this should be nullable, but we keep saying it is not
-		// {"foo\nfoo\n\ntrue", []columnSchema{{"foo", dtypeBool, true}}}, // this should be nullable, but we keep saying it is not
+		// {"foo\n\n\n", tableSchema{{"foo", dtypeNull, true}}}, // this should work, but we keep returning invalid
+		// {"foo\ntrue\n", tableSchema{{"foo", dtypeBool, true}}}, // this should be nullable, but we keep saying it is not
+		// {"foo\nfoo\n\ntrue", tableSchema{{"foo", dtypeBool, true}}}, // this should be nullable, but we keep saying it is not
 	}
 	for _, dataset := range datasets {
 		f, err := ioutil.TempFile("", "")

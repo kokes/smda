@@ -371,6 +371,6 @@ func TestChecksumValidation(t *testing.T) {
 // func (ds *dataStripe) writeToWriter(w io.Writer) error {
 // func (ds *dataStripe) writeToFile(rootDir, datasetID string) error {
 // func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
-// func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset, error) {
+// func (db *Database) castDataset(ds *Dataset, newSchema tableSchema) (*Dataset, error) {
 // func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
 // func (db *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {

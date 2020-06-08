@@ -78,13 +78,15 @@ type columnSchema struct {
 	Nullable bool   `json:"nullable"`
 }
 
+type tableSchema []columnSchema
+
 // TODO: this should probably be a pointer everywhere?
 type loadSettings struct {
 	// encoding
 	compression compression
 	delimiter   delimiter
 	// hasHeader
-	schema []columnSchema
+	schema tableSchema
 	// discardExtraColumns
 	// allowFewerColumns
 }
@@ -190,7 +192,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 			return nil, err // TODO: EOF handling?
 		}
 		// perhaps wrap this in an init function that returns a schema, so that we have less cruft here
-		rl.settings.schema = make([]columnSchema, 0, len(hd))
+		rl.settings.schema = make(tableSchema, 0, len(hd))
 		for _, val := range hd {
 			rl.settings.schema = append(rl.settings.schema, columnSchema{
 				Name:     val,
@@ -238,7 +240,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 
 // will cast it into the same number of stripes, so if we have vastly more (or less) efficient columns,
 // the data size of these may no longer be "optimal"
-func (db *Database) castDataset(ds *Dataset, newSchema []columnSchema) (*Dataset, error) {
+func (db *Database) castDataset(ds *Dataset, newSchema tableSchema) (*Dataset, error) {
 	if len(ds.Schema) != len(newSchema) {
 		return nil, errors.New("schema mismatch")
 	}

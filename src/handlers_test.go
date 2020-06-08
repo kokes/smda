@@ -435,7 +435,7 @@ func TestBasicAutoUpload(t *testing.T) {
 	if dec.Schema == nil {
 		t.Error("expecting a schema to be present, got a nil")
 	}
-	es := []columnSchema{{"foo", dtypeInt, false}, {"bar", dtypeInt, true}, {"baz", dtypeBool, false}}
+	es := tableSchema{{"foo", dtypeInt, false}, {"bar", dtypeInt, true}, {"baz", dtypeBool, false}}
 	if !reflect.DeepEqual(dec.Schema, es) {
 		t.Errorf("expecting the schema to be inferred as %v, got %v", es, dec.Schema)
 	}
