@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	maxRowsPerStripe  = 100_000
-	maxBytesPerStripe = 10_000_000
+	stripeOnDiskFormatVersion = 1
+	maxRowsPerStripe          = 100_000
+	maxBytesPerStripe         = 10_000_000
 )
 
 var errIncorrectChecksum = errors.New("could not validate data on disk: incorrect checksum")
+var errIncompatibleOnDiskFormat = errors.New("cannot open data stripes with a version different from the one supported")
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
 // using default settings
@@ -127,9 +129,13 @@ func newDataStripe() *dataStripe {
 // since we know how many columns are in this file (from the dataset metadata), we first
 // need to read that many bytes off the end of the file and then offset to whichever column we want
 func (ds *dataStripe) writeToWriter(w io.Writer) error {
-	totalOffset := uint64(0)
+	version := uint16(stripeOnDiskFormatVersion)
+	if err := binary.Write(w, binary.LittleEndian, version); err != nil {
+		return err
+	}
+	totalOffset := uint64(2) // reserve two bytes for the version written above
 	offsets := make([]uint64, 0, len(ds.columns))
-	offsets = append(offsets, 0)
+	offsets = append(offsets, totalOffset)
 	for _, column := range ds.columns {
 		// OPTIM: we used to write column data directly into the underlying writer, but we introduced
 		// a method that returns a slice, so that we can checksum it - this increased our allocations, so
@@ -290,6 +296,15 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 		return nil, err
 	}
 	defer f.Close()
+
+	var version uint16
+	if err := binary.Read(f, binary.LittleEndian, &version); err != nil {
+		return nil, err
+	}
+	if version != stripeOnDiskFormatVersion {
+		return nil, errIncompatibleOnDiskFormat
+	}
+
 	ncolumns := len(ds.Schema)
 
 	offsets := make([]uint64, ncolumns+1)
