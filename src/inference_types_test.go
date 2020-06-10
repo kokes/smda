@@ -301,7 +301,7 @@ func TestBasicTypeGuessing(t *testing.T) {
 }
 
 func TestDatasetTypeInference(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}

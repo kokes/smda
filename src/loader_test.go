@@ -32,11 +32,11 @@ func TestAutoInferenceInLoading(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		d, err := NewDatabaseTemp()
+		d, err := NewDatabase(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.RemoveAll(d.WorkingDirectory)
+		defer os.RemoveAll(d.Config.WorkingDirectory)
 		bf := new(bytes.Buffer)
 		switch test.compression {
 		case compressionNone:
@@ -82,7 +82,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 }
 
 func TestReadingFromStripes(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestReadingFromStripes(t *testing.T) {
 
 // note that this measures throughput in terms of the original file size, not the size it takes on the disk
 func BenchmarkReadingFromStripes(b *testing.B) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestColumnSchemaMarshalingRoundtrips(t *testing.T) {
 }
 
 func TestLoadingSampleData(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +286,7 @@ func TestBasicFileCaching(t *testing.T) {
 }
 
 func TestLoadingOfRawDatasets(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func TestLoadingOfRawDatasets(t *testing.T) {
 // if we flip any single bit in the file - apart from the checksums and version, we should get a checksum error
 // TODO: guard against offset bit rot? We do get a panic due to `buf := make([]byte, offsetEnd-offsetStart)` allocating too much
 func TestChecksumValidation(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}

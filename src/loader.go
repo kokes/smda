@@ -16,8 +16,6 @@ import (
 
 const (
 	stripeOnDiskFormatVersion = 1
-	maxRowsPerStripe          = 100_000
-	maxBytesPerStripe         = 10_000_000
 )
 
 var errIncorrectChecksum = errors.New("could not validate data on disk: incorrect checksum")
@@ -190,6 +188,7 @@ func (rl *rawLoader) yieldRow() ([]string, error) {
 	return row, nil
 }
 
+// maybe these two arguments can be embedded into rl.settings?
 func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
 	ds := newDataStripe()
 	// if no schema is set, read the header and set it yourself (to be all non-nullable strings)
@@ -235,7 +234,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 		}
 		rowsLoaded++
 
-		if rowsLoaded > maxRows || bytesLoaded > maxBytes {
+		if rowsLoaded >= maxRows || bytesLoaded >= maxBytes {
 			break
 		}
 	}
@@ -315,7 +314,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 	}
 	stripes := make([]UID, 0)
 	for {
-		ds, loadingErr := rl.ReadIntoStripe(maxRowsPerStripe, maxBytesPerStripe)
+		ds, loadingErr := rl.ReadIntoStripe(db.Config.MaxRowsPerStripe, db.Config.MaxBytesPerStripe)
 		if loadingErr != nil && loadingErr != io.EOF {
 			return nil, loadingErr
 		}

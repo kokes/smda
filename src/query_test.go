@@ -7,7 +7,7 @@ import (
 )
 
 func TestQueryingEmptyDatasets(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestQueryingEmptyDatasets(t *testing.T) {
 }
 
 func TestBasicQueries(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestBasicQueries(t *testing.T) {
 // TODO: test that a limit omitted is equivalent to loading all data (test with and without filters)
 // also test negative limits
 func TestLimitsInQueries(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,8 +110,6 @@ func TestLimitsInQueries(t *testing.T) {
 	}
 }
 
-// TODO: test that this works across stripes (we may need to push the stripe length
-// configuration into the database initialiser, to have more control over it)
 // TODO: not testing nulls here
 func TestBasicAggregation(t *testing.T) {
 	tests := []struct {
@@ -139,7 +137,7 @@ func TestBasicAggregation(t *testing.T) {
 	}
 
 	for testNo, test := range tests {
-		db, err := NewDatabaseTemp()
+		db, err := NewDatabase(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -153,7 +151,6 @@ func TestBasicAggregation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		db.addDataset(ds)
 
 		dso, err := db.loadDatasetFromReaderAuto(strings.NewReader(test.output))
 		if err != nil {
@@ -166,12 +163,17 @@ func TestBasicAggregation(t *testing.T) {
 		}
 
 		for j, col := range nrc {
+			// TODO: we can't just read the first stripe, we need to either
+			//        1) select the given column and see if it matches
+			//        2) create a helper method which tests for equality of two datasets (== schema, == each column
+			//           in each stripe, ignore stripeIDs)
+			// also, to test this, we need to initialise the db with MaxRowsPerStripe to a very low number to force creation of multiple stripes
 			expcol, err := db.readColumnFromStripe(dso, dso.Stripes[0], j)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if !reflect.DeepEqual(col, expcol) {
-				// log.Println(string(col.(*columnStrings).data))
+				// 	log.Println(string(col.(*columnStrings).data))
 				t.Errorf("[%d] failed to aggregate %v", testNo, test.input)
 			}
 		}

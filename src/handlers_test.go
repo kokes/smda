@@ -16,7 +16,7 @@ import (
 
 // sooo, we're actually not testing just the handlers, we're going through the router as well
 func TestStatusHandling(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestStatusHandling(t *testing.T) {
 }
 
 func TestRootHandling(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestRootHandling(t *testing.T) {
 }
 
 func TestRootDoesNotHandle404(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestRootDoesNotHandle404(t *testing.T) {
 }
 
 func TestDatasetListing(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestDatasetListing(t *testing.T) {
 }
 
 func TestDatasetListingNoDatasets(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestErrorsAreWrittenOut(t *testing.T) {
 }
 
 func TestHandlingQueries(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestHandlingQueries(t *testing.T) {
 
 // At this point we only test that when passed an unexpected parameter, the query fails
 func TestInvalidQueries(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +354,7 @@ func TestInvalidQueries(t *testing.T) {
 }
 
 func TestBasicRawUpload(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +396,7 @@ func TestBasicRawUpload(t *testing.T) {
 }
 
 func TestBasicAutoUpload(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,7 +462,7 @@ func randomIntFuncer(n int) func() []byte {
 }
 
 func BenchmarkAutoUpload(b *testing.B) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		b.Fatal(err)
 	}

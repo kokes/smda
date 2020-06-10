@@ -20,15 +20,39 @@ var errPathNotEmpty = errors.New("path not empty")
 // Having the webserver here makes it convenient for testing - we can spawn new servers at a moment's notice
 type Database struct {
 	sync.Mutex
-	Datasets         []*Dataset
-	server           *http.Server
-	WorkingDirectory string
+	Datasets []*Dataset
+	server   *http.Server
+	Config   *DatabaseConfig
+}
+
+type DatabaseConfig struct {
+	WorkingDirectory  string
+	MaxRowsPerStripe  int
+	MaxBytesPerStripe int
 }
 
 // NewDatabase initiates a new database in a directory, which cannot exist (we wouldn't know what to do with any of
 // the existing files there)
-func NewDatabase(workingDirectory string) (*Database, error) {
-	abspath, err := filepath.Abs(workingDirectory)
+func NewDatabase(config *DatabaseConfig) (*Database, error) {
+	if config == nil {
+		config = &DatabaseConfig{}
+	}
+	if config.WorkingDirectory == "" {
+		// if no directory supplied, create a database in a temp directory
+		tdir, err := ioutil.TempDir("", "smda_tmp")
+		if err != nil {
+			return nil, err
+		}
+		config.WorkingDirectory = filepath.Join(tdir, "smda_database")
+	}
+
+	if config.MaxRowsPerStripe == 0 {
+		config.MaxRowsPerStripe = 100_000
+	}
+	if config.MaxBytesPerStripe == 0 {
+		config.MaxBytesPerStripe = 10_000_000
+	}
+	abspath, err := filepath.Abs(config.WorkingDirectory)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +60,7 @@ func NewDatabase(workingDirectory string) (*Database, error) {
 		// this will serve as OpenDatabase in the future, once we learn how to resume operation
 		return nil, fmt.Errorf("cannot initialise a database in %v: %w", abspath, errPathNotEmpty)
 	}
-	if err := os.MkdirAll(workingDirectory, os.ModePerm); err != nil {
+	if err := os.MkdirAll(config.WorkingDirectory, os.ModePerm); err != nil {
 		return nil, err
 	}
 
@@ -44,24 +68,15 @@ func NewDatabase(workingDirectory string) (*Database, error) {
 	// might get in the way in testing, we'll deal with it if it happens to be a problem
 	rand.Seed(time.Now().UTC().UnixNano())
 	db := &Database{
-		WorkingDirectory: workingDirectory,
-		Datasets:         make([]*Dataset, 0),
+		Config:   config,
+		Datasets: make([]*Dataset, 0),
 	}
 	db.setupRoutes()
 	return db, nil
 }
 
-// NewDatabaseTemp creates a new database in your system's temporary directory, it's mostly used for testing
-func NewDatabaseTemp() (*Database, error) {
-	tdir, err := ioutil.TempDir("", "smda_tmp")
-	if err != nil {
-		return nil, err
-	}
-	return NewDatabase(filepath.Join(tdir, "smda_database"))
-}
-
 func (db *Database) Drop() error {
-	return os.RemoveAll(db.WorkingDirectory)
+	return os.RemoveAll(db.Config.WorkingDirectory)
 }
 
 // object types (used for UIDs)
@@ -138,11 +153,11 @@ func NewDataset() *Dataset {
 }
 
 func (db *Database) datasetPath(ds *Dataset) string {
-	return filepath.Join(db.WorkingDirectory, ds.ID.String())
+	return filepath.Join(db.Config.WorkingDirectory, ds.ID.String())
 }
 
 func (db *Database) stripePath(ds *Dataset, stripeID UID) string {
-	return filepath.Join(db.WorkingDirectory, ds.ID.String(), stripeID.String())
+	return filepath.Join(db.Config.WorkingDirectory, ds.ID.String(), stripeID.String())
 }
 
 // not efficient in this implementation, but we don't have a map-like structure

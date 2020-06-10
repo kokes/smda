@@ -15,7 +15,9 @@ func main() {
 	loadSamples := flag.Bool("samples", false, "load sample datasets")
 	flag.Parse()
 
-	d, err := smda.NewDatabase(*wdir)
+	d, err := smda.NewDatabase(&smda.DatabaseConfig{
+		WorkingDirectory: *wdir,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

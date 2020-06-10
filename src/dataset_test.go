@@ -61,7 +61,7 @@ func TestInitDB(t *testing.T) {
 	defer os.RemoveAll(dr)
 	for _, path := range []string{"foo", "bar", "baz"} {
 		tdr := filepath.Join(dr, path)
-		if _, err := NewDatabase(tdr); err != nil {
+		if _, err := NewDatabase(&DatabaseConfig{WorkingDirectory: tdr}); err != nil {
 			t.Error(err)
 		}
 	}
@@ -75,12 +75,12 @@ func TestInitExistingDB(t *testing.T) {
 	defer os.RemoveAll(dr)
 	// first let's initialise a new db
 	tdr := filepath.Join(dr, "new_db")
-	if _, err := NewDatabase(tdr); err != nil {
+	if _, err := NewDatabase(&DatabaseConfig{WorkingDirectory: tdr}); err != nil {
 		t.Fatal(err)
 	}
 	// we should not be able to init a new one in the same dir
 	for j := 0; j < 3; j++ {
-		if _, err := NewDatabase(tdr); !errors.Is(err, errPathNotEmpty) {
+		if _, err := NewDatabase(&DatabaseConfig{WorkingDirectory: tdr}); !errors.Is(err, errPathNotEmpty) {
 			t.Errorf("creating a database in an existing directory should trigger errPathNotEmpty, got %v", err)
 		}
 	}
@@ -88,7 +88,7 @@ func TestInitExistingDB(t *testing.T) {
 
 func TestInitTempDB(t *testing.T) {
 	for j := 0; j < 10; j++ {
-		db, err := NewDatabaseTemp()
+		db, err := NewDatabase(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -101,7 +101,7 @@ func TestInitTempDB(t *testing.T) {
 }
 
 func TestAddingDatasets(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestAddingDatasets(t *testing.T) {
 }
 
 func TestRemovingDatasets(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestRemovingDatasets(t *testing.T) {
 }
 
 func TestGettingNewDatasets(t *testing.T) {
-	db, err := NewDatabaseTemp()
+	db, err := NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
