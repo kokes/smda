@@ -123,8 +123,6 @@ err:
 // we need an early exit since parseInt and parseFloat are expensive
 // does NOT cover infties, but we don't support them anyway (for now)
 func containsDigit(s string) bool {
-	// TODO: we're checking only the first 100 chars, but what is the maximum number of characters
-	// a float can be represented in?
 	for _, char := range s {
 		if char >= '0' && char <= '9' {
 			return true
@@ -219,7 +217,8 @@ func inferTypes(path string, settings loadSettings) (tableSchema, error) {
 
 	row, err := rl.cr.Read()
 	if err != nil {
-		return nil, err // TODO: EOF handling?
+		// this may trigger an EOF, if the input file is empty - that's fine
+		return nil, err
 	}
 	hd := make([]string, len(row))
 	copy(hd, row) // we're reusing records, so we need to copy here
