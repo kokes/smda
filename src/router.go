@@ -1,11 +1,15 @@
 package smda
 
 import (
+	"errors"
 	"log"
 	"net"
 	"net/http"
 	"strconv"
 )
+
+var errRequestedPortBusy = errors.New("requested port busy")
+var errNoAvailablePorts = errors.New("no available ports to use")
 
 func (db *Database) setupRoutes() {
 	mux := http.NewServeMux()
@@ -26,7 +30,7 @@ func (db *Database) setupRoutes() {
 }
 
 // RunWebserver sets up all the necessities for a server to run (namely routes) and launches one
-func (db *Database) RunWebserver(port int, ensurePort, expose bool) {
+func (db *Database) RunWebserver(port int, ensurePort, expose bool) error {
 	db.setupRoutes()
 
 	host := "localhost"
@@ -42,17 +46,18 @@ func (db *Database) RunWebserver(port int, ensurePort, expose bool) {
 		if err != nil {
 			if err.(*net.OpError).Err.Error() == "bind: address already in use" {
 				if ensurePort {
-					log.Fatalf("port %v busy", nport)
+					return errRequestedPortBusy
 				}
 				log.Printf("port %v busy, trying %v", nport, nport+1)
 				continue
 			}
 
-			log.Fatal(err)
+			return err
 		}
 		db.server.Addr = address
 		log.Printf("listening on %v", address)
-		log.Fatal(db.server.Serve(listener))
+		// this won't immediately return, only when shut down
+		return db.server.Serve(listener)
 	}
-	log.Fatal("could not find an available port, aborting")
+	return errNoAvailablePorts
 }

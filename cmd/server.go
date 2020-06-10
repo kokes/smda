@@ -32,5 +32,7 @@ func main() {
 		}
 	}
 
-	d.RunWebserver(*port, *ensurePort, *expose)
+	if err := d.RunWebserver(*port, *ensurePort, *expose); err != nil {
+		log.Fatal(err)
+	}
 }
