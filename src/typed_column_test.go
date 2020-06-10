@@ -3,12 +3,35 @@ package smda
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
 	"strconv"
 	"testing"
 )
+
+func TestBlankColumnInitialisation(t *testing.T) {
+	dtypes := []dtype{dtypeString, dtypeInt, dtypeFloat, dtypeBool, dtypeNull}
+	for _, dt := range dtypes {
+		for _, nullable := range []bool{true, false} {
+			schema := columnSchema{"", dt, nullable}
+			newTypedColumnFromSchema(schema)
+		}
+	}
+}
+
+func TestInvalidColumnInitialisation(t *testing.T) {
+	defer func() {
+		if err := recover(); err != nil {
+			if err != "unknown schema type: invalid" {
+				t.Fatalf("expecting an invalid column not to be initialised with an unknown schema error, got %v", err)
+			}
+		}
+	}()
+	schema := columnSchema{"", dtypeInvalid, true}
+	newTypedColumnFromSchema(schema)
+}
 
 func TestBasicStringColumn(t *testing.T) {
 	tt := [][]string{
@@ -116,6 +139,31 @@ func TestBasicBoolColumn(t *testing.T) {
 	}
 }
 
+func TestAddingInvalidValuesToNonNullableColumns(t *testing.T) {
+	tt := []struct {
+		dtype  dtype
+		values []string
+	}{
+		// nullable strings missing, as usual
+		{dtypeInt, []string{""}},
+		{dtypeFloat, []string{"", "nan"}},
+		{dtypeBool, []string{""}},
+	}
+
+	for _, test := range tt {
+		schema := columnSchema{"", test.dtype, false}
+		col := newTypedColumnFromSchema(schema)
+		for _, val := range test.values {
+			if err := col.addValue(val); !errors.Is(err, errNullInNonNullable) {
+				t.Errorf("adding %v to a nullable %v column, expecting it to fail, got: %v", val, test.dtype, err)
+			}
+		}
+		if err := col.addValues(test.values); !errors.Is(err, errNullInNonNullable) {
+			t.Errorf("adding %v to a nullable %v column, expecting it to fail, got: %v", test.values, test.dtype, err)
+		}
+	}
+}
+
 func TestInvalidInts(t *testing.T) {
 	tt := []string{"1.", ".1", "1e3"}
 
@@ -139,12 +187,23 @@ func TestInvalidFloats(t *testing.T) {
 }
 
 func TestInvalidBools(t *testing.T) {
-	tt := []string{"Y", "N", "YES", "NO"} // add True/False once we stop supporting it
+	tt := []string{"Y", "N", "YES", "NO", "True", "False", "1", "0"} // add True/False once we stop supporting it
 
 	for _, testCase := range tt {
 		nc := newColumnBools(false)
 		if err := nc.addValue(testCase); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid bool", testCase)
+		}
+	}
+}
+
+func TestInvalidNulls(t *testing.T) {
+	tt := []string{"foo", "bar", "baz"}
+
+	for _, testCase := range tt {
+		nc := newColumnNulls()
+		if err := nc.addValue(testCase); err == nil {
+			t.Errorf("did not expect \"%v\" to not be a valid null", testCase)
 		}
 	}
 }
@@ -498,7 +557,5 @@ func BenchmarkHashingInts(b *testing.B) {
 	}
 	b.SetBytes(int64(8 * n))
 }
-
-// func newTypedColumnFromSchema(schema columnSchema) typedColumn {
 
 // tests for columnNulls

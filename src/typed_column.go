@@ -11,6 +11,8 @@ import (
 	"math"
 )
 
+var errNullInNonNullable = errors.New("cannot add a null value to a non-nullable column")
+
 // at one point I debated whether or not we should have a `data interface{}` in the storage struct or something
 // along the lines of `dataInts []int64, dataFloats []float64` etc. and we'd pick one in a closure
 // upon reading the schema - this would save us type assertions (and give us some perf, potentially),
@@ -294,7 +296,7 @@ func (rc *columnStrings) addValue(s string) error {
 func (rc *columnInts) addValue(s string) error {
 	if isNull(s) {
 		if !rc.nullable {
-			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", s)
+			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
 		}
 		rc.nullability.set(rc.Len(), true)
 		rc.data = append(rc.data, 0) // this value is not meant to be read
@@ -329,7 +331,7 @@ func (rc *columnFloats) addValue(s string) error {
 	}
 	if math.IsNaN(val) {
 		if !rc.nullable {
-			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", s)
+			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
 		}
 		rc.nullability.set(rc.Len(), true)
 		rc.data = append(rc.data, math.NaN()) // this value is not meant to be read
@@ -349,7 +351,7 @@ func (rc *columnFloats) addValue(s string) error {
 func (rc *columnBools) addValue(s string) error {
 	if isNull(s) {
 		if !rc.nullable {
-			return fmt.Errorf("column not set as nullable, but got \"%v\", which resolved as null", s)
+			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
 		}
 		rc.nullability.set(rc.Len(), true)
 		rc.data.set(rc.Len(), false) // this value is not meant to be read
