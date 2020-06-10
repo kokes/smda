@@ -242,54 +242,6 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 	return ds, nil
 }
 
-// will cast it into the same number of stripes, so if we have vastly more (or less) efficient columns,
-// the data size of these may no longer be "optimal"
-func (db *Database) castDataset(ds *Dataset, newSchema tableSchema) (*Dataset, error) {
-	if len(ds.Schema) != len(newSchema) {
-		return nil, errors.New("schema mismatch")
-	}
-	// check that the existing schema is all strings
-	for _, col := range ds.Schema {
-		if col.Dtype != dtypeString {
-			return nil, errors.New("can only cast from string columns")
-		}
-	}
-	newDs := NewDataset()
-
-	newStripeIDs := make([]UID, 0, len(newSchema))
-	for _, stripeID := range ds.Stripes {
-		newStripe := newDataStripe()
-
-		for colNum, schema := range newSchema {
-			newCol := newTypedColumnFromSchema(schema)
-			col, err := db.readColumnFromStripe(ds, stripeID, colNum)
-			if err != nil {
-				return nil, err
-			}
-			scol := col.(*columnStrings)
-			for rowNum := 0; rowNum < scol.Len(); rowNum++ {
-				if err := newCol.addValue(scol.nthValue(rowNum)); err != nil {
-					// TODO: test this - this can happen if we do limited type inference
-					// we currently infer types on all the data, so it cannot happen, but we might ease that in the future
-					return nil, fmt.Errorf("failed to cast value in column %v: %w", schema.Name, err)
-				}
-			}
-			newStripe.columns = append(newStripe.columns, newCol)
-		}
-
-		newStripeIDs = append(newStripeIDs, newStripe.id)
-
-		if err := db.writeStripeToFile(newDs, newStripe); err != nil {
-			return nil, err
-		}
-	}
-
-	newDs.Schema = newSchema
-	newDs.Stripes = newStripeIDs
-	db.addDataset(newDs)
-	return newDs, nil
-}
-
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
 // OPTIM: this does not buffer any reads... but it only reads things twice, so it shouldn't matter, right?
