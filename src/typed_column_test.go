@@ -149,6 +149,39 @@ func TestInvalidBools(t *testing.T) {
 	}
 }
 
+func TestColumnLength(t *testing.T) {
+	tt := []struct {
+		dtype  dtype
+		vals   []string
+		length int
+	}{
+		{dtypeString, []string{}, 0},
+		{dtypeInt, []string{}, 0},
+		{dtypeFloat, []string{}, 0},
+		{dtypeBool, []string{}, 0},
+		{dtypeNull, []string{}, 0},
+		{dtypeString, []string{""}, 1},
+		{dtypeInt, []string{""}, 1},
+		{dtypeFloat, []string{""}, 1},
+		{dtypeBool, []string{""}, 1},
+		{dtypeNull, []string{""}, 1},
+		{dtypeString, []string{"hello", "world"}, 2},
+		{dtypeInt, []string{"1", "2"}, 2},
+		{dtypeFloat, []string{"1", "nan"}, 2},
+		{dtypeBool, []string{"true", "false"}, 2},
+		{dtypeNull, []string{"", ""}, 2},
+	}
+
+	for _, test := range tt {
+		schema := columnSchema{"", test.dtype, true}
+		col := newTypedColumnFromSchema(schema)
+		col.addValues(test.vals)
+		if col.Len() != test.length {
+			t.Errorf("expecting %v to have length of %v, got %v", test.vals, test.length, col.Len())
+		}
+	}
+}
+
 // TODO: merge all the tests above into this one
 func TestSerialisationRoundtrip(t *testing.T) {
 	tests := []struct {
