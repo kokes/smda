@@ -177,13 +177,25 @@ func (db *Database) writeStripeToFile(ds *Dataset, stripe *dataStripe) error {
 	return stripe.writeToWriter(bw)
 }
 
+func (rl *rawLoader) yieldRow() ([]string, error) {
+	row, err := rl.cr.Read()
+	// we don't want to trigger the internal ErrFieldCount,
+	// we will handle column counts ourselves
+	// but we'll still return EOFs for the consumer to handle
+	if err != nil && err != csv.ErrFieldCount {
+		return nil, err
+	}
+	return row, nil
+}
+
 func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
 	ds := newDataStripe()
 	// if no schema is set, read the header and set it yourself (to be all non-nullable strings)
 	if rl.settings.schema == nil {
-		hd, err := rl.cr.Read()
+		hd, err := rl.yieldRow()
 		if err != nil {
-			return nil, err // TODO: EOF handling?
+			// this can trigger an EOF, which would signal that the source if empty
+			return nil, err
 		}
 		// perhaps wrap this in an init function that returns a schema, so that we have less cruft here
 		rl.settings.schema = make(tableSchema, 0, len(hd))
@@ -206,12 +218,8 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 	var bytesLoaded int
 	var rowsLoaded int
 	for {
-		row, err := rl.cr.Read()
-		// we don't want to trigger the internal ErrFieldCount,
-		// we will handle column counts ourselves
-		if err != nil && err != csv.ErrFieldCount {
-			// I think we need to report EOFs, because that will signalise to downstream
-			// that no more stripe reads will be possible
+		row, err := rl.yieldRow()
+		if err != nil {
 			if err == io.EOF {
 				return ds, err
 			}
@@ -347,7 +355,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*
 	}
 	// we don't need the first row - it's the header... should we perhaps validate it? (TODO)
 	// that could be a loadSetting option for non-auto uploads - check that the header conforms to the schema
-	_, err = rl.cr.Read()
+	_, err = rl.yieldRow()
 	if err != nil {
 		return nil, err
 	}

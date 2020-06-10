@@ -1,7 +1,6 @@
 package smda
 
 import (
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
@@ -215,7 +214,7 @@ func inferTypes(path string, settings loadSettings) (tableSchema, error) {
 		return nil, err
 	}
 
-	row, err := rl.cr.Read()
+	row, err := rl.yieldRow()
 	if err != nil {
 		// this may trigger an EOF, if the input file is empty - that's fine
 		return nil, err
@@ -229,14 +228,8 @@ func inferTypes(path string, settings loadSettings) (tableSchema, error) {
 	}
 
 	for {
-		row, err := rl.cr.Read()
-		// we don't want to trigger the internal ErrFieldCount,
-		// we will handle column counts ourselves
-		// TODO: we're duplicating this logic elsewhere (grep for `ErrFieldCount`)
-		// maybe we should move this to the RawLoader
-		if err != nil && err != csv.ErrFieldCount {
-			// I think we need to report EOFs, because that will signalise to downstream
-			// that no more stripe reads will be possible
+		row, err := rl.yieldRow()
+		if err != nil {
 			if err == io.EOF {
 				break
 			}
