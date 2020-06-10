@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+var errPathNotEmpty = errors.New("path not empty")
+
 // Database is the main struct that contains it all - notably the datasets' metadata and the webserver
 // Having the webserver here makes it convenient for testing - we can spawn new servers at a moment's notice
 type Database struct {
@@ -32,7 +34,7 @@ func NewDatabase(workingDirectory string) (*Database, error) {
 	}
 	if stat, err := os.Stat(abspath); err == nil && stat.IsDir() {
 		// this will serve as OpenDatabase in the future, once we learn how to resume operation
-		return nil, fmt.Errorf("cannot initialise a database in %v, it already exists", abspath)
+		return nil, fmt.Errorf("cannot initialise a database in %v: %w", abspath, errPathNotEmpty)
 	}
 	if err := os.MkdirAll(workingDirectory, os.ModePerm); err != nil {
 		return nil, err

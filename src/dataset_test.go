@@ -2,6 +2,7 @@ package smda
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -79,9 +80,8 @@ func TestInitExistingDB(t *testing.T) {
 	}
 	// we should not be able to init a new one in the same dir
 	for j := 0; j < 3; j++ {
-		if _, err := NewDatabase(tdr); err == nil {
-			// TODO: should probably check for the right error here (though we're not wrapping them for now)
-			t.Error("should not allow multiple dbs to be initialised in the same directory")
+		if _, err := NewDatabase(tdr); !errors.Is(err, errPathNotEmpty) {
+			t.Errorf("creating a database in an existing directory should trigger errPathNotEmpty, got %v", err)
 		}
 	}
 }
