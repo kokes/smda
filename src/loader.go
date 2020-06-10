@@ -78,7 +78,6 @@ type columnSchema struct {
 
 type tableSchema []columnSchema
 
-// TODO: this should probably be a pointer everywhere?
 type loadSettings struct {
 	// encoding
 	compression compression
@@ -92,12 +91,15 @@ type loadSettings struct {
 // this might be confuse with `LoadRawDataset`, but they do very different things
 // the former caches stuff, this actually loads data from raw files
 type rawLoader struct {
-	settings loadSettings
+	settings *loadSettings
 	// we don't need this CSV pkg to be here, we can put an interface here (we only use Read() ([]string, error))
 	cr *csv.Reader
 }
 
-func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
+func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
+	if settings == nil {
+		return nil, errors.New("expecting load settings for a rawLoader, got nil")
+	}
 	ur, err := wrapCompressed(r, settings.compression)
 	if err != nil {
 		return nil, err
@@ -344,7 +346,7 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 // TODO: we have quite an inconsistency here - loadDatasetFromReaderAuto caches incoming data and loads them then,
 // this reads it without any caching (at the same time... if we cache it here, we'll be caching it twice,
 // because we load it from our Auto methods - we'd have to call the file reader here [should be fine])
-func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
+func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (*Dataset, error) {
 	dataset := NewDataset()
 	rl, err := newRawLoader(r, settings)
 	if err != nil {
@@ -383,7 +385,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*
 }
 
 // convenience wrapper
-func (db *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {
+func (db *Database) loadDatasetFromLocalFile(path string, settings *loadSettings) (*Dataset, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -411,7 +413,7 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 		return nil, err
 	}
 
-	ls := loadSettings{
+	ls := &loadSettings{
 		compression: ctype,
 		delimiter:   dlim,
 	}

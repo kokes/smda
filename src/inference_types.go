@@ -203,7 +203,7 @@ func (tg *typeGuesser) inferredType() columnSchema {
 	}
 }
 
-func inferTypes(path string, settings loadSettings) (tableSchema, error) {
+func inferTypes(path string, settings *loadSettings) (tableSchema, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

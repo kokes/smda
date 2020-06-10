@@ -335,7 +335,7 @@ func TestDatasetTypeInference(t *testing.T) {
 		if err := cacheIncomingFile(strings.NewReader(dataset.raw), f.Name()); err != nil {
 			t.Fatal(err)
 		}
-		cs, err := inferTypes(f.Name(), loadSettings{})
+		cs, err := inferTypes(f.Name(), &loadSettings{})
 		if err != nil {
 			t.Error(err)
 			continue
