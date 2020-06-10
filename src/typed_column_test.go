@@ -449,11 +449,24 @@ func TestHashing(t *testing.T) {
 		dtype dtype
 		data  []string
 	}{
+		{dtypeString, []string{}},
+		{dtypeInt, []string{}},
+		{dtypeFloat, []string{}},
+		{dtypeBool, []string{}},
+		{dtypeNull, []string{}},
 		{dtypeString, []string{"foo", "bar", "baz"}},
+		{dtypeInt, []string{"1", "2", "3"}},
+		{dtypeFloat, []string{"1", "2", "3"}},
+		{dtypeBool, []string{"t", "f", "false"}},
+		{dtypeNull, []string{"", "", "", ""}},
+		// TODO: nullable strings?
+		{dtypeInt, []string{"1", "2", ""}},
+		{dtypeFloat, []string{"1", "2", ""}},
+		{dtypeBool, []string{"t", "f", ""}},
 	}
 
 	for _, test := range tests {
-		rc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype})
+		rc := newTypedColumnFromSchema(columnSchema{Dtype: test.dtype, Nullable: true})
 		if err := rc.addValues(test.data); err != nil {
 			t.Fatal(err)
 		}

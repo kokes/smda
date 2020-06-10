@@ -261,7 +261,9 @@ func (rc *columnInts) Hash(hashes []uint64) {
 }
 
 func (rc *columnNulls) Hash(hashes []uint64) {
-	panic("not implemented")
+	for j := range hashes {
+		hashes[j] ^= nullXorHash
+	}
 }
 func (rc *columnStrings) Hash(hashes []uint64) {
 	hasher := fnv.New64()
