@@ -163,7 +163,7 @@ func (db *Database) addDataset(ds *Dataset) {
 	db.Unlock()
 }
 
-// TODO: test for deletion (fort both slices and raw files)
+// tests cover only "real" datasets, not the raw ones
 func (db *Database) removeDataset(ds *Dataset) error {
 	db.Lock()
 	defer db.Unlock()

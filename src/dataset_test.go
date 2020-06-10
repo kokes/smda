@@ -132,14 +132,31 @@ func TestRemovingDatasets(t *testing.T) {
 			panic(err)
 		}
 	}()
-	ds := NewDataset()
-	db.addDataset(ds)
+	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
+	ds, err := db.loadDatasetFromReaderAuto(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stripeID := range ds.Stripes {
+		path := db.stripePath(ds, stripeID)
+		_, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	db.removeDataset(ds)
 
 	_, err = db.getDataset(ds.ID)
 	if err == nil {
 		// TODO: should probably check for the right error (though we're not wrapping now)
-		t.Fatal("should not be able to retrieve a deleted dataset")
+		t.Error("should not be able to retrieve a deleted dataset")
+	}
+
+	// test that files were deleted - we don't need to check individual stripes, we can just
+	// check the directory is no longer there
+	if _, err := os.Stat(db.datasetPath(ds)); !os.IsNotExist(err) {
+		t.Errorf("expecting data to be deleted along with a dataset, but got: %v", err)
 	}
 }
 
