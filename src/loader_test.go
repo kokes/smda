@@ -3,7 +3,9 @@ package smda
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -256,6 +258,39 @@ func TestLoadingSampleData(t *testing.T) {
 	}
 }
 
+func TestLoadingSampleDataErrs(t *testing.T) {
+	db, err := NewDatabase(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
+	tmpdir, err := ioutil.TempDir("", "sample_data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpdir)
+
+	ourdir := filepath.Join(tmpdir, "does_not_exist")
+
+	if err := db.LoadSampleData(ourdir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("loading samples from a non-existent directory should trigger an IsNotExist, but got: %v", err)
+	}
+
+	// now let's write some invalid data and expect it to fail for that reason
+	if err := ioutil.WriteFile(filepath.Join(tmpdir, "sample.csv"), []byte("foo\""), os.ModePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.LoadSampleData(tmpdir); !errors.Is(err, csv.ErrBareQuote) {
+		t.Errorf("invalid data in a sample directory, expecting a CSV error to bubble up, got %v instead", err)
+	}
+}
+
 func TestBasicFileCaching(t *testing.T) {
 	tmpdir, err := ioutil.TempDir("", "caching")
 	if err != nil {
@@ -282,6 +317,21 @@ func TestBasicFileCaching(t *testing.T) {
 		if !bytes.Equal(contents, buf.Bytes()) {
 			t.Errorf("roundtrip failed for %v bytes", size)
 		}
+	}
+}
+
+func TestCacheErrors(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "caching")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpdir)
+
+	nopath := filepath.Join(tmpdir, "does_not_exist", "no_file.txt")
+
+	data := strings.NewReader("ahoy")
+	if err := cacheIncomingFile(data, nopath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("cannot cache into a non-existent directory, but got %v", err)
 	}
 }
 
