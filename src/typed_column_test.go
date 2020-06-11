@@ -8,6 +8,7 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -45,8 +46,6 @@ func TestBasicStringColumn(t *testing.T) {
 		if err := nc.addValues(vals); err != nil {
 			t.Error(err)
 		}
-		// TODO: this is the only test with roundtrips, because we don't have nth value implemented anywhere else
-		// that's because we would have to have interface{} as the return value, and that's no good for individual values
 		for j, val := range vals {
 			got := nc.nthValue(j)
 			if got != val {
@@ -241,17 +240,29 @@ func TestColumnLength(t *testing.T) {
 	}
 }
 
-// TODO: merge all the tests above into this one
 func TestSerialisationRoundtrip(t *testing.T) {
 	tests := []struct {
 		schema columnSchema
 		vals   []string
 	}{
-		{columnSchema{"", dtypeString, true}, []string{"foo", "bar", "baz"}},
+		{columnSchema{"", dtypeString, true}, []string{"foo", "", "baz"}},
 		{columnSchema{"", dtypeString, false}, []string{"foo", "bar", "baz"}},
 		{columnSchema{"", dtypeString, true}, []string{}},
 		{columnSchema{"", dtypeString, true}, []string{""}},
-		// add other types (from earlier tests)
+		{columnSchema{"", dtypeInt, true}, []string{}},
+		{columnSchema{"", dtypeInt, true}, []string{""}},
+		{columnSchema{"", dtypeFloat, true}, []string{}},
+		// {columnSchema{"", dtypeFloat, true}, []string{""}}, // TODO: cannot compare NaNs
+		{columnSchema{"", dtypeBool, true}, []string{}},
+		{columnSchema{"", dtypeBool, true}, []string{""}},
+		{columnSchema{"", dtypeNull, true}, []string{}},
+		{columnSchema{"", dtypeNull, true}, []string{""}},
+		{columnSchema{"", dtypeInt, false}, []string{"1", "2", "3"}},
+		{columnSchema{"", dtypeInt, true}, []string{"1", "", "3"}},
+		{columnSchema{"", dtypeFloat, false}, []string{"1", "2", "3"}},
+		// // {columnSchema{"", dtypeFloat, true}, []string{"1", "", "3"}}, // NaNs yet again
+		{columnSchema{"", dtypeBool, false}, []string{"t", "f", "t"}},
+		{columnSchema{"", dtypeBool, true}, []string{"t", "", "f"}},
 	}
 	for _, test := range tests {
 		col := newTypedColumnFromSchema(test.schema)
@@ -270,6 +281,19 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		if !reflect.DeepEqual(col, col2) {
 			t.Fatalf("expecting %v, got %v", col, col2)
 		}
+	}
+}
+
+func TestSerialisationUnsupportedTypes(t *testing.T) {
+	defer func() {
+		if err := recover(); err != "unsupported dtype: invalid" {
+			t.Fatal(err)
+		}
+	}()
+	unsupported := []dtype{dtypeInvalid}
+
+	for _, dt := range unsupported {
+		deserializeColumn(strings.NewReader(""), dt)
 	}
 }
 
@@ -410,7 +434,12 @@ func TestBasicPruning(t *testing.T) {
 
 		{dtypeInt, false, []string{"1", "2", "3"}, []bool{false, true, false}, []string{"2"}},
 		{dtypeFloat, false, []string{"1.23", "+0", "1e3"}, []bool{false, true, false}, []string{"0"}},
+		{dtypeInt, false, []string{"1", "2", "3"}, []bool{true, true, true}, []string{"1", "2", "3"}},
+		{dtypeFloat, false, []string{"1.23", "+0", "1e3"}, []bool{true, true, true}, []string{"1.23", "+0", "1e3"}},
 		{dtypeString, false, []string{"foo", "bar", "foo"}, []bool{false, true, false}, []string{"bar"}},
+
+		{dtypeNull, false, []string{"", "", ""}, []bool{false, true, false}, []string{""}},
+		{dtypeNull, false, []string{"", "", ""}, []bool{true, true, true}, []string{"", "", ""}},
 
 		// nullable columns
 		{dtypeInt, true, []string{"1", "", ""}, []bool{false, true, false}, []string{""}},
@@ -426,6 +455,8 @@ func TestBasicPruning(t *testing.T) {
 		{dtypeBool, true, []string{"true", "", "true"}, nil, nil},
 		{dtypeFloat, true, []string{"1.23", "+0", ""}, nil, nil},
 		{dtypeString, true, []string{"foo", "", ""}, nil, nil},
+
+		{dtypeNull, true, []string{"", "", ""}, nil, nil},
 	}
 	for _, test := range tests {
 		testSchema := columnSchema{Dtype: test.dtype, Nullable: test.nullable}
@@ -448,6 +479,62 @@ func TestBasicPruning(t *testing.T) {
 		if !reflect.DeepEqual(pruned, expected) {
 			t.Errorf("expected that pruning %v using %v would result in %v", test.values, test.bools, test.expected)
 		}
+	}
+}
+
+func TestPruningFailureMisalignment(t *testing.T) {
+	tests := []struct {
+		dtype    dtype
+		nullable bool
+		values   []string
+	}{
+		{dtypeBool, false, []string{"true", "false", "true"}},
+		{dtypeBool, false, []string{"true", "false", "true"}},
+		{dtypeBool, false, []string{"true", "false", "true"}},
+
+		{dtypeInt, false, []string{"1", "2", "3"}},
+		{dtypeFloat, false, []string{"1.23", "+0", "1e3"}},
+		{dtypeString, false, []string{"foo", "bar", "foo"}},
+
+		{dtypeNull, false, []string{"", "", ""}},
+		{dtypeNull, false, []string{"", "", ""}},
+
+		// // nullable columns
+		{dtypeInt, true, []string{"1", "", ""}},
+		{dtypeInt, true, []string{"1", "", ""}},
+		{dtypeInt, true, []string{"1", "", ""}},
+
+		{dtypeBool, true, []string{"true", "", "true"}},
+		{dtypeFloat, true, []string{"1.23", "+0", ""}},
+		{dtypeString, true, []string{"foo", "", ""}},
+	}
+
+	for j, test := range tests {
+		testSchema := columnSchema{Dtype: test.dtype, Nullable: test.nullable}
+		rc := newTypedColumnFromSchema(testSchema)
+		if err := rc.addValues(test.values); err != nil {
+			t.Error(err)
+			continue
+		}
+		t.Run(fmt.Sprintf("pruning with fewer values - %v", j), func(t *testing.T) {
+			defer func() {
+				if err := recover(); err != "pruning bitmap does not align with the dataset" {
+					t.Fatal(err)
+				}
+			}()
+			bm := NewBitmap(rc.Len() - 1)
+			_ = rc.Prune(bm)
+		})
+
+		t.Run(fmt.Sprintf("pruning with more values - %v", j), func(t *testing.T) {
+			defer func() {
+				if err := recover(); err != "pruning bitmap does not align with the dataset" {
+					t.Fatal(err)
+				}
+			}()
+			bm := NewBitmap(rc.Len() + 1)
+			_ = rc.Prune(bm)
+		})
 	}
 }
 
