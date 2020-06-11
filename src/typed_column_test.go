@@ -503,6 +503,38 @@ func TestAppending(t *testing.T) {
 	}
 }
 
+func TestAppendTypeMismatch(t *testing.T) {
+	dtypes := []dtype{dtypeString, dtypeInt, dtypeFloat, dtypeBool, dtypeNull}
+
+	for _, dt1 := range dtypes {
+		for _, dt2 := range dtypes {
+			if dt1 == dt2 {
+				continue
+			}
+			col1 := newTypedColumnFromSchema(columnSchema{"", dt1, true})
+			col2 := newTypedColumnFromSchema(columnSchema{"", dt2, true})
+
+			if err := col1.Append(col2); err != errAppendTypeMismatch {
+				t.Errorf("expecting a type mismatch in Append to result in errTypeMismatchAppend, got: %v", err)
+			}
+		}
+	}
+}
+
+func TestAppendWithVaryingNullability(t *testing.T) {
+	// explicitly excluding dtypeNull - there's no nullability to be set there
+	dtypes := []dtype{dtypeString, dtypeInt, dtypeFloat, dtypeBool}
+
+	for _, dt := range dtypes {
+		col1 := newTypedColumnFromSchema(columnSchema{"", dt, true})
+		col2 := newTypedColumnFromSchema(columnSchema{"", dt, false})
+
+		if err := col1.Append(col2); err != errAppendNullabilityMismatch {
+			t.Errorf("expecting a nullability mismatch in Append to result in errAppendNullabilityMismatch, got: %v", err)
+		}
+	}
+}
+
 func TestHashing(t *testing.T) {
 	tests := []struct {
 		dtype dtype

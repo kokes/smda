@@ -12,6 +12,8 @@ import (
 )
 
 var errNullInNonNullable = errors.New("cannot add a null value to a non-nullable column")
+var errAppendTypeMismatch = errors.New("cannot append chunks of differing types")
+var errAppendNullabilityMismatch = errors.New("when appending, both chunks need to have the same nullability")
 
 // at one point I debated whether or not we should have a `data interface{}` in the storage struct or something
 // along the lines of `dataInts []int64, dataFloats []float64` etc. and we'd pick one in a closure
@@ -426,10 +428,10 @@ func (rc *columnStrings) addValues(vals []string) error {
 func (rc *columnStrings) Append(tc typedColumn) error {
 	nrc, ok := tc.(*columnStrings)
 	if !ok {
-		return errors.New("cannot append chunks of differing types")
+		return errAppendTypeMismatch
 	}
 	if rc.nullable != nrc.nullable {
-		return errors.New("when appending, both chunks need to have the same nullability") // TODO: fix in all of these appends? Makes little sense
+		return errAppendNullabilityMismatch
 	}
 	if rc.nullable {
 		rc.nullability.Append(nrc.nullability)
@@ -450,10 +452,10 @@ func (rc *columnStrings) Append(tc typedColumn) error {
 func (rc *columnInts) Append(tc typedColumn) error {
 	nrc, ok := tc.(*columnInts)
 	if !ok {
-		return errors.New("cannot append chunks of differing types")
+		return errAppendTypeMismatch
 	}
 	if rc.nullable != nrc.nullable {
-		return errors.New("when appending, both chunks need to have the same nullability") // TODO: fix in all of these appends? Makes little sense
+		return errAppendNullabilityMismatch
 	}
 	if rc.nullable {
 		rc.nullability.Append(nrc.nullability)
@@ -467,10 +469,10 @@ func (rc *columnInts) Append(tc typedColumn) error {
 func (rc *columnFloats) Append(tc typedColumn) error {
 	nrc, ok := tc.(*columnFloats)
 	if !ok {
-		return errors.New("cannot append chunks of differing types")
+		return errAppendTypeMismatch
 	}
 	if rc.nullable != nrc.nullable {
-		return errors.New("when appending, both chunks need to have the same nullability") // TODO: fix in all of these appends? Makes little sense
+		return errAppendNullabilityMismatch
 	}
 	if rc.nullable {
 		rc.nullability.Append(nrc.nullability)
@@ -484,10 +486,10 @@ func (rc *columnFloats) Append(tc typedColumn) error {
 func (rc *columnBools) Append(tc typedColumn) error {
 	nrc, ok := tc.(*columnBools)
 	if !ok {
-		return errors.New("cannot append chunks of differing types")
+		return errAppendTypeMismatch
 	}
 	if rc.nullable != nrc.nullable {
-		return errors.New("when appending, both chunks need to have the same nullability") // TODO: fix in all of these appends? Makes little sense
+		return errAppendNullabilityMismatch
 	}
 	if rc.nullable {
 		rc.nullability.Append(nrc.nullability)
@@ -501,7 +503,7 @@ func (rc *columnBools) Append(tc typedColumn) error {
 func (rc *columnNulls) Append(tc typedColumn) error {
 	nrc, ok := tc.(*columnNulls)
 	if !ok {
-		return errors.New("cannot append chunks of differing types")
+		return errAppendTypeMismatch
 	}
 	rc.length += nrc.length
 
