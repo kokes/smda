@@ -1,13 +1,17 @@
 package smda
 
 import (
+	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -343,6 +347,65 @@ func TestDatasetTypeInference(t *testing.T) {
 		if !reflect.DeepEqual(cs, dataset.cs) {
 			t.Errorf("expecting %v to be inferred as %v, got %v", dataset.raw, dataset.cs, cs)
 		}
+	}
+}
+
+func TestInferTypesNoFile(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "infer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filename := filepath.Join(tmpdir, "does_not_exist.csv")
+	if _, err := inferTypes(filename, nil); !os.IsNotExist(err) {
+		t.Errorf("expecting type inference on a non-existent file to throw a file not found error, got: %v", err)
+	}
+}
+
+func TestInferTypesEmptyFile(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "infer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filename := filepath.Join(tmpdir, "filename.csv")
+	f, err := os.Create(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	if _, err := inferTypes(filename, &loadSettings{}); err != io.EOF {
+		t.Errorf("expecting type inference on a non-existent file to throw a file not found error, got: %v", err)
+	}
+}
+
+func TestInferTypesInvalidCSV(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "infer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filename := filepath.Join(tmpdir, "filename.csv")
+	if err := ioutil.WriteFile(filename, []byte("\"ahoy"), os.ModePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := inferTypes(filename, &loadSettings{}); !errors.Is(err, csv.ErrQuote) {
+		t.Errorf("type inference on an invalid CSV should throw a native error, csv.ErrQuote in this case, but got: %v", err)
+	}
+}
+
+func TestInferTypesNoLoadSettings(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "infer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filename := filepath.Join(tmpdir, "filename.csv")
+	f, err := os.Create(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	if _, err := inferTypes(filename, nil); err != errInvalidLoadSettings {
+		t.Errorf("when inferring types from a CSV, we need to submit load settings - did not submit them, but didn't get errInvalidLoadSettings, got: %v", err)
 	}
 }
 

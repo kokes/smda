@@ -20,6 +20,7 @@ const (
 
 var errIncorrectChecksum = errors.New("could not validate data on disk: incorrect checksum")
 var errIncompatibleOnDiskFormat = errors.New("cannot open data stripes with a version different from the one supported")
+var errInvalidLoadSettings = errors.New("expecting load settings for a rawLoader, got nil")
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
 // using default settings
@@ -96,7 +97,7 @@ type rawLoader struct {
 
 func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
 	if settings == nil {
-		return nil, errors.New("expecting load settings for a rawLoader, got nil")
+		return nil, errInvalidLoadSettings
 	}
 	ur, err := wrapCompressed(r, settings.compression)
 	if err != nil {

@@ -61,6 +61,33 @@ func TestKeepingFirstN(t *testing.T) {
 		if bm.Count() != j {
 			t.Errorf("expecting truncating to %v to keep that many values, got %v", j, bm.Count())
 		}
+		if len(raw) != bm.cap {
+			t.Errorf("not expecting the length of the bitmap to change after KeepFirstN, got %v from %v", bm.cap, len(raw))
+		}
+	}
+	// if we tell it to keep more values then there are, it will just keep them all
+	for j := NewBitmapFromBools(raw).Count(); j < NewBitmapFromBools(raw).Count()*2; j++ {
+		bm := NewBitmapFromBools(raw)
+		bm.KeepFirstN(j)
+		if bm.Count() > j {
+			t.Errorf("expecting truncating to %v to keep that many values, got %v", j, bm.Count())
+		}
+		if len(raw) != bm.cap {
+			t.Errorf("not expecting the length of the bitmap to change after KeepFirstN, got %v from %v", bm.cap, len(raw))
+		}
+	}
+}
+
+func TestKeepingFirstNBurning(t *testing.T) {
+	defer func() {
+		if err := recover(); err != "disallowed value" {
+			t.Fatal(err)
+		}
+	}()
+	raw := []bool{true, true, false, true, false, true}
+	for _, j := range []int{-1, -10, -100} {
+		bm := NewBitmapFromBools(raw)
+		bm.KeepFirstN(j)
 	}
 }
 
