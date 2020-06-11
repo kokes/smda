@@ -248,6 +248,9 @@ func (rc *columnInts) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
 	for j, el := range rc.data {
+		// OPTIM: not just here, in all of these Hash implementations - we might want to check rc.nullable
+		// just once and have two separate loops - see if it helps - it may bloat the code too much (and avoid inlining,
+		// but that's probably a lost cause already)
 		if rc.nullable && rc.nullability.get(j) {
 			hashes[j] ^= nullXorHash
 			continue
