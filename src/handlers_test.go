@@ -250,6 +250,46 @@ func TestErrorsAreWrittenOut(t *testing.T) {
 	}
 }
 
+func TestQueryMethods(t *testing.T) {
+	db, err := NewDatabase(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
+	srv := httptest.NewServer(db.server.Handler)
+	defer srv.Close()
+
+	tests := []struct {
+		path   string
+		method string
+	}{
+		{"api/query", http.MethodGet},
+		{"upload/raw", http.MethodGet},
+		{"upload/auto", http.MethodGet},
+	}
+
+	client := http.Client{}
+	for _, test := range tests {
+		url := fmt.Sprintf("%s/%s", srv.URL, test.path)
+		req, err := http.NewRequest(test.method, url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusMethodNotAllowed {
+			t.Errorf("expected a non-supported method to yield a 405, got %v", resp.StatusCode)
+		}
+	}
+}
+
 func TestHandlingQueries(t *testing.T) {
 	db, err := NewDatabase(nil)
 	if err != nil {
