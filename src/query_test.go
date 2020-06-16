@@ -98,11 +98,10 @@ func TestLimitsInQueries(t *testing.T) {
 			t.Error("expecting three columns of data")
 		}
 		firstCol := newColumnInts(false)
-		for j, val := range firstColRaw {
-			if j >= limit {
-				break
-			}
-			firstCol.addValue(val)
+		if limit > len(firstColRaw) {
+			firstCol.addValues(firstColRaw)
+		} else {
+			firstCol.addValues(firstColRaw[:limit])
 		}
 		if !reflect.DeepEqual(qr.Data[0], firstCol) {
 			t.Errorf("first column does not match what's expected: %v vs. %v", qr.Data[0], firstCol)
