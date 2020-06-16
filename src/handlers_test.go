@@ -407,7 +407,7 @@ func TestBasicRawUpload(t *testing.T) {
 	srv := httptest.NewServer(db.server.Handler)
 	defer srv.Close()
 
-	url := fmt.Sprintf("%s/upload/raw", srv.URL)
+	url := fmt.Sprintf("%s/upload/raw?name=test_file", srv.URL)
 	body := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
 	resp, err := http.Post(url, "text/csv", body)
 	if err != nil {
@@ -426,9 +426,11 @@ func TestBasicRawUpload(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
 		t.Fatal(err)
 	}
-	// TODO: test .Name when we start populating it
 	if dec.ID.otype != otypeDataset {
 		t.Errorf("expecting an ID for a dataset")
+	}
+	if dec.Name != "test_file" {
+		t.Errorf("expected the name to be %v, got %v", "test_file", dec.Name)
 	}
 	if dec.Schema != nil {
 		t.Errorf("not expecting a schema to be present, got: %v", dec.Schema)
@@ -449,7 +451,7 @@ func TestBasicAutoUpload(t *testing.T) {
 	srv := httptest.NewServer(db.server.Handler)
 	defer srv.Close()
 
-	url := fmt.Sprintf("%s/upload/auto", srv.URL)
+	url := fmt.Sprintf("%s/upload/auto?name=auto_file", srv.URL)
 	body := strings.NewReader("foo,bar,baz\n1,2,true\n4,,false")
 	resp, err := http.Post(url, "text/csv", body)
 	if err != nil {
@@ -468,7 +470,9 @@ func TestBasicAutoUpload(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
 		t.Fatal(err)
 	}
-	// TODO: test .Name when we start populating it
+	if dec.Name != "auto_file" {
+		t.Errorf("expected the name to be %v, got %v", "auto_file", dec.Name)
+	}
 	if dec.ID.otype != otypeDataset {
 		t.Errorf("expecting an ID for a dataset")
 	}

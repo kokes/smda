@@ -56,19 +56,6 @@ func cacheIncomingFile(r io.Reader, path string) error {
 	return nil
 }
 
-// LoadRawDataset loads a 'special' dataset, one which is only used for parsing, it cannot be queried
-// in any way, so I question the validity of calling this 'dataset'
-// we may rename this as all it does is local caching (at that point we might as well use
-// cacheIncomingFile directly) - but let's keep in mind that we might need to reprocess the raw
-// dataset at a later point (if schema changes, if we need to infer it again etc.)
-func (db *Database) LoadRawDataset(r io.Reader) (*Dataset, error) {
-	ds := NewDataset()
-	if err := cacheIncomingFile(r, db.datasetPath(ds)); err != nil {
-		return nil, err
-	}
-	return ds, nil
-}
-
 type columnSchema struct {
 	Name     string `json:"name"`
 	Dtype    dtype  `json:"dtype"`

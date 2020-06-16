@@ -90,14 +90,16 @@ func (db *Database) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// 1) we don't want to block the body read by our parser - we want to save the incoming
 	// data as quickly as possible
 	// 2) we want to have a local copy if we need to reprocess it
-	ds, err := db.LoadRawDataset(r.Body)
-	defer r.Body.Close()
-	if err != nil {
-		responseError(w, http.StatusInternalServerError, fmt.Sprintf("not able to accept this file: %v", err))
+	ds := NewDataset()
+	ds.Name = r.URL.Query().Get("name")
+
+	if err := cacheIncomingFile(r.Body, db.datasetPath(ds)); err != nil {
+		responseError(w, http.StatusInternalServerError, "could not upload file")
 		return
 	}
+	defer r.Body.Close()
 
-	if err = json.NewEncoder(w).Encode(ds); err != nil {
+	if err := json.NewEncoder(w).Encode(ds); err != nil {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed to cache data: %v", err))
 		return
 	}
@@ -119,6 +121,7 @@ func (db *Database) handleAutoUpload(w http.ResponseWriter, r *http.Request) {
 		responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed to parse a given file: %v", err))
 		return
 	}
+	ds.Name = r.URL.Query().Get("name")
 	if err := json.NewEncoder(w).Encode(ds); err != nil {
 		panic(err)
 	}

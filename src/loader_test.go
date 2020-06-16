@@ -335,27 +335,6 @@ func TestCacheErrors(t *testing.T) {
 	}
 }
 
-func TestLoadingOfRawDatasets(t *testing.T) {
-	db, err := NewDatabase(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := db.Drop(); err != nil {
-			panic(err)
-		}
-	}()
-
-	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
-	ds, err := db.LoadRawDataset(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ds.Schema != nil {
-		t.Error("expecting a temp raw dataset not to have a schema")
-	}
-}
-
 // if we flip any single bit in the file - apart from the checksums and version, we should get a checksum error
 // TODO: guard against offset bit rot? We do get a panic due to `buf := make([]byte, offsetEnd-offsetStart)` allocating too much
 func TestChecksumValidation(t *testing.T) {
