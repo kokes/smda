@@ -21,6 +21,7 @@ const (
 var errIncorrectChecksum = errors.New("could not validate data on disk: incorrect checksum")
 var errIncompatibleOnDiskFormat = errors.New("cannot open data stripes with a version different from the one supported")
 var errInvalidLoadSettings = errors.New("expecting load settings for a rawLoader, got nil")
+var errInvalidOffsetData = errors.New("invalid offset data")
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
 // using default settings
@@ -259,6 +260,12 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 		return nil, err
 	}
 	offsetStart, offsetEnd := offsets[nthColumn], offsets[nthColumn+1]
+	// a non-complete guard against bit rot and other nasties
+	// only allow sequential offsets and only offer 4 gigs per column chunk
+	// it should also have at least four bytes
+	if offsetEnd < offsetStart || offsetEnd-offsetStart > 1<<32 || offsetEnd-offsetStart < 4 {
+		return nil, errInvalidOffsetData
+	}
 
 	buf := make([]byte, offsetEnd-offsetStart)
 	n, err := f.ReadAt(buf, int64(offsetStart))
