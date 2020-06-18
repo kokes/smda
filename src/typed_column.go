@@ -259,7 +259,7 @@ func (rc *columnInts) Hash(hashes []uint64) {
 			hashes[j] ^= nullXorHash
 			continue
 		}
-		binary.PutVarint(buf[:], el) // not a huge fan of varints, but it might just work here
+		binary.LittleEndian.PutUint64(buf[:], uint64(el)) // int64 always maps to a uint64 value (negatives underflow)
 		hasher.Write(buf[:])
 		// XOR is pretty bad here, but it'll do for now
 		// since it's commutative, we'll need something to preserve order - something like

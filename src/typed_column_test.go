@@ -670,6 +670,22 @@ func BenchmarkHashingInts(b *testing.B) {
 	}
 	b.ResetTimer()
 
+	// why are we testing allocations? consider moving this before the timer reset (in floats as well)
+	hashes := make([]uint64, col.Len())
+	for j := 0; j < b.N; j++ {
+		col.Hash(hashes)
+	}
+	b.SetBytes(int64(8 * n))
+}
+
+func BenchmarkHashingFloats(b *testing.B) {
+	n := 10000
+	col := newColumnFloats(false)
+	for j := 0; j < n; j++ {
+		col.addValue(strconv.Itoa(j))
+	}
+	b.ResetTimer()
+
 	hashes := make([]uint64, col.Len())
 	for j := 0; j < b.N; j++ {
 		col.Hash(hashes)
