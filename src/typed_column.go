@@ -246,6 +246,8 @@ func (rc *columnFloats) Hash(hashes []uint64) {
 
 // OPTIM: maphash might be faster than fnv or maphash? test it and if it is so, implement
 // everywhere, but be careful about the seed (needs to be the same for all chunks)
+// careful about maphash: "The hash value of a given byte sequence is consistent within a single process, but will be different in different processes."
+// oh and I rebenchmarked maphash and fnv and found maphash to be much slower (despite no allocs)
 // also, check this https://github.com/segmentio/fasthash/ (via https://segment.com/blog/allocation-efficiency-in-high-performance-go-services/)
 // they reimplement fnv using stack allocation only
 func (rc *columnInts) Hash(hashes []uint64) {
