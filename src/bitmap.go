@@ -125,6 +125,8 @@ func (bm *Bitmap) set(n int, val bool) {
 }
 
 func (bm *Bitmap) get(n int) bool {
+	// OPTIM: this will always escape to the heap, so it's an inlining blocker
+	//        maybe make sure the bitmap is long enough some other place and leave this to be just a return
 	bm.ensure(n + 1) // to avoid panics?
 	return (bm.data[n/64] & uint64(1<<(n%64))) > 0
 }
