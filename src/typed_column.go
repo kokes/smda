@@ -250,6 +250,7 @@ func (rc *columnFloats) Hash(hashes []uint64) {
 // oh and I rebenchmarked maphash and fnv and found maphash to be much slower (despite no allocs)
 // also, check this https://github.com/segmentio/fasthash/ (via https://segment.com/blog/allocation-efficiency-in-high-performance-go-services/)
 // they reimplement fnv using stack allocation only
+//   - we tested it and got a 90% speedup (no allocs, shorter code) - so let's consider it, it's in the fasthash branch
 func (rc *columnInts) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
