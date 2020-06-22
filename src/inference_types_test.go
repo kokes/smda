@@ -160,18 +160,18 @@ func TestBasicTypeInference(t *testing.T) {
 	}
 }
 
-func TestNullability(t *testing.T) {
-	if !isNull("") {
-		t.Errorf("an empty string should be considered null")
-	}
+// func TestNullability(t *testing.T) {
+// 	if !isNull("") {
+// 		t.Errorf("an empty string should be considered null")
+// 	}
 
-	// at some point we'll have custom null values, but for now it's just empty strings
-	for _, val := range []string{"foo", "bar", " ", "\t", "\n", "-", "NA", "N/A"} {
-		if isNull(val) {
-			t.Errorf("only empty strings should be considered null, got \"%v\"", val)
-		}
-	}
-}
+// 	// at some point we'll have custom null values, but for now it's just empty strings
+// 	for _, val := range []string{"foo", "bar", " ", "\t", "\n", "-", "NA", "N/A"} {
+// 		if isNull(val) {
+// 			t.Errorf("only empty strings should be considered null, got \"%v\"", val)
+// 		}
+// 	}
+// }
 
 func TestIntCoercion(t *testing.T) {
 	tests := []struct {

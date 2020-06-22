@@ -32,6 +32,7 @@ type typedColumn interface {
 	// for now it takes a string expression, it will be parsed beforehand in the future
 	// also, we should consider if this should return a new typedColumn with the filtered values already?
 	Filter(operator, string) *Bitmap
+	setNullVals([]string)
 }
 
 type operator uint8
@@ -115,29 +116,34 @@ type columnStrings struct {
 	nullable    bool
 	nullability *Bitmap
 	length      uint32
+	nullVals    map[string]bool
 }
 type columnInts struct {
 	data        []int64
 	nullable    bool
 	nullability *Bitmap
 	length      uint32
+	nullVals    map[string]bool
 }
 type columnFloats struct {
 	data        []float64
 	nullable    bool
 	nullability *Bitmap
 	length      uint32
+	nullVals    map[string]bool
 }
 type columnBools struct {
 	data        *Bitmap
 	nullable    bool
 	nullability *Bitmap
 	length      uint32
+	nullVals    map[string]bool
 }
 
 // if it's all nulls, we only need to know how many there are
 type columnNulls struct {
-	length uint32
+	length   uint32
+	nullVals map[string]bool
 }
 
 // preallocate column data, so that slice appends don't trigger new reallocations
@@ -181,6 +187,7 @@ func newColumnNulls() *columnNulls {
 	}
 }
 
+// TODO: generics
 func (rc *columnBools) Len() int {
 	return int(rc.length)
 }
@@ -195,6 +202,48 @@ func (rc *columnNulls) Len() int {
 }
 func (rc *columnStrings) Len() int {
 	return int(rc.length)
+}
+
+// TODO: generics
+func (rc *columnBools) setNullVals(s []string) {
+	if rc.nullVals == nil {
+		rc.nullVals = make(map[string]bool)
+	}
+	for _, el := range s {
+		rc.nullVals[el] = true
+	}
+}
+func (rc *columnInts) setNullVals(s []string) {
+	if rc.nullVals == nil {
+		rc.nullVals = make(map[string]bool)
+	}
+	for _, el := range s {
+		rc.nullVals[el] = true
+	}
+}
+func (rc *columnFloats) setNullVals(s []string) {
+	if rc.nullVals == nil {
+		rc.nullVals = make(map[string]bool)
+	}
+	for _, el := range s {
+		rc.nullVals[el] = true
+	}
+}
+func (rc *columnStrings) setNullVals(s []string) {
+	if rc.nullVals == nil {
+		rc.nullVals = make(map[string]bool)
+	}
+	for _, el := range s {
+		rc.nullVals[el] = true
+	}
+}
+func (rc *columnNulls) setNullVals(s []string) {
+	if rc.nullVals == nil {
+		rc.nullVals = make(map[string]bool)
+	}
+	for _, el := range s {
+		rc.nullVals[el] = true
+	}
 }
 
 // TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
@@ -293,6 +342,15 @@ func (rc *columnStrings) Hash(hashes []uint64) {
 }
 
 func (rc *columnStrings) addValue(s string) error {
+	if rc.nullVals[s] {
+		if !rc.nullable {
+			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
+		}
+		rc.nullability.set(rc.Len(), true)
+		rc.data = append(rc.data, 0) // this value is not meant to be read
+		rc.length++
+		return nil
+	}
 	rc.data = append(rc.data, []byte(s)...)
 
 	valLen := uint32(len(s))
@@ -304,7 +362,7 @@ func (rc *columnStrings) addValue(s string) error {
 }
 
 func (rc *columnInts) addValue(s string) error {
-	if isNull(s) {
+	if s == "" || rc.nullVals[s] {
 		if !rc.nullable {
 			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
 		}
@@ -331,7 +389,7 @@ func (rc *columnInts) addValue(s string) error {
 func (rc *columnFloats) addValue(s string) error {
 	var val float64
 	var err error
-	if isNull(s) {
+	if s == "" || rc.nullVals[s] {
 		val = math.NaN()
 	} else {
 		val, err = parseFloat(s)
@@ -359,7 +417,7 @@ func (rc *columnFloats) addValue(s string) error {
 }
 
 func (rc *columnBools) addValue(s string) error {
-	if isNull(s) {
+	if s == "" || rc.nullVals[s] {
 		if !rc.nullable {
 			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
 		}
@@ -382,7 +440,7 @@ func (rc *columnBools) addValue(s string) error {
 }
 
 func (rc *columnNulls) addValue(s string) error {
-	if !isNull(s) {
+	if !(s == "" || rc.nullVals[s]) {
 		return fmt.Errorf("a null column expects null values, got: %v", s)
 	}
 	rc.length++

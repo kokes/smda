@@ -71,10 +71,6 @@ func newTypeGuesser() *typeGuesser {
 	}
 }
 
-func isNull(s string) bool {
-	return s == "" // TODO: add custom null values as options (e.g. NA, N/A etc.)
-}
-
 // OPTIM: could we early exit by checking the input is all digits with a possible leading +-? are there any other constraints?
 // basic microbenchmarks suggest a 2x speedup - thanks to being less general
 // the one downside is that we'd be slower in the happy path (due to extra work) - so this would be beneficial if we have fewer ints than non-ints in general
