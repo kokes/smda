@@ -566,17 +566,19 @@ func BenchmarkAutoUpload(b *testing.B) {
 				}
 			}
 			b.ResetTimer()
-			len := bf.Len()
-			for j := 0; j < b.N; j++ {
-				resp, err := http.Post(url, "text/csv", bytes.NewReader(bf.Bytes()))
-				if err != nil {
-					b.Fatal(err)
+			b.RunParallel(func(pb *testing.PB) {
+				b.SetBytes(int64(bf.Len()))
+				for pb.Next() {
+					resp, err := http.Post(url, "text/csv", bytes.NewReader(bf.Bytes()))
+					if err != nil {
+						b.Fatal(err)
+					}
+					defer resp.Body.Close()
+					if resp.StatusCode != 200 {
+						b.Fatalf("unexpected status: %v", resp.Status)
+					}
 				}
-				if resp.StatusCode != 200 {
-					b.Fatalf("unexpected status: %v", resp.Status)
-				}
-			}
-			b.SetBytes(int64(len))
+			})
 		})
 	}
 }
