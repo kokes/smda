@@ -21,9 +21,9 @@ type Query struct {
 // type FilterTree - to be used once we have AND and OR clauses
 // this really shouldn't be here - it should be a generic bool expression of any kind
 type FilterExpression struct {
-	Column   string   `json:"column"`   // this will be a projection, not just a column (e.g. NULLIF(a, b) > 3)
-	Operator operator `json:"operator"` // TODO: change to `operator` and add an unmarshaler
-	Argument string   `json:"arg"`      // this might need to be an array perhaps, when we get BETWEEN etc.
+	Column   string   `json:"column"` // this will be a projection, not just a column (e.g. NULLIF(a, b) > 3)
+	Operator operator `json:"operator"`
+	Argument string   `json:"arg"` // this might need to be an array perhaps, when we get BETWEEN etc.
 }
 
 func (db *Database) Filter(ds *Dataset, fe *FilterExpression) ([]*Bitmap, error) {
