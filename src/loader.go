@@ -22,6 +22,7 @@ var errIncorrectChecksum = errors.New("could not validate data on disk: incorrec
 var errIncompatibleOnDiskFormat = errors.New("cannot open data stripes with a version different from the one supported")
 var errInvalidLoadSettings = errors.New("expecting load settings for a rawLoader, got nil")
 var errInvalidOffsetData = errors.New("invalid offset data")
+var errSchemaMismatch = errors.New("dataset does not conform to the schema provided")
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
 // using default settings
@@ -287,6 +288,19 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 	return deserializeColumn(br, ds.Schema[nthColumn].Dtype)
 }
 
+func validateHeaderAgainstSchema(header []string, schema tableSchema) error {
+	if len(header) != len(schema) {
+		return errSchemaMismatch
+	}
+
+	for j, el := range header {
+		if el != schema[j].Name {
+			return errSchemaMismatch
+		}
+	}
+	return nil
+}
+
 // This is how data gets in! This is the main entrypoint
 // TODO: log dependency on the raw dataset somehow? lineage?
 // TODO: we have quite an inconsistency here - loadDatasetFromReaderAuto caches incoming data and loads them then,
@@ -301,12 +315,16 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 	if rl.settings.schema == nil {
 		return nil, errors.New("cannot load data without a schema")
 	}
-	// we don't need the first row - it's the header... should we perhaps validate it? (TODO)
-	// that could be a loadSetting option for non-auto uploads - check that the header conforms to the schema
-	_, err = rl.yieldRow()
+	// at this point we're checking all headers, but once we allow for custom schemas (e.g. renaming columns, custom type
+	// declarations etc.), we'll want to have an option that skips this verification
+	header, err := rl.yieldRow()
 	if err != nil {
 		return nil, err
 	}
+	if err := validateHeaderAgainstSchema(header, rl.settings.schema); err != nil {
+		return nil, err
+	}
+
 	stripes := make([]UID, 0)
 	for {
 		ds, loadingErr := rl.ReadIntoStripe(db.Config.MaxRowsPerStripe, db.Config.MaxBytesPerStripe)

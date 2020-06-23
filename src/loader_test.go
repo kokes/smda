@@ -444,6 +444,29 @@ func TestInvalidOffsets(t *testing.T) {
 	}
 }
 
+func TestHeaderValidation(t *testing.T) {
+	tests := []struct {
+		header      []string
+		schemaNames []string
+		err         error
+	}{
+		{[]string{"foo", "bar"}, []string{"foo", "bar"}, nil},
+		{[]string{""}, []string{""}, nil},
+		{[]string{"foo"}, []string{"bar", "bak"}, errSchemaMismatch},
+		{[]string{"foo", "bar"}, []string{"bak"}, errSchemaMismatch},
+		{[]string{"foo", "bar"}, []string{"foo", "bar "}, errSchemaMismatch},
+	}
+	for _, test := range tests {
+		schema := make(tableSchema, 0, len(test.schemaNames))
+		for _, el := range test.schemaNames {
+			schema = append(schema, columnSchema{Name: el})
+		}
+		if err := validateHeaderAgainstSchema(test.header, schema); err != test.err {
+			t.Fatalf("expected validation of header %v and schema %v to result in %v, got %v instead", test.header, test.schemaNames, test.err, err)
+		}
+	}
+}
+
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 // func (ds *dataStripe) writeToWriter(w io.Writer) error {
 // func (ds *dataStripe) writeToFile(rootDir, datasetID string) error { -- signature has changed, it's now writeStripeToFile
