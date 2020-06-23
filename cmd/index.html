@@ -154,7 +154,9 @@
         }
         table.appendChild(thead);
 
-        let nrows = data.data[0].length; // TODO: what if we get nothing?
+        // this works, could only fail if we get zero columns, but that can't happen
+        // might be more convenient/explicit if we send nrows from the backend
+        const nrows = data.data[0].length;
 
         for (let rowNum=0; rowNum < nrows; rowNum++) {
             const row = document.createElement('tr');
