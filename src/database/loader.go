@@ -1,4 +1,4 @@
-package smda
+package database
 
 import (
 	"bufio"
@@ -43,7 +43,7 @@ func (db *Database) LoadSampleData(path string) error {
 	return nil
 }
 
-func cacheIncomingFile(r io.Reader, path string) error {
+func CacheIncomingFile(r io.Reader, path string) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -58,20 +58,12 @@ func cacheIncomingFile(r io.Reader, path string) error {
 	return nil
 }
 
-type columnSchema struct {
-	Name     string `json:"name"`
-	Dtype    dtype  `json:"dtype"`
-	Nullable bool   `json:"nullable"`
-}
-
-type tableSchema []columnSchema
-
 type loadSettings struct {
 	// encoding
 	compression compression
 	delimiter   delimiter
 	// hasHeader
-	schema tableSchema
+	schema TableSchema
 	// discardExtraColumns
 	// allowFewerColumns
 }
@@ -104,12 +96,12 @@ func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
 
 type dataStripe struct {
 	id      UID
-	columns []typedColumn // pointers instead?
+	columns []TypedColumn // pointers instead?
 }
 
 func newDataStripe() *dataStripe {
 	return &dataStripe{
-		id: newUID(otypeStripe),
+		id: newUID(OtypeStripe),
 	}
 }
 
@@ -152,7 +144,7 @@ func (ds *dataStripe) writeToWriter(w io.Writer) error {
 }
 
 func (db *Database) writeStripeToFile(ds *Dataset, stripe *dataStripe) error {
-	if err := os.MkdirAll(db.datasetPath(ds), os.ModePerm); err != nil {
+	if err := os.MkdirAll(db.DatasetPath(ds), os.ModePerm); err != nil {
 		return err
 	}
 
@@ -189,20 +181,20 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 			return nil, err
 		}
 		// perhaps wrap this in an init function that returns a schema, so that we have less cruft here
-		rl.settings.schema = make(tableSchema, 0, len(hd))
+		rl.settings.schema = make(TableSchema, 0, len(hd))
 		for _, val := range hd {
-			rl.settings.schema = append(rl.settings.schema, columnSchema{
+			rl.settings.schema = append(rl.settings.schema, ColumnSchema{
 				Name:     val,
-				Dtype:    dtypeString,
+				Dtype:    DtypeString,
 				Nullable: false,
 			})
 		}
 	}
 
 	// given a schema, initialise a data stripe
-	ds.columns = make([]typedColumn, 0, len(rl.settings.schema))
+	ds.columns = make([]TypedColumn, 0, len(rl.settings.schema))
 	for _, col := range rl.settings.schema {
-		ds.columns = append(ds.columns, newTypedColumnFromSchema(col))
+		ds.columns = append(ds.columns, NewTypedColumnFromSchema(col))
 	}
 
 	// now let's finally load some data
@@ -218,7 +210,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 		}
 		for j, val := range row {
 			bytesLoaded += len(val)
-			if err := ds.columns[j].addValue(val); err != nil {
+			if err := ds.columns[j].AddValue(val); err != nil {
 				return nil, fmt.Errorf("failed to populate column %v: %w", rl.settings.schema[j].Name, err)
 			}
 		}
@@ -234,7 +226,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
 // OPTIM: this does not buffer any reads... but it only reads things twice, so it shouldn't matter, right?
-func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (typedColumn, error) {
+func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (TypedColumn, error) {
 	f, err := os.Open(db.stripePath(ds, stripeID))
 	if err != nil {
 		return nil, err
@@ -288,7 +280,7 @@ func (db *Database) readColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 	return deserializeColumn(br, ds.Schema[nthColumn].Dtype)
 }
 
-func validateHeaderAgainstSchema(header []string, schema tableSchema) error {
+func validateHeaderAgainstSchema(header []string, schema TableSchema) error {
 	if len(header) != len(schema) {
 		return errSchemaMismatch
 	}
@@ -303,7 +295,7 @@ func validateHeaderAgainstSchema(header []string, schema tableSchema) error {
 
 // This is how data gets in! This is the main entrypoint
 // TODO: log dependency on the raw dataset somehow? lineage?
-// TODO: we have quite an inconsistency here - loadDatasetFromReaderAuto caches incoming data and loads them then,
+// TODO: we have quite an inconsistency here - LoadDatasetFromReaderAuto caches incoming data and loads them then,
 // this reads it without any caching (at the same time... if we cache it here, we'll be caching it twice,
 // because we load it from our Auto methods - we'd have to call the file reader here [should be fine])
 func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (*Dataset, error) {
@@ -344,7 +336,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 
 	dataset.Schema = rl.settings.schema
 	dataset.Stripes = stripes
-	db.addDataset(dataset)
+	db.AddDataset(dataset)
 	return dataset, nil
 }
 
@@ -358,13 +350,13 @@ func (db *Database) loadDatasetFromLocalFile(path string, settings *loadSettings
 	return db.loadDatasetFromReader(f, settings)
 }
 
-func (db *Database) loadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
+func (db *Database) LoadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
 	f, err := ioutil.TempFile("", "")
 	if err != nil {
 		return nil, err
 	}
 	defer os.Remove(f.Name())
-	if err := cacheIncomingFile(r, f.Name()); err != nil {
+	if err := CacheIncomingFile(r, f.Name()); err != nil {
 		return nil, err
 	}
 

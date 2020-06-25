@@ -1,4 +1,4 @@
-package smda
+package database
 
 import (
 	"encoding/binary"
@@ -21,7 +21,7 @@ var errPathNotEmpty = errors.New("path not empty")
 type Database struct {
 	sync.Mutex
 	Datasets []*Dataset
-	server   *http.Server
+	Server   *http.Server
 	Config   *DatabaseConfig
 }
 
@@ -71,7 +71,6 @@ func NewDatabase(config *DatabaseConfig) (*Database, error) {
 		Config:   config,
 		Datasets: make([]*Dataset, 0),
 	}
-	db.setupRoutes()
 	return db, nil
 }
 
@@ -80,31 +79,31 @@ func (db *Database) Drop() error {
 }
 
 // object types (used for UIDs)
-type otype uint8
+type Otype uint8
 
 const (
-	otypeNone otype = iota
-	otypeDataset
-	otypeStripe
+	OtypeNone Otype = iota
+	OtypeDataset
+	OtypeStripe
 	// when we start using IDs for columns and jobs and other objects, this will be handy
 )
 
 // UID is a unique ID for a given object, it's NOT a uuid
 type UID struct {
-	otype otype
+	Otype Otype
 	oid   uint64
 }
 
-func newUID(otype otype) UID {
+func newUID(Otype Otype) UID {
 	return UID{
-		otype: otype,
+		Otype: Otype,
 		oid:   rand.Uint64(),
 	}
 }
 
 func (uid UID) String() string {
 	bf := make([]byte, 9)
-	bf[0] = byte(uid.otype)
+	bf[0] = byte(uid.Otype)
 	binary.LittleEndian.PutUint64(bf[1:], uid.oid)
 	return hex.EncodeToString(bf)
 }
@@ -135,7 +134,7 @@ func (uid *UID) UnmarshalJSON(data []byte) error {
 		return errors.New("failed to decode UID")
 	}
 
-	uid.otype = otype(unhexed[0])
+	uid.Otype = Otype(unhexed[0])
 	uid.oid = binary.LittleEndian.Uint64(unhexed[1:9])
 	return nil
 }
@@ -144,15 +143,23 @@ func (uid *UID) UnmarshalJSON(data []byte) error {
 type Dataset struct {
 	ID      UID         `json:"id"`
 	Name    string      `json:"name"`
-	Schema  tableSchema `json:"schema"`
+	Schema  TableSchema `json:"schema"`
 	Stripes []UID       `json:"-"`
 }
 
-func NewDataset() *Dataset {
-	return &Dataset{ID: newUID(otypeDataset)}
+type ColumnSchema struct {
+	Name     string `json:"name"`
+	Dtype    Dtype  `json:"Dtype"`
+	Nullable bool   `json:"nullable"`
 }
 
-func (db *Database) datasetPath(ds *Dataset) string {
+type TableSchema []ColumnSchema
+
+func NewDataset() *Dataset {
+	return &Dataset{ID: newUID(OtypeDataset)}
+}
+
+func (db *Database) DatasetPath(ds *Dataset) string {
 	return filepath.Join(db.Config.WorkingDirectory, ds.ID.String())
 }
 
@@ -163,7 +170,7 @@ func (db *Database) stripePath(ds *Dataset, stripeID UID) string {
 // not efficient in this implementation, but we don't have a map-like structure
 // to store our datasets - we keep them in a slice, so that we have predictable order
 // -> we need a sorted map
-func (db *Database) getDataset(datasetID UID) (*Dataset, error) {
+func (db *Database) GetDataset(datasetID UID) (*Dataset, error) {
 	for _, dataset := range db.Datasets {
 		if dataset.ID == datasetID {
 			return dataset, nil
@@ -174,7 +181,7 @@ func (db *Database) getDataset(datasetID UID) (*Dataset, error) {
 
 // this is a pretty rare event, so we don't expect much contention
 // it's just to avoid some issues when marshaling the object around in the API etc.
-func (db *Database) addDataset(ds *Dataset) {
+func (db *Database) AddDataset(ds *Dataset) {
 	db.Lock()
 	db.Datasets = append(db.Datasets, ds)
 	db.Unlock()
@@ -196,7 +203,7 @@ func (db *Database) removeDataset(ds *Dataset) error {
 			return err
 		}
 	}
-	if err := os.Remove(db.datasetPath(ds)); err != nil {
+	if err := os.Remove(db.DatasetPath(ds)); err != nil {
 		// TODO: ignore if "directory not empty"? Because other datasets might claim this directory
 		// and we only want to remove it if it's actually empty, so this error is fine.
 		return err

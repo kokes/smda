@@ -1,4 +1,4 @@
-package smda
+package database
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"hash/fnv"
 	"io"
 	"math"
+
+	"github.com/kokes/smda/src/bitmap"
 )
 
 var errNullInNonNullable = errors.New("cannot add a null value to a non-nullable column")
@@ -20,25 +22,25 @@ var errAppendNullabilityMismatch = errors.New("when appending, both chunks need 
 // upon reading the schema - this would save us type assertions (and give us some perf, potentially),
 // but without measuring this, I'm holding back for now
 // ALSO, this interface is a bit misnamed - it's not the whole column, just a given chunk within a stripe
-type typedColumn interface {
-	addValue(string) error
-	addValues([]string) error // just a utility thing, mostly for tests
+type TypedColumn interface {
+	AddValue(string) error
+	AddValues([]string) error // just a utility thing, mostly for tests
 	MarshalBinary() ([]byte, error)
 	MarshalJSON() ([]byte, error)
-	Prune(*Bitmap) typedColumn
-	Append(typedColumn) error
+	Prune(*bitmap.Bitmap) TypedColumn
+	Append(TypedColumn) error
 	Hash([]uint64)
 	Len() int
 	// for now it takes a string expression, it will be parsed beforehand in the future
-	// also, we should consider if this should return a new typedColumn with the filtered values already?
-	Filter(operator, string) *Bitmap
+	// also, we should consider if this should return a new TypedColumn with the filtered values already?
+	Filter(Operator, string) *bitmap.Bitmap
 }
 
-type operator uint8
+type Operator uint8
 
 // make sure to update the stringer and marshaler
 const (
-	opNone operator = iota
+	opNone Operator = iota
 	opIsNull
 	opIsNotNull
 	opEqual
@@ -54,17 +56,17 @@ const (
 // OPTIM: ...
 // support '<>' as opNotEqual?
 // and 'is not null' as opIsNotNull?
-func (op operator) String() string {
+func (op Operator) String() string {
 	return []string{"none", "is null", "not null", "=", "!=", ">", ">=", "<", "<="}[op]
 }
 
-func (op operator) MarshalJSON() ([]byte, error) {
+func (op Operator) MarshalJSON() ([]byte, error) {
 	return append(append([]byte("\""), []byte(op.String())...), '"'), nil
 }
 
-func (op *operator) UnmarshalJSON(data []byte) error {
+func (op *Operator) UnmarshalJSON(data []byte) error {
 	if !(len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"') {
-		return errors.New("unexpected string to be unmarshaled into a dtype")
+		return errors.New("unexpected string to be unmarshaled into a Dtype")
 	}
 	sdata := string(data[1 : len(data)-1])
 	switch sdata {
@@ -87,22 +89,22 @@ func (op *operator) UnmarshalJSON(data []byte) error {
 	case "<=":
 		*op = opLte
 	default:
-		return fmt.Errorf("operator does not exist: %v", sdata)
+		return fmt.Errorf("Operator does not exist: %v", sdata)
 	}
 	return nil
 }
 
-func newTypedColumnFromSchema(schema columnSchema) typedColumn {
+func NewTypedColumnFromSchema(schema ColumnSchema) TypedColumn {
 	switch schema.Dtype {
-	case dtypeString:
+	case DtypeString:
 		return newColumnStrings(schema.Nullable)
-	case dtypeInt:
+	case DtypeInt:
 		return newColumnInts(schema.Nullable)
-	case dtypeFloat:
+	case DtypeFloat:
 		return newColumnFloats(schema.Nullable)
-	case dtypeBool:
+	case DtypeBool:
 		return newColumnBools(schema.Nullable)
-	case dtypeNull:
+	case DtypeNull:
 		return newColumnNulls()
 	default:
 		panic(fmt.Sprintf("unknown schema type: %v", schema.Dtype))
@@ -113,25 +115,25 @@ type columnStrings struct {
 	data        []byte
 	offsets     []uint32
 	nullable    bool
-	nullability *Bitmap
+	nullability *bitmap.Bitmap
 	length      uint32
 }
 type columnInts struct {
 	data        []int64
 	nullable    bool
-	nullability *Bitmap
+	nullability *bitmap.Bitmap
 	length      uint32
 }
 type columnFloats struct {
 	data        []float64
 	nullable    bool
-	nullability *Bitmap
+	nullability *bitmap.Bitmap
 	length      uint32
 }
 type columnBools struct {
-	data        *Bitmap
+	data        *bitmap.Bitmap
 	nullable    bool
-	nullability *Bitmap
+	nullability *bitmap.Bitmap
 	length      uint32
 }
 
@@ -150,28 +152,28 @@ func newColumnStrings(isNullable bool) *columnStrings {
 		data:        make([]byte, 0, defaultColumnCap),
 		offsets:     offsets,
 		nullable:    isNullable,
-		nullability: NewBitmap(0),
+		nullability: bitmap.NewBitmap(0),
 	}
 }
 func newColumnInts(isNullable bool) *columnInts {
 	return &columnInts{
 		data:        make([]int64, 0, defaultColumnCap),
 		nullable:    isNullable,
-		nullability: NewBitmap(0),
+		nullability: bitmap.NewBitmap(0),
 	}
 }
 func newColumnFloats(isNullable bool) *columnFloats {
 	return &columnFloats{
 		data:        make([]float64, 0, defaultColumnCap),
 		nullable:    isNullable,
-		nullability: NewBitmap(0),
+		nullability: bitmap.NewBitmap(0),
 	}
 }
 func newColumnBools(isNullable bool) *columnBools {
 	return &columnBools{
-		data:        NewBitmap(0),
+		data:        bitmap.NewBitmap(0),
 		nullable:    isNullable,
-		nullability: NewBitmap(0),
+		nullability: bitmap.NewBitmap(0),
 	}
 }
 
@@ -218,11 +220,11 @@ func (rc *columnBools) Hash(hashes []uint64) {
 		// 	val := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
 		// 	fmt.Printf("%x, %v\n", val, bits.OnesCount64(val))
 		// }
-		if rc.nullable && rc.nullability.get(j) {
+		if rc.nullable && rc.nullability.Get(j) {
 			hashes[j] ^= nullXorHash
 			continue
 		}
-		if rc.data.get(j) {
+		if rc.data.Get(j) {
 			hashes[j] ^= 0x5a320fa8dfcfe3a7
 		} else {
 			hashes[j] ^= 0x1549571b97ff2995
@@ -233,7 +235,7 @@ func (rc *columnFloats) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
 	for j, el := range rc.data {
-		if rc.nullable && rc.nullability.get(j) {
+		if rc.nullable && rc.nullability.Get(j) {
 			hashes[j] ^= nullXorHash
 			continue
 		}
@@ -258,7 +260,7 @@ func (rc *columnInts) Hash(hashes []uint64) {
 		// OPTIM: not just here, in all of these Hash implementations - we might want to check rc.nullable
 		// just once and have two separate loops - see if it helps - it may bloat the code too much (and avoid inlining,
 		// but that's probably a lost cause already)
-		if rc.nullable && rc.nullability.get(j) {
+		if rc.nullable && rc.nullability.Get(j) {
 			hashes[j] ^= nullXorHash
 			continue
 		}
@@ -280,7 +282,7 @@ func (rc *columnNulls) Hash(hashes []uint64) {
 func (rc *columnStrings) Hash(hashes []uint64) {
 	hasher := fnv.New64()
 	for j := 0; j < rc.Len(); j++ {
-		if rc.nullable && rc.nullability.get(j) {
+		if rc.nullable && rc.nullability.Get(j) {
 			hashes[j] ^= nullXorHash
 			continue
 		}
@@ -292,7 +294,7 @@ func (rc *columnStrings) Hash(hashes []uint64) {
 	}
 }
 
-func (rc *columnStrings) addValue(s string) error {
+func (rc *columnStrings) AddValue(s string) error {
 	rc.data = append(rc.data, []byte(s)...)
 
 	valLen := uint32(len(s))
@@ -303,12 +305,12 @@ func (rc *columnStrings) addValue(s string) error {
 	return nil
 }
 
-func (rc *columnInts) addValue(s string) error {
+func (rc *columnInts) AddValue(s string) error {
 	if isNull(s) {
 		if !rc.nullable {
 			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
 		}
-		rc.nullability.set(rc.Len(), true)
+		rc.nullability.Set(rc.Len(), true)
 		rc.data = append(rc.data, 0) // this value is not meant to be read
 		rc.length++
 		return nil
@@ -322,13 +324,13 @@ func (rc *columnInts) addValue(s string) error {
 	rc.length++
 	// make sure the nullability bitmap aligns with the length of the chunk (TODO: test this explicitly)
 	if rc.nullable {
-		rc.nullability.ensure(int(rc.length))
+		rc.nullability.Ensure(int(rc.length))
 	}
 	return nil
 }
 
 // let's really consider adding standard nulls here, it will probably make our lives a lot easier
-func (rc *columnFloats) addValue(s string) error {
+func (rc *columnFloats) AddValue(s string) error {
 	var val float64
 	var err error
 	if isNull(s) {
@@ -343,7 +345,7 @@ func (rc *columnFloats) addValue(s string) error {
 		if !rc.nullable {
 			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
 		}
-		rc.nullability.set(rc.Len(), true)
+		rc.nullability.Set(rc.Len(), true)
 		rc.data = append(rc.data, math.NaN()) // this value is not meant to be read
 		rc.length++
 		return nil
@@ -353,18 +355,18 @@ func (rc *columnFloats) addValue(s string) error {
 	rc.length++
 	// make sure the nullability bitmap aligns with the length of the chunk
 	if rc.nullable {
-		rc.nullability.ensure(int(rc.length))
+		rc.nullability.Ensure(int(rc.length))
 	}
 	return nil
 }
 
-func (rc *columnBools) addValue(s string) error {
+func (rc *columnBools) AddValue(s string) error {
 	if isNull(s) {
 		if !rc.nullable {
 			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
 		}
-		rc.nullability.set(rc.Len(), true)
-		rc.data.set(rc.Len(), false) // this value is not meant to be read
+		rc.nullability.Set(rc.Len(), true)
+		rc.data.Set(rc.Len(), false) // this value is not meant to be read
 		rc.length++
 		return nil
 	}
@@ -372,16 +374,16 @@ func (rc *columnBools) addValue(s string) error {
 	if err != nil {
 		return err
 	}
-	rc.data.set(rc.Len(), val)
+	rc.data.Set(rc.Len(), val)
 	rc.length++
 	// make sure the nullability bitmap aligns with the length of the chunk
 	if rc.nullable {
-		rc.nullability.ensure(int(rc.length))
+		rc.nullability.Ensure(int(rc.length))
 	}
 	return nil
 }
 
-func (rc *columnNulls) addValue(s string) error {
+func (rc *columnNulls) AddValue(s string) error {
 	if !isNull(s) {
 		return fmt.Errorf("a null column expects null values, got: %v", s)
 	}
@@ -389,48 +391,48 @@ func (rc *columnNulls) addValue(s string) error {
 	return nil
 }
 
-func (rc *columnBools) addValues(vals []string) error {
+func (rc *columnBools) AddValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.AddValue(el); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (rc *columnFloats) addValues(vals []string) error {
+func (rc *columnFloats) AddValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.AddValue(el); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (rc *columnInts) addValues(vals []string) error {
+func (rc *columnInts) AddValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.AddValue(el); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (rc *columnNulls) addValues(vals []string) error {
+func (rc *columnNulls) AddValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.AddValue(el); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (rc *columnStrings) addValues(vals []string) error {
+func (rc *columnStrings) AddValues(vals []string) error {
 	for _, el := range vals {
-		if err := rc.addValue(el); err != nil {
+		if err := rc.AddValue(el); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (rc *columnStrings) Append(tc typedColumn) error {
+func (rc *columnStrings) Append(tc TypedColumn) error {
 	nrc, ok := tc.(*columnStrings)
 	if !ok {
 		return errAppendTypeMismatch
@@ -454,7 +456,7 @@ func (rc *columnStrings) Append(tc typedColumn) error {
 
 	return nil
 }
-func (rc *columnInts) Append(tc typedColumn) error {
+func (rc *columnInts) Append(tc TypedColumn) error {
 	nrc, ok := tc.(*columnInts)
 	if !ok {
 		return errAppendTypeMismatch
@@ -471,7 +473,7 @@ func (rc *columnInts) Append(tc typedColumn) error {
 
 	return nil
 }
-func (rc *columnFloats) Append(tc typedColumn) error {
+func (rc *columnFloats) Append(tc TypedColumn) error {
 	nrc, ok := tc.(*columnFloats)
 	if !ok {
 		return errAppendTypeMismatch
@@ -488,7 +490,7 @@ func (rc *columnFloats) Append(tc typedColumn) error {
 
 	return nil
 }
-func (rc *columnBools) Append(tc typedColumn) error {
+func (rc *columnBools) Append(tc TypedColumn) error {
 	nrc, ok := tc.(*columnBools)
 	if !ok {
 		return errAppendTypeMismatch
@@ -505,7 +507,7 @@ func (rc *columnBools) Append(tc typedColumn) error {
 
 	return nil
 }
-func (rc *columnNulls) Append(tc typedColumn) error {
+func (rc *columnNulls) Append(tc TypedColumn) error {
 	nrc, ok := tc.(*columnNulls)
 	if !ok {
 		return errAppendTypeMismatch
@@ -515,17 +517,17 @@ func (rc *columnNulls) Append(tc typedColumn) error {
 	return nil
 }
 
-func (rc *columnStrings) Prune(bm *Bitmap) typedColumn {
+func (rc *columnStrings) Prune(bm *bitmap.Bitmap) TypedColumn {
 	nc := newColumnStrings(rc.nullable)
 	if bm == nil {
 		return nc
 	}
-	if bm.cap != rc.Len() {
+	if bm.Cap() != rc.Len() {
 		panic("pruning bitmap does not align with the dataset")
 	}
 
 	// if we're not pruning anything, we might just return ourselves
-	// we don't need to clone anything, since the typedColumn itself is immutable, right?
+	// we don't need to clone anything, since the TypedColumn itself is immutable, right?
 	if bm.Count() == rc.Len() {
 		return rc
 	}
@@ -535,32 +537,32 @@ func (rc *columnStrings) Prune(bm *Bitmap) typedColumn {
 	// the bitmap iteration could be implemented in all the typed columns
 	index := 0
 	for j := 0; j < rc.Len(); j++ {
-		if !bm.get(j) {
+		if !bm.Get(j) {
 			continue
 		}
-		// be careful here, addValue has its own nullability logic and we don't want to mess with that
-		nc.addValue(rc.nthValue(j))
-		if rc.nullable && rc.nullability.get(j) {
-			nc.nullability.set(index, true)
+		// be careful here, AddValue has its own nullability logic and we don't want to mess with that
+		nc.AddValue(rc.nthValue(j))
+		if rc.nullable && rc.nullability.Get(j) {
+			nc.nullability.Set(index, true)
 		}
-		// nc.length++ // once we remove addValue, we'll need this
+		// nc.length++ // once we remove AddValue, we'll need this
 		index++
 	}
 
 	// make sure the nullability vector aligns with the data
 	if rc.nullable {
-		nc.nullability.ensure(nc.Len())
+		nc.nullability.Ensure(nc.Len())
 	}
 
 	return nc
 }
 
-func (rc *columnInts) Prune(bm *Bitmap) typedColumn {
+func (rc *columnInts) Prune(bm *bitmap.Bitmap) TypedColumn {
 	nc := newColumnInts(rc.nullable)
 	if bm == nil {
 		return nc
 	}
-	if bm.cap != rc.Len() {
+	if bm.Cap() != rc.Len() {
 		panic("pruning bitmap does not align with the dataset")
 	}
 
@@ -570,12 +572,12 @@ func (rc *columnInts) Prune(bm *Bitmap) typedColumn {
 
 	index := 0
 	for j := 0; j < rc.Len(); j++ {
-		if !bm.get(j) {
+		if !bm.Get(j) {
 			continue
 		}
 		nc.data = append(nc.data, rc.data[j])
-		if rc.nullable && rc.nullability.get(j) {
-			nc.nullability.set(index, true)
+		if rc.nullable && rc.nullability.Get(j) {
+			nc.nullability.Set(index, true)
 		}
 		nc.length++
 		index++
@@ -583,18 +585,18 @@ func (rc *columnInts) Prune(bm *Bitmap) typedColumn {
 
 	// make sure the nullability vector aligns with the data
 	if rc.nullable {
-		nc.nullability.ensure(nc.Len())
+		nc.nullability.Ensure(nc.Len())
 	}
 
 	return nc
 }
 
-func (rc *columnFloats) Prune(bm *Bitmap) typedColumn {
+func (rc *columnFloats) Prune(bm *bitmap.Bitmap) TypedColumn {
 	nc := newColumnFloats(rc.nullable)
 	if bm == nil {
 		return nc
 	}
-	if bm.cap != rc.Len() {
+	if bm.Cap() != rc.Len() {
 		panic("pruning bitmap does not align with the dataset")
 	}
 
@@ -604,12 +606,12 @@ func (rc *columnFloats) Prune(bm *Bitmap) typedColumn {
 
 	index := 0
 	for j := 0; j < rc.Len(); j++ {
-		if !bm.get(j) {
+		if !bm.Get(j) {
 			continue
 		}
 		nc.data = append(nc.data, rc.data[j])
-		if rc.nullable && rc.nullability.get(j) {
-			nc.nullability.set(index, true)
+		if rc.nullable && rc.nullability.Get(j) {
+			nc.nullability.Set(index, true)
 		}
 		nc.length++
 		index++
@@ -617,18 +619,18 @@ func (rc *columnFloats) Prune(bm *Bitmap) typedColumn {
 
 	// make sure the nullability vector aligns with the data
 	if rc.nullable {
-		nc.nullability.ensure(nc.Len())
+		nc.nullability.Ensure(nc.Len())
 	}
 
 	return nc
 }
 
-func (rc *columnBools) Prune(bm *Bitmap) typedColumn {
+func (rc *columnBools) Prune(bm *bitmap.Bitmap) TypedColumn {
 	nc := newColumnBools(rc.nullable)
 	if bm == nil {
 		return nc
 	}
-	if bm.cap != rc.Len() {
+	if bm.Cap() != rc.Len() {
 		panic("pruning bitmap does not align with the dataset")
 	}
 
@@ -638,13 +640,13 @@ func (rc *columnBools) Prune(bm *Bitmap) typedColumn {
 
 	index := 0
 	for j := 0; j < rc.Len(); j++ {
-		if !bm.get(j) {
+		if !bm.Get(j) {
 			continue
 		}
 		// OPTIM: not need to set false values, we already have them set as zero
-		nc.data.set(index, rc.data.get(j))
-		if rc.nullable && rc.nullability.get(j) {
-			nc.nullability.set(index, true)
+		nc.data.Set(index, rc.data.Get(j))
+		if rc.nullable && rc.nullability.Get(j) {
+			nc.nullability.Set(index, true)
 		}
 		nc.length++
 		index++
@@ -652,18 +654,18 @@ func (rc *columnBools) Prune(bm *Bitmap) typedColumn {
 
 	// make sure the nullability vector aligns with the data
 	if rc.nullable {
-		nc.nullability.ensure(nc.Len())
+		nc.nullability.Ensure(nc.Len())
 	}
 
 	return nc
 }
 
-func (rc *columnNulls) Prune(bm *Bitmap) typedColumn {
+func (rc *columnNulls) Prune(bm *bitmap.Bitmap) TypedColumn {
 	nc := newColumnNulls()
 	if bm == nil {
 		return nc
 	}
-	if bm.cap != rc.Len() {
+	if bm.Cap() != rc.Len() {
 		panic("pruning bitmap does not align with the dataset")
 	}
 
@@ -676,24 +678,24 @@ func (rc *columnNulls) Prune(bm *Bitmap) typedColumn {
 	return nc
 }
 
-// this shouldn't really accept a dtype - at this point we're requiring it, because we don't serialize dtypes
+// this shouldn't really accept a Dtype - at this point we're requiring it, because we don't serialize Dtypes
 // into the binary representation - but that's just because we always have the schema at hand... but will we always have it?
 // shouldn't the files be readable as standalone files?
 // OPTIM: shouldn't we deserialize based on a byte slice instead? We already have it, so we're just duplicating it using a byte buffer
-func deserializeColumn(r io.Reader, dtype dtype) (typedColumn, error) {
-	switch dtype {
-	case dtypeString:
+func deserializeColumn(r io.Reader, Dtype Dtype) (TypedColumn, error) {
+	switch Dtype {
+	case DtypeString:
 		return deserializeColumnStrings(r)
-	case dtypeInt:
+	case DtypeInt:
 		return deserializeColumnInts(r)
-	case dtypeFloat:
+	case DtypeFloat:
 		return deserializeColumnFloats(r)
-	case dtypeBool:
+	case DtypeBool:
 		return deserializeColumnBools(r)
-	case dtypeNull:
+	case DtypeNull:
 		return deserializeColumnNulls(r)
 	}
-	panic(fmt.Sprintf("unsupported dtype: %v", dtype))
+	panic(fmt.Sprintf("unsupported Dtype: %v", Dtype))
 }
 
 func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
@@ -701,7 +703,7 @@ func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
 	}
-	bitmap, err := deserializeBitmapFromReader(r)
+	bm, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -729,7 +731,7 @@ func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
 		data:        data,
 		offsets:     offsets,
 		nullable:    nullable,
-		nullability: bitmap,
+		nullability: bm,
 		length:      lenOffsets - 1,
 	}, nil
 }
@@ -740,7 +742,7 @@ func deserializeColumnInts(r io.Reader) (*columnInts, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
 	}
-	bitmap, err := deserializeBitmapFromReader(r)
+	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -765,7 +767,7 @@ func deserializeColumnFloats(r io.Reader) (*columnFloats, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
 	}
-	bitmap, err := deserializeBitmapFromReader(r)
+	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -790,7 +792,7 @@ func deserializeColumnBools(r io.Reader) (*columnBools, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
 	}
-	bitmap, err := deserializeBitmapFromReader(r)
+	bm, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -798,14 +800,14 @@ func deserializeColumnBools(r io.Reader) (*columnBools, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
 		return nil, err
 	}
-	data, err := deserializeBitmapFromReader(r)
+	data, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
 	}
 	return &columnBools{
 		data:        data,
 		nullable:    nullable,
-		nullability: bitmap,
+		nullability: bm,
 		length:      nelements,
 	}, nil
 }
@@ -825,7 +827,7 @@ func (rc *columnStrings) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return nil, err
 	}
-	_, err := rc.nullability.serialize(w)
+	_, err := rc.nullability.Serialize(w)
 	if err != nil {
 		return nil, err
 	}
@@ -854,7 +856,7 @@ func (rc *columnInts) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return nil, err
 	}
-	_, err := rc.nullability.serialize(w)
+	_, err := rc.nullability.Serialize(w)
 	if err != nil {
 		return nil, err
 	}
@@ -871,7 +873,7 @@ func (rc *columnFloats) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return nil, err
 	}
-	_, err := rc.nullability.serialize(w)
+	_, err := rc.nullability.Serialize(w)
 	if err != nil {
 		return nil, err
 	}
@@ -887,7 +889,7 @@ func (rc *columnBools) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return nil, err
 	}
-	_, err := rc.nullability.serialize(w)
+	_, err := rc.nullability.Serialize(w)
 	if err != nil {
 		return nil, err
 	}
@@ -896,7 +898,7 @@ func (rc *columnBools) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.length); err != nil {
 		return nil, err
 	}
-	_, err = rc.data.serialize(w)
+	_, err = rc.data.Serialize(w)
 	if err != nil {
 		return nil, err
 	}
@@ -929,7 +931,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 	}
 
 	for j := 0; j < int(rc.length); j++ {
-		if rc.nullability.get(j) {
+		if rc.nullability.Get(j) {
 			dt[j] = nil
 		}
 	}
@@ -947,7 +949,7 @@ func (rc *columnInts) MarshalJSON() ([]byte, error) {
 	}
 
 	for j := 0; j < int(rc.length); j++ {
-		if rc.nullability.get(j) {
+		if rc.nullability.Get(j) {
 			dt[j] = nil
 		}
 	}
@@ -968,7 +970,7 @@ func (rc *columnFloats) MarshalJSON() ([]byte, error) {
 	}
 
 	for j := 0; j < int(rc.length); j++ {
-		if rc.nullability.get(j) {
+		if rc.nullability.Get(j) {
 			dt[j] = nil
 		}
 	}
@@ -979,18 +981,18 @@ func (rc *columnBools) MarshalJSON() ([]byte, error) {
 	if !(rc.nullable && rc.nullability.Count() > 0) {
 		dt := make([]bool, 0, rc.Len())
 		for j := 0; j < rc.Len(); j++ {
-			dt = append(dt, rc.data.get(j))
+			dt = append(dt, rc.data.Get(j))
 		}
 		return json.Marshal(dt)
 	}
 
 	dt := make([]*bool, 0, rc.Len())
 	for j := 0; j < rc.Len(); j++ {
-		if rc.nullability.get(j) {
+		if rc.nullability.Get(j) {
 			dt = append(dt, nil)
 			continue
 		}
-		val := rc.data.get(j)
+		val := rc.data.Get(j)
 		dt = append(dt, &val)
 	}
 
@@ -1004,35 +1006,35 @@ func (rc *columnNulls) MarshalJSON() ([]byte, error) {
 
 // if we end up implementing nullable string columns, this will be quite painful,
 // because we'll need to distinguish between empty strings and null values (see AndNot calls
-// in the other dtypes)
-func (rc *columnStrings) Filter(op operator, expr string) *Bitmap {
+// in the other Dtypes)
+func (rc *columnStrings) Filter(op Operator, expr string) *bitmap.Bitmap {
 	switch op {
 	case opEqual:
 		// if we can't match the expression even across value boundaries, there's no way we'll match it properly
 		if !bytes.Contains(rc.data, []byte(expr)) {
 			return nil
 		}
-		var bm *Bitmap
+		var bm *bitmap.Bitmap
 		// OPTIM: we don't have to go value by value, we can do the whole bytes.Contains and go from there - find out
 		// if the boundaries match an entry etc.
 		for j := 0; j < rc.Len(); j++ {
 			if rc.nthValue(j) == expr {
 				if bm == nil {
-					bm = NewBitmap(rc.Len())
+					bm = bitmap.NewBitmap(rc.Len())
 				}
-				bm.set(int(j), true)
+				bm.Set(int(j), true)
 			}
 		}
 
 		return bm
 	case opNotEqual:
-		var bm *Bitmap
+		var bm *bitmap.Bitmap
 		for j := 0; j < rc.Len(); j++ {
 			if rc.nthValue(j) != expr {
 				if bm == nil {
-					bm = NewBitmap(rc.Len())
+					bm = bitmap.NewBitmap(rc.Len())
 				}
-				bm.set(int(j), true)
+				bm.Set(int(j), true)
 			}
 		}
 
@@ -1042,14 +1044,14 @@ func (rc *columnStrings) Filter(op operator, expr string) *Bitmap {
 	}
 }
 
-func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
+func (rc *columnInts) Filter(op Operator, expr string) *bitmap.Bitmap {
 	val, err := parseInt(expr)
 	if err != nil {
 		panic(err)
 	}
 	switch op {
 	case opEqual, opNotEqual, opLt, opLte, opGt, opGte:
-		var bm *Bitmap
+		var bm *bitmap.Bitmap
 		var match bool
 		for j := 0; j < rc.Len(); j++ {
 			match = false
@@ -1065,9 +1067,9 @@ func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
 
 			if match {
 				if bm == nil {
-					bm = NewBitmap(rc.Len())
+					bm = bitmap.NewBitmap(rc.Len())
 				}
-				bm.set(j, true)
+				bm.Set(j, true)
 			}
 		}
 		// account for nulls
@@ -1084,14 +1086,14 @@ func (rc *columnInts) Filter(op operator, expr string) *Bitmap {
 	}
 }
 
-func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
+func (rc *columnFloats) Filter(op Operator, expr string) *bitmap.Bitmap {
 	val, err := parseFloat(expr)
 	if err != nil {
 		panic(err)
 	}
 	switch op {
 	case opEqual, opNotEqual, opLt, opLte, opGt, opGte:
-		var bm *Bitmap
+		var bm *bitmap.Bitmap
 		var match bool
 		for j := 0; j < rc.Len(); j++ {
 			match = false
@@ -1107,9 +1109,9 @@ func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
 
 			if match {
 				if bm == nil {
-					bm = NewBitmap(rc.Len())
+					bm = bitmap.NewBitmap(rc.Len())
 				}
-				bm.set(j, true)
+				bm.Set(j, true)
 			}
 		}
 		// account for nulls
@@ -1123,7 +1125,7 @@ func (rc *columnFloats) Filter(op operator, expr string) *Bitmap {
 	}
 }
 
-func (rc *columnBools) Filter(op operator, expr string) *Bitmap {
+func (rc *columnBools) Filter(op Operator, expr string) *bitmap.Bitmap {
 	val, err := parseBool(expr)
 	if err != nil {
 		panic(err)
@@ -1132,13 +1134,13 @@ func (rc *columnBools) Filter(op operator, expr string) *Bitmap {
 	case opEqual, opNotEqual:
 		// OPTIM: if we get zero matches, let's return nil (.Count is fast)
 		// if we're looking for true values, we already have them in our bitmap
-		var bm *Bitmap
+		var bm *bitmap.Bitmap
 		if (val && op == opEqual) || (!val && op == opNotEqual) {
 			bm = rc.data
 		} else {
 			// otherwise we just flip all the relevant bits
 			bm = rc.data.Clone()
-			bm.invert()
+			bm.Invert()
 		}
 		if rc.nullable {
 			bm.AndNot(rc.nullability)
@@ -1152,12 +1154,12 @@ func (rc *columnBools) Filter(op operator, expr string) *Bitmap {
 
 // OPTIM: we shouldn't need to return a full bitmap - it will always be all ones or all zeroes
 // let's not support any ops for now, we don't know what we'll do with this column
-func (rc *columnNulls) Filter(op operator, expr string) *Bitmap {
+func (rc *columnNulls) Filter(op Operator, expr string) *bitmap.Bitmap {
 	// switch op {
 	// case opEqual:
-	// 	bm := NewBitmap(rc.Len())
+	// 	bm := bitmap.NewBitmap(rc.Len())
 	// 	if isNull(expr) {
-	// 		bm.invert()
+	// 		bm.Invert()
 	// 	}
 
 	// 	return bm

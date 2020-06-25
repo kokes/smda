@@ -1,4 +1,4 @@
-package smda
+package database
 
 import (
 	"bytes"
@@ -53,7 +53,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		}
 
 		// first try from a reader
-		ds, err := d.loadDatasetFromReaderAuto(bytes.NewReader(bf.Bytes()))
+		ds, err := d.LoadDatasetFromReaderAuto(bytes.NewReader(bf.Bytes()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -97,11 +97,11 @@ func TestReadingFromStripes(t *testing.T) {
 
 	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
-	ds, err := db.loadDatasetFromReaderAuto(buf)
+	ds, err := db.LoadDatasetFromReaderAuto(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
-	col, err := db.readColumnFromStripe(ds, ds.Stripes[0], 0)
+	col, err := db.ReadColumnFromStripe(ds, ds.Stripes[0], 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestReadingFromStripes(t *testing.T) {
 		t.Errorf("expecting the length to be %v, got %v", 2, cols.length)
 	}
 
-	col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 1)
+	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0], 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestReadingFromStripes(t *testing.T) {
 		t.Errorf("expecting the second column to be nullable")
 	}
 
-	col, err = db.readColumnFromStripe(ds, ds.Stripes[0], 2)
+	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0], 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 
 			b.SetBytes(int64(buf.Len()))
 
-			ds, err := db.loadDatasetFromReaderAuto(buf)
+			ds, err := db.LoadDatasetFromReaderAuto(buf)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -171,7 +171,7 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 				for cn := 0; cn < 3; cn++ {
 					crows := 0
 					for _, stripeID := range ds.Stripes {
-						col, err := db.readColumnFromStripe(ds, stripeID, cn)
+						col, err := db.ReadColumnFromStripe(ds, stripeID, cn)
 						if err != nil {
 							b.Fatal(err)
 						}
@@ -188,12 +188,12 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 }
 
 func TestColumnSchemaMarshalingRoundtrips(t *testing.T) {
-	cs := columnSchema{Name: "foo", Dtype: dtypeBool, Nullable: true}
+	cs := ColumnSchema{Name: "foo", Dtype: DtypeBool, Nullable: true}
 	dt, err := json.Marshal(cs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var cs2 columnSchema
+	var cs2 ColumnSchema
 	if err := json.Unmarshal(dt, &cs2); err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestBasicFileCaching(t *testing.T) {
 		}
 		rd := bytes.NewReader(buf.Bytes())
 		path := filepath.Join(tmpdir, strconv.Itoa(size))
-		if err := cacheIncomingFile(rd, path); err != nil {
+		if err := CacheIncomingFile(rd, path); err != nil {
 			t.Error(err)
 			continue
 		}
@@ -331,7 +331,7 @@ func TestCacheErrors(t *testing.T) {
 	nopath := filepath.Join(tmpdir, "does_not_exist", "no_file.txt")
 
 	data := strings.NewReader("ahoy")
-	if err := cacheIncomingFile(data, nopath); !errors.Is(err, os.ErrNotExist) {
+	if err := CacheIncomingFile(data, nopath); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("cannot cache into a non-existent directory, but got %v", err)
 	}
 }
@@ -350,7 +350,7 @@ func TestChecksumValidation(t *testing.T) {
 
 	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
-	ds, err := db.loadDatasetFromReaderAuto(buf)
+	ds, err := db.LoadDatasetFromReaderAuto(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func TestChecksumValidation(t *testing.T) {
 	stripeID := ds.Stripes[0]
 	readStripes := func() error {
 		for colNum := 0; colNum < 3; colNum++ {
-			_, err := db.readColumnFromStripe(ds, stripeID, colNum)
+			_, err := db.ReadColumnFromStripe(ds, stripeID, colNum)
 			if err != nil {
 				return err
 			}
@@ -408,7 +408,7 @@ func TestInvalidOffsets(t *testing.T) {
 
 	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
-	ds, err := db.loadDatasetFromReaderAuto(buf)
+	ds, err := db.LoadDatasetFromReaderAuto(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,7 +438,7 @@ func TestInvalidOffsets(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if _, err := db.readColumnFromStripe(ds, ds.Stripes[0], 0); err != errInvalidOffsetData {
+		if _, err := db.ReadColumnFromStripe(ds, ds.Stripes[0], 0); err != errInvalidOffsetData {
 			t.Errorf("expecting offsets %v to trigger errInvalidOffsetData, but got %v instead", test, err)
 		}
 	}
@@ -457,9 +457,9 @@ func TestHeaderValidation(t *testing.T) {
 		{[]string{"foo", "bar"}, []string{"foo", "bar "}, errSchemaMismatch},
 	}
 	for _, test := range tests {
-		schema := make(tableSchema, 0, len(test.schemaNames))
+		schema := make(TableSchema, 0, len(test.schemaNames))
 		for _, el := range test.schemaNames {
-			schema = append(schema, columnSchema{Name: el})
+			schema = append(schema, ColumnSchema{Name: el})
 		}
 		if err := validateHeaderAgainstSchema(test.header, schema); err != test.err {
 			t.Fatalf("expected validation of header %v and schema %v to result in %v, got %v instead", test.header, test.schemaNames, test.err, err)

@@ -1,4 +1,4 @@
-package smda
+package database
 
 import (
 	"bufio"

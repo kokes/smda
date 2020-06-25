@@ -1,13 +1,15 @@
-package smda
+package query
 
 import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/kokes/smda/src/database"
 )
 
 func TestQueryingEmptyDatasets(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -17,12 +19,12 @@ func TestQueryingEmptyDatasets(t *testing.T) {
 		}
 	}()
 
-	ds := NewDataset()
-	db.addDataset(ds)
+	ds := database.NewDataset()
+	db.AddDataset(ds)
 	limit := 100
 	q := Query{Dataset: ds.ID, Limit: &limit}
 
-	qr, err := db.Query(q)
+	qr, err := QueryData(db, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +34,7 @@ func TestQueryingEmptyDatasets(t *testing.T) {
 }
 
 func TestBasicQueries(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,24 +45,24 @@ func TestBasicQueries(t *testing.T) {
 	}()
 
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
-	ds, err := db.loadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.addDataset(ds)
+	db.AddDataset(ds)
 	limit := 100
 	q := Query{Dataset: ds.ID, Limit: &limit}
 
-	qr, err := db.Query(q)
+	qr, err := QueryData(db, q)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !(reflect.DeepEqual(qr.Columns, []string{"foo", "bar", "baz"}) && len(qr.Data) == 3) {
 		t.Error("expecting three columns of data")
 	}
-	firstCol := newColumnInts(false)
-	firstCol.addValue("1")
-	firstCol.addValue("4")
+	firstCol := database.NewTypedColumnFromSchema(database.ColumnSchema{Dtype: database.DtypeInt})
+	firstCol.AddValue("1")
+	firstCol.AddValue("4")
 	if !reflect.DeepEqual(qr.Data[0], firstCol) {
 		t.Errorf("first column does not match what's expected: %v vs. %v", qr.Data[0], firstCol)
 	}
@@ -69,7 +71,7 @@ func TestBasicQueries(t *testing.T) {
 // TODO: test that a limit omitted is equivalent to loading all data (test with and without filters)
 // also test negative limits
 func TestLimitsInQueries(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,28 +82,28 @@ func TestLimitsInQueries(t *testing.T) {
 	}()
 
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6\n7,8,9")
-	ds, err := db.loadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.addDataset(ds)
+	db.AddDataset(ds)
 
 	firstColRaw := []string{"1", "4", "7"}
 	for limit := 0; limit < 100; limit++ {
 		q := Query{Dataset: ds.ID, Limit: &limit}
 
-		qr, err := db.Query(q)
+		qr, err := QueryData(db, q)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !(reflect.DeepEqual(qr.Columns, []string{"foo", "bar", "baz"}) && len(qr.Data) == 3) {
 			t.Error("expecting three columns of data")
 		}
-		firstCol := newColumnInts(false)
+		firstCol := database.NewTypedColumnFromSchema(database.ColumnSchema{Dtype: database.DtypeInt})
 		if limit > len(firstColRaw) {
-			firstCol.addValues(firstColRaw)
+			firstCol.AddValues(firstColRaw)
 		} else {
-			firstCol.addValues(firstColRaw[:limit])
+			firstCol.AddValues(firstColRaw[:limit])
 		}
 		if !reflect.DeepEqual(qr.Data[0], firstCol) {
 			t.Errorf("first column does not match what's expected: %v vs. %v", qr.Data[0], firstCol)
@@ -136,7 +138,7 @@ func TestBasicAggregation(t *testing.T) {
 	}
 
 	for testNo, test := range tests {
-		db, err := NewDatabase(nil)
+		db, err := database.NewDatabase(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -146,17 +148,17 @@ func TestBasicAggregation(t *testing.T) {
 			}
 		}()
 
-		ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(test.input))
+		ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.input))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		dso, err := db.loadDatasetFromReaderAuto(strings.NewReader(test.output))
+		dso, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.output))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		nrc, err := db.Aggregate(ds, test.aggregate)
+		nrc, err := Aggregate(db, ds, test.aggregate)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -167,7 +169,7 @@ func TestBasicAggregation(t *testing.T) {
 			//        2) create a helper method which tests for equality of two datasets (== schema, == each column
 			//           in each stripe, ignore stripeIDs)
 			// also, to test this, we need to initialise the db with MaxRowsPerStripe to a very low number to force creation of multiple stripes
-			expcol, err := db.readColumnFromStripe(dso, dso.Stripes[0], j)
+			expcol, err := db.ReadColumnFromStripe(dso, dso.Stripes[0], j)
 			if err != nil {
 				t.Fatal(err)
 			}

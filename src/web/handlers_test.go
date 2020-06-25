@@ -1,4 +1,4 @@
-package smda
+package web
 
 import (
 	"bytes"
@@ -12,11 +12,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/kokes/smda/src/database"
+	"github.com/kokes/smda/src/query"
 )
 
 // sooo, we're actually not testing just the handlers, we're going through the router as well
 func TestStatusHandling(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +29,8 @@ func TestStatusHandling(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db) // this would normally be triggered in RunWebserver, TODO: move elsewhere? (it's everywhere here)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/status", srv.URL)
@@ -53,7 +57,7 @@ func TestStatusHandling(t *testing.T) {
 }
 
 func TestRootHandling(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +67,8 @@ func TestRootHandling(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 	url := fmt.Sprintf("%s/", srv.URL)
 	resp, err := http.Get(url)
@@ -89,7 +94,7 @@ func TestRootHandling(t *testing.T) {
 }
 
 func TestRootDoesNotHandle404(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +104,8 @@ func TestRootDoesNotHandle404(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 	for _, path := range []string{"foo", "bar", "foo/bar"} {
 		url := fmt.Sprintf("%s/%s", srv.URL, path)
@@ -124,7 +130,7 @@ func TestRootDoesNotHandle404(t *testing.T) {
 }
 
 func TestDatasetListing(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,13 +142,14 @@ func TestDatasetListing(t *testing.T) {
 
 	dsets := []string{"foo,bar,baz\n1,2,3\n4,5,6", "foo,bar\ntrue,false\nfalse,true"}
 	for _, dset := range dsets {
-		_, err := db.loadDatasetFromReaderAuto(strings.NewReader(dset))
+		_, err := db.LoadDatasetFromReaderAuto(strings.NewReader(dset))
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/api/datasets", srv.URL)
@@ -184,7 +191,7 @@ func TestDatasetListing(t *testing.T) {
 }
 
 func TestDatasetListingNoDatasets(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +201,8 @@ func TestDatasetListingNoDatasets(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/api/datasets", srv.URL)
@@ -251,7 +259,7 @@ func TestErrorsAreWrittenOut(t *testing.T) {
 }
 
 func TestQueryMethods(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +269,8 @@ func TestQueryMethods(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
 	tests := []struct {
@@ -291,7 +300,7 @@ func TestQueryMethods(t *testing.T) {
 }
 
 func TestHandlingQueries(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,23 +311,24 @@ func TestHandlingQueries(t *testing.T) {
 	}()
 
 	dsets := []string{"foo,bar\n1,3\n4,6", "foo,bar\n9,8\n1,2"}
-	dss := make([]*Dataset, 0, len(dsets))
+	dss := make([]*database.Dataset, 0, len(dsets))
 	for _, dset := range dsets {
-		ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(dset))
+		ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader(dset))
 		if err != nil {
 			t.Fatal(err)
 		}
 		dss = append(dss, ds)
 	}
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
 	for _, ds := range dss {
 		url := fmt.Sprintf("%s/api/query", srv.URL)
 		limit := 100
-		query := Query{Dataset: ds.ID, Limit: &limit}
-		body, err := json.Marshal(query)
+		qr := query.Query{Dataset: ds.ID, Limit: &limit}
+		body, err := json.Marshal(qr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -355,7 +365,7 @@ func TestHandlingQueries(t *testing.T) {
 
 // At this point we only test that when passed an unexpected parameter, the query fails
 func TestInvalidQueries(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,12 +376,13 @@ func TestInvalidQueries(t *testing.T) {
 	}()
 
 	data := "foo\n1\n2\n3"
-	ds, err := db.loadDatasetFromReaderAuto(strings.NewReader(data))
+	ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/api/query", srv.URL)
@@ -394,7 +405,7 @@ func TestInvalidQueries(t *testing.T) {
 }
 
 func TestBasicRawUpload(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +415,8 @@ func TestBasicRawUpload(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/upload/raw?name=test_file", srv.URL)
@@ -421,12 +433,12 @@ func TestBasicRawUpload(t *testing.T) {
 		t.Errorf("unexpected content type: %v", ct)
 	}
 	defer resp.Body.Close()
-	var dec Dataset
+	var dec database.Dataset
 
 	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
 		t.Fatal(err)
 	}
-	if dec.ID.otype != otypeDataset {
+	if dec.ID.Otype != database.OtypeDataset {
 		t.Errorf("expecting an ID for a dataset")
 	}
 	if dec.Name != "test_file" {
@@ -438,7 +450,7 @@ func TestBasicRawUpload(t *testing.T) {
 }
 
 func TestBasicAutoUpload(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +460,8 @@ func TestBasicAutoUpload(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/upload/auto?name=auto_file", srv.URL)
@@ -465,7 +478,7 @@ func TestBasicAutoUpload(t *testing.T) {
 		t.Errorf("unexpected content type: %v", ct)
 	}
 	defer resp.Body.Close()
-	var dec Dataset
+	var dec database.Dataset
 
 	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
 		t.Fatal(err)
@@ -473,13 +486,13 @@ func TestBasicAutoUpload(t *testing.T) {
 	if dec.Name != "auto_file" {
 		t.Errorf("expected the name to be %v, got %v", "auto_file", dec.Name)
 	}
-	if dec.ID.otype != otypeDataset {
+	if dec.ID.Otype != database.OtypeDataset {
 		t.Errorf("expecting an ID for a dataset")
 	}
 	if dec.Schema == nil {
 		t.Error("expecting a schema to be present, got a nil")
 	}
-	es := tableSchema{{"foo", dtypeInt, false}, {"bar", dtypeInt, true}, {"baz", dtypeBool, false}}
+	es := database.TableSchema{{"foo", database.DtypeInt, false}, {"bar", database.DtypeInt, true}, {"baz", database.DtypeBool, false}}
 	if !reflect.DeepEqual(dec.Schema, es) {
 		t.Errorf("expecting the schema to be inferred as %v, got %v", es, dec.Schema)
 	}
@@ -506,7 +519,7 @@ func randomIntFuncer(n int) func() []byte {
 }
 
 func BenchmarkAutoUpload(b *testing.B) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -516,7 +529,8 @@ func BenchmarkAutoUpload(b *testing.B) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.server.Handler)
+	setupRoutes(db)
+	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 	url := fmt.Sprintf("%s/upload/auto", srv.URL)
 

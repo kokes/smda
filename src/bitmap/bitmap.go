@@ -1,4 +1,4 @@
-package smda
+package bitmap
 
 import (
 	"encoding/binary"
@@ -10,6 +10,10 @@ import (
 type Bitmap struct {
 	data []uint64
 	cap  int
+}
+
+func (bm *Bitmap) Cap() int {
+	return bm.cap
 }
 
 // Count returns the number of true values in a bitmap
@@ -52,7 +56,7 @@ func (bm *Bitmap) KeepFirstN(n int) {
 func (bm *Bitmap) Append(obm *Bitmap) {
 	cap := bm.cap
 	for j := 0; j < obm.cap; j++ {
-		bm.set(cap+j, obm.get(j))
+		bm.Set(cap+j, obm.Get(j))
 	}
 }
 
@@ -75,7 +79,7 @@ func (bm *Bitmap) AndNot(obm *Bitmap) {
 	}
 }
 
-func (bm *Bitmap) ensure(n int) {
+func (bm *Bitmap) Ensure(n int) {
 	if bm.data != nil && n <= bm.cap {
 		return
 	}
@@ -93,7 +97,7 @@ func (bm *Bitmap) ensure(n int) {
 // NewBitmap allocates a bitmap to hold at least n values
 func NewBitmap(n int) *Bitmap {
 	bm := &Bitmap{}
-	bm.ensure(n)
+	bm.Ensure(n)
 	return bm
 }
 
@@ -101,7 +105,7 @@ func NewBitmap(n int) *Bitmap {
 func NewBitmapFromBools(data []bool) *Bitmap {
 	bm := NewBitmap(len(data))
 	for j, el := range data {
-		bm.set(j, el)
+		bm.Set(j, el)
 	}
 	return bm
 }
@@ -115,8 +119,8 @@ func NewBitmapFromBits(data []uint64) *Bitmap {
 }
 
 // OPTIM: cost is 84, can be almost inlined
-func (bm *Bitmap) set(n int, val bool) {
-	bm.ensure(n + 1)
+func (bm *Bitmap) Set(n int, val bool) {
+	bm.Ensure(n + 1)
 	if val {
 		bm.data[n/64] |= uint64(1 << (n % 64))
 	} else {
@@ -124,14 +128,14 @@ func (bm *Bitmap) set(n int, val bool) {
 	}
 }
 
-func (bm *Bitmap) get(n int) bool {
+func (bm *Bitmap) Get(n int) bool {
 	// OPTIM: this will always escape to the heap, so it's an inlining blocker
 	//        maybe make sure the bitmap is long enough some other place and leave this to be just a return
-	bm.ensure(n + 1) // to avoid panics?
+	bm.Ensure(n + 1) // to avoid panics?
 	return (bm.data[n/64] & uint64(1<<(n%64))) > 0
 }
 
-func (bm *Bitmap) invert() {
+func (bm *Bitmap) Invert() {
 	for j, el := range bm.data {
 		bm.data[j] = ^el
 	}
@@ -141,7 +145,7 @@ func (bm *Bitmap) invert() {
 	}
 }
 
-func (bm *Bitmap) serialize(w io.Writer) (int, error) {
+func (bm *Bitmap) Serialize(w io.Writer) (int, error) {
 	cap := uint32(bm.cap)
 	if err := binary.Write(w, binary.LittleEndian, cap); err != nil {
 		return 0, err
@@ -154,7 +158,7 @@ func (bm *Bitmap) serialize(w io.Writer) (int, error) {
 	return 4 + 4 + 8*int(nelements), binary.Write(w, binary.LittleEndian, bm.data)
 }
 
-func deserializeBitmapFromReader(r io.Reader) (*Bitmap, error) {
+func DeserializeBitmapFromReader(r io.Reader) (*Bitmap, error) {
 	var cap uint32
 	if err := binary.Read(r, binary.LittleEndian, &cap); err != nil {
 		return nil, err

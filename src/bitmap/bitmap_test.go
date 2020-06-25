@@ -1,4 +1,4 @@
-package smda
+package bitmap
 
 import (
 	"bytes"
@@ -10,11 +10,11 @@ func TestBitmapSetsGets(t *testing.T) {
 	vals := []bool{true, false, false, false, true, true, false}
 	bm := NewBitmap(0)
 	for j, v := range vals {
-		bm.set(j, v)
+		bm.Set(j, v)
 	}
 	for j, v := range vals {
-		if bm.get(j) != v {
-			t.Fatalf("position %v: expected %v, got %v", j, v, bm.get(j))
+		if bm.Get(j) != v {
+			t.Fatalf("position %v: expected %v, got %v", j, v, bm.Get(j))
 		}
 	}
 }
@@ -33,14 +33,14 @@ func TestBitmapRoundtrip(t *testing.T) {
 	}
 	for _, b := range bitmaps {
 		bf := new(bytes.Buffer)
-		_, err := b.serialize(bf)
+		_, err := b.Serialize(bf)
 		if err != nil {
 			t.Error(err)
 			return
 		}
 		br := bytes.NewReader(bf.Bytes())
 
-		b2, err := deserializeBitmapFromReader(br)
+		b2, err := DeserializeBitmapFromReader(br)
 		if err != nil {
 			t.Error(err)
 			return

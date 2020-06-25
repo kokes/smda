@@ -1,4 +1,4 @@
-package smda
+package database
 
 import (
 	"errors"
@@ -8,49 +8,49 @@ import (
 	"strconv"
 )
 
-type dtype uint8
+type Dtype uint8
 
 const (
-	dtypeInvalid dtype = iota
-	dtypeNull
-	dtypeString
-	dtypeInt
-	dtypeFloat
-	dtypeBool
+	DtypeInvalid Dtype = iota
+	DtypeNull
+	DtypeString
+	DtypeInt
+	DtypeFloat
+	DtypeBool
 	// more to be added
-	dtypeMax
+	DtypeMax
 )
 
-func (dt dtype) String() string {
+func (dt Dtype) String() string {
 	return []string{"invalid", "null", "string", "int", "float", "bool"}[dt]
 }
 
-// we want dtypes to be marshaled within columnSchema correctly
+// we want Dtypes to be marshaled within loader.ColumnSchema correctly
 // without this they'd be returned as an integer (even with ",string" tags)
-func (dt dtype) MarshalJSON() ([]byte, error) {
+func (dt Dtype) MarshalJSON() ([]byte, error) {
 	retval := append([]byte{'"'}, []byte(dt.String())...)
 	retval = append(retval, '"')
 	return retval, nil
 }
 
-func (dt *dtype) UnmarshalJSON(data []byte) error {
+func (dt *Dtype) UnmarshalJSON(data []byte) error {
 	if !(len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"') {
-		return errors.New("unexpected string to be unmarshaled into a dtype")
+		return errors.New("unexpected string to be unmarshaled into a Dtype")
 	}
 	sdata := string(data[1 : len(data)-1])
 	switch sdata {
 	case "invalid":
-		*dt = dtypeInvalid
+		*dt = DtypeInvalid
 	case "null":
-		*dt = dtypeNull
+		*dt = DtypeNull
 	case "string":
-		*dt = dtypeString
+		*dt = DtypeString
 	case "int":
-		*dt = dtypeInt
+		*dt = DtypeInt
 	case "float":
-		*dt = dtypeFloat
+		*dt = DtypeFloat
 	case "bool":
-		*dt = dtypeBool
+		*dt = DtypeBool
 	default:
 		return fmt.Errorf("unexpected type: %v", sdata)
 	}
@@ -60,14 +60,14 @@ func (dt *dtype) UnmarshalJSON(data []byte) error {
 
 type typeGuesser struct {
 	nullable bool
-	types    map[dtype]int
+	types    map[Dtype]int
 	nrows    int
 }
 
 func newTypeGuesser() *typeGuesser {
 	return &typeGuesser{
 		nullable: false,
-		types:    make(map[dtype]int),
+		types:    make(map[Dtype]int),
 	}
 }
 
@@ -133,26 +133,26 @@ func containsDigit(s string) bool {
 // does NOT care about NULL inference, that's what isNull is for
 // OPTIM: this function is weird, because it does allocate when benchmarking - but not when individual
 // subfunctions are called - where are the allocations coming from? Improper inlining?
-func guessType(s string) dtype {
+func guessType(s string) Dtype {
 	// this is the fastest, so let's do this first
 	if _, err := parseBool(s); err == nil {
-		return dtypeBool
+		return DtypeBool
 	}
 	// early exit - only makes sense to do parse(Int|Float) if there's at least one digit
 	if containsDigit(s) {
 		if _, err := parseInt(s); err == nil {
-			return dtypeInt
+			return DtypeInt
 		}
 		if _, err := parseFloat(s); err == nil {
-			return dtypeFloat
+			return DtypeFloat
 		}
 	}
 
-	return dtypeString
+	return DtypeString
 }
 
 // OPTIM: cost is 82, can be almost inlined (though it will get more expensive once isNull is fully defined)
-func (tg *typeGuesser) addValue(s string) {
+func (tg *typeGuesser) AddValue(s string) {
 	tg.nrows++
 	if s == "" {
 		tg.nullable = true
@@ -160,27 +160,27 @@ func (tg *typeGuesser) addValue(s string) {
 	}
 
 	// OPTIM: we could use a slice instead of a map - it would improve insert performance, but the inferredType
-	// logic would get more complicated - but it might be worthwhile - we run addValue way more often
+	// logic would get more complicated - but it might be worthwhile - we run AddValue way more often
 	tg.types[guessType(s)]++
 }
 
-func (tg *typeGuesser) inferredType() columnSchema {
+func (tg *typeGuesser) inferredType() ColumnSchema {
 	if tg.nrows == 0 {
-		return columnSchema{
-			Dtype:    dtypeInvalid,
+		return ColumnSchema{
+			Dtype:    DtypeInvalid,
 			Nullable: true, // nullability makes no sense here...?
 		}
 	}
 	if len(tg.types) == 0 {
-		return columnSchema{
-			Dtype:    dtypeNull,
+		return ColumnSchema{
+			Dtype:    DtypeNull,
 			Nullable: tg.nullable,
 		}
 	}
 
 	if len(tg.types) == 1 {
 		for key := range tg.types {
-			return columnSchema{
+			return ColumnSchema{
 				Dtype:    key,
 				Nullable: tg.nullable,
 			}
@@ -190,20 +190,20 @@ func (tg *typeGuesser) inferredType() columnSchema {
 	// there are multiple guessed types, but they can all be numeric, so let's just settle
 	// on a common type
 	for g := range tg.types {
-		if !(g == dtypeInt || g == dtypeFloat) {
-			return columnSchema{
-				Dtype:    dtypeString,
+		if !(g == DtypeInt || g == DtypeFloat) {
+			return ColumnSchema{
+				Dtype:    DtypeString,
 				Nullable: tg.nullable,
 			}
 		}
 	}
-	return columnSchema{
-		Dtype:    dtypeFloat,
+	return ColumnSchema{
+		Dtype:    DtypeFloat,
 		Nullable: tg.nullable,
 	}
 }
 
-func inferTypes(path string, settings *loadSettings) (tableSchema, error) {
+func inferTypes(path string, settings *loadSettings) (TableSchema, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -236,11 +236,11 @@ func inferTypes(path string, settings *loadSettings) (tableSchema, error) {
 			return nil, err
 		}
 		for j, val := range row {
-			tgs[j].addValue(val)
+			tgs[j].AddValue(val)
 		}
 
 	}
-	ret := make(tableSchema, len(tgs))
+	ret := make(TableSchema, len(tgs))
 	for j, tg := range tgs {
 		ret[j] = tg.inferredType()
 		ret[j].Name = hd[j]

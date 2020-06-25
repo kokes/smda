@@ -4,7 +4,8 @@ import (
 	"flag"
 	"log"
 
-	smda "github.com/kokes/smda/src"
+	"github.com/kokes/smda/src/database"
+	"github.com/kokes/smda/src/web"
 )
 
 func main() {
@@ -15,7 +16,7 @@ func main() {
 	loadSamples := flag.Bool("samples", false, "load sample datasets")
 	flag.Parse()
 
-	d, err := smda.NewDatabase(&smda.DatabaseConfig{
+	d, err := database.NewDatabase(&database.DatabaseConfig{
 		WorkingDirectory: *wdir,
 	})
 	if err != nil {
@@ -32,7 +33,7 @@ func main() {
 		}
 	}
 
-	if err := d.RunWebserver(*port, *ensurePort, *expose); err != nil {
+	if err := web.RunWebserver(d, *port, *ensurePort, *expose); err != nil {
 		log.Fatal(err)
 	}
 }

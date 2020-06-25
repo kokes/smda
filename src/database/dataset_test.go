@@ -1,4 +1,4 @@
-package smda
+package database
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestNewUidStringify(t *testing.T) {
-	uid := newUID(otypeDataset)
+	uid := newUID(OtypeDataset)
 	suid := uid.String()
 
 	if len(suid) != 18 {
@@ -20,7 +20,7 @@ func TestNewUidStringify(t *testing.T) {
 }
 
 func TestNewUidJSONify(t *testing.T) {
-	uid := newUID(otypeDataset)
+	uid := newUID(OtypeDataset)
 	dt, err := json.Marshal(uid)
 	if err != nil {
 		t.Fatal(err)
@@ -35,7 +35,7 @@ func TestNewUidJSONify(t *testing.T) {
 }
 
 func TestNewUidDeJSONify(t *testing.T) {
-	uid := newUID(otypeDataset)
+	uid := newUID(OtypeDataset)
 	dt, err := json.Marshal(uid)
 	if err != nil {
 		t.Fatal(err)
@@ -45,8 +45,8 @@ func TestNewUidDeJSONify(t *testing.T) {
 	if err := json.Unmarshal(dt, &uid2); err != nil {
 		t.Fatal(err)
 	}
-	if uid2.otype != uid.otype {
-		t.Errorf("expecting the type to be the same after a roundtrip, got: %v", uid2.otype)
+	if uid2.Otype != uid.Otype {
+		t.Errorf("expecting the type to be the same after a roundtrip, got: %v", uid2.Otype)
 	}
 	if uid2.oid != uid.oid {
 		t.Errorf("expecting the id to be the same after a roundtrip, got: %v", uid2.oid)
@@ -111,9 +111,9 @@ func TestAddingDatasets(t *testing.T) {
 		}
 	}()
 	ds := NewDataset()
-	db.addDataset(ds)
+	db.AddDataset(ds)
 
-	ds2, err := db.getDataset(ds.ID)
+	ds2, err := db.GetDataset(ds.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestRemovingDatasets(t *testing.T) {
 		}
 	}()
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
-	ds, err := db.loadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestRemovingDatasets(t *testing.T) {
 
 	db.removeDataset(ds)
 
-	_, err = db.getDataset(ds.ID)
+	_, err = db.GetDataset(ds.ID)
 	if err == nil {
 		// TODO: should probably check for the right error (though we're not wrapping now)
 		t.Error("should not be able to retrieve a deleted dataset")
@@ -155,7 +155,7 @@ func TestRemovingDatasets(t *testing.T) {
 
 	// test that files were deleted - we don't need to check individual stripes, we can just
 	// check the directory is no longer there
-	if _, err := os.Stat(db.datasetPath(ds)); !os.IsNotExist(err) {
+	if _, err := os.Stat(db.DatasetPath(ds)); !os.IsNotExist(err) {
 		t.Errorf("expecting data to be deleted along with a dataset, but got: %v", err)
 	}
 }
@@ -171,11 +171,11 @@ func TestGettingNewDatasets(t *testing.T) {
 		}
 	}()
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
-	ds, err := db.loadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds2, err := db.getDataset(ds.ID)
+	ds2, err := db.GetDataset(ds.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,4 +1,4 @@
-package smda
+package web
 
 import (
 	"fmt"
@@ -7,10 +7,12 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/kokes/smda/src/database"
 )
 
 func TestServerHappyPath(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,12 +23,12 @@ func TestServerHappyPath(t *testing.T) {
 	}()
 	port := 1234
 	go func() {
-		if err := db.RunWebserver(port, true, false); err != http.ErrServerClosed {
+		if err := RunWebserver(db, port, true, false); err != http.ErrServerClosed {
 			panic("unable to start a webserver")
 		}
 	}()
 	defer func() {
-		if err := db.server.Close(); err != nil {
+		if err := db.Server.Close(); err != nil {
 			panic(err)
 		}
 	}()
@@ -39,7 +41,7 @@ func TestServerHappyPath(t *testing.T) {
 	}
 }
 func TestServerClosing(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,18 +53,18 @@ func TestServerClosing(t *testing.T) {
 
 	go func() {
 		time.Sleep(5 * time.Millisecond)
-		if err := db.server.Close(); err != nil {
+		if err := db.Server.Close(); err != nil {
 			panic(err)
 		}
 	}()
 	port := 1234
-	if err := db.RunWebserver(port, true, false); err != http.ErrServerClosed {
+	if err := RunWebserver(db, port, true, false); err != http.ErrServerClosed {
 		t.Fatalf("expecting a server to be stopped with a ErrServerClosed, got %v", err)
 	}
 }
 
 func TestBusyPort(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,18 +85,18 @@ func TestBusyPort(t *testing.T) {
 			panic(err)
 		}
 	}()
-	if err := db.RunWebserver(port, true, false); err != errRequestedPortBusy {
+	if err := RunWebserver(db, port, true, false); err != errRequestedPortBusy {
 		t.Errorf("server started on a busy port with port ensuring should err with errRequestPortBusy, got %v", err)
 	}
 
 	// now we're not ensuring ports
 	go func() {
-		if err := db.RunWebserver(port, false, false); err != http.ErrServerClosed {
+		if err := RunWebserver(db, port, false, false); err != http.ErrServerClosed {
 			panic(err)
 		}
 	}()
 	defer func() {
-		if err := db.server.Close(); err != nil {
+		if err := db.Server.Close(); err != nil {
 			panic(err)
 		}
 	}()
@@ -114,7 +116,7 @@ func TestBusyPort(t *testing.T) {
 // we will first bind to 100 consecutive ports and then try and launch a server - it should fail
 // as it will try these very ports and will fail for all of them
 func TestNoAvailablePorts(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := database.NewDatabase(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +140,7 @@ func TestNoAvailablePorts(t *testing.T) {
 			}
 		}(listener)
 	}
-	if err := db.RunWebserver(basePort, false, false); err != errNoAvailablePorts {
+	if err := RunWebserver(db, basePort, false, false); err != errNoAvailablePorts {
 		t.Errorf("server started on a busy port with port ensuring should err with errNoAvailablePorts, got %v", err)
 	}
 }

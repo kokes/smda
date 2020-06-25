@@ -1,4 +1,4 @@
-package smda
+package database
 
 import (
 	"encoding/csv"
@@ -20,21 +20,21 @@ import (
 
 func TestDtypeStringer(t *testing.T) {
 	tests := []struct {
-		dtype dtype
+		Dtype Dtype
 		str   string
 	}{
-		{dtypeInvalid, "invalid"},
-		{dtypeNull, "null"},
-		{dtypeInt, "int"},
-		{dtypeFloat, "float"},
+		{DtypeInvalid, "invalid"},
+		{DtypeNull, "null"},
+		{DtypeInt, "int"},
+		{DtypeFloat, "float"},
 	}
 
 	for _, testCase := range tests {
-		if testCase.dtype.String() != testCase.str {
-			t.Errorf("expected %v to stringify to %v", testCase.dtype, testCase.str)
+		if testCase.Dtype.String() != testCase.str {
+			t.Errorf("expected %v to stringify to %v", testCase.Dtype, testCase.str)
 		}
 		expectedJSON := fmt.Sprintf("\"%v\"", testCase.str)
-		marshaled, err := json.Marshal(testCase.dtype)
+		marshaled, err := json.Marshal(testCase.Dtype)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,18 +45,18 @@ func TestDtypeStringer(t *testing.T) {
 }
 
 func TestDtypeJSONRoundtrip(t *testing.T) {
-	for _, dt := range []dtype{dtypeInvalid, dtypeNull, dtypeInt, dtypeFloat, dtypeBool, dtypeString} {
+	for _, dt := range []Dtype{DtypeInvalid, DtypeNull, DtypeInt, DtypeFloat, DtypeBool, DtypeString} {
 		bt, err := json.Marshal(dt)
 		if err != nil {
 			t.Error(err)
 			continue
 		}
-		var dt2 dtype
+		var dt2 Dtype
 		if err := json.Unmarshal(bt, &dt2); err != nil {
 			t.Error(err)
 		}
 		if dt != dt2 {
-			t.Errorf("dtype roundtrip failed, expected %v, got %v", dt, dt2)
+			t.Errorf("Dtype roundtrip failed, expected %v, got %v", dt, dt2)
 		}
 	}
 }
@@ -64,95 +64,95 @@ func TestDtypeJSONRoundtrip(t *testing.T) {
 func TestBasicTypeInference(t *testing.T) {
 	tt := []struct {
 		input    []string
-		dtype    dtype
+		Dtype    Dtype
 		nullable bool
 	}{
 		{
 			[]string{"foo", "bar", "baz"},
-			dtypeString,
+			DtypeString,
 			false,
 		},
 		{
 			[]string{"foo", "bar", "123"},
-			dtypeString,
+			DtypeString,
 			false,
 		},
 		{
 			[]string{"foo", "bar", ""},
-			dtypeString,
+			DtypeString,
 			true,
 		},
 		{
 			[]string{"foo", "bar", " "},
-			dtypeString,
+			DtypeString,
 			false,
 		},
 		{
 			[]string{"1", "2", "3"},
-			dtypeInt,
+			DtypeInt,
 			false,
 		},
 		{
 			[]string{"1", "2", strconv.Itoa(math.MaxInt64), strconv.Itoa(math.MinInt64)},
-			dtypeInt,
+			DtypeInt,
 			false,
 		},
 		{
 			[]string{"1", "2", "9523372036854775807", "-9523372036854775808"}, // beyond int64 (but valid uint64)
 			// when we go past int64, we can still use floats to somewhat represent these, though it may be inaccurate
 			// consider forcing strings at some point
-			dtypeFloat,
+			DtypeFloat,
 			false,
 		},
 		{
 			[]string{"true", ""},
-			dtypeBool,
+			DtypeBool,
 			true,
 		},
 		{
 			[]string{"true", "false", "TRUE"},
-			dtypeBool,
+			DtypeBool,
 			false,
 		},
 		{
 			[]string{"true", "false", "TRUE", "1"},
-			dtypeString, // 1/0 should not be booleans (strconv.parseBool does consider them as such)
+			DtypeString, // 1/0 should not be booleans (strconv.parseBool does consider them as such)
 			false,
 		},
 		{
 			[]string{"true", "false", "TRUE", "0"},
-			dtypeString,
+			DtypeString,
 			false,
 		},
 		{
 			[]string{"true", "false", "TRue"},
-			dtypeString,
+			DtypeString,
 			false,
 		},
 		{
 			[]string{"1.23", "1e7", "-2"},
-			dtypeFloat,
+			DtypeFloat,
 			false,
 		},
 		{
 			[]string{},
-			dtypeInvalid,
+			DtypeInvalid,
 			true,
 		},
 		{
 			[]string{"", "", ""},
-			dtypeNull,
+			DtypeNull,
 			true,
 		},
 	}
 	for _, test := range tt {
 		guesser := newTypeGuesser()
 		for _, val := range test.input {
-			guesser.addValue(val)
+			guesser.AddValue(val)
 		}
 		schema := guesser.inferredType()
-		if schema.Dtype != test.dtype {
-			log.Fatalf("unexpected type: %v, expecting: %v (data: %v)", schema.Dtype, test.dtype, test.input)
+		if schema.Dtype != test.Dtype {
+			log.Fatalf("unexpected type: %v, expecting: %v (data: %v)", schema.Dtype, test.Dtype, test.input)
 		}
 		if schema.Nullable != test.nullable {
 			log.Fatalf("unexpected nullability: %v, expecting: %v (data: %v)", schema.Nullable, test.nullable, test.input)
@@ -284,22 +284,22 @@ func TestBoolCoercionErrs(t *testing.T) {
 func TestBasicTypeGuessing(t *testing.T) {
 	tests := []struct {
 		str   string
-		dtype dtype
+		Dtype Dtype
 	}{
-		{"123", dtypeInt},
-		{"0", dtypeInt},
-		{"123.3", dtypeFloat},
-		{".3", dtypeFloat},
-		{"+0", dtypeInt},
-		{"-0", dtypeInt},
-		{"true", dtypeBool},
-		{"false", dtypeBool},
-		{"foo", dtypeString},
-		{"", dtypeString}, // we don't do null inference in guessType
+		{"123", DtypeInt},
+		{"0", DtypeInt},
+		{"123.3", DtypeFloat},
+		{".3", DtypeFloat},
+		{"+0", DtypeInt},
+		{"-0", DtypeInt},
+		{"true", DtypeBool},
+		{"false", DtypeBool},
+		{"foo", DtypeString},
+		{"", DtypeString}, // we don't do null inference in guessType
 	}
 	for _, test := range tests {
-		if guessType(test.str) != test.dtype {
-			t.Errorf("expected %v to be guessed as a %v, but got %v", test.str, test.dtype, guessType(test.str))
+		if guessType(test.str) != test.Dtype {
+			t.Errorf("expected %v to be guessed as a %v, but got %v", test.str, test.Dtype, guessType(test.str))
 		}
 	}
 }
@@ -317,18 +317,18 @@ func TestDatasetTypeInference(t *testing.T) {
 
 	datasets := []struct {
 		raw string
-		cs  tableSchema
+		cs  TableSchema
 	}{
-		{"foo\n1\n2", tableSchema{{"foo", dtypeInt, false}}},
-		{"foo,bar\n1,2\n2,false", tableSchema{{"foo", dtypeInt, false}, {"bar", dtypeString, false}}},
-		{"foo\ntrue\nFALSE", tableSchema{{"foo", dtypeBool, false}}},
-		{"foo,bar\na,b\nc,", tableSchema{{"foo", dtypeString, false}, {"bar", dtypeString, true}}}, // we do have nullable strings
-		{"foo,bar\n1,\n2,3", tableSchema{{"foo", dtypeInt, false}, {"bar", dtypeInt, true}}},
-		{"foo,bar\n1,\n2,", tableSchema{{"foo", dtypeInt, false}, {"bar", dtypeNull, true}}},
+		{"foo\n1\n2", TableSchema{{"foo", DtypeInt, false}}},
+		{"foo,bar\n1,2\n2,false", TableSchema{{"foo", DtypeInt, false}, {"bar", DtypeString, false}}},
+		{"foo\ntrue\nFALSE", TableSchema{{"foo", DtypeBool, false}}},
+		{"foo,bar\na,b\nc,", TableSchema{{"foo", DtypeString, false}, {"bar", DtypeString, true}}}, // we do have nullable strings
+		{"foo,bar\n1,\n2,3", TableSchema{{"foo", DtypeInt, false}, {"bar", DtypeInt, true}}},
+		{"foo,bar\n1,\n2,", TableSchema{{"foo", DtypeInt, false}, {"bar", DtypeNull, true}}},
 		// the following issues are linked to the fact that encoding/csv skips empty rows (???)
-		// {"foo\n\n\n", tableSchema{{"foo", dtypeNull, true}}}, // this should work, but we keep returning invalid
-		// {"foo\ntrue\n", tableSchema{{"foo", dtypeBool, true}}}, // this should be nullable, but we keep saying it is not
-		// {"foo\nfoo\n\ntrue", tableSchema{{"foo", dtypeBool, true}}}, // this should be nullable, but we keep saying it is not
+		// {"foo\n\n\n", TableSchema{{"foo", DtypeNull, true}}}, // this should work, but we keep returning invalid
+		// {"foo\ntrue\n", TableSchema{{"foo", DtypeBool, true}}}, // this should be nullable, but we keep saying it is not
+		// {"foo\nfoo\n\ntrue", TableSchema{{"foo", DtypeBool, true}}}, // this should be nullable, but we keep saying it is not
 	}
 	for _, dataset := range datasets {
 		f, err := ioutil.TempFile("", "")
@@ -336,7 +336,7 @@ func TestDatasetTypeInference(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer os.Remove(f.Name())
-		if err := cacheIncomingFile(strings.NewReader(dataset.raw), f.Name()); err != nil {
+		if err := CacheIncomingFile(strings.NewReader(dataset.raw), f.Name()); err != nil {
 			t.Fatal(err)
 		}
 		cs, err := inferTypes(f.Name(), &loadSettings{})
