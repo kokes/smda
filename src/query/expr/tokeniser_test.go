@@ -164,3 +164,5 @@ func TestTokenisationErrors(t *testing.T) {
 		}
 	}
 }
+
+// TODO: test both Stringers, NewTokenScannerFromString and TokeniseString

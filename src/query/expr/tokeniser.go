@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 var errUnknownToken = errors.New("unknown token")
@@ -58,7 +59,7 @@ func (tok tok) String() string {
 	case tokenIdentifierQuoted:
 		return fmt.Sprintf("\"%s\"", tok.value)
 	case tokenComment:
-		return fmt.Sprintf("-- %v", tok.value)
+		return fmt.Sprintf("-- %v", tok.value) // TODO: should add a newline? test this
 	case tokenAdd:
 		return "+"
 	case tokenSub:
@@ -84,7 +85,7 @@ func (tok tok) String() string {
 	case tokenRparen:
 		return ")"
 	case tokenComma:
-		return ")"
+		return ","
 	case tokenLiteralInt:
 		return string(tok.value)
 	case tokenLiteralFloat:
@@ -94,6 +95,14 @@ func (tok tok) String() string {
 	default:
 		panic(fmt.Sprintf("unknown token type: %v", tok.ttype))
 	}
+}
+
+func (tokens tokList) String() string {
+	var sb strings.Builder
+	for _, tok := range tokens {
+		sb.WriteString(tok.String())
+	}
+	return sb.String()
 }
 
 type tokenScanner struct {

@@ -35,10 +35,15 @@ type Expression struct {
 // library - but we're leveraging our own tokeniser, because we need to "fix" some tokens before passing them
 // to go/parser, because that parser is used for code parsing, not SQL expressions parsing
 func ParseExpr(s string) (Projection, error) {
-	// toks, err := tokeniseString(s) // helper function, TBA
-	// toks = compatToks(toks)
-	// s2 := stringify(toks) // strings.Builder etc. - will need a stringer for type tok
-	tr, err := parser.ParseExpr(s)
+	tokens, err := TokeniseString(s)
+	if err != nil {
+		return nil, err
+	}
+	// we could have used ParseExpr directly, but we need to sanitise it first, because Go's parser
+	// doesn't work well with SQL-like expressions
+	// we won't need this as soon as we have a custom parser
+	s2 := tokens.String()
+	tr, err := parser.ParseExpr(s2)
 
 	// we are fine with illegal rune literals - because we need e.g. 'ahoy' as literal strings
 	if err != nil && !strings.HasSuffix(err.Error(), "illegal rune literal") {
