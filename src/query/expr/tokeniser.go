@@ -4,16 +4,13 @@
 // isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
 //   - then build an expression parser with precedence built in
 // - potentially: positions of errors (for very clear error handling)
-package smda
+package expr
 
 import (
 	"bytes"
 	"errors"
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"fmt"
 	"strconv"
-	"strings"
 )
 
 var errUnknownToken = errors.New("unknown token")
@@ -27,8 +24,8 @@ type tok struct {
 	ttype tokenType
 	value []byte
 }
+type tokList []tok
 
-// TODO: stringer
 const (
 	tokenInvalid tokenType = iota
 	tokenIdentifier
@@ -54,6 +51,51 @@ const (
 	// potential additions: || (string concatenation), :: (casting), &|^ (bitwise operations), ** (power)
 )
 
+func (tok tok) String() string {
+	switch tok.ttype {
+	case tokenIdentifier:
+		return string(tok.value)
+	case tokenIdentifierQuoted:
+		return fmt.Sprintf("\"%s\"", tok.value)
+	case tokenComment:
+		return fmt.Sprintf("-- %v", tok.value)
+	case tokenAdd:
+		return "+"
+	case tokenSub:
+		return "-"
+	case tokenMul:
+		return "*"
+	case tokenQuo:
+		return "/"
+	case tokenEq:
+		return "==" // TODO: this is a compatibility thing, will need to revert this to '=' eventually
+	case tokenNeq:
+		return "!="
+	case tokenGt:
+		return ">"
+	case tokenLt:
+		return "<"
+	case tokenGte:
+		return ">="
+	case tokenLte:
+		return "<="
+	case tokenLparen:
+		return "("
+	case tokenRparen:
+		return ")"
+	case tokenComma:
+		return ")"
+	case tokenLiteralInt:
+		return string(tok.value)
+	case tokenLiteralFloat:
+		return string(tok.value)
+	case tokenLiteralString:
+		return fmt.Sprintf("'%s'", tok.value)
+	default:
+		panic(fmt.Sprintf("unknown token type: %v", tok.ttype))
+	}
+}
+
 type tokenScanner struct {
 	code     []byte
 	position int
@@ -69,6 +111,22 @@ func NewTokenScannerFromString(s string) *tokenScanner {
 	return &tokenScanner{
 		code: []byte(s),
 	}
+}
+
+func TokeniseString(s string) (tokList, error) {
+	scanner := NewTokenScannerFromString(s)
+	var tokens []tok
+	for {
+		tok, err := scanner.Scan()
+		if err != nil {
+			return nil, err
+		}
+		if tok.ttype == tokenEOF {
+			break
+		}
+		tokens = append(tokens, tok)
+	}
+	return tokens, nil
 }
 
 func (ts *tokenScanner) peek(n int) []byte {
@@ -263,60 +321,3 @@ func sliceUntil(s []byte, chars []byte) []byte {
 	}
 	return s
 }
-
-// TODO: pkgsplit - this would be a good place to split this into a tokeniser and a parser
-
-type Projection interface {
-	// isValid(tableSchema) - does it make sense to have this projection like this?
-	//   - tableSchema = []columnSchema
-	//   - checks that type are okay and everything
-	// ReturnType dtype - though we'll have to pass in a schema
-	// ColumnsUsed []string
-	// isSimpleton (or something along those lines) - if this projection is just a column or a literal?
-	//  - we might need a new typedColumn - columnLit{string,int,float,bool}?
-}
-
-// just an implementation of Projection - we might merge the two eventually
-type Expression struct {
-	// children []*Expression
-	// value []byte/string
-}
-
-// limitations:
-// - cannot use this for full query parsing, just expressions
-// - cannot do count(*) and other syntactically problematic expressions (also ::)
-// - limited use of = - we might use '==' for all equality for now and later switch to SQL's '='
-//   - or we might silently promote any '=' to '==' (but only outside of strings...)
-// - we cannot use escaped apostrophes in string literals (because Go can't parse that) - unless we sanitise that during tokenisation
-// normal process: 1) tokenise, 2) build an ast, // 3) (optional) optimise the ast
-// our process: 1) tokenise, 2) edit some of these tokens, 3) stringify and build an ast using a 3rd party, 4) optimise
-// this is due to the fact that we don't have our own parser, we're using go's go/parser from the standard
-// library - but we're leveraging our own tokeniser, because we need to "fix" some tokens before passing them
-// to go/parser, because that parser is used for code parsing, not SQL expressions parsing
-func ParseExpr(s string) (Projection, error) {
-	// toks, err := tokeniseString(s) // helper function, TBA
-	// toks = compatToks(toks)
-	// s2 := stringify(toks) // strings.Builder etc. - will need a stringer for type tok
-	tr, err := parser.ParseExpr(s)
-
-	// we are fine with illegal rune literals - because we need e.g. 'ahoy' as literal strings
-	if err != nil && !strings.HasSuffix(err.Error(), "illegal rune literal") {
-		return nil, err
-	}
-
-	// switch tree.(type) - if the base is ast.BasicLit or ast.Ident, we can exit early
-
-	fs := token.NewFileSet()
-	ast.Print(fs, tr)
-
-	return nil, nil
-}
-
-// func main() {
-// 	// tree, err := ParseExpr("123*bak + nullif(\"foo\", 'abc')")
-// 	tree, err := ParseExpr("(bak - 4) == (bar+3)")
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	_ = tree
-// }

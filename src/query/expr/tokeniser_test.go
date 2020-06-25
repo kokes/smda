@@ -1,4 +1,4 @@
-package smda
+package expr
 
 import (
 	"bytes"
@@ -27,24 +27,22 @@ func TestBasicTokenisation(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		ts := NewTokenScanner([]byte(test.source))
-		var tokens []tokenType
-		for {
-			token, err := ts.Scan()
-			if err != nil {
-				t.Fatal(err)
-			}
+		tokens, err := TokeniseString(test.source)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		if len(tokens) != len(test.expected) {
+			t.Errorf("expected %v tokens, got %v", len(test.expected), len(tokens))
+			continue
+		}
+		for j, token := range tokens {
 			if token.value != nil {
 				t.Errorf("token %v in %v should not have a value, got %v", token.ttype, test.source, token.value)
 			}
-			if token.ttype == tokenEOF {
-				break
+			if token.ttype != test.expected[j] {
+				t.Errorf("expecting %v. token to be of type %v, got %v instead", j+1, test.expected[j], token.ttype)
 			}
-			tokens = append(tokens, token.ttype)
-		}
-
-		if !reflect.DeepEqual(tokens, test.expected) {
-			t.Errorf("expected %v to tokenise as %v, got %v", test.source, test.expected, tokens)
 		}
 	}
 }
@@ -72,7 +70,7 @@ func TestSlicingUntil(t *testing.T) {
 func TestTokenisationWithValues(t *testing.T) {
 	tt := []struct {
 		source   string
-		expected []tok
+		expected tokList
 	}{
 		{"/--", []tok{{tokenQuo, nil}, {tokenComment, []byte("")}}},
 		{"/-- ", []tok{{tokenQuo, nil}, {tokenComment, []byte(" ")}}},
@@ -105,19 +103,11 @@ func TestTokenisationWithValues(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		ts := NewTokenScanner([]byte(test.source))
-		var tokens []tok
-		for {
-			token, err := ts.Scan()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if token.ttype == tokenEOF {
-				break
-			}
-			tokens = append(tokens, token)
+		tokens, err := TokeniseString(test.source)
+		if err != nil {
+			t.Error(err)
+			continue
 		}
-
 		if !reflect.DeepEqual(tokens, test.expected) {
 			t.Errorf("expected %v to tokenise as %v, got %v", test.source, test.expected, tokens)
 		}
@@ -133,19 +123,11 @@ func TestTokenisationInvariants(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		var first []tok
+		var first tokList
 		for j, source := range test {
-			ts := NewTokenScanner([]byte(source))
-			var tokens []tok
-			for {
-				token, err := ts.Scan()
-				if err != nil {
-					t.Fatal(err)
-				}
-				if token.ttype == tokenEOF {
-					break
-				}
-				tokens = append(tokens, token)
+			tokens, err := TokeniseString(source)
+			if err != nil {
+				t.Fatal(err)
 			}
 			if j == 0 {
 				first = tokens
@@ -160,38 +142,25 @@ func TestTokenisationInvariants(t *testing.T) {
 
 func TestTokenisationErrors(t *testing.T) {
 	tt := []struct {
-		source string
-		errs   []error
+		source   string
+		firstErr error
 	}{
 		{"123 * 345", nil},
-		{"123.3.3 * 345", []error{errInvalidFloat}},
-		{"123 / 3453123121241241231231231231231", []error{errInvalidInteger}},
-		{"ahoy'", []error{errInvalidString}},
-		{"fooba$", []error{errInvalidIdentifier}},
-		{"\"fooba$", []error{errInvalidIdentifier}},
-		{"\"\"", []error{errInvalidIdentifier}},
-		{"123 !! 456", []error{errUnknownToken, errUnknownToken}},
-		{"2 == 3", []error{errUnknownToken}}, // we disallow == as an equality test, we use SQL's '='
-		{"'some text\nother text'", []error{errInvalidString, errInvalidString}},
+		{"123.3.3 * 345", errInvalidFloat},
+		{"123 / 3453123121241241231231231231231", errInvalidInteger},
+		{"ahoy'", errInvalidString},
+		{"fooba$", errInvalidIdentifier},
+		{"\"fooba$", errInvalidIdentifier},
+		{"\"\"", errInvalidIdentifier},
+		{"123 !! 456", errUnknownToken},
+		{"2 == 3", errUnknownToken}, // we disallow == as an equality test, we use SQL's '='
+		{"'some text\nother text'", errInvalidString},
 	}
 
 	for _, test := range tt {
-		ts := NewTokenScanner([]byte(test.source))
-		var tokens []tok
-		var errs []error
-		for {
-			token, err := ts.Scan()
-			if err != nil {
-				errs = append(errs, err)
-			}
-			if token.ttype == tokenEOF {
-				break
-			}
-			tokens = append(tokens, token)
-		}
-		// TODO: it's not best pratice to use DeepEqual with errors, fix
-		if !reflect.DeepEqual(errs, test.errs) {
-			t.Errorf("expecting %v to trigger %v, but got %v", test.source, test.errs, errs)
+		_, err := TokeniseString(test.source)
+		if err != test.firstErr {
+			t.Errorf("expecting %v, got %v instead", test.firstErr, err)
 		}
 	}
 }
