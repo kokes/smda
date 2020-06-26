@@ -9,7 +9,7 @@ func TestBasicParsing(t *testing.T) {
 	}
 
 	for _, expression := range expressions {
-		if _, err := ParseExpr(expression); err != nil {
+		if _, err := ParseStringExpr(expression); err != nil {
 			t.Error(err)
 		}
 	}

@@ -1,9 +1,11 @@
 package expr
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"reflect"
 	"strings"
 )
 
@@ -17,10 +19,22 @@ type Projection interface {
 	//  - we might need a new typedColumn - columnLit{string,int,float,bool}?
 }
 
+type exprType uint8
+
+const (
+	exprInvalid exprType = iota
+	exprIdentifier
+	exprAddition
+	exprSubtraction
+	exprMultiplication
+	exprDivision
+)
+
 // just an implementation of Projection - we might merge the two eventually
 type Expression struct {
-	// children []*Expression
-	// value []byte/string
+	etype    exprType
+	children []*Expression
+	value    string
 }
 
 // limitations:
@@ -34,7 +48,7 @@ type Expression struct {
 // this is due to the fact that we don't have our own parser, we're using go's go/parser from the standard
 // library - but we're leveraging our own tokeniser, because we need to "fix" some tokens before passing them
 // to go/parser, because that parser is used for code parsing, not SQL expressions parsing
-func ParseExpr(s string) (Projection, error) {
+func ParseStringExpr(s string) (Projection, error) {
 	tokens, err := TokeniseString(s)
 	if err != nil {
 		return nil, err
@@ -50,19 +64,55 @@ func ParseExpr(s string) (Projection, error) {
 		return nil, err
 	}
 
-	// switch tree.(type) - if the base is ast.BasicLit or ast.Ident, we can exit early
+	tree, err := convertAstExprToOwnExpr(tr)
 
-	fs := token.NewFileSet()
-	ast.Print(fs, tr)
-
-	return nil, nil
+	return tree, err
 }
 
-// func main() {
-// 	// tree, err := ParseExpr("123*bak + nullif(\"foo\", 'abc')")
-// 	tree, err := ParseExpr("(bak - 4) == (bar+3)")
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	_ = tree
-// }
+func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
+	switch expr.(type) {
+	case *ast.Ident:
+		return &Expression{
+			etype: exprIdentifier,
+			value: expr.(*ast.Ident).Name,
+		}, nil
+	case *ast.BasicLit:
+		panic(expr.(*ast.BasicLit).Value)
+		// return &Expression{
+		// 	etype: exprLiteral,
+		// 	value: expr.(*ast.BasicLit).Value,
+		// }
+	case *ast.BinaryExpr:
+		node := expr.(*ast.BinaryExpr)
+		var ntype exprType
+		switch node.Op {
+		case token.ADD:
+			ntype = exprAddition
+		case token.SUB:
+			ntype = exprSubtraction
+		case token.MUL:
+			ntype = exprMultiplication
+		case token.QUO:
+			ntype = exprDivision
+		default:
+			return nil, fmt.Errorf("unrecognised operation: %v", node.Op)
+		}
+		children := make([]*Expression, 2)
+		for j, ex := range []ast.Expr{node.X, node.Y} {
+			ch, err := convertAstExprToOwnExpr(ex)
+			if err != nil {
+				return nil, err
+			}
+			children[j] = ch
+		}
+		return &Expression{
+			etype:    ntype,
+			children: children,
+		}, nil
+	default:
+		fmt.Println(reflect.TypeOf(expr))
+		fset := token.NewFileSet() // positions are relative to fset
+		ast.Print(fset, expr)
+		panic("NAAAAY")
+	}
+}
