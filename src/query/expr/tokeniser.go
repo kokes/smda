@@ -97,10 +97,12 @@ func (tok tok) String() string {
 	}
 }
 
+// TODO: this might need some tests, especially if we have successive identifiers (e.g. "foo bar baz")
 func (tokens tokList) String() string {
 	var sb strings.Builder
 	for _, tok := range tokens {
 		sb.WriteString(tok.String())
+		sb.WriteByte(' ')
 	}
 	return sb.String()
 }

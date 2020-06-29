@@ -21,6 +21,7 @@ type Projection interface {
 
 type exprType uint8
 
+// TODO: stringer
 const (
 	exprInvalid exprType = iota
 	exprIdentifier
@@ -28,6 +29,17 @@ const (
 	exprSubtraction
 	exprMultiplication
 	exprDivision
+	exprEquality
+	exprNequality
+	exprLessThan
+	exprLessThanEqual
+	exprGreaterThan
+	exprGreaterThanEqual
+	exprLiteralInt
+	exprLiteralFloat
+	exprLiteralString
+	// TODO: other literals, esp. bool
+	exprFunCall
 )
 
 // just an implementation of Projection - we might merge the two eventually
@@ -72,16 +84,31 @@ func ParseStringExpr(s string) (Projection, error) {
 func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 	switch expr.(type) {
 	case *ast.Ident:
+		// TODO: what if this a reserved keyword?
+		// TODO: what if it's null/NULL? not even true/false is identified as a literal
 		return &Expression{
 			etype: exprIdentifier,
 			value: expr.(*ast.Ident).Name,
 		}, nil
 	case *ast.BasicLit:
-		panic(expr.(*ast.BasicLit).Value)
-		// return &Expression{
-		// 	etype: exprLiteral,
-		// 	value: expr.(*ast.BasicLit).Value,
-		// }
+		// TODO: do we need to recheck this with our own type parsers?
+		node := expr.(*ast.BasicLit)
+		var etype exprType
+		switch node.Kind {
+		case token.INT:
+			etype = exprLiteralInt
+		case token.FLOAT:
+			etype = exprLiteralFloat
+		case token.CHAR:
+			// TODO: do we need to truncate the value to get rid of the apostrophes? What if there are escaped apostrophes within?
+			etype = exprLiteralString
+		default:
+			return nil, fmt.Errorf("unsupported token: %v", node.Kind)
+		}
+		return &Expression{
+			etype: etype,
+			value: node.Value,
+		}, nil
 	case *ast.BinaryExpr:
 		node := expr.(*ast.BinaryExpr)
 		var ntype exprType
@@ -94,6 +121,18 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			ntype = exprMultiplication
 		case token.QUO:
 			ntype = exprDivision
+		case token.EQL:
+			ntype = exprEquality
+		case token.NEQ:
+			ntype = exprNequality
+		case token.LSS:
+			ntype = exprLessThan
+		case token.LEQ:
+			ntype = exprLessThanEqual
+		case token.GTR:
+			ntype = exprGreaterThan
+		case token.GEQ:
+			ntype = exprGreaterThanEqual
 		default:
 			return nil, fmt.Errorf("unrecognised operation: %v", node.Op)
 		}
@@ -109,10 +148,26 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			etype:    ntype,
 			children: children,
 		}, nil
+	case *ast.CallExpr:
+		node := expr.(*ast.CallExpr)
+		funName := node.Fun.(*ast.Ident).Name
+		var children []*Expression
+		for _, arg := range node.Args {
+			newc, err := convertAstExprToOwnExpr(arg)
+			if err != nil {
+				return nil, err
+			}
+			children = append(children, newc)
+		}
+		return &Expression{
+			etype:    exprFunCall,
+			value:    funName,
+			children: children,
+		}, nil
 	default:
 		fmt.Println(reflect.TypeOf(expr))
 		fset := token.NewFileSet() // positions are relative to fset
 		ast.Print(fset, expr)
-		panic("NAAAAY")
+		return nil, fmt.Errorf("unsupported expression: %v", reflect.TypeOf(expr))
 	}
 }
