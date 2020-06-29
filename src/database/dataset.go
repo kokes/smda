@@ -155,6 +155,18 @@ type ColumnSchema struct {
 
 type TableSchema []ColumnSchema
 
+func (schema *TableSchema) LocateColumn(s string) (int, ColumnSchema, error) {
+	if schema == nil {
+		return 0, ColumnSchema{}, errors.New("empty schema cannot contain requested column")
+	}
+	for j, col := range []ColumnSchema(*schema) {
+		if col.Name == s {
+			return j, col, nil
+		}
+	}
+	return 0, ColumnSchema{}, fmt.Errorf("column %v not found in schema", s)
+}
+
 func NewDataset() *Dataset {
 	return &Dataset{ID: newUID(OtypeDataset)}
 }

@@ -30,17 +30,10 @@ type FilterExpression struct {
 }
 
 func Filter(db *database.Database, ds *database.Dataset, fe *FilterExpression) ([]*bitmap.Bitmap, error) {
-	colIndex := -1 // TODO: this should be a dataset method
-	for j, col := range ds.Schema {
-		if col.Name == fe.Column {
-			colIndex = j
-			break
-		}
+	colIndex, _, err := ds.Schema.LocateColumn(fe.Column)
+	if err != nil {
+		return nil, err
 	}
-	if colIndex == -1 {
-		return nil, fmt.Errorf("could not filter out `%v` in dataset %v, column not found", fe.Column, ds.ID)
-	}
-
 	bms := make([]*bitmap.Bitmap, 0, len(ds.Stripes))
 	for _, stripe := range ds.Stripes {
 		col, err := db.ReadColumnFromStripe(ds, stripe, colIndex)
@@ -61,20 +54,14 @@ func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]d
 
 	nrc := make([]database.TypedColumn, 0, len(exprs))
 	colIndices := make([]int, 0, len(exprs))
-	// TODO: this should be partly/fully abstracted away
+
 	for _, expr := range exprs {
-		found := false
-		for j, col := range ds.Schema {
-			if col.Name == expr {
-				nrc = append(nrc, database.NewTypedColumnFromSchema(col))
-				colIndices = append(colIndices, j)
-				found = true
-				break
-			}
+		idx, col, err := ds.Schema.LocateColumn(expr)
+		if err != nil {
+			return nil, err
 		}
-		if !found {
-			return nil, fmt.Errorf("column `%v` not found", expr)
-		}
+		nrc = append(nrc, database.NewTypedColumnFromSchema(col))
+		colIndices = append(colIndices, idx)
 	}
 
 	groups := make(map[uint64]int)

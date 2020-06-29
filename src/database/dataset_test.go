@@ -183,3 +183,5 @@ func TestGettingNewDatasets(t *testing.T) {
 		t.Errorf("did not get the same dataset back")
 	}
 }
+
+// test LocateColumn
