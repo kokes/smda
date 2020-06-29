@@ -149,7 +149,7 @@ type Dataset struct {
 
 type ColumnSchema struct {
 	Name     string `json:"name"`
-	Dtype    Dtype  `json:"Dtype"`
+	Dtype    Dtype  `json:"dtype"`
 	Nullable bool   `json:"nullable"`
 }
 
