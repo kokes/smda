@@ -77,6 +77,7 @@ func ParseStringExpr(s string) (*Expression, error) {
 	return tree, err
 }
 
+// TODO: what about quoted identifiers? (case sensitive identifiers)
 func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 	switch expr.(type) {
 	case *ast.Ident:
