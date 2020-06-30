@@ -9,16 +9,6 @@ import (
 	"strings"
 )
 
-type Projection interface {
-	// isValid(tableSchema) - does it make sense to have this projection like this?
-	//   - tableSchema = []columnSchema
-	//   - checks that type are okay and everything
-	// ReturnType dtype - though we'll have to pass in a schema
-	// ColumnsUsed []string
-	// isSimpleton (or something along those lines) - if this projection is just a column or a literal?
-	//  - we might need a new typedColumn - columnLit{string,int,float,bool}?
-}
-
 type exprType uint8
 
 // TODO: stringer
@@ -42,7 +32,13 @@ const (
 	exprFunCall
 )
 
-// just an implementation of Projection - we might merge the two eventually
+// isValid(tableSchema) - does it make sense to have this projection like this?
+//   - tableSchema = []columnSchema
+//   - checks that type are okay and everything
+// ReturnType dtype - though we'll have to pass in a schema
+// ColumnsUsed []string
+// isSimpleton (or something along those lines) - if this projection is just a column or a literal?
+//  - we might need a new typedColumn - columnLit{string,int,float,bool}?
 type Expression struct {
 	etype    exprType
 	children []*Expression
@@ -60,7 +56,7 @@ type Expression struct {
 // this is due to the fact that we don't have our own parser, we're using go's go/parser from the standard
 // library - but we're leveraging our own tokeniser, because we need to "fix" some tokens before passing them
 // to go/parser, because that parser is used for code parsing, not SQL expressions parsing
-func ParseStringExpr(s string) (Projection, error) {
+func ParseStringExpr(s string) (*Expression, error) {
 	tokens, err := TokeniseString(s)
 	if err != nil {
 		return nil, err
