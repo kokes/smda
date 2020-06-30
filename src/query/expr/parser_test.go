@@ -20,3 +20,4 @@ func TestBasicParsing(t *testing.T) {
 }
 
 // TODO: test that these expressions get parsed into what we'd expect
+// func (expr *Expression) UnmarshalJSON(data []byte) error {

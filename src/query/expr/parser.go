@@ -45,6 +45,16 @@ type Expression struct {
 	value    string
 }
 
+func (expr *Expression) UnmarshalJSON(data []byte) error {
+	if len(data) < 2 || !(data[0] == '"' && data[len(data)-1] == '"') {
+		return fmt.Errorf("failed to unmarshal into an Expression, did not receive a quoted string: %s", data)
+	}
+	sdata := string(data[1 : len(data)-1])
+	ex, err := ParseStringExpr(sdata)
+	expr = ex
+	return err
+}
+
 // limitations:
 // - cannot use this for full query parsing, just expressions
 // - cannot do count(*) and other syntactically problematic expressions (also ::)

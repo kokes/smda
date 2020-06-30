@@ -5,6 +5,7 @@ import (
 
 	"github.com/kokes/smda/src/bitmap"
 	"github.com/kokes/smda/src/database"
+	"github.com/kokes/smda/src/query/expr"
 )
 
 // Query describes what we want to retrieve from a given dataset
@@ -15,38 +16,31 @@ import (
 //    to the Query struct (the Unmarshaler should mostly take care of this)
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
-	Dataset   database.UID      `json:"dataset"`
-	Filter    *FilterExpression `json:"filter"`
-	Aggregate []string          `json:"aggregate"` // this will be *Expr at some point
-	Limit     *int              `json:"limit,omitempty"`
+	Dataset   database.UID     `json:"dataset"`
+	Filter    *expr.Expression `json:"filter,omitempty"`
+	Aggregate []string         `json:"aggregate"` // this will be *Expr at some point
+	Limit     *int             `json:"limit,omitempty"`
 }
 
-// type FilterTree - to be used once we have AND and OR clauses
-// this really shouldn't be here - it should be a generic bool expression of any kind
-type FilterExpression struct {
-	Column   string            `json:"column"` // this will be a projection, not just a column (e.g. NULLIF(a, b) > 3)
-	Operator database.Operator `json:"operator"`
-	Argument string            `json:"arg"` // this might need to be an array perhaps, when we get BETWEEN etc.
-}
-
-func Filter(db *database.Database, ds *database.Dataset, fe *FilterExpression) ([]*bitmap.Bitmap, error) {
-	colIndex, _, err := ds.Schema.LocateColumn(fe.Column)
-	if err != nil {
-		return nil, err
-	}
-	bms := make([]*bitmap.Bitmap, 0, len(ds.Stripes))
-	for _, stripe := range ds.Stripes {
-		col, err := db.ReadColumnFromStripe(ds, stripe, colIndex)
-		if err != nil {
-			return nil, err
-		}
-		// TODO: the thing with database.TypedColumn.Filter not returning an error is that it panic
-		// when using a non-supported operator - this does not lead to good user experience, plus
-		// it allows the user to crash the system without a great logging experience
-		bm := col.Filter(fe.Operator, fe.Argument)
-		bms = append(bms, bm)
-	}
-	return bms, nil
+// TODO: to be implemented (needs eval)
+func Filter(db *database.Database, ds *database.Dataset, fe *expr.Expression) ([]*bitmap.Bitmap, error) {
+	// colIndex, _, err := ds.Schema.LocateColumn(fe.Column)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// bms := make([]*bitmap.Bitmap, 0, len(ds.Stripes))
+	// for _, stripe := range ds.Stripes {
+	// 	col, err := db.ReadColumnFromStripe(ds, stripe, colIndex)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	// TODO: the thing with database.TypedColumn.Filter not returning an error is that it panic
+	// 	// when using a non-supported operator - this does not lead to good user experience, plus
+	// 	// it allows the user to crash the system without a great logging experience
+	// 	bm := col.Filter(fe.Operator, fe.Argument)
+	// 	bms = append(bms, bm)
+	// }
+	return nil, nil
 }
 
 func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]database.TypedColumn, error) {

@@ -120,6 +120,7 @@
             limit: 25,
             dataset: datasetID,
             // aggregate: ['strings', 'bools'],
+            filter: 'floats> 12',
         }
         const req = await fetch('/api/query', {
             method: 'POST',
