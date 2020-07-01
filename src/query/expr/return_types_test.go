@@ -7,8 +7,51 @@ import (
 	"github.com/kokes/smda/src/database"
 )
 
-// TODO: test IsValid
-// test case insensitivity of keywords (just function names at this point) - it's not implemented yet
+// TODO: test case insensitivity of keywords (just function names at this point) - it's not implemented yet
+func TestIsValid(t *testing.T) {
+	schema := database.TableSchema([]database.ColumnSchema{
+		{Name: "my_int_column", Dtype: database.DtypeInt},
+		{Name: "my_float_column", Dtype: database.DtypeFloat},
+	})
+	exprs := []string{
+		"1 = 1", "1 != 1", "1 = 1.2", "1 > 0",
+		"1 > my_int_column", "1.3 <= my_int_column",
+	}
+
+	for _, raw := range exprs {
+		expr, err := ParseStringExpr(raw)
+		if err != nil {
+			t.Errorf("cannot parse %v, got %v", raw, err)
+			continue
+		}
+		if err := expr.IsValid(schema); err != nil {
+			t.Errorf("expecting %v to be a valid expression, got: %v", raw, err)
+		}
+	}
+}
+
+func TestIsValidNot(t *testing.T) {
+	schema := database.TableSchema([]database.ColumnSchema{
+		{Name: "my_int_column", Dtype: database.DtypeInt},
+		{Name: "my_float_column", Dtype: database.DtypeFloat},
+	})
+	exprs := []string{
+		"1 = 'bus'", "1 > 'foo'",
+		"'bar' = my_int_column",
+		// non-existing functions
+	}
+
+	for _, raw := range exprs {
+		expr, err := ParseStringExpr(raw)
+		if err != nil {
+			t.Errorf("cannot parse %v, got %v", raw, err)
+			continue
+		}
+		if expr.IsValid(schema) == nil {
+			t.Errorf("expecting %v to be an invalid expression", raw)
+		}
+	}
+}
 
 func TestReturnTypes(t *testing.T) {
 	schema := database.TableSchema([]database.ColumnSchema{

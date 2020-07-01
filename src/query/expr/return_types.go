@@ -1,21 +1,73 @@
 package expr
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/kokes/smda/src/database"
 )
 
-func (expr *Expression) IsValid(ts database.TableSchema) bool {
-	return true // TODO
+var errChildrenNotNil = errors.New("expecting an expression to have nil children nodes")
+var errChildrenNotTwo = errors.New("expecting an expression to have two children")
+var errTypeMismatch = errors.New("expecting compatible types")
+
+// should this be in the database package?
+func compatibleTypes(t1, t2 database.Dtype) bool {
+	if t1 == t2 {
+		return true
+	}
+	if (t1 == database.DtypeFloat && t2 == database.DtypeInt) || (t2 == database.DtypeFloat && t1 == database.DtypeInt) {
+		return true
+	}
+	return false
+}
+
+func (expr *Expression) IsValid(ts database.TableSchema) error {
+	switch expr.etype {
+	case exprIdentifier:
+		// TODO: test value?
+		if expr.children != nil {
+			return errChildrenNotNil
+		}
+	case exprLiteralInt, exprLiteralFloat, exprLiteralString:
+		// TODO: test value
+		if expr.children != nil {
+			return errChildrenNotNil
+		}
+	case exprEquality, exprNequality, exprGreaterThan, exprGreaterThanEqual, exprLessThan, exprLessThanEqual,
+		exprAddition, exprSubtraction, exprDivision, exprMultiplication:
+		if len(expr.children) != 2 {
+			return errChildrenNotTwo
+		}
+		t1, err := expr.children[0].ReturnType(ts)
+		if err != nil {
+			return err
+		}
+		t2, err := expr.children[1].ReturnType(ts)
+		if err != nil {
+			return err
+		}
+		if !compatibleTypes(t1.Dtype, t2.Dtype) {
+			return errTypeMismatch
+		}
+	case exprFunCall:
+		// TODO: check the function exists?
+		// also check its arguments (e.g. nullif needs exactly two)
+	default:
+		return fmt.Errorf("unsupported expression type for validity checks: %v", expr.etype)
+	}
+	return nil
 }
 
 // TODO: will we define the name? As some sort of a composite of the actions taken?
 // does this even need to return errors? If we always call IsValid outside of this, then this will
-// always return a type
+// always return a type - one issue with the current implementation is that isvalid gets called recursively
+// once at the top and then for all the children again (because we call ReturnType on the children)
 func (expr *Expression) ReturnType(ts database.TableSchema) (database.ColumnSchema, error) {
-	// if !expr.IsValid { return 0, errors.New...}
 	schema := database.ColumnSchema{}
+	if err := expr.IsValid(ts); err != nil {
+		return schema, err
+	}
 	switch expr.etype {
 	case exprLiteralInt:
 		schema.Dtype = database.DtypeInt
@@ -98,6 +150,7 @@ func funCallReturnType(funName string, argTypes []database.ColumnSchema) (databa
 	// we'll need to figure out how to deal with the whole number-like type compatibility (e.g. if there's at least
 	// one float, it's a float - but that will change in the future if we add decimals)
 	// same issue in multiplication and other operations
+	// trying something with compatibleTypes()
 	default:
 		return schema, fmt.Errorf("unsupported function: %v", funName)
 	}
