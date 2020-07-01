@@ -3,6 +3,7 @@ package expr
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/kokes/smda/src/database"
 )
@@ -20,6 +21,19 @@ func compatibleTypes(t1, t2 database.Dtype) bool {
 		return true
 	}
 	return false
+}
+
+func (expr *Expression) ColumnsUsed() []string {
+	var cols []string
+
+	if expr.etype == exprIdentifier {
+		cols = append(cols, expr.value)
+	}
+	for _, ch := range expr.children {
+		cols = append(cols, ch.ColumnsUsed()...)
+	}
+	sort.Strings(cols)
+	return cols
 }
 
 func (expr *Expression) IsValid(ts database.TableSchema) error {

@@ -250,6 +250,9 @@ func (ts *tokenScanner) Scan() (tok, error) {
 		}
 		ts.position += len(floatCandidate)
 		if _, err := strconv.ParseFloat(string(floatCandidate), 64); err != nil {
+			// TODO: we're getting false negatives for 2*(1-d), where it tokenises the 1- as a float
+			// also 1-3 gets tokenised as a single unit instead of three
+			// solution? allow for - only at the beginning and after an e?
 			return tok{}, errInvalidFloat
 		}
 		return tok{tokenLiteralFloat, floatCandidate}, nil

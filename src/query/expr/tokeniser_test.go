@@ -80,6 +80,7 @@ func TestTokenisationWithValues(t *testing.T) {
 		{".5", []tok{{tokenLiteralFloat, []byte(".5")}}},
 		{".5e3", []tok{{tokenLiteralFloat, []byte(".5e3")}}},
 		{".5e-3", []tok{{tokenLiteralFloat, []byte(".5e-3")}}},
+		// {"1-3", []tok{{tokenLiteralInt, []byte("1")}, {tokenSub, nil}, {tokenLiteralInt, []byte("3")}}}, // bug
 		{"234", []tok{{tokenLiteralInt, []byte("234")}}},
 		{"1232349000", []tok{{tokenLiteralInt, []byte("1232349000")}}},
 		{"234*3", []tok{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
@@ -105,7 +106,7 @@ func TestTokenisationWithValues(t *testing.T) {
 	for _, test := range tt {
 		tokens, err := TokeniseString(test.source)
 		if err != nil {
-			t.Error(err)
+			t.Errorf("failed to tokenise %v, got %v", test.source, err)
 			continue
 		}
 		if !reflect.DeepEqual(tokens, test.expected) {

@@ -53,6 +53,34 @@ func TestIsValidNot(t *testing.T) {
 	}
 }
 
+func TestColumnsUsed(t *testing.T) {
+	tests := []struct {
+		rawExpr  string
+		colsUsed []string
+	}{
+		{"1=1", nil},
+		{"1=foo", []string{"foo"}},
+		{"2*foo > bar-bak", []string{"bak", "bar", "foo"}},
+		// {"(2*foo > bar-bak) = true", []string{"bak", "bar", "foo"}}, // don't support boolean literals just yet
+		{"coalesce(a, b, c)", []string{"a", "b", "c"}},
+		{"coalesce(a, c, b)", []string{"a", "b", "c"}}, // we return columns sorted
+		{"coalesce(a, c, nullif(d, 4))", []string{"a", "c", "d"}},
+		{"coalesce(a, c, 2*(1 - d))", []string{"a", "c", "d"}},
+	}
+
+	for _, test := range tests {
+		expr, err := ParseStringExpr(test.rawExpr)
+		if err != nil {
+			t.Errorf("cannot parse %v, got %v", test.rawExpr, err)
+			continue
+		}
+		used := expr.ColumnsUsed()
+		if !reflect.DeepEqual(used, test.colsUsed) {
+			t.Errorf("expecting %v to use %v, but got %v instead", test.rawExpr, test.colsUsed, used)
+		}
+	}
+}
+
 func TestReturnTypes(t *testing.T) {
 	schema := database.TableSchema([]database.ColumnSchema{
 		{Name: "my_int_column", Dtype: database.DtypeInt},

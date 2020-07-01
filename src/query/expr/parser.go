@@ -171,6 +171,11 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			value:    funName,
 			children: children,
 		}, nil
+	case *ast.ParenExpr:
+		// I think we can just take what's in it and treat it as a node - since our evaluation/encapsulation
+		// treats it as a paren expression anyway, right?
+		node := expr.(*ast.ParenExpr)
+		return convertAstExprToOwnExpr(node.X)
 	default:
 		fmt.Println(reflect.TypeOf(expr))
 		fset := token.NewFileSet() // positions are relative to fset

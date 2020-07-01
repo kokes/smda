@@ -10,6 +10,7 @@ func TestBasicParsing(t *testing.T) {
 		"coalesce(foo, bar, 1) - 4", "nullif(baz, 'foo')", "nullif(bak, 103)",
 		"round(1.234, 2)", "count(foo = true)", "bak != 3",
 		"sum(foo > 3)", "sum(foo < 3)", "sum(foo >= 3)", "sum(foo <= 3)",
+		"2 * (1 - foo)",
 	}
 
 	for _, expression := range expressions {
