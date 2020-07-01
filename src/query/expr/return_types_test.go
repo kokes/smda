@@ -16,6 +16,7 @@ func TestIsValid(t *testing.T) {
 	exprs := []string{
 		"1 = 1", "1 != 1", "1 = 1.2", "1 > 0",
 		"1 > my_int_column", "1.3 <= my_int_column",
+		"(my_int_column > 3) = true", "(my_int_column > 3) = false",
 	}
 
 	for _, raw := range exprs {
@@ -61,7 +62,7 @@ func TestColumnsUsed(t *testing.T) {
 		{"1=1", nil},
 		{"1=foo", []string{"foo"}},
 		{"2*foo > bar-bak", []string{"bak", "bar", "foo"}},
-		// {"(2*foo > bar-bak) = true", []string{"bak", "bar", "foo"}}, // don't support boolean literals just yet
+		{"(2*foo > bar-bak) = true", []string{"bak", "bar", "foo"}},
 		{"coalesce(a, b, c)", []string{"a", "b", "c"}},
 		{"coalesce(a, c, b)", []string{"a", "b", "c"}}, // we return columns sorted
 		{"coalesce(a, c, nullif(d, 4))", []string{"a", "c", "d"}},
@@ -93,7 +94,7 @@ func TestReturnTypes(t *testing.T) {
 		// literals
 		{"1", database.ColumnSchema{Dtype: database.DtypeInt}},
 		{"1.23", database.ColumnSchema{Dtype: database.DtypeFloat}},
-		// {"true", database.ColumnSchema{Dtype: database.DtypeBool}},
+		{"true", database.ColumnSchema{Dtype: database.DtypeBool}},
 		{"'ahoy'", database.ColumnSchema{Dtype: database.DtypeString}},
 		{"my_int_column", database.ColumnSchema{Dtype: database.DtypeInt, Name: "my_int_column"}},
 

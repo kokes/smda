@@ -27,6 +27,7 @@ const (
 	exprGreaterThanEqual
 	exprLiteralInt
 	exprLiteralFloat
+	exprLiteralBool
 	exprLiteralString
 	// TODO: other literals, esp. bool
 	exprFunCall
@@ -92,10 +93,20 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 	switch expr.(type) {
 	case *ast.Ident:
 		// TODO: what if this a reserved keyword?
-		// TODO: what if it's null/NULL? not even true/false is identified as a literal
+		// TODO: what if it's null/NULL?
+		value := expr.(*ast.Ident).Name
+
+		// TODO: copied from parseBool, should probably centralise this (or simply export parseBool)
+		if value == "t" || value == "f" || value == "true" || value == "TRUE" || value == "false" || value == "FALSE" {
+			return &Expression{
+				etype: exprLiteralBool,
+				value: fmt.Sprintf("%v", value == "t" || value == "true" || value == "TRUE"),
+			}, nil
+		}
+
 		return &Expression{
 			etype: exprIdentifier,
-			value: expr.(*ast.Ident).Name,
+			value: value,
 		}, nil
 	case *ast.BasicLit:
 		// TODO: do we need to recheck this with our own type parsers?

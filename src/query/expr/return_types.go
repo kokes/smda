@@ -43,7 +43,7 @@ func (expr *Expression) IsValid(ts database.TableSchema) error {
 		if expr.children != nil {
 			return errChildrenNotNil
 		}
-	case exprLiteralInt, exprLiteralFloat, exprLiteralString:
+	case exprLiteralInt, exprLiteralFloat, exprLiteralString, exprLiteralBool:
 		// TODO: test value
 		if expr.children != nil {
 			return errChildrenNotNil
@@ -89,9 +89,9 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (database.ColumnSche
 	case exprLiteralFloat:
 		schema.Dtype = database.DtypeFloat
 		schema.Nullable = false
-	// case exprLiteralBool: // the parser does not support this yet
-	// 	schema.Dtype = database.DtypeBool
-	// 	schema.Nullable = false
+	case exprLiteralBool:
+		schema.Dtype = database.DtypeBool
+		schema.Nullable = false
 	case exprLiteralString:
 		schema.Dtype = database.DtypeString
 		schema.Nullable = false
