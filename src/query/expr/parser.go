@@ -52,7 +52,7 @@ func (expr *Expression) UnmarshalJSON(data []byte) error {
 	}
 	sdata := string(data[1 : len(data)-1])
 	ex, err := ParseStringExpr(sdata)
-	expr = ex
+	*expr = *ex
 	return err
 }
 

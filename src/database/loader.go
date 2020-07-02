@@ -301,6 +301,31 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 	return deserializeColumn(br, ds.Schema[nthColumn].Dtype)
 }
 
+func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripeID UID, column string) (TypedColumn, error) {
+	idx, _, err := ds.Schema.LocateColumn(column)
+	if err != nil {
+		return nil, err
+	}
+	return db.ReadColumnFromStripe(ds, stripeID, idx)
+}
+
+// OPTIM: here we could use a stripe reader (or a ReadColumsFromStripe([]idx))
+func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripeID UID, columns []string) ([]TypedColumn, error) {
+	var cols []TypedColumn
+	for _, column := range columns {
+		idx, _, err := ds.Schema.LocateColumn(column)
+		if err != nil {
+			return nil, err
+		}
+		col, err := db.ReadColumnFromStripe(ds, stripeID, idx)
+		if err != nil {
+			return nil, err
+		}
+		cols = append(cols, col)
+	}
+	return cols, nil
+}
+
 func validateHeaderAgainstSchema(header []string, schema TableSchema) error {
 	if len(header) != len(schema) {
 		return errSchemaMismatch

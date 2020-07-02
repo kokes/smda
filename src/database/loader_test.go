@@ -473,3 +473,5 @@ func TestHeaderValidation(t *testing.T) {
 // func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
 // func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
 // func (db *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {
+// ReadColumnFromStripeByName
+// ReadColumnsFromStripeByNames

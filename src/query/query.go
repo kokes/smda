@@ -23,7 +23,28 @@ type Query struct {
 }
 
 // TODO: to be implemented (needs eval)
+// will we need three-valued logic here? Or will be simply default null to false? because that's how
+// the where clause behaves
 func Filter(db *database.Database, ds *database.Dataset, fe *expr.Expression) ([]*bitmap.Bitmap, error) {
+	// new implementation draft:
+	rettype, err := fe.ReturnType(ds.Schema)
+	if err != nil {
+		return nil, err
+	}
+	if rettype.Dtype != database.DtypeBool {
+		return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", fe, rettype.Dtype)
+	}
+	colnames := fe.ColumnsUsed()
+	for _, stripe := range ds.Stripes {
+		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
+		if err != nil {
+			return nil, err
+		}
+		_ = columns
+		// eval(fe, colnames, columns) -> (TypedColumn[columnBool], error)
+	}
+
+	// old implementation:
 	// colIndex, _, err := ds.Schema.LocateColumn(fe.Column)
 	// if err != nil {
 	// 	return nil, err
