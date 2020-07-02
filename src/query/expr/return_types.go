@@ -23,6 +23,23 @@ func compatibleTypes(t1, t2 database.Dtype) bool {
 	return false
 }
 
+func dedupeSortedStrings(s []string) []string {
+	if len(s) < 2 {
+		return s
+	}
+	lastVal := s[0]
+	currPos := 1
+	for _, el := range s[1:] {
+		if el == lastVal {
+			continue
+		}
+		s[currPos] = el
+		lastVal = el
+		currPos++
+	}
+	return s[:currPos]
+}
+
 func (expr *Expression) ColumnsUsed() []string {
 	var cols []string
 
@@ -33,7 +50,7 @@ func (expr *Expression) ColumnsUsed() []string {
 		cols = append(cols, ch.ColumnsUsed()...)
 	}
 	sort.Strings(cols)
-	return cols
+	return dedupeSortedStrings(cols) // so that e.g. a*b - a will yield [a, b]
 }
 
 func (expr *Expression) IsValid(ts database.TableSchema) error {

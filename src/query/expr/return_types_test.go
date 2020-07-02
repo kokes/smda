@@ -2,6 +2,7 @@ package expr
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/kokes/smda/src/database"
@@ -54,6 +55,30 @@ func TestIsValidNot(t *testing.T) {
 	}
 }
 
+func TestStringDedup(t *testing.T) {
+	tests := []struct {
+		input  string
+		output string
+	}{
+		{"", ""},
+		{"a", "a"},
+		{"a,a", "a"},
+		{"a,b,c", "a,b,c"},
+		{"a,a,a,a,a,a,b,b,b,b", "a,b"},
+		{"a,a,a,a,a,b", "a,b"},
+		{"a,b,c,c,c,c,c,d,e,f,f,g", "a,b,c,d,e,f,g"},
+	}
+
+	for _, test := range tests {
+		input := strings.Split(test.input, ",")
+		output := strings.Split(test.output, ",")
+		deduped := dedupeSortedStrings(input)
+		if !reflect.DeepEqual(deduped, output) {
+			t.Errorf("expecting %v to dedupe into %v, got %v instead", test.input, test.output, deduped)
+		}
+	}
+}
+
 func TestColumnsUsed(t *testing.T) {
 	tests := []struct {
 		rawExpr  string
@@ -67,6 +92,10 @@ func TestColumnsUsed(t *testing.T) {
 		{"coalesce(a, c, b)", []string{"a", "b", "c"}}, // we return columns sorted
 		{"coalesce(a, c, nullif(d, 4))", []string{"a", "c", "d"}},
 		{"coalesce(a, c, 2*(1 - d))", []string{"a", "c", "d"}},
+
+		{"a * a", []string{"a"}}, // dupes
+		{"a * a / a", []string{"a"}},
+		{"b * a / b", []string{"a", "b"}},
 	}
 
 	for _, test := range tests {
