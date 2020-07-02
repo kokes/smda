@@ -97,6 +97,7 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 		value := expr.(*ast.Ident).Name
 
 		// TODO: copied from parseBool, should probably centralise this (or simply export parseBool)
+		// though come to think of it, we may want to allow only true/false/TRUE/FALSE in expressions...
 		if value == "t" || value == "f" || value == "true" || value == "TRUE" || value == "false" || value == "FALSE" {
 			return &Expression{
 				etype: exprLiteralBool,
