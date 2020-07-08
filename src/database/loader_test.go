@@ -145,7 +145,7 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 	}()
 
 	header := "foo,bar,baz\n"
-	row := "1,true,1.23\n"
+	row := "123456,true,1.234567891\n"
 	for _, nrows := range []int{1, 100, 1000, 1000_000} {
 		bName := strconv.Itoa(nrows)
 		b.Run(bName, func(b *testing.B) {
