@@ -721,11 +721,8 @@ func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
 		return nil, err
 	}
 	data := make([]byte, lenData)
-	// if we're at the end of a file, reading into an empty byte slice will trigger an EOF :(
-	if lenData > 0 {
-		if _, err := r.Read(data); err != nil {
-			return nil, err
-		}
+	if _, err := io.ReadFull(r, data); err != nil {
+		return nil, err
 	}
 	return &columnStrings{
 		data:        data,
