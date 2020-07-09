@@ -421,9 +421,9 @@ func TestInvalidOffsets(t *testing.T) {
 	testSlice := make([]byte, len(data))
 
 	tests := [][]uint64{
-		{0, 1, 2, 3},                    // not enought space for even a checksum
-		{10, 9, 98, 120},                // lower offset than the previous (sort of covered by the space criterion as well)
-		{10, 1 << 40, 1 << 62, 1 << 63}, // too big
+		{1, 2, 3},                   // not enough space for even a checksum
+		{1, 0, 120},                 // lower offset than the previous (sort of covered by the space criterion as well)
+		{1 << 40, 1 << 62, 1 << 63}, // too big
 	}
 
 	for _, test := range tests {
@@ -433,7 +433,7 @@ func TestInvalidOffsets(t *testing.T) {
 			t.Fatal(err)
 		}
 		offsets := bf.Bytes()
-		copy(testSlice[len(testSlice)-len(offsets):], offsets)
+		copy(testSlice[len(testSlice)-len(offsets)-4:], offsets) // hard coded position of offsets, may change (the four is for headerLen)
 		if err := ioutil.WriteFile(path, testSlice, os.ModePerm); err != nil {
 			t.Fatal(err)
 		}

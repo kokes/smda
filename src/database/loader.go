@@ -111,13 +111,8 @@ func newDataStripe() *dataStripe {
 // since we know how many columns are in this file (from the dataset metadata), we first
 // need to read that many bytes off the end of the file and then offset to whichever column we want
 func (ds *dataStripe) writeToWriter(w io.Writer) error {
-	version := uint16(stripeOnDiskFormatVersion)
-	if err := binary.Write(w, binary.LittleEndian, version); err != nil {
-		return err
-	}
-	totalOffset := uint64(2) // reserve two bytes for the version written above
+	totalOffset := uint64(0)
 	offsets := make([]uint64, 0, len(ds.columns))
-	offsets = append(offsets, totalOffset)
 	for _, column := range ds.columns {
 		// OPTIM: we used to write column data directly into the underlying writer, but we introduced
 		// a method that returns a slice, so that we can checksum it - this increased our allocations, so
@@ -140,7 +135,23 @@ func (ds *dataStripe) writeToWriter(w io.Writer) error {
 		totalOffset += uint64(len(b)) + 4 // byte slice length + checksum
 		offsets = append(offsets, totalOffset)
 	}
-	return binary.Write(w, binary.LittleEndian, offsets)
+
+	header := new(bytes.Buffer)
+	version := uint16(stripeOnDiskFormatVersion)
+	if err := binary.Write(header, binary.LittleEndian, version); err != nil {
+		return err
+	}
+	if err := binary.Write(header, binary.LittleEndian, offsets); err != nil {
+		return err
+	}
+	headerLength := uint32(header.Len())
+	if err := binary.Write(header, binary.LittleEndian, headerLength); err != nil {
+		return err
+	}
+	if _, err := io.Copy(w, header); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (db *Database) writeStripeToFile(ds *Dataset, stripe *dataStripe) error {
@@ -225,7 +236,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
-// OPTIM: this does not buffer any reads... but it only reads things twice, so it shouldn't matter, right?
+// OPTIM: this does not buffer any reads... but it only reads things thrice, so it shouldn't matter, right?
 func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (TypedColumn, error) {
 	f, err := os.Open(db.stripePath(ds, stripeID))
 	if err != nil {
@@ -233,24 +244,34 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 	}
 	defer f.Close()
 
-	var version uint16
-	if err := binary.Read(f, binary.LittleEndian, &version); err != nil {
+	if _, err := f.Seek(-4, os.SEEK_END); err != nil {
 		return nil, err
 	}
+	var headerSize uint32
+	if err := binary.Read(f, binary.LittleEndian, &headerSize); err != nil {
+		return nil, err
+	}
+	if _, err := f.Seek(-4-int64(headerSize), os.SEEK_END); err != nil {
+		return nil, err
+	}
+
+	header := make([]byte, headerSize)
+	if _, err := io.ReadFull(f, header); err != nil {
+		return nil, err
+	}
+	version := binary.LittleEndian.Uint16(header[:2])
 	if version != stripeOnDiskFormatVersion {
 		return nil, errIncompatibleOnDiskFormat
 	}
 
 	ncolumns := len(ds.Schema)
+	offsets := make([]uint64, 0, ncolumns)
+	offsets = append(offsets, 0)
 
-	offsets := make([]uint64, ncolumns+1)
-
-	_, err = f.Seek(-int64(len(offsets)*8), io.SeekEnd)
-	if err != nil {
-		return nil, err
-	}
-	if err = binary.Read(f, binary.LittleEndian, &offsets); err != nil {
-		return nil, err
+	// OPTIM: technically, we don't need to load all the offsets (unless we want to cache them)
+	for j := 0; j < ncolumns; j++ {
+		newOffset := binary.LittleEndian.Uint64(header[2+j*8 : 2+(j+1)*8]) // TODO: test the length some place above
+		offsets = append(offsets, newOffset)
 	}
 	offsetStart, offsetEnd := offsets[nthColumn], offsets[nthColumn+1]
 	// a non-complete guard against bit rot and other nasties
