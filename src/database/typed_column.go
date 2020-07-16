@@ -31,6 +31,7 @@ type TypedColumn interface {
 	Append(TypedColumn) error
 	Hash([]uint64)
 	Len() int
+	Dtype() Dtype
 }
 
 func NewTypedColumnFromSchema(schema ColumnSchema) TypedColumn {
@@ -138,10 +139,26 @@ func (rc *columnStrings) Len() int {
 	return int(rc.length)
 }
 
+func (rc *columnBools) Dtype() Dtype {
+	return DtypeBool
+}
+func (rc *columnFloats) Dtype() Dtype {
+	return DtypeFloat
+}
+func (rc *columnInts) Dtype() Dtype {
+	return DtypeInt
+}
+func (rc *columnNulls) Dtype() Dtype {
+	return DtypeNull
+}
+func (rc *columnStrings) Dtype() Dtype {
+	return DtypeString
+}
+
 // TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
 // BUT, we're sort of using it for type inference - so maybe caveat it with a note that it's only to be used with
 // not nullable columns?
-func (rc *columnStrings) nthValue(n int) string {
+func (rc *columnStrings) NthValue(n int) string {
 	offsetStart := rc.offsets[n]
 	offsetEnd := rc.offsets[n+1]
 	return string(rc.data[offsetStart:offsetEnd])
@@ -480,7 +497,7 @@ func (rc *columnStrings) Prune(bm *bitmap.Bitmap) TypedColumn {
 			continue
 		}
 		// be careful here, AddValue has its own nullability logic and we don't want to mess with that
-		nc.AddValue(rc.nthValue(j))
+		nc.AddValue(rc.NthValue(j))
 		if rc.nullable && rc.nullability.Get(j) {
 			nc.nullability.Set(index, true)
 		}
@@ -854,7 +871,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 	if !(rc.nullable && rc.nullability.Count() > 0) {
 		res := make([]string, 0, int(rc.length))
 		for j := 0; j < rc.Len(); j++ {
-			res = append(res, rc.nthValue(j))
+			res = append(res, rc.NthValue(j))
 		}
 
 		return json.Marshal(res)
@@ -862,7 +879,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 
 	dt := make([]*string, 0, rc.length)
 	for j := 0; j < rc.Len(); j++ {
-		val := rc.nthValue(j)
+		val := rc.NthValue(j)
 		dt = append(dt, &val)
 	}
 

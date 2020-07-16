@@ -79,6 +79,32 @@ func (bm *Bitmap) AndNot(obm *Bitmap) {
 	}
 }
 
+func (bm *Bitmap) Or(obm *Bitmap) {
+	if bm.cap != obm.cap {
+		panic("cannot OR two not aligned bitmaps")
+	}
+
+	for j, el := range obm.data {
+		bm.data[j] |= el
+	}
+}
+
+// return a copy (unlike the method)
+func Or(bm1 *Bitmap, bm2 *Bitmap) *Bitmap {
+	if bm1 == nil && bm2 == nil {
+		return nil
+	}
+	if bm1 == nil {
+		return bm2.Clone()
+	}
+	if bm2 == nil {
+		return bm1.Clone()
+	}
+	bm := bm1.Clone()
+	bm.Or(bm2)
+	return bm
+}
+
 func (bm *Bitmap) Ensure(n int) {
 	if bm.data != nil && n <= bm.cap {
 		return

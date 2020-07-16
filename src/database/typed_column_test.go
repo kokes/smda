@@ -49,7 +49,7 @@ func TestBasicStringColumn(t *testing.T) {
 			t.Error(err)
 		}
 		for j, val := range vals {
-			got := nc.nthValue(j)
+			got := nc.NthValue(j)
 			if got != val {
 				t.Errorf("expecting %v, got %v", val, got)
 				return
@@ -619,3 +619,4 @@ func BenchmarkHashingFloats(b *testing.B) {
 }
 
 // tests for columnNulls
+// tests for .Dtype()

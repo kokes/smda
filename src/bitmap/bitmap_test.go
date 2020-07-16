@@ -123,3 +123,4 @@ func TestBitmapAppending(t *testing.T) {
 
 // invert - testing inverting an empty bitmap
 // AndNot
+// Or - both receiver and function

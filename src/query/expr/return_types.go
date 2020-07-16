@@ -78,6 +78,8 @@ func (expr *Expression) IsValid(ts database.TableSchema) error {
 		if err != nil {
 			return err
 		}
+		// TODO: this might be an issue for e.g. colDate = '2020-02-22' - where we'd like to implicitly convert the literal
+		//       to a date, so we may need to extend this to avoid explicit casting
 		if !compatibleTypes(t1.Dtype, t2.Dtype) {
 			return errTypeMismatch
 		}
@@ -140,7 +142,15 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (database.ColumnSche
 
 	case exprEquality, exprNequality, exprGreaterThan, exprGreaterThanEqual, exprLessThan, exprLessThanEqual:
 		schema.Dtype = database.DtypeBool
-		// schema.Nullable = ... // depends on the children's nullability
+		c1, err := expr.children[0].ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		c2, err := expr.children[1].ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		schema.Nullable = c1.Nullable || c2.Nullable
 	case exprAddition, exprSubtraction, exprDivision, exprMultiplication:
 		c1, err := expr.children[0].ReturnType(ts)
 		if err != nil {
