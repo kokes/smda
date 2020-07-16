@@ -71,7 +71,7 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 			return
 		}
 		var qr query.Query
-		dec := json.NewDecoder(r.Body)
+		dec := json.NewDecoder(r.Body) // TODO: check that this call is correct: https://github.com/golang/go/issues/36225
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&qr); err != nil {
 			responseError(w, http.StatusBadRequest, fmt.Sprintf("did not supply correct query parameters: %v", err))

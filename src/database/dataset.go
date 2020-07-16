@@ -112,7 +112,7 @@ func (uid UID) String() string {
 // UIDs as JSON
 func (uid UID) MarshalJSON() ([]byte, error) {
 	ret := make([]byte, 20) // 9 bytes (18 chars in hex) + 2 quotes
-	copy(ret[1:], []byte(uid.String()))
+	copy(ret[1:], uid.String())
 	ret[0] = '"'
 	ret[len(ret)-1] = '"'
 	return ret, nil

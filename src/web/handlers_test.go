@@ -48,6 +48,7 @@ func TestStatusHandling(t *testing.T) {
 	defer resp.Body.Close()
 
 	var dec map[string]string
+	// TODO: fix this NewDecoder call (and all the other ones): https://github.com/golang/go/issues/36225
 	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
 		t.Fatal(err)
 	}
