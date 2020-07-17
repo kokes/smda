@@ -41,24 +41,8 @@ func Evaluate(expr *Expression, colnames []string, columns []column.Chunk) (colu
 		if err != nil {
 			return nil, err
 		}
-		return evalEq(c1, c2)
+		return column.EvalEq(c1, c2)
 	default:
 		return nil, fmt.Errorf("expression %v not supported: %w", expr, errQueryPatternNotSupported)
 	}
-}
-
-// one thing that might help us with all the implementations of functions with 2+ arguments:
-// sort them by dtypes (if possible!), that way we can implement far fewer cases
-// in some cases (e.g. equality), we can simply swap the arguments
-// in other cases (e.g. greater than), we need to swap the operator as well
-
-// OPTIM: what is c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
-func evalEq(c1 column.Chunk, c2 column.Chunk) (column.Chunk, error) {
-	if c1.Dtype() != c2.Dtype() {
-		// this includes int == float!
-		// sort dtypes when implementing this (see the note above)
-		return nil, fmt.Errorf("expression %v=%v not supported: %w", c1, c2, errQueryPatternNotSupported)
-	}
-
-	return nil, nil
 }
