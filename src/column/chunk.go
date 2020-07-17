@@ -1,4 +1,4 @@
-package database
+package column
 
 import (
 	"bytes"
@@ -21,56 +21,55 @@ var errAppendNullabilityMismatch = errors.New("when appending, both chunks need 
 // along the lines of `dataInts []int64, dataFloats []float64` etc. and we'd pick one in a closure
 // upon reading the schema - this would save us type assertions (and give us some perf, potentially),
 // but without measuring this, I'm holding back for now
-// ALSO, this interface is a bit misnamed - it's not the whole column, just a given chunk within a stripe
-type TypedColumn interface {
+type Chunk interface {
 	AddValue(string) error
 	AddValues([]string) error // just a utility thing, mostly for tests
 	MarshalBinary() ([]byte, error)
 	MarshalJSON() ([]byte, error)
-	Prune(*bitmap.Bitmap) TypedColumn
-	Append(TypedColumn) error
+	Prune(*bitmap.Bitmap) Chunk
+	Append(Chunk) error
 	Hash([]uint64)
 	Len() int
 	Dtype() Dtype
 }
 
-func NewTypedColumnFromSchema(schema ColumnSchema) TypedColumn {
+func NewChunkFromSchema(schema Schema) Chunk {
 	switch schema.Dtype {
 	case DtypeString:
-		return newColumnStrings(schema.Nullable)
+		return newChunkStrings(schema.Nullable)
 	case DtypeInt:
-		return newColumnInts(schema.Nullable)
+		return newChunkInts(schema.Nullable)
 	case DtypeFloat:
-		return newColumnFloats(schema.Nullable)
+		return newChunkFloats(schema.Nullable)
 	case DtypeBool:
-		return newColumnBools(schema.Nullable)
+		return newChunkBools(schema.Nullable)
 	case DtypeNull:
-		return newColumnNulls()
+		return newChunkNulls()
 	default:
 		panic(fmt.Sprintf("unknown schema type: %v", schema.Dtype))
 	}
 }
 
-type columnStrings struct {
+type ChunkStrings struct {
 	data        []byte
 	offsets     []uint32
 	nullable    bool
 	nullability *bitmap.Bitmap
 	length      uint32
 }
-type columnInts struct {
+type ChunkInts struct {
 	data        []int64
 	nullable    bool
 	nullability *bitmap.Bitmap
 	length      uint32
 }
-type columnFloats struct {
+type ChunkFloats struct {
 	data        []float64
 	nullable    bool
 	nullability *bitmap.Bitmap
 	length      uint32
 }
-type columnBools struct {
+type ChunkBools struct {
 	data        *bitmap.Bitmap
 	nullable    bool
 	nullability *bitmap.Bitmap
@@ -78,87 +77,87 @@ type columnBools struct {
 }
 
 // if it's all nulls, we only need to know how many there are
-type columnNulls struct {
+type ChunkNulls struct {
 	length uint32
 }
 
 // preallocate column data, so that slice appends don't trigger new reallocations
-const defaultColumnCap = 512
+const defaultChunkCap = 512
 
-func newColumnStrings(isNullable bool) *columnStrings {
-	offsets := make([]uint32, 1, defaultColumnCap)
+func newChunkStrings(isNullable bool) *ChunkStrings {
+	offsets := make([]uint32, 1, defaultChunkCap)
 	offsets[0] = 0
-	return &columnStrings{
-		data:        make([]byte, 0, defaultColumnCap),
+	return &ChunkStrings{
+		data:        make([]byte, 0, defaultChunkCap),
 		offsets:     offsets,
 		nullable:    isNullable,
 		nullability: bitmap.NewBitmap(0),
 	}
 }
-func newColumnInts(isNullable bool) *columnInts {
-	return &columnInts{
-		data:        make([]int64, 0, defaultColumnCap),
+func newChunkInts(isNullable bool) *ChunkInts {
+	return &ChunkInts{
+		data:        make([]int64, 0, defaultChunkCap),
 		nullable:    isNullable,
 		nullability: bitmap.NewBitmap(0),
 	}
 }
-func newColumnFloats(isNullable bool) *columnFloats {
-	return &columnFloats{
-		data:        make([]float64, 0, defaultColumnCap),
+func newChunkFloats(isNullable bool) *ChunkFloats {
+	return &ChunkFloats{
+		data:        make([]float64, 0, defaultChunkCap),
 		nullable:    isNullable,
 		nullability: bitmap.NewBitmap(0),
 	}
 }
-func newColumnBools(isNullable bool) *columnBools {
-	return &columnBools{
+func newChunkBools(isNullable bool) *ChunkBools {
+	return &ChunkBools{
 		data:        bitmap.NewBitmap(0),
 		nullable:    isNullable,
 		nullability: bitmap.NewBitmap(0),
 	}
 }
 
-func newColumnNulls() *columnNulls {
-	return &columnNulls{
+func newChunkNulls() *ChunkNulls {
+	return &ChunkNulls{
 		length: 0,
 	}
 }
 
-func (rc *columnBools) Len() int {
+func (rc *ChunkBools) Len() int {
 	return int(rc.length)
 }
-func (rc *columnFloats) Len() int {
+func (rc *ChunkFloats) Len() int {
 	return int(rc.length)
 }
-func (rc *columnInts) Len() int {
+func (rc *ChunkInts) Len() int {
 	return int(rc.length)
 }
-func (rc *columnNulls) Len() int {
+func (rc *ChunkNulls) Len() int {
 	return int(rc.length)
 }
-func (rc *columnStrings) Len() int {
+func (rc *ChunkStrings) Len() int {
 	return int(rc.length)
 }
 
-func (rc *columnBools) Dtype() Dtype {
+func (rc *ChunkBools) Dtype() Dtype {
 	return DtypeBool
 }
-func (rc *columnFloats) Dtype() Dtype {
+func (rc *ChunkFloats) Dtype() Dtype {
 	return DtypeFloat
 }
-func (rc *columnInts) Dtype() Dtype {
+func (rc *ChunkInts) Dtype() Dtype {
 	return DtypeInt
 }
-func (rc *columnNulls) Dtype() Dtype {
+func (rc *ChunkNulls) Dtype() Dtype {
 	return DtypeNull
 }
-func (rc *columnStrings) Dtype() Dtype {
+func (rc *ChunkStrings) Dtype() Dtype {
 	return DtypeString
 }
 
 // TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
 // BUT, we're sort of using it for type inference - so maybe caveat it with a note that it's only to be used with
 // not nullable columns?
-func (rc *columnStrings) NthValue(n int) string {
+func (rc *ChunkStrings) nthValue(n int) string {
 	offsetStart := rc.offsets[n]
 	offsetEnd := rc.offsets[n+1]
 	return string(rc.data[offsetStart:offsetEnd])
@@ -168,7 +167,7 @@ const nullXorHash = 0xe96766e0d6221951
 
 // TODO: none of these Hash methods accounts for nulls
 // also we don't check that rc.Len() == len(hashes) - should panic otherwise
-func (rc *columnBools) Hash(hashes []uint64) {
+func (rc *ChunkBools) Hash(hashes []uint64) {
 	for j := 0; j < rc.Len(); j++ {
 		// xor it with a random big integer - we'll need something similar for bool handling
 		// rand.Seed(time.Now().UnixNano())
@@ -187,7 +186,7 @@ func (rc *columnBools) Hash(hashes []uint64) {
 		}
 	}
 }
-func (rc *columnFloats) Hash(hashes []uint64) {
+func (rc *ChunkFloats) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
 	for j, el := range rc.data {
@@ -209,7 +208,7 @@ func (rc *columnFloats) Hash(hashes []uint64) {
 // also, check this https://github.com/segmentio/fasthash/ (via https://segment.com/blog/allocation-efficiency-in-high-performance-go-services/)
 // they reimplement fnv using stack allocation only
 //   - we tested it and got a 90% speedup (no allocs, shorter code) - so let's consider it, it's in the fasthash branch
-func (rc *columnInts) Hash(hashes []uint64) {
+func (rc *ChunkInts) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
 	for j, el := range rc.data {
@@ -230,12 +229,12 @@ func (rc *columnInts) Hash(hashes []uint64) {
 	}
 }
 
-func (rc *columnNulls) Hash(hashes []uint64) {
+func (rc *ChunkNulls) Hash(hashes []uint64) {
 	for j := range hashes {
 		hashes[j] ^= nullXorHash
 	}
 }
-func (rc *columnStrings) Hash(hashes []uint64) {
+func (rc *ChunkStrings) Hash(hashes []uint64) {
 	hasher := fnv.New64()
 	for j := 0; j < rc.Len(); j++ {
 		if rc.nullable && rc.nullability.Get(j) {
@@ -250,7 +249,7 @@ func (rc *columnStrings) Hash(hashes []uint64) {
 	}
 }
 
-func (rc *columnStrings) AddValue(s string) error {
+func (rc *ChunkStrings) AddValue(s string) error {
 	rc.data = append(rc.data, []byte(s)...)
 
 	valLen := uint32(len(s))
@@ -261,7 +260,7 @@ func (rc *columnStrings) AddValue(s string) error {
 	return nil
 }
 
-func (rc *columnInts) AddValue(s string) error {
+func (rc *ChunkInts) AddValue(s string) error {
 	if isNull(s) {
 		if !rc.nullable {
 			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
@@ -286,7 +285,7 @@ func (rc *columnInts) AddValue(s string) error {
 }
 
 // let's really consider adding standard nulls here, it will probably make our lives a lot easier
-func (rc *columnFloats) AddValue(s string) error {
+func (rc *ChunkFloats) AddValue(s string) error {
 	var val float64
 	var err error
 	if isNull(s) {
@@ -316,7 +315,7 @@ func (rc *columnFloats) AddValue(s string) error {
 	return nil
 }
 
-func (rc *columnBools) AddValue(s string) error {
+func (rc *ChunkBools) AddValue(s string) error {
 	if isNull(s) {
 		if !rc.nullable {
 			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
@@ -339,7 +338,7 @@ func (rc *columnBools) AddValue(s string) error {
 	return nil
 }
 
-func (rc *columnNulls) AddValue(s string) error {
+func (rc *ChunkNulls) AddValue(s string) error {
 	if !isNull(s) {
 		return fmt.Errorf("a null column expects null values, got: %v", s)
 	}
@@ -347,7 +346,7 @@ func (rc *columnNulls) AddValue(s string) error {
 	return nil
 }
 
-func (rc *columnBools) AddValues(vals []string) error {
+func (rc *ChunkBools) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
 			return err
@@ -355,7 +354,7 @@ func (rc *columnBools) AddValues(vals []string) error {
 	}
 	return nil
 }
-func (rc *columnFloats) AddValues(vals []string) error {
+func (rc *ChunkFloats) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
 			return err
@@ -363,7 +362,7 @@ func (rc *columnFloats) AddValues(vals []string) error {
 	}
 	return nil
 }
-func (rc *columnInts) AddValues(vals []string) error {
+func (rc *ChunkInts) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
 			return err
@@ -371,7 +370,7 @@ func (rc *columnInts) AddValues(vals []string) error {
 	}
 	return nil
 }
-func (rc *columnNulls) AddValues(vals []string) error {
+func (rc *ChunkNulls) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
 			return err
@@ -379,7 +378,7 @@ func (rc *columnNulls) AddValues(vals []string) error {
 	}
 	return nil
 }
-func (rc *columnStrings) AddValues(vals []string) error {
+func (rc *ChunkStrings) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
 			return err
@@ -388,8 +387,8 @@ func (rc *columnStrings) AddValues(vals []string) error {
 	return nil
 }
 
-func (rc *columnStrings) Append(tc TypedColumn) error {
-	nrc, ok := tc.(*columnStrings)
+func (rc *ChunkStrings) Append(tc Chunk) error {
+	nrc, ok := tc.(*ChunkStrings)
 	if !ok {
 		return errAppendTypeMismatch
 	}
@@ -412,8 +411,8 @@ func (rc *columnStrings) Append(tc TypedColumn) error {
 
 	return nil
 }
-func (rc *columnInts) Append(tc TypedColumn) error {
-	nrc, ok := tc.(*columnInts)
+func (rc *ChunkInts) Append(tc Chunk) error {
+	nrc, ok := tc.(*ChunkInts)
 	if !ok {
 		return errAppendTypeMismatch
 	}
@@ -429,8 +428,8 @@ func (rc *columnInts) Append(tc TypedColumn) error {
 
 	return nil
 }
-func (rc *columnFloats) Append(tc TypedColumn) error {
-	nrc, ok := tc.(*columnFloats)
+func (rc *ChunkFloats) Append(tc Chunk) error {
+	nrc, ok := tc.(*ChunkFloats)
 	if !ok {
 		return errAppendTypeMismatch
 	}
@@ -446,8 +445,8 @@ func (rc *columnFloats) Append(tc TypedColumn) error {
 
 	return nil
 }
-func (rc *columnBools) Append(tc TypedColumn) error {
-	nrc, ok := tc.(*columnBools)
+func (rc *ChunkBools) Append(tc Chunk) error {
+	nrc, ok := tc.(*ChunkBools)
 	if !ok {
 		return errAppendTypeMismatch
 	}
@@ -463,8 +462,8 @@ func (rc *columnBools) Append(tc TypedColumn) error {
 
 	return nil
 }
-func (rc *columnNulls) Append(tc TypedColumn) error {
-	nrc, ok := tc.(*columnNulls)
+func (rc *ChunkNulls) Append(tc Chunk) error {
+	nrc, ok := tc.(*ChunkNulls)
 	if !ok {
 		return errAppendTypeMismatch
 	}
@@ -473,8 +472,8 @@ func (rc *columnNulls) Append(tc TypedColumn) error {
 	return nil
 }
 
-func (rc *columnStrings) Prune(bm *bitmap.Bitmap) TypedColumn {
-	nc := newColumnStrings(rc.nullable)
+func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
+	nc := newChunkStrings(rc.nullable)
 	if bm == nil {
 		return nc
 	}
@@ -483,21 +482,22 @@ func (rc *columnStrings) Prune(bm *bitmap.Bitmap) TypedColumn {
 	}
 
 	// if we're not pruning anything, we might just return ourselves
-	// we don't need to clone anything, since the TypedColumn itself is immutable, right?
+	// we don't need to clone anything, since the Chunk itself is immutable, right?
+	// well... appends?
 	if bm.Count() == rc.Len() {
 		return rc
 	}
 
 	// OPTIM: nthValue is not the fastest, just iterate over offsets directly
 	// OR, just iterate over positive bits in our Bitmap - this will be super fast for sparse bitmaps
-	// the bitmap iteration could be implemented in all the typed columns
+	// the bitmap iteration could be implemented in all the typed chunks
 	index := 0
 	for j := 0; j < rc.Len(); j++ {
 		if !bm.Get(j) {
 			continue
 		}
 		// be careful here, AddValue has its own nullability logic and we don't want to mess with that
-		nc.AddValue(rc.NthValue(j))
+		nc.AddValue(rc.nthValue(j))
 		if rc.nullable && rc.nullability.Get(j) {
 			nc.nullability.Set(index, true)
 		}
@@ -513,8 +513,8 @@ func (rc *columnStrings) Prune(bm *bitmap.Bitmap) TypedColumn {
 	return nc
 }
 
-func (rc *columnInts) Prune(bm *bitmap.Bitmap) TypedColumn {
-	nc := newColumnInts(rc.nullable)
+func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
+	nc := newChunkInts(rc.nullable)
 	if bm == nil {
 		return nc
 	}
@@ -547,8 +547,8 @@ func (rc *columnInts) Prune(bm *bitmap.Bitmap) TypedColumn {
 	return nc
 }
 
-func (rc *columnFloats) Prune(bm *bitmap.Bitmap) TypedColumn {
-	nc := newColumnFloats(rc.nullable)
+func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
+	nc := newChunkFloats(rc.nullable)
 	if bm == nil {
 		return nc
 	}
@@ -581,8 +581,8 @@ func (rc *columnFloats) Prune(bm *bitmap.Bitmap) TypedColumn {
 	return nc
 }
 
-func (rc *columnBools) Prune(bm *bitmap.Bitmap) TypedColumn {
-	nc := newColumnBools(rc.nullable)
+func (rc *ChunkBools) Prune(bm *bitmap.Bitmap) Chunk {
+	nc := newChunkBools(rc.nullable)
 	if bm == nil {
 		return nc
 	}
@@ -616,8 +616,8 @@ func (rc *columnBools) Prune(bm *bitmap.Bitmap) TypedColumn {
 	return nc
 }
 
-func (rc *columnNulls) Prune(bm *bitmap.Bitmap) TypedColumn {
-	nc := newColumnNulls()
+func (rc *ChunkNulls) Prune(bm *bitmap.Bitmap) Chunk {
+	nc := newChunkNulls()
 	if bm == nil {
 		return nc
 	}
@@ -638,23 +638,23 @@ func (rc *columnNulls) Prune(bm *bitmap.Bitmap) TypedColumn {
 // into the binary representation - but that's just because we always have the schema at hand... but will we always have it?
 // shouldn't the files be readable as standalone files?
 // OPTIM: shouldn't we deserialize based on a byte slice instead? We already have it, so we're just duplicating it using a byte buffer
-func deserializeColumn(r io.Reader, Dtype Dtype) (TypedColumn, error) {
+func Deserialize(r io.Reader, Dtype Dtype) (Chunk, error) {
 	switch Dtype {
 	case DtypeString:
-		return deserializeColumnStrings(r)
+		return deserializeChunkStrings(r)
 	case DtypeInt:
-		return deserializeColumnInts(r)
+		return deserializeChunkInts(r)
 	case DtypeFloat:
-		return deserializeColumnFloats(r)
+		return deserializeChunkFloats(r)
 	case DtypeBool:
-		return deserializeColumnBools(r)
+		return deserializeChunkBools(r)
 	case DtypeNull:
-		return deserializeColumnNulls(r)
+		return deserializeChunkNulls(r)
 	}
 	panic(fmt.Sprintf("unsupported Dtype: %v", Dtype))
 }
 
-func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
+func deserializeChunkStrings(r io.Reader) (*ChunkStrings, error) {
 	var nullable bool
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
@@ -680,7 +680,7 @@ func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
 	if _, err := io.ReadFull(r, data); err != nil {
 		return nil, err
 	}
-	return &columnStrings{
+	return &ChunkStrings{
 		data:        data,
 		offsets:     offsets,
 		nullable:    nullable,
@@ -690,7 +690,7 @@ func deserializeColumnStrings(r io.Reader) (*columnStrings, error) {
 }
 
 // TODO: roundtrip tests (for this and floats and bools)
-func deserializeColumnInts(r io.Reader) (*columnInts, error) {
+func deserializeChunkInts(r io.Reader) (*ChunkInts, error) {
 	var nullable bool
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
@@ -707,7 +707,7 @@ func deserializeColumnInts(r io.Reader) (*columnInts, error) {
 	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
 		return nil, err
 	}
-	return &columnInts{
+	return &ChunkInts{
 		data:        data,
 		nullable:    nullable,
 		nullability: bitmap,
@@ -715,7 +715,7 @@ func deserializeColumnInts(r io.Reader) (*columnInts, error) {
 	}, nil
 }
 
-func deserializeColumnFloats(r io.Reader) (*columnFloats, error) {
+func deserializeChunkFloats(r io.Reader) (*ChunkFloats, error) {
 	var nullable bool
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
@@ -732,7 +732,7 @@ func deserializeColumnFloats(r io.Reader) (*columnFloats, error) {
 	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
 		return nil, err
 	}
-	return &columnFloats{
+	return &ChunkFloats{
 		data:        data,
 		nullable:    nullable,
 		nullability: bitmap,
@@ -740,7 +740,7 @@ func deserializeColumnFloats(r io.Reader) (*columnFloats, error) {
 	}, nil
 }
 
-func deserializeColumnBools(r io.Reader) (*columnBools, error) {
+func deserializeChunkBools(r io.Reader) (*ChunkBools, error) {
 	var nullable bool
 	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
 		return nil, err
@@ -757,7 +757,7 @@ func deserializeColumnBools(r io.Reader) (*columnBools, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &columnBools{
+	return &ChunkBools{
 		data:        data,
 		nullable:    nullable,
 		nullability: bm,
@@ -765,17 +765,17 @@ func deserializeColumnBools(r io.Reader) (*columnBools, error) {
 	}, nil
 }
 
-func deserializeColumnNulls(r io.Reader) (*columnNulls, error) {
+func deserializeChunkNulls(r io.Reader) (*ChunkNulls, error) {
 	var length uint32
 	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
 		return nil, err
 	}
-	return &columnNulls{
+	return &ChunkNulls{
 		length: length,
 	}, nil
 }
 
-func (rc *columnStrings) MarshalBinary() ([]byte, error) {
+func (rc *ChunkStrings) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return nil, err
@@ -804,7 +804,7 @@ func (rc *columnStrings) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), err
 }
 
-func (rc *columnInts) MarshalBinary() ([]byte, error) {
+func (rc *ChunkInts) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return nil, err
@@ -821,7 +821,7 @@ func (rc *columnInts) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), err
 }
 
-func (rc *columnFloats) MarshalBinary() ([]byte, error) {
+func (rc *ChunkFloats) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return nil, err
@@ -837,7 +837,7 @@ func (rc *columnFloats) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), err
 }
 
-func (rc *columnBools) MarshalBinary() ([]byte, error) {
+func (rc *ChunkBools) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
 		return nil, err
@@ -858,7 +858,7 @@ func (rc *columnBools) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), nil
 }
 
-func (rc *columnNulls) MarshalBinary() ([]byte, error) {
+func (rc *ChunkNulls) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	length := rc.length
 	if err := binary.Write(w, binary.LittleEndian, length); err != nil {
@@ -867,11 +867,11 @@ func (rc *columnNulls) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), nil
 }
 
-func (rc *columnStrings) MarshalJSON() ([]byte, error) {
+func (rc *ChunkStrings) MarshalJSON() ([]byte, error) {
 	if !(rc.nullable && rc.nullability.Count() > 0) {
 		res := make([]string, 0, int(rc.length))
 		for j := 0; j < rc.Len(); j++ {
-			res = append(res, rc.NthValue(j))
+			res = append(res, rc.nthValue(j))
 		}
 
 		return json.Marshal(res)
@@ -879,7 +879,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 
 	dt := make([]*string, 0, rc.length)
 	for j := 0; j < rc.Len(); j++ {
-		val := rc.NthValue(j)
+		val := rc.nthValue(j)
 		dt = append(dt, &val)
 	}
 
@@ -891,7 +891,7 @@ func (rc *columnStrings) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dt)
 }
 
-func (rc *columnInts) MarshalJSON() ([]byte, error) {
+func (rc *ChunkInts) MarshalJSON() ([]byte, error) {
 	if !(rc.nullable && rc.nullability.Count() > 0) {
 		return json.Marshal(rc.data)
 	}
@@ -909,7 +909,7 @@ func (rc *columnInts) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dt)
 }
 
-func (rc *columnFloats) MarshalJSON() ([]byte, error) {
+func (rc *ChunkFloats) MarshalJSON() ([]byte, error) {
 	// I thought we didn't need a nullability branch here, because while we do use a bitmap for nullables,
 	// we also store NaNs in the data themselves, so this should be serialised automatically
 	// that's NOT the case, MarshalJSON does not allow NaNs and Infties https://github.com/golang/go/issues/3480
@@ -930,7 +930,7 @@ func (rc *columnFloats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dt)
 }
 
-func (rc *columnBools) MarshalJSON() ([]byte, error) {
+func (rc *ChunkBools) MarshalJSON() ([]byte, error) {
 	if !(rc.nullable && rc.nullability.Count() > 0) {
 		dt := make([]bool, 0, rc.Len())
 		for j := 0; j < rc.Len(); j++ {
@@ -952,7 +952,7 @@ func (rc *columnBools) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dt)
 }
 
-func (rc *columnNulls) MarshalJSON() ([]byte, error) {
+func (rc *ChunkNulls) MarshalJSON() ([]byte, error) {
 	ret := make([]*uint8, rc.length) // how else can we create a [null, null, null, ...] in JSON?
 	return json.Marshal(ret)
 }

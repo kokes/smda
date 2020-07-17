@@ -4,13 +4,14 @@ import (
 	"fmt"
 
 	"github.com/kokes/smda/src/bitmap"
+	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/query/expr"
 )
 
 // Query describes what we want to retrieve from a given dataset
 // There are basically four places you need to edit (and test!) in order to extend this:
-// 1) The engine itself needs to support this functionality (usually a method on Dataset or database.TypedColumn)
+// 1) The engine itself needs to support this functionality (usually a method on Dataset or column.Chunk)
 // 2) The query method has to be able to translate query parameters to the engine
 // 3) The query endpoint handler needs to be able to process the incoming body
 //    to the Query struct (the Unmarshaler should mostly take care of this)
@@ -31,7 +32,7 @@ func Filter(db *database.Database, ds *database.Dataset, fe *expr.Expression) ([
 	if err != nil {
 		return nil, err
 	}
-	if rettype.Dtype != database.DtypeBool {
+	if rettype.Dtype != column.DtypeBool {
 		return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", fe, rettype.Dtype)
 	}
 	colnames := fe.ColumnsUsed()
@@ -55,7 +56,7 @@ func Filter(db *database.Database, ds *database.Dataset, fe *expr.Expression) ([
 	// 	if err != nil {
 	// 		return nil, err
 	// 	}
-	// 	// TODO: the thing with database.TypedColumn.Filter not returning an error is that it panic
+	// 	// TODO: the thing with column.Chunk.Filter not returning an error is that it panic
 	// 	// when using a non-supported operator - this does not lead to good user experience, plus
 	// 	// it allows the user to crash the system without a great logging experience
 	// 	bm := col.Filter(fe.Operator, fe.Argument)
@@ -64,10 +65,10 @@ func Filter(db *database.Database, ds *database.Dataset, fe *expr.Expression) ([
 	return nil, nil
 }
 
-func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]database.TypedColumn, error) {
+func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]column.Chunk, error) {
 	// TODO: fail if len(exprs) == 0? it will panic later anyway
 
-	nrc := make([]database.TypedColumn, 0, len(exprs))
+	nrc := make([]column.Chunk, 0, len(exprs))
 	colIndices := make([]int, 0, len(exprs))
 
 	for _, expr := range exprs {
@@ -75,13 +76,13 @@ func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]d
 		if err != nil {
 			return nil, err
 		}
-		nrc = append(nrc, database.NewTypedColumnFromSchema(col))
+		nrc = append(nrc, column.NewChunkFromSchema(col))
 		colIndices = append(colIndices, idx)
 	}
 
 	groups := make(map[uint64]int)
 	for _, stripeID := range ds.Stripes {
-		rcs := make([]database.TypedColumn, 0, len(exprs))
+		rcs := make([]column.Chunk, 0, len(exprs))
 		for _, colIndex := range colIndices {
 			rc, err := db.ReadColumnFromStripe(ds, stripeID, colIndex)
 			if err != nil {
@@ -111,7 +112,7 @@ func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]d
 				return nil, err
 			}
 		}
-		// also add some meta slice of "group ID" and return it or incorporate it in the []database.TypedColumn
+		// also add some meta slice of "group ID" and return it or incorporate it in the []column.Chunk
 	}
 
 	return nrc, nil
@@ -120,8 +121,8 @@ func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]d
 // QueryResult holds the result of a query, at this point it's fairly literal - in the future we may want
 // a QueryResult to be a Dataset of its own (for better interoperability, persistence, caching etc.)
 type QueryResult struct {
-	Columns []string               `json:"columns"`
-	Data    []database.TypedColumn `json:"data"`
+	Columns []string       `json:"columns"`
+	Data    []column.Chunk `json:"data"`
 }
 
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
@@ -129,7 +130,7 @@ type QueryResult struct {
 func QueryData(db *database.Database, q Query) (*QueryResult, error) {
 	res := &QueryResult{
 		Columns: make([]string, 0),
-		Data:    make([]database.TypedColumn, 0),
+		Data:    make([]column.Chunk, 0),
 	}
 
 	ds, err := db.GetDataset(q.Dataset)
@@ -160,7 +161,7 @@ func QueryData(db *database.Database, q Query) (*QueryResult, error) {
 
 	for _, col := range ds.Schema {
 		res.Columns = append(res.Columns, col.Name)
-		res.Data = append(res.Data, database.NewTypedColumnFromSchema(col))
+		res.Data = append(res.Data, column.NewChunkFromSchema(col))
 	}
 
 	limit := -1

@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/kokes/smda/src/column"
 )
 
 var errPathNotEmpty = errors.New("path not empty")
@@ -147,24 +149,18 @@ type Dataset struct {
 	Stripes []UID       `json:"-"`
 }
 
-type ColumnSchema struct {
-	Name     string `json:"name"`
-	Dtype    Dtype  `json:"dtype"`
-	Nullable bool   `json:"nullable"`
-}
+type TableSchema []column.Schema
 
-type TableSchema []ColumnSchema
-
-func (schema *TableSchema) LocateColumn(s string) (int, ColumnSchema, error) {
+func (schema *TableSchema) LocateColumn(s string) (int, column.Schema, error) {
 	if schema == nil {
-		return 0, ColumnSchema{}, errors.New("empty schema cannot contain requested column")
+		return 0, column.Schema{}, errors.New("empty schema cannot contain requested column")
 	}
-	for j, col := range []ColumnSchema(*schema) {
+	for j, col := range []column.Schema(*schema) {
 		if col.Name == s {
 			return j, col, nil
 		}
 	}
-	return 0, ColumnSchema{}, fmt.Errorf("column %v not found in schema", s)
+	return 0, column.Schema{}, fmt.Errorf("column %v not found in schema", s)
 }
 
 func NewDataset() *Dataset {

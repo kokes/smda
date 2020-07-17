@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/kokes/smda/src/database"
+	"github.com/kokes/smda/src/column"
 )
 
 var errQueryPatternNotSupported = errors.New("query pattern not supported")
@@ -18,11 +18,16 @@ func findInStringSlice(haystack []string, needle string) int {
 	}
 	return -1
 }
-func getColumn(colName string, colNames []string, columns []database.TypedColumn) database.TypedColumn {
+
+// OPTIM: consider replacing this with a map (O(log n) -> O(1), only some minor prep needed)
+//        this would alter the Evaluate function signature - we'd accept map on the input
+func getColumn(colName string, colNames []string, columns []column.Chunk) column.Chunk {
 	return columns[findInStringSlice(colNames, colName)]
 }
 
-func Evaluate(expr *Expression, colnames []string, columns []database.TypedColumn) (database.TypedColumn, error) {
+// OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
+// the same tree of operations - we could detect what functions/methods need to be called at parse time
+func Evaluate(expr *Expression, colnames []string, columns []column.Chunk) (column.Chunk, error) {
 	// bm := bitmap.Or(c1.Nullability, c2.Nullability)
 	switch expr.etype {
 	case exprIdentifier:
@@ -47,11 +52,8 @@ func Evaluate(expr *Expression, colnames []string, columns []database.TypedColum
 // in some cases (e.g. equality), we can simply swap the arguments
 // in other cases (e.g. greater than), we need to swap the operator as well
 
-// OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
-// the same tree of operations - we could detect what functions/methods need to be called at parse time
-
 // OPTIM: what is c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
-func evalEq(c1 database.TypedColumn, c2 database.TypedColumn) (database.TypedColumn, error) {
+func evalEq(c1 column.Chunk, c2 column.Chunk) (column.Chunk, error) {
 	if c1.Dtype() != c2.Dtype() {
 		// this includes int == float!
 		// sort dtypes when implementing this (see the note above)

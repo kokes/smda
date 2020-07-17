@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
 )
 
@@ -13,11 +14,11 @@ var errChildrenNotTwo = errors.New("expecting an expression to have two children
 var errTypeMismatch = errors.New("expecting compatible types")
 
 // should this be in the database package?
-func compatibleTypes(t1, t2 database.Dtype) bool {
+func compatibleTypes(t1, t2 column.Dtype) bool {
 	if t1 == t2 {
 		return true
 	}
-	if (t1 == database.DtypeFloat && t2 == database.DtypeInt) || (t2 == database.DtypeFloat && t1 == database.DtypeInt) {
+	if (t1 == column.DtypeFloat && t2 == column.DtypeInt) || (t2 == column.DtypeFloat && t1 == column.DtypeInt) {
 		return true
 	}
 	return false
@@ -96,27 +97,27 @@ func (expr *Expression) IsValid(ts database.TableSchema) error {
 // does this even need to return errors? If we always call IsValid outside of this, then this will
 // always return a type - one issue with the current implementation is that isvalid gets called recursively
 // once at the top and then for all the children again (because we call ReturnType on the children)
-func (expr *Expression) ReturnType(ts database.TableSchema) (database.ColumnSchema, error) {
-	schema := database.ColumnSchema{}
+func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, error) {
+	schema := column.Schema{}
 	if err := expr.IsValid(ts); err != nil {
 		return schema, err
 	}
 	switch expr.etype {
 	case exprLiteralInt:
-		schema.Dtype = database.DtypeInt
+		schema.Dtype = column.DtypeInt
 		schema.Nullable = false
 	case exprLiteralFloat:
-		schema.Dtype = database.DtypeFloat
+		schema.Dtype = column.DtypeFloat
 		schema.Nullable = false
 	case exprLiteralBool:
-		schema.Dtype = database.DtypeBool
+		schema.Dtype = column.DtypeBool
 		schema.Nullable = false
 	case exprLiteralString:
-		schema.Dtype = database.DtypeString
+		schema.Dtype = column.DtypeString
 		schema.Nullable = false
 
 	case exprFunCall:
-		var argTypes []database.ColumnSchema
+		var argTypes []column.Schema
 		for _, child := range expr.children {
 			ctype, err := child.ReturnType(ts)
 			if err != nil {
@@ -134,14 +135,14 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (database.ColumnSche
 		if err != nil {
 			return schema, err
 		}
-		schema = database.ColumnSchema{
+		schema = column.Schema{
 			Name:     col.Name,
 			Dtype:    col.Dtype,
 			Nullable: col.Nullable,
 		}
 
 	case exprEquality, exprNequality, exprGreaterThan, exprGreaterThanEqual, exprLessThan, exprLessThanEqual:
-		schema.Dtype = database.DtypeBool
+		schema.Dtype = column.DtypeBool
 		c1, err := expr.children[0].ReturnType(ts)
 		if err != nil {
 			return schema, err
@@ -160,10 +161,10 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (database.ColumnSche
 		if err != nil {
 			return schema, err
 		}
-		schema.Dtype = database.DtypeFloat
+		schema.Dtype = column.DtypeFloat
 		// int operations (apart from division) will result back in ints
-		if expr.etype != exprDivision && (c1.Dtype == database.DtypeInt && c2.Dtype == database.DtypeInt) {
-			schema.Dtype = database.DtypeInt
+		if expr.etype != exprDivision && (c1.Dtype == column.DtypeInt && c2.Dtype == column.DtypeInt) {
+			schema.Dtype = column.DtypeInt
 		}
 		schema.Nullable = c1.Nullable || c2.Nullable
 	default:
@@ -178,11 +179,11 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (database.ColumnSche
 // note that a call to IsValid MUST precede this
 // also, should we make multiplication, inequality etc. just functions like nullif or coalesce? That would allow us
 // to fold all the functionality of eval() into a (recursive) function call
-func funCallReturnType(funName string, argTypes []database.ColumnSchema) (database.ColumnSchema, error) {
-	schema := database.ColumnSchema{}
+func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema, error) {
+	schema := column.Schema{}
 	switch funName {
 	case "count":
-		schema.Dtype = database.DtypeInt
+		schema.Dtype = column.DtypeInt
 		schema.Nullable = false // can we get somehow get empty groups and thus nulls in counts?
 	case "nullif":
 		schema.Dtype = argTypes[0].Dtype // TODO: add nullif() to tests to ensure that we catch it before this and don't panic

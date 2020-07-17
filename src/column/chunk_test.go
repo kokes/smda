@@ -1,4 +1,4 @@
-package database
+package column
 
 import (
 	"bytes"
@@ -18,8 +18,8 @@ func TestBlankColumnInitialisation(t *testing.T) {
 	Dtypes := []Dtype{DtypeString, DtypeInt, DtypeFloat, DtypeBool, DtypeNull}
 	for _, dt := range Dtypes {
 		for _, nullable := range []bool{true, false} {
-			schema := ColumnSchema{"", dt, nullable}
-			NewTypedColumnFromSchema(schema)
+			schema := Schema{"", dt, nullable}
+			NewChunkFromSchema(schema)
 		}
 	}
 }
@@ -32,8 +32,8 @@ func TestInvalidColumnInitialisation(t *testing.T) {
 			}
 		}
 	}()
-	schema := ColumnSchema{"", DtypeInvalid, true}
-	NewTypedColumnFromSchema(schema)
+	schema := Schema{"", DtypeInvalid, true}
+	NewChunkFromSchema(schema)
 }
 
 func TestBasicStringColumn(t *testing.T) {
@@ -44,12 +44,12 @@ func TestBasicStringColumn(t *testing.T) {
 		{""},
 	}
 	for _, vals := range tt {
-		nc := newColumnStrings(false)
+		nc := newChunkStrings(false)
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
 		for j, val := range vals {
-			got := nc.NthValue(j)
+			got := nc.nthValue(j)
 			if got != val {
 				t.Errorf("expecting %v, got %v", val, got)
 				return
@@ -75,7 +75,7 @@ func TestBasicIntColumn(t *testing.T) {
 		{"1", "2", ""},
 	}
 	for _, vals := range tt {
-		nc := newColumnInts(true)
+		nc := newChunkInts(true)
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -105,7 +105,7 @@ func TestBasicFloatColumn(t *testing.T) {
 		{"1", "", "1.2"},
 	}
 	for _, vals := range tt {
-		nc := newColumnFloats(true)
+		nc := newChunkFloats(true)
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -127,7 +127,7 @@ func TestBasicBoolColumn(t *testing.T) {
 		{"T", "F", ""},
 	}
 	for _, vals := range tt {
-		nc := newColumnBools(true)
+		nc := newChunkBools(true)
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -152,8 +152,8 @@ func TestAddingInvalidValuesToNonNullableColumns(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		schema := ColumnSchema{"", test.Dtype, false}
-		col := NewTypedColumnFromSchema(schema)
+		schema := Schema{"", test.Dtype, false}
+		col := NewChunkFromSchema(schema)
 		for _, val := range test.values {
 			if err := col.AddValue(val); !errors.Is(err, errNullInNonNullable) {
 				t.Errorf("adding %v to a nullable %v column, expecting it to fail, got: %v", val, test.Dtype, err)
@@ -169,7 +169,7 @@ func TestInvalidInts(t *testing.T) {
 	tt := []string{"1.", ".1", "1e3"}
 
 	for _, testCase := range tt {
-		nc := newColumnInts(false)
+		nc := newChunkInts(false)
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid int", testCase)
 		}
@@ -180,7 +180,7 @@ func TestInvalidFloats(t *testing.T) {
 	tt := []string{"1e123003030303", ".e", "123f"}
 
 	for _, testCase := range tt {
-		nc := newColumnFloats(false)
+		nc := newChunkFloats(false)
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid float", testCase)
 		}
@@ -191,7 +191,7 @@ func TestInvalidBools(t *testing.T) {
 	tt := []string{"Y", "N", "YES", "NO", "True", "False", "1", "0"} // add True/False once we stop supporting it
 
 	for _, testCase := range tt {
-		nc := newColumnBools(false)
+		nc := newChunkBools(false)
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid bool", testCase)
 		}
@@ -202,7 +202,7 @@ func TestInvalidNulls(t *testing.T) {
 	tt := []string{"foo", "bar", "baz"}
 
 	for _, testCase := range tt {
-		nc := newColumnNulls()
+		nc := newChunkNulls()
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid null", testCase)
 		}
@@ -233,8 +233,8 @@ func TestColumnLength(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		schema := ColumnSchema{"", test.Dtype, true}
-		col := NewTypedColumnFromSchema(schema)
+		schema := Schema{"", test.Dtype, true}
+		col := NewChunkFromSchema(schema)
 		col.AddValues(test.vals)
 		if col.Len() != test.length {
 			t.Errorf("expecting %v to have length of %v, got %v", test.vals, test.length, col.Len())
@@ -244,30 +244,30 @@ func TestColumnLength(t *testing.T) {
 
 func TestSerialisationRoundtrip(t *testing.T) {
 	tests := []struct {
-		schema ColumnSchema
+		schema Schema
 		vals   []string
 	}{
-		{ColumnSchema{"", DtypeString, true}, []string{"foo", "", "baz"}},
-		{ColumnSchema{"", DtypeString, false}, []string{"foo", "bar", "baz"}},
-		{ColumnSchema{"", DtypeString, true}, []string{}},
-		{ColumnSchema{"", DtypeString, true}, []string{""}},
-		{ColumnSchema{"", DtypeInt, true}, []string{}},
-		{ColumnSchema{"", DtypeInt, true}, []string{""}},
-		{ColumnSchema{"", DtypeFloat, true}, []string{}},
-		// {ColumnSchema{"", DtypeFloat, true}, []string{""}}, // TODO: cannot compare NaNs
-		{ColumnSchema{"", DtypeBool, true}, []string{}},
-		{ColumnSchema{"", DtypeBool, true}, []string{""}},
-		{ColumnSchema{"", DtypeNull, true}, []string{}},
-		{ColumnSchema{"", DtypeNull, true}, []string{""}},
-		{ColumnSchema{"", DtypeInt, false}, []string{"1", "2", "3"}},
-		{ColumnSchema{"", DtypeInt, true}, []string{"1", "", "3"}},
-		{ColumnSchema{"", DtypeFloat, false}, []string{"1", "2", "3"}},
-		// // {ColumnSchema{"", DtypeFloat, true}, []string{"1", "", "3"}}, // NaNs yet again
-		{ColumnSchema{"", DtypeBool, false}, []string{"t", "f", "t"}},
-		{ColumnSchema{"", DtypeBool, true}, []string{"t", "", "f"}},
+		{Schema{"", DtypeString, true}, []string{"foo", "", "baz"}},
+		{Schema{"", DtypeString, false}, []string{"foo", "bar", "baz"}},
+		{Schema{"", DtypeString, true}, []string{}},
+		{Schema{"", DtypeString, true}, []string{""}},
+		{Schema{"", DtypeInt, true}, []string{}},
+		{Schema{"", DtypeInt, true}, []string{""}},
+		{Schema{"", DtypeFloat, true}, []string{}},
+		// {Schema{"", DtypeFloat, true}, []string{""}}, // TODO: cannot compare NaNs
+		{Schema{"", DtypeBool, true}, []string{}},
+		{Schema{"", DtypeBool, true}, []string{""}},
+		{Schema{"", DtypeNull, true}, []string{}},
+		{Schema{"", DtypeNull, true}, []string{""}},
+		{Schema{"", DtypeInt, false}, []string{"1", "2", "3"}},
+		{Schema{"", DtypeInt, true}, []string{"1", "", "3"}},
+		{Schema{"", DtypeFloat, false}, []string{"1", "2", "3"}},
+		// // {Schema{"", DtypeFloat, true}, []string{"1", "", "3"}}, // NaNs yet again
+		{Schema{"", DtypeBool, false}, []string{"t", "f", "t"}},
+		{Schema{"", DtypeBool, true}, []string{"t", "", "f"}},
 	}
 	for _, test := range tests {
-		col := NewTypedColumnFromSchema(test.schema)
+		col := NewChunkFromSchema(test.schema)
 		if err := col.AddValues(test.vals); err != nil {
 			t.Error(err)
 		}
@@ -275,7 +275,7 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		col2, err := deserializeColumn(bytes.NewReader(b), test.schema.Dtype)
+		col2, err := Deserialize(bytes.NewReader(b), test.schema.Dtype)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -295,37 +295,37 @@ func TestSerialisationUnsupportedTypes(t *testing.T) {
 	unsupported := []Dtype{DtypeInvalid}
 
 	for _, dt := range unsupported {
-		deserializeColumn(strings.NewReader(""), dt)
+		Deserialize(strings.NewReader(""), dt)
 	}
 }
 
 func TestJSONMarshaling(t *testing.T) {
 	tests := []struct {
-		rc       TypedColumn // use NewTypedColumnFromSchema instead
+		rc       Chunk // use NewChunkFromSchema instead
 		values   []string
 		expected string
 	}{
-		{newColumnBools(true), []string{}, "[]"},
-		{newColumnBools(false), []string{}, "[]"},
-		{newColumnBools(true), []string{"true", "false"}, "[true,false]"},
-		{newColumnBools(false), []string{"true", "false"}, "[true,false]"},
-		{newColumnBools(true), []string{"", "true", "", ""}, "[null,true,null,null]"},
-		{newColumnInts(true), []string{}, "[]"},
-		{newColumnInts(false), []string{}, "[]"},
-		{newColumnInts(true), []string{"123", "456"}, "[123,456]"},
-		{newColumnInts(false), []string{"123", "456"}, "[123,456]"},
-		{newColumnInts(true), []string{"123", "", "", "456"}, "[123,null,null,456]"},
-		{newColumnFloats(false), []string{"123", "456"}, "[123,456]"},
-		{newColumnFloats(false), []string{"123.456", "456.789"}, "[123.456,456.789]"},
-		{newColumnFloats(true), []string{"123", "", "456"}, "[123,null,456]"},
-		{newColumnFloats(true), []string{"123", "", "nan"}, "[123,null,null]"},
+		{newChunkBools(true), []string{}, "[]"},
+		{newChunkBools(false), []string{}, "[]"},
+		{newChunkBools(true), []string{"true", "false"}, "[true,false]"},
+		{newChunkBools(false), []string{"true", "false"}, "[true,false]"},
+		{newChunkBools(true), []string{"", "true", "", ""}, "[null,true,null,null]"},
+		{newChunkInts(true), []string{}, "[]"},
+		{newChunkInts(false), []string{}, "[]"},
+		{newChunkInts(true), []string{"123", "456"}, "[123,456]"},
+		{newChunkInts(false), []string{"123", "456"}, "[123,456]"},
+		{newChunkInts(true), []string{"123", "", "", "456"}, "[123,null,null,456]"},
+		{newChunkFloats(false), []string{"123", "456"}, "[123,456]"},
+		{newChunkFloats(false), []string{"123.456", "456.789"}, "[123.456,456.789]"},
+		{newChunkFloats(true), []string{"123", "", "456"}, "[123,null,456]"},
+		{newChunkFloats(true), []string{"123", "", "nan"}, "[123,null,null]"},
 		// {newColumnFloats(true), []string{"123", "+infty", "-infty"}, "[123,+infty,-infty]"}, // no infty support yet
-		{newColumnStrings(true), []string{}, "[]"},
-		{newColumnStrings(false), []string{}, "[]"},
-		{newColumnStrings(true), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
-		{newColumnStrings(false), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
-		{newColumnNulls(), []string{""}, "[null]"},
-		{newColumnNulls(), []string{"", "", ""}, "[null,null,null]"},
+		{newChunkStrings(true), []string{}, "[]"},
+		{newChunkStrings(false), []string{}, "[]"},
+		{newChunkStrings(true), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
+		{newChunkStrings(false), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
+		{newChunkNulls(), []string{""}, "[null]"},
+		{newChunkNulls(), []string{"", "", ""}, "[null,null,null]"},
 
 		// we don't really have nullable strings at this point
 		// {newColumnStrings(true), []string{"", "bar", ""}, "[null,\"bar\",null]"},
@@ -384,8 +384,8 @@ func TestBasicPruning(t *testing.T) {
 		{DtypeNull, true, []string{"", "", ""}, nil, nil},
 	}
 	for _, test := range tests {
-		testSchema := ColumnSchema{Dtype: test.Dtype, Nullable: test.nullable}
-		rc := NewTypedColumnFromSchema(testSchema)
+		testSchema := Schema{Dtype: test.Dtype, Nullable: test.nullable}
+		rc := NewChunkFromSchema(testSchema)
 		if err := rc.AddValues(test.values); err != nil {
 			t.Error(err)
 			continue
@@ -396,7 +396,7 @@ func TestBasicPruning(t *testing.T) {
 			bm = bitmap.NewBitmapFromBools(test.bools)
 		}
 		pruned := rc.Prune(bm)
-		expected := NewTypedColumnFromSchema(testSchema)
+		expected := NewChunkFromSchema(testSchema)
 		if err := expected.AddValues(test.expected); err != nil {
 			t.Error(err)
 			continue
@@ -435,8 +435,8 @@ func TestPruningFailureMisalignment(t *testing.T) {
 	}
 
 	for j, test := range tests {
-		testSchema := ColumnSchema{Dtype: test.Dtype, Nullable: test.nullable}
-		rc := NewTypedColumnFromSchema(testSchema)
+		testSchema := Schema{Dtype: test.Dtype, Nullable: test.nullable}
+		rc := NewChunkFromSchema(testSchema)
 		if err := rc.AddValues(test.values); err != nil {
 			t.Error(err)
 			continue
@@ -489,9 +489,9 @@ func TestAppending(t *testing.T) {
 		{DtypeBool, true, []string{"", "", ""}, []string{"F", "F", ""}, []string{"", "", "", "F", "F", ""}},
 	}
 	for _, test := range tests {
-		rc := NewTypedColumnFromSchema(ColumnSchema{Dtype: test.Dtype, Nullable: test.nullable})
-		nrc := NewTypedColumnFromSchema(ColumnSchema{Dtype: test.Dtype, Nullable: test.nullable})
-		rrc := NewTypedColumnFromSchema(ColumnSchema{Dtype: test.Dtype, Nullable: test.nullable})
+		rc := NewChunkFromSchema(Schema{Dtype: test.Dtype, Nullable: test.nullable})
+		nrc := NewChunkFromSchema(Schema{Dtype: test.Dtype, Nullable: test.nullable})
+		rrc := NewChunkFromSchema(Schema{Dtype: test.Dtype, Nullable: test.nullable})
 
 		if err := rc.AddValues(test.a); err != nil {
 			t.Error(err)
@@ -506,8 +506,8 @@ func TestAppending(t *testing.T) {
 			t.Error(err)
 		}
 		if !reflect.DeepEqual(rc, rrc) {
-			fmt.Println(rc.(*columnFloats).nullability)
-			fmt.Println(rrc.(*columnFloats).nullability)
+			fmt.Println(rc.(*ChunkFloats).nullability)
+			fmt.Println(rrc.(*ChunkFloats).nullability)
 			fmt.Println(rc, rrc)
 			t.Errorf("expected that %v plus %v results in %v", test.a, test.b, test.res)
 		}
@@ -523,8 +523,8 @@ func TestAppendTypeMismatch(t *testing.T) {
 			if dt1 == dt2 {
 				continue
 			}
-			col1 := NewTypedColumnFromSchema(ColumnSchema{"", dt1, true})
-			col2 := NewTypedColumnFromSchema(ColumnSchema{"", dt2, true})
+			col1 := NewChunkFromSchema(Schema{"", dt1, true})
+			col2 := NewChunkFromSchema(Schema{"", dt2, true})
 
 			if err := col1.Append(col2); err != errAppendTypeMismatch {
 				t.Errorf("expecting a type mismatch in Append to result in errTypeMismatchAppend, got: %v", err)
@@ -538,8 +538,8 @@ func TestAppendWithVaryingNullability(t *testing.T) {
 	Dtypes := []Dtype{DtypeString, DtypeInt, DtypeFloat, DtypeBool}
 
 	for _, dt := range Dtypes {
-		col1 := NewTypedColumnFromSchema(ColumnSchema{"", dt, true})
-		col2 := NewTypedColumnFromSchema(ColumnSchema{"", dt, false})
+		col1 := NewChunkFromSchema(Schema{"", dt, true})
+		col2 := NewChunkFromSchema(Schema{"", dt, false})
 
 		if err := col1.Append(col2); err != errAppendNullabilityMismatch {
 			t.Errorf("expecting a nullability mismatch in Append to result in errAppendNullabilityMismatch, got: %v", err)
@@ -569,7 +569,7 @@ func TestHashing(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		rc := NewTypedColumnFromSchema(ColumnSchema{Dtype: test.Dtype, Nullable: true})
+		rc := NewChunkFromSchema(Schema{Dtype: test.Dtype, Nullable: true})
 		if err := rc.AddValues(test.data); err != nil {
 			t.Fatal(err)
 		}
@@ -589,7 +589,7 @@ func TestHashing(t *testing.T) {
 // plain maphash would pass tests, but it would be very incorrect)
 func BenchmarkHashingInts(b *testing.B) {
 	n := 10000
-	col := newColumnInts(false)
+	col := newChunkInts(false)
 	for j := 0; j < n; j++ {
 		col.AddValue(strconv.Itoa(j))
 	}
@@ -605,7 +605,7 @@ func BenchmarkHashingInts(b *testing.B) {
 
 func BenchmarkHashingFloats(b *testing.B) {
 	n := 10000
-	col := newColumnFloats(false)
+	col := newChunkFloats(false)
 	for j := 0; j < n; j++ {
 		col.AddValue(strconv.Itoa(j))
 	}

@@ -12,6 +12,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/kokes/smda/src/column"
 )
 
 const (
@@ -20,7 +22,7 @@ const (
 
 var errIncorrectChecksum = errors.New("could not validate data on disk: incorrect checksum")
 var errIncompatibleOnDiskFormat = errors.New("cannot open data stripes with a version different from the one supported")
-var errInvalidLoadSettings = errors.New("expecting load settings for a rawLoader, got nil")
+var errInvalidloadSettings = errors.New("expecting load settings for a rawLoader, got nil")
 var errInvalidOffsetData = errors.New("invalid offset data")
 var errSchemaMismatch = errors.New("dataset does not conform to the schema provided")
 
@@ -78,7 +80,7 @@ type rawLoader struct {
 
 func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
 	if settings == nil {
-		return nil, errInvalidLoadSettings
+		return nil, errInvalidloadSettings
 	}
 	ur, err := wrapCompressed(r, settings.compression)
 	if err != nil {
@@ -96,7 +98,7 @@ func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
 
 type dataStripe struct {
 	id      UID
-	columns []TypedColumn // pointers instead?
+	columns []column.Chunk // pointers instead?
 }
 
 func newDataStripe() *dataStripe {
@@ -194,18 +196,18 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 		// perhaps wrap this in an init function that returns a schema, so that we have less cruft here
 		rl.settings.schema = make(TableSchema, 0, len(hd))
 		for _, val := range hd {
-			rl.settings.schema = append(rl.settings.schema, ColumnSchema{
+			rl.settings.schema = append(rl.settings.schema, column.Schema{
 				Name:     val,
-				Dtype:    DtypeString,
+				Dtype:    column.DtypeString,
 				Nullable: false,
 			})
 		}
 	}
 
 	// given a schema, initialise a data stripe
-	ds.columns = make([]TypedColumn, 0, len(rl.settings.schema))
+	ds.columns = make([]column.Chunk, 0, len(rl.settings.schema))
 	for _, col := range rl.settings.schema {
-		ds.columns = append(ds.columns, NewTypedColumnFromSchema(col))
+		ds.columns = append(ds.columns, column.NewChunkFromSchema(col))
 	}
 
 	// now let's finally load some data
@@ -237,7 +239,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
 // OPTIM: this does not buffer any reads... but it only reads things thrice, so it shouldn't matter, right?
-func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (TypedColumn, error) {
+func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (column.Chunk, error) {
 	f, err := os.Open(db.stripePath(ds, stripeID))
 	if err != nil {
 		return nil, err
@@ -298,10 +300,10 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 	}
 
 	br := bytes.NewReader(buf[4:])
-	return deserializeColumn(br, ds.Schema[nthColumn].Dtype)
+	return column.Deserialize(br, ds.Schema[nthColumn].Dtype)
 }
 
-func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripeID UID, column string) (TypedColumn, error) {
+func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripeID UID, column string) (column.Chunk, error) {
 	idx, _, err := ds.Schema.LocateColumn(column)
 	if err != nil {
 		return nil, err
@@ -310,8 +312,8 @@ func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripeID UID, column
 }
 
 // OPTIM: here we could use a stripe reader (or a ReadColumsFromStripe([]idx))
-func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripeID UID, columns []string) ([]TypedColumn, error) {
-	var cols []TypedColumn
+func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripeID UID, columns []string) ([]column.Chunk, error) {
+	var cols []column.Chunk
 	for _, column := range columns {
 		idx, _, err := ds.Schema.LocateColumn(column)
 		if err != nil {
@@ -420,7 +422,7 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 		delimiter:   dlim,
 	}
 
-	schema, err := inferTypes(path, ls)
+	schema, err := InferTypes(path, ls)
 	if err != nil {
 		return nil, err
 	}

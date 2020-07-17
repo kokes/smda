@@ -5,14 +5,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
 )
 
 // TODO: test case insensitivity of keywords (just function names at this point) - it's not implemented yet
 func TestIsValid(t *testing.T) {
-	schema := database.TableSchema([]database.ColumnSchema{
-		{Name: "my_int_column", Dtype: database.DtypeInt},
-		{Name: "my_float_column", Dtype: database.DtypeFloat},
+	schema := database.TableSchema([]column.Schema{
+		{Name: "my_int_column", Dtype: column.DtypeInt},
+		{Name: "my_float_column", Dtype: column.DtypeFloat},
 	})
 	exprs := []string{
 		"1 = 1", "1 != 1", "1 = 1.2", "1 > 0",
@@ -33,9 +34,9 @@ func TestIsValid(t *testing.T) {
 }
 
 func TestIsValidNot(t *testing.T) {
-	schema := database.TableSchema([]database.ColumnSchema{
-		{Name: "my_int_column", Dtype: database.DtypeInt},
-		{Name: "my_float_column", Dtype: database.DtypeFloat},
+	schema := database.TableSchema([]column.Schema{
+		{Name: "my_int_column", Dtype: column.DtypeInt},
+		{Name: "my_float_column", Dtype: column.DtypeFloat},
 	})
 	exprs := []string{
 		"1 = 'bus'", "1 > 'foo'",
@@ -112,48 +113,48 @@ func TestColumnsUsed(t *testing.T) {
 }
 
 func TestReturnTypes(t *testing.T) {
-	schema := database.TableSchema([]database.ColumnSchema{
-		{Name: "my_int_column", Dtype: database.DtypeInt},
-		{Name: "my_float_column", Dtype: database.DtypeFloat},
+	schema := database.TableSchema([]column.Schema{
+		{Name: "my_int_column", Dtype: column.DtypeInt},
+		{Name: "my_float_column", Dtype: column.DtypeFloat},
 	})
 	testCases := []struct {
 		rawExpr    string
-		returnType database.ColumnSchema
+		returnType column.Schema
 	}{
 		// literals
-		{"1", database.ColumnSchema{Dtype: database.DtypeInt}},
-		{"1.23", database.ColumnSchema{Dtype: database.DtypeFloat}},
-		{"true", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"'ahoy'", database.ColumnSchema{Dtype: database.DtypeString}},
-		{"my_int_column", database.ColumnSchema{Dtype: database.DtypeInt, Name: "my_int_column"}},
+		{"1", column.Schema{Dtype: column.DtypeInt}},
+		{"1.23", column.Schema{Dtype: column.DtypeFloat}},
+		{"true", column.Schema{Dtype: column.DtypeBool}},
+		{"'ahoy'", column.Schema{Dtype: column.DtypeString}},
+		{"my_int_column", column.Schema{Dtype: column.DtypeInt, Name: "my_int_column"}},
 
 		// arithmetics
-		{"1 = 1", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"1 != 1", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"1.2 > 1.3", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"1.2 >= 1.3", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"1.2 < 1.3", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"1.2 <= 1.3", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"my_float_column = 123", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"my_float_column = my_int_column", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"my_float_column <= my_int_column", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"my_float_column > 12.234", database.ColumnSchema{Dtype: database.DtypeBool}},
-		{"my_float_column > my_int_column", database.ColumnSchema{Dtype: database.DtypeBool}},
+		{"1 = 1", column.Schema{Dtype: column.DtypeBool}},
+		{"1 != 1", column.Schema{Dtype: column.DtypeBool}},
+		{"1.2 > 1.3", column.Schema{Dtype: column.DtypeBool}},
+		{"1.2 >= 1.3", column.Schema{Dtype: column.DtypeBool}},
+		{"1.2 < 1.3", column.Schema{Dtype: column.DtypeBool}},
+		{"1.2 <= 1.3", column.Schema{Dtype: column.DtypeBool}},
+		{"my_float_column = 123", column.Schema{Dtype: column.DtypeBool}},
+		{"my_float_column = my_int_column", column.Schema{Dtype: column.DtypeBool}},
+		{"my_float_column <= my_int_column", column.Schema{Dtype: column.DtypeBool}},
+		{"my_float_column > 12.234", column.Schema{Dtype: column.DtypeBool}},
+		{"my_float_column > my_int_column", column.Schema{Dtype: column.DtypeBool}},
 
-		{"1 + 2", database.ColumnSchema{Dtype: database.DtypeInt}},
-		{"1 - 2", database.ColumnSchema{Dtype: database.DtypeInt}},
-		{"1 * 2", database.ColumnSchema{Dtype: database.DtypeInt}},
-		{"1 / 2", database.ColumnSchema{Dtype: database.DtypeFloat}},
-		{"4 - my_int_column", database.ColumnSchema{Dtype: database.DtypeInt}},
-		{"4 / my_int_column", database.ColumnSchema{Dtype: database.DtypeFloat}},
-		{"my_float_column / my_int_column", database.ColumnSchema{Dtype: database.DtypeFloat}},
+		{"1 + 2", column.Schema{Dtype: column.DtypeInt}},
+		{"1 - 2", column.Schema{Dtype: column.DtypeInt}},
+		{"1 * 2", column.Schema{Dtype: column.DtypeInt}},
+		{"1 / 2", column.Schema{Dtype: column.DtypeFloat}},
+		{"4 - my_int_column", column.Schema{Dtype: column.DtypeInt}},
+		{"4 / my_int_column", column.Schema{Dtype: column.DtypeFloat}},
+		{"my_float_column / my_int_column", column.Schema{Dtype: column.DtypeFloat}},
 
 		// function calls
-		{"count()", database.ColumnSchema{Dtype: database.DtypeInt}},
-		{"count(my_int_column)", database.ColumnSchema{Dtype: database.DtypeInt}},
-		{"nullif(my_int_column, 12)", database.ColumnSchema{Dtype: database.DtypeInt, Nullable: true}},
-		{"nullif(my_float_column, 12)", database.ColumnSchema{Dtype: database.DtypeFloat, Nullable: true}},
-		// {"NULLIF(my_float_column, 12)", database.ColumnSchema{Dtype: database.DtypeFloat, Nullable: true}}, // once we implement case folding...
+		{"count()", column.Schema{Dtype: column.DtypeInt}},
+		{"count(my_int_column)", column.Schema{Dtype: column.DtypeInt}},
+		{"nullif(my_int_column, 12)", column.Schema{Dtype: column.DtypeInt, Nullable: true}},
+		{"nullif(my_float_column, 12)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}},
+		// {"NULLIF(my_float_column, 12)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}}, // once we implement case folding...
 
 		// "ahoy", "foo / bar", "2 * foo", "2+3*4", "count(foobar)", "bak = 'my literal'",
 		// "coalesce(foo, bar, 1) - 4", "nullif(baz, 'foo')", "nullif(bak, 103)",

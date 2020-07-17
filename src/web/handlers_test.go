@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/query"
 )
@@ -493,7 +494,7 @@ func TestBasicAutoUpload(t *testing.T) {
 	if dec.Schema == nil {
 		t.Error("expecting a schema to be present, got a nil")
 	}
-	es := database.TableSchema{{"foo", database.DtypeInt, false}, {"bar", database.DtypeInt, true}, {"baz", database.DtypeBool, false}}
+	es := database.TableSchema{{"foo", column.DtypeInt, false}, {"bar", column.DtypeInt, true}, {"baz", column.DtypeBool, false}}
 	if !reflect.DeepEqual(dec.Schema, es) {
 		t.Errorf("expecting the schema to be inferred as %v, got %v", es, dec.Schema)
 	}

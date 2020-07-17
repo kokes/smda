@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
 )
 
@@ -60,7 +61,7 @@ func TestBasicQueries(t *testing.T) {
 	if !(reflect.DeepEqual(qr.Columns, []string{"foo", "bar", "baz"}) && len(qr.Data) == 3) {
 		t.Error("expecting three columns of data")
 	}
-	firstCol := database.NewTypedColumnFromSchema(database.ColumnSchema{Dtype: database.DtypeInt})
+	firstCol := column.NewChunkFromSchema(column.Schema{Dtype: column.DtypeInt})
 	firstCol.AddValue("1")
 	firstCol.AddValue("4")
 	if !reflect.DeepEqual(qr.Data[0], firstCol) {
@@ -99,7 +100,7 @@ func TestLimitsInQueries(t *testing.T) {
 		if !(reflect.DeepEqual(qr.Columns, []string{"foo", "bar", "baz"}) && len(qr.Data) == 3) {
 			t.Error("expecting three columns of data")
 		}
-		firstCol := database.NewTypedColumnFromSchema(database.ColumnSchema{Dtype: database.DtypeInt})
+		firstCol := column.NewChunkFromSchema(column.Schema{Dtype: column.DtypeInt})
 		if limit > len(firstColRaw) {
 			firstCol.AddValues(firstColRaw)
 		} else {
