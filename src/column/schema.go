@@ -142,17 +142,15 @@ func guessType(s string) Dtype {
 	return DtypeString
 }
 
+// TODO: this is closely tied to inference_types.go, so we may as well just move it there?
 type TypeGuesser struct {
 	nullable bool
-	types    map[Dtype]int
+	types    [DtypeMax]int
 	nrows    int
 }
 
 func NewTypeGuesser() *TypeGuesser {
-	return &TypeGuesser{
-		nullable: false,
-		types:    make(map[Dtype]int),
-	}
+	return &TypeGuesser{}
 }
 
 // OPTIM: cost is 82, can be almost inlined (though it will get more expensive once isNull is fully defined)
@@ -162,9 +160,11 @@ func (tg *TypeGuesser) AddValue(s string) {
 		tg.nullable = true
 		return
 	}
+	// if we once detected a string, we cannot overturn this
+	if tg.types[DtypeString] > 0 {
+		return
+	}
 
-	// OPTIM: we could use a slice instead of a map - it would improve insert performance, but the inferredType
-	// logic would get more complicated - but it might be worthwhile - we run AddValue way more often
 	tg.types[guessType(s)]++
 }
 
@@ -175,15 +175,21 @@ func (tg *TypeGuesser) InferredType() Schema {
 			Nullable: true, // nullability makes no sense here...?
 		}
 	}
-	if len(tg.types) == 0 {
+	tgmap := make(map[Dtype]int)
+	for j, val := range tg.types {
+		if val > 0 {
+			tgmap[Dtype(j)] = val
+		}
+	}
+	if len(tgmap) == 0 {
 		return Schema{
 			Dtype:    DtypeNull,
 			Nullable: tg.nullable,
 		}
 	}
 
-	if len(tg.types) == 1 {
-		for key := range tg.types {
+	if len(tgmap) == 1 {
+		for key := range tgmap {
 			return Schema{
 				Dtype:    key,
 				Nullable: tg.nullable,
@@ -193,7 +199,7 @@ func (tg *TypeGuesser) InferredType() Schema {
 
 	// there are multiple guessed types, but they can all be numeric, so let's just settle
 	// on a common type
-	for g := range tg.types {
+	for g := range tgmap {
 		if !(g == DtypeInt || g == DtypeFloat) {
 			return Schema{
 				Dtype:    DtypeString,
