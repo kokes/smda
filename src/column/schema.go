@@ -153,10 +153,9 @@ func NewTypeGuesser() *TypeGuesser {
 	return &TypeGuesser{}
 }
 
-// OPTIM: cost is 82, can be almost inlined (though it will get more expensive once isNull is fully defined)
 func (tg *TypeGuesser) AddValue(s string) {
 	tg.nrows++
-	if s == "" {
+	if isNull(s) {
 		tg.nullable = true
 		return
 	}
