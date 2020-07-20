@@ -80,7 +80,10 @@ func TestInferDelimiterBasic(t *testing.T) {
 		{"hello\tworld", delimiterTab},
 		{"hello|world", delimiterPipe},
 
-		{"hello,\"world;other;things\"", delimiterSemicolon}, // incorrect, but what can we do?
+		// TODO: both of these could be perhaps resolved by reading two rows and comparing the number of fields
+		// as soon as we get the same number, we return (and we try this first for commas, then semicolons etc.)
+		{"hello,\"world;other;things\"", delimiterSemicolon},         // incorrect, but what can we do?
+		{"\"my first column\",\"my second column\"", delimiterSpace}, // again, incorrect
 
 		{"hello,world\n", delimiterComma},
 
