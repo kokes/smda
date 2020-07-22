@@ -116,6 +116,21 @@ func newChunkBools(isNullable bool) *ChunkBools {
 	}
 }
 
+// TODO: test this by altering the data after this constructor is run
+// and then test the bm.count() hasn't changed
+func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
+	return &ChunkBools{
+		data:     bitmap.NewBitmapFromBits(data, length), // this copies
+		nullable: false,
+	}
+}
+
+// TODO: rethink this - so far we're using it in query.Filter to access individual bits,
+// but we haven't thought about the nullability aspect of things
+func (rc *ChunkBools) Data() *bitmap.Bitmap {
+	return rc.data
+}
+
 func newChunkNulls() *ChunkNulls {
 	return &ChunkNulls{
 		length: 0,

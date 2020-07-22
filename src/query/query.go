@@ -23,46 +23,32 @@ type Query struct {
 	Limit     *int             `json:"limit,omitempty"`
 }
 
-// TODO: to be implemented (needs eval)
-// will we need three-valued logic here? Or will be simply default null to false? because that's how
+// TODO: will we need three-valued logic here? Or will be simply default null to false? because that's how
 // the where clause behaves
-func Filter(db *database.Database, ds *database.Dataset, fe *expr.Expression) ([]*bitmap.Bitmap, error) {
-	// new implementation draft:
-	rettype, err := fe.ReturnType(ds.Schema)
+func Filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expression) ([]*bitmap.Bitmap, error) {
+	rettype, err := filterExpr.ReturnType(ds.Schema)
 	if err != nil {
 		return nil, err
 	}
 	if rettype.Dtype != column.DtypeBool {
-		return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", fe, rettype.Dtype)
+		return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", filterExpr, rettype.Dtype)
 	}
-	colnames := fe.ColumnsUsed()
+	var retval []*bitmap.Bitmap
+	colnames := filterExpr.ColumnsUsed()
 	for _, stripe := range ds.Stripes {
 		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
 		if err != nil {
 			return nil, err
 		}
-		_ = columns
-		// eval(fe, colnames, columns) -> (TypedColumn[columnBool], error)
+		fvals, err := expr.Evaluate(filterExpr, colnames, columns)
+		if err != nil {
+			return nil, err
+		}
+		bm := fvals.(*column.ChunkBools).Data()
+		retval = append(retval, bm)
 	}
 
-	// old implementation:
-	// colIndex, _, err := ds.Schema.LocateColumn(fe.Column)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// bms := make([]*bitmap.Bitmap, 0, len(ds.Stripes))
-	// for _, stripe := range ds.Stripes {
-	// 	col, err := db.ReadColumnFromStripe(ds, stripe, colIndex)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	// TODO: the thing with column.Chunk.Filter not returning an error is that it panic
-	// 	// when using a non-supported operator - this does not lead to good user experience, plus
-	// 	// it allows the user to crash the system without a great logging experience
-	// 	bm := col.Filter(fe.Operator, fe.Argument)
-	// 	bms = append(bms, bm)
-	// }
-	return nil, nil
+	return retval, nil
 }
 
 func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]column.Chunk, error) {

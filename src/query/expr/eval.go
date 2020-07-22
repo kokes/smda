@@ -37,7 +37,7 @@ func Evaluate(expr *Expression, colnames []string, columns []column.Chunk) (colu
 		if err != nil {
 			return nil, err
 		}
-		c2, err := Evaluate(expr.children[0], colnames, columns)
+		c2, err := Evaluate(expr.children[1], colnames, columns)
 		if err != nil {
 			return nil, err
 		}

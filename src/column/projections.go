@@ -3,6 +3,8 @@ package column
 import (
 	"errors"
 	"fmt"
+
+	"github.com/kokes/smda/src/bitmap"
 )
 
 var errProjectionNotSupported = errors.New("projection not supported")
@@ -16,7 +18,7 @@ var errProjectionNotSupported = errors.New("projection not supported")
 
 // when this gets too long, split it up into projections_string, projections_date etc.
 
-// OPTIM: what is c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
+// OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
 func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	if c1.Dtype() != c2.Dtype() {
 		// this includes int == float!
@@ -26,7 +28,14 @@ func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 
 	switch c1.Dtype() {
 	case DtypeString:
-		return evalEqStrings(c1.(*ChunkStrings), c2.(*ChunkStrings))
+		stringsEq := func(a, b string) bool { return a == b }
+		return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings), stringsEq)
+	case DtypeInt:
+		intsEq := func(a, b int64) bool { return a == b }
+		return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts), intsEq)
+	case DtypeFloat:
+		floatsEq := func(a, b float64) bool { return a == b }
+		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), floatsEq)
 	default:
 		return nil, fmt.Errorf("expression %v=%v not supported for types %v, %v: %w", c1, c2, c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
 	}
@@ -34,6 +43,35 @@ func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return nil, nil
 }
 
-func evalEqStrings(c1 *ChunkStrings, c2 *ChunkStrings) (Chunk, error) {
-	return nil, nil
+func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, string) bool) (Chunk, error) {
+	nvals := c1.Len()
+	bm := bitmap.NewBitmap(nvals)
+	for j := 0; j < nvals; j++ {
+		if compFn(c1.nthValue(j), c2.nthValue(j)) {
+			bm.Set(j, true)
+		}
+	}
+	return newChunkBoolsFromBits(bm.Data(), nvals), nil
+}
+
+func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) bool) (Chunk, error) {
+	nvals := c1.Len()
+	bm := bitmap.NewBitmap(nvals)
+	for j, el := range c1.data {
+		if compFn(el, c2.data[j]) {
+			bm.Set(j, true)
+		}
+	}
+	return newChunkBoolsFromBits(bm.Data(), nvals), nil
+}
+
+func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, float64) bool) (Chunk, error) {
+	nvals := c1.Len()
+	bm := bitmap.NewBitmap(nvals)
+	for j, el := range c1.data {
+		if compFn(el, c2.data[j]) {
+			bm.Set(j, true)
+		}
+	}
+	return newChunkBoolsFromBits(bm.Data(), nvals), nil
 }

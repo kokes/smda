@@ -12,6 +12,10 @@ type Bitmap struct {
 	cap  int
 }
 
+func (bm *Bitmap) Data() []uint64 {
+	return bm.data
+}
+
 func (bm *Bitmap) Cap() int {
 	return bm.cap
 }
@@ -138,8 +142,8 @@ func NewBitmapFromBools(data []bool) *Bitmap {
 
 // NewBitmapFromBits leverages a pre-existing bitmap (usually from a file or a reader) and copies
 // it into a new bitmap
-func NewBitmapFromBits(data []uint64) *Bitmap {
-	bm := NewBitmap(64 * len(data))
+func NewBitmapFromBits(data []uint64, length int) *Bitmap {
+	bm := NewBitmap(length)
 	copy(bm.data, data)
 	return bm
 }
@@ -197,7 +201,6 @@ func DeserializeBitmapFromReader(r io.Reader) (*Bitmap, error) {
 	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
 		return nil, err
 	}
-	bitmap := NewBitmapFromBits(data)
-	bitmap.cap = int(cap)
+	bitmap := NewBitmapFromBits(data, int(cap))
 	return bitmap, nil
 }
