@@ -98,6 +98,17 @@
         // link all the datasets we have
         const dss = document.getElementById('datasets');
         listDatasets(dss);
+
+        // setup our filepicker
+        // TODO: first we need to allow for /api/upload/{raw,auto} to accept FormData
+        // document.getElementById('filepicker').addEventListener('change', (e) => {
+        // formData = new FormData()
+        //     console.log(e);
+        //     fetch('/api/upload/auto', {
+        //         method: 'POST',
+        //         body:
+        //     });
+        // });
     }
 
     async function listDatasets(target) {
