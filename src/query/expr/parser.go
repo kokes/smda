@@ -29,7 +29,6 @@ const (
 	exprLiteralFloat
 	exprLiteralBool
 	exprLiteralString
-	// TODO: other literals, esp. bool
 	exprFunCall
 )
 

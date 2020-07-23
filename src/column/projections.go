@@ -18,31 +18,6 @@ var errProjectionNotSupported = errors.New("projection not supported")
 
 // when this gets too long, split it up into projections_string, projections_date etc.
 
-// OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
-func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
-	if c1.Dtype() != c2.Dtype() {
-		// this includes int == float!
-		// sort dtypes when implementing this (see the note above)
-		return nil, fmt.Errorf("expression %v=%v not supported: %w", c1, c2, errProjectionNotSupported)
-	}
-
-	switch c1.Dtype() {
-	case DtypeString:
-		stringsEq := func(a, b string) bool { return a == b }
-		return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings), stringsEq)
-	case DtypeInt:
-		intsEq := func(a, b int64) bool { return a == b }
-		return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts), intsEq)
-	case DtypeFloat:
-		floatsEq := func(a, b float64) bool { return a == b }
-		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), floatsEq)
-	default:
-		return nil, fmt.Errorf("expression %v=%v not supported for types %v, %v: %w", c1, c2, c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
-	}
-
-	return nil, nil
-}
-
 func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, string) bool) (Chunk, error) {
 	nvals := c1.Len()
 	bm := bitmap.NewBitmap(nvals)
@@ -74,4 +49,112 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 		}
 	}
 	return newChunkBoolsFromBits(bm.Data(), nvals), nil
+}
+
+// OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
+// TODO: these evaleq, evalneq, evalgt etc. only differ in the functions passed in - move all of them into one structure
+// that generates all of these functions at some point (not at evaluation time)
+func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
+	if c1.Dtype() != c2.Dtype() {
+		// this includes int == float!
+		// sort dtypes when implementing this (see the note above)
+		return nil, fmt.Errorf("expression %v=%v not supported: %w", c1, c2, errProjectionNotSupported)
+	}
+
+	switch c1.Dtype() {
+	case DtypeString:
+		return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings),
+			func(a, b string) bool { return a == b },
+		)
+	case DtypeInt:
+		return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts),
+			func(a, b int64) bool { return a == b },
+		)
+	case DtypeFloat:
+		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats),
+			func(a, b float64) bool { return a == b })
+	default:
+		return nil, fmt.Errorf("expression %v=%v not supported for types %v, %v: %w", c1, c2, c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
+	}
+}
+
+// OPTIM: can this be defined in terms of EvalEq?
+func EvalNeq(c1 Chunk, c2 Chunk) (Chunk, error) {
+	if c1.Dtype() != c2.Dtype() {
+		// this includes int == float!
+		// sort dtypes when implementing this (see the note above)
+		return nil, fmt.Errorf("expression %v!=%v not supported: %w", c1, c2, errProjectionNotSupported)
+	}
+
+	switch c1.Dtype() {
+	case DtypeString:
+		return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings),
+			func(a, b string) bool { return a != b },
+		)
+	case DtypeInt:
+		return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts),
+			func(a, b int64) bool { return a != b },
+		)
+	case DtypeFloat:
+		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats),
+			func(a, b float64) bool { return a != b })
+	default:
+		return nil, fmt.Errorf("expression %v!=%v not supported for types %v, %v: %w", c1, c2, c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
+	}
+}
+
+func EvalGt(c1 Chunk, c2 Chunk) (Chunk, error) {
+	if c1.Dtype() != c2.Dtype() {
+		// this includes int == float!
+		// sort dtypes when implementing this (see the note above)
+		return nil, fmt.Errorf("expression %v>%v not supported: %w", c1, c2, errProjectionNotSupported)
+	}
+
+	switch c1.Dtype() {
+	case DtypeString:
+		return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings),
+			func(a, b string) bool { return a > b },
+		)
+	case DtypeInt:
+		return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts),
+			func(a, b int64) bool { return a > b },
+		)
+	case DtypeFloat:
+		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats),
+			func(a, b float64) bool { return a > b })
+	default:
+		return nil, fmt.Errorf("expression %v>%v not supported for types %v, %v: %w", c1, c2, c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
+	}
+}
+
+func EvalGte(c1 Chunk, c2 Chunk) (Chunk, error) {
+	if c1.Dtype() != c2.Dtype() {
+		// this includes int == float!
+		// sort dtypes when implementing this (see the note above)
+		return nil, fmt.Errorf("expression %v>=%v not supported: %w", c1, c2, errProjectionNotSupported)
+	}
+
+	switch c1.Dtype() {
+	case DtypeString:
+		return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings),
+			func(a, b string) bool { return a >= b },
+		)
+	case DtypeInt:
+		return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts),
+			func(a, b int64) bool { return a >= b },
+		)
+	case DtypeFloat:
+		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats),
+			func(a, b float64) bool { return a >= b })
+	default:
+		return nil, fmt.Errorf("expression %v>=%v not supported for types %v, %v: %w", c1, c2, c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
+	}
+}
+
+func EvalLt(c1 Chunk, c2 Chunk) (Chunk, error) {
+	return EvalGt(c2, c1)
+}
+
+func EvalLte(c1 Chunk, c2 Chunk) (Chunk, error) {
+	return EvalGte(c2, c1)
 }
