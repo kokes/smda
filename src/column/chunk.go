@@ -125,10 +125,18 @@ func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	}
 }
 
-// TODO: rethink this - so far we're using it in query.Filter to access individual bits,
-// but we haven't thought about the nullability aspect of things
-func (rc *ChunkBools) Data() *bitmap.Bitmap {
-	return rc.data
+// Truths returns only true values in this boolean column's bitmap - remove those
+// that are null - we use this for filtering, when we're interested in non-null
+// true values (to select given rows)
+func (rc *ChunkBools) Truths() *bitmap.Bitmap {
+	bm := rc.data.Clone()
+	if rc.nullability == nil {
+		return bm
+	}
+	// cloning was necessary as AndNot mutates (and we're cloning for good measure - we
+	// don't expect to mutate this downstream, but...)
+	bm.AndNot(rc.nullability)
+	return bm
 }
 
 func newChunkNulls() *ChunkNulls {

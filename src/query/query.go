@@ -44,7 +44,7 @@ func Filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 		if err != nil {
 			return nil, err
 		}
-		bm := fvals.(*column.ChunkBools).Data()
+		bm := fvals.(*column.ChunkBools).Truths()
 		retval = append(retval, bm)
 	}
 

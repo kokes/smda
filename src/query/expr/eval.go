@@ -27,6 +27,9 @@ func getColumn(colName string, colNames []string, columns []column.Chunk) column
 
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
 // the same tree of operations - we could detect what functions/methods need to be called at parse time
+// TODO: we don't do NULL handling in any of these - we should do this at once for all these operations,
+//       but I can't think far ahead to know if null handling will be used everywhere or just in some cases,
+//       e.g. in function calls we might want to know if a value is null, or in comparison with null literals
 func Evaluate(expr *Expression, colnames []string, columns []column.Chunk) (column.Chunk, error) {
 	// bm := bitmap.Or(c1.Nullability, c2.Nullability)
 	switch expr.etype {
