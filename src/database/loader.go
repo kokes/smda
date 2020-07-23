@@ -172,6 +172,7 @@ func (db *Database) writeStripeToFile(ds *Dataset, stripe *dataStripe) error {
 	return stripe.writeToWriter(bw)
 }
 
+// TODO: this will fail on BOM
 func (rl *rawLoader) yieldRow() ([]string, error) {
 	row, err := rl.cr.Read()
 	// we don't want to trigger the internal ErrFieldCount,
