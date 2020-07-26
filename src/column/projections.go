@@ -82,7 +82,7 @@ func algebraicEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
 	if c1.Dtype() != c2.Dtype() {
 		// this includes int == float!
 		// sort dtypes when implementing this (see the note above)
-		return nil, fmt.Errorf("expression %v=%v not supported: %w", c1, c2, errProjectionNotSupported)
+		return nil, fmt.Errorf("algebraic expression not supported for unequal types: %w", errProjectionNotSupported)
 	}
 
 	switch c1.Dtype() {
@@ -93,7 +93,7 @@ func algebraicEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
 	case DtypeFloat:
 		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
 	default:
-		return nil, fmt.Errorf("expression %v=%v not supported for types %v, %v: %w", c1, c2, c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
+		return nil, fmt.Errorf("algebraic expression not supported for types %v and %v: %w", c1, c2, c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
 	}
 }
 
