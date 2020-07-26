@@ -11,7 +11,6 @@ import (
 
 type exprType uint8
 
-// TODO: stringer
 const (
 	exprInvalid exprType = iota
 	exprIdentifier
@@ -32,6 +31,47 @@ const (
 	exprFunCall
 )
 
+func (etype exprType) String() string {
+	switch etype {
+	case exprInvalid:
+		return "Invalid"
+	case exprIdentifier:
+		return "Identifier"
+	case exprAddition:
+		return "+"
+	case exprSubtraction:
+		return "-"
+	case exprMultiplication:
+		return "*"
+	case exprDivision:
+		return "/"
+	case exprEquality:
+		return "="
+	case exprNequality:
+		return "!="
+	case exprLessThan:
+		return "<"
+	case exprLessThanEqual:
+		return "<="
+	case exprGreaterThan:
+		return ">"
+	case exprGreaterThanEqual:
+		return ">="
+	case exprLiteralInt:
+		return "LiteralInt"
+	case exprLiteralFloat:
+		return "LiteralFloat"
+	case exprLiteralBool:
+		return "LiteralBool"
+	case exprLiteralString:
+		return "LiteralString"
+	case exprFunCall:
+		return "FunCall"
+	default:
+		return "unknown_expression"
+	}
+}
+
 // isValid(tableSchema) - does it make sense to have this projection like this?
 //   - tableSchema = []columnSchema
 //   - checks that type are okay and everything
@@ -43,6 +83,26 @@ type Expression struct {
 	etype    exprType
 	children []*Expression
 	value    string
+}
+
+func (expr *Expression) String() string {
+	switch expr.etype {
+	case exprInvalid:
+		return "invalid_expression"
+	case exprIdentifier:
+		return expr.value
+	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
+		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual:
+		return fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
+	// TODO: finish this stringer
+	// exprLiteralInt
+	// exprLiteralFloat
+	// exprLiteralBool
+	// exprLiteralString
+	// exprFunCall
+	default:
+		return "unsupported expression"
+	}
 }
 
 func (expr *Expression) UnmarshalJSON(data []byte) error {
