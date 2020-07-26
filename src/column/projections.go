@@ -30,7 +30,6 @@ func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, 
 	nulls := bitmap.Or(c1.nullability, c2.nullability)
 	if nulls != nil {
 		cdata.nullability = nulls
-		cdata.nullable = true
 	}
 	return cdata, nil
 }
@@ -47,7 +46,6 @@ func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) boo
 	nulls := bitmap.Or(c1.nullability, c2.nullability)
 	if nulls != nil {
 		cdata.nullability = nulls
-		cdata.nullable = true
 	}
 	return cdata, nil
 }
@@ -64,7 +62,6 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 	nulls := bitmap.Or(c1.nullability, c2.nullability)
 	if nulls != nil {
 		cdata.nullability = nulls
-		cdata.nullable = true
 	}
 	return cdata, nil
 }

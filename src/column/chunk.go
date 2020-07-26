@@ -13,7 +13,6 @@ import (
 	"github.com/kokes/smda/src/bitmap"
 )
 
-var errNullInNonNullable = errors.New("cannot add a null value to a non-nullable column")
 var errAppendTypeMismatch = errors.New("cannot append chunks of differing types")
 var errAppendNullabilityMismatch = errors.New("when appending, both chunks need to have the same nullability")
 
@@ -36,13 +35,13 @@ type Chunk interface {
 func NewChunkFromSchema(schema Schema) Chunk {
 	switch schema.Dtype {
 	case DtypeString:
-		return newChunkStrings(schema.Nullable)
+		return newChunkStrings()
 	case DtypeInt:
-		return newChunkInts(schema.Nullable)
+		return newChunkInts()
 	case DtypeFloat:
-		return newChunkFloats(schema.Nullable)
+		return newChunkFloats()
 	case DtypeBool:
-		return newChunkBools(schema.Nullable)
+		return newChunkBools()
 	case DtypeNull:
 		return newChunkNulls()
 	default:
@@ -53,25 +52,21 @@ func NewChunkFromSchema(schema Schema) Chunk {
 type ChunkStrings struct {
 	data        []byte
 	offsets     []uint32
-	nullable    bool
 	nullability *bitmap.Bitmap
 	length      uint32
 }
 type ChunkInts struct {
 	data        []int64
-	nullable    bool
 	nullability *bitmap.Bitmap
 	length      uint32
 }
 type ChunkFloats struct {
 	data        []float64
-	nullable    bool
 	nullability *bitmap.Bitmap
 	length      uint32
 }
 type ChunkBools struct {
 	data        *bitmap.Bitmap
-	nullable    bool
 	nullability *bitmap.Bitmap
 	length      uint32
 }
@@ -84,34 +79,30 @@ type ChunkNulls struct {
 // preallocate column data, so that slice appends don't trigger new reallocations
 const defaultChunkCap = 512
 
-func newChunkStrings(isNullable bool) *ChunkStrings {
+func newChunkStrings() *ChunkStrings {
 	offsets := make([]uint32, 1, defaultChunkCap)
 	offsets[0] = 0
 	return &ChunkStrings{
 		data:        make([]byte, 0, defaultChunkCap),
 		offsets:     offsets,
-		nullable:    isNullable,
 		nullability: bitmap.NewBitmap(0),
 	}
 }
-func newChunkInts(isNullable bool) *ChunkInts {
+func newChunkInts() *ChunkInts {
 	return &ChunkInts{
 		data:        make([]int64, 0, defaultChunkCap),
-		nullable:    isNullable,
 		nullability: bitmap.NewBitmap(0),
 	}
 }
-func newChunkFloats(isNullable bool) *ChunkFloats {
+func newChunkFloats() *ChunkFloats {
 	return &ChunkFloats{
 		data:        make([]float64, 0, defaultChunkCap),
-		nullable:    isNullable,
 		nullability: bitmap.NewBitmap(0),
 	}
 }
-func newChunkBools(isNullable bool) *ChunkBools {
+func newChunkBools() *ChunkBools {
 	return &ChunkBools{
 		data:        bitmap.NewBitmap(0),
-		nullable:    isNullable,
 		nullability: bitmap.NewBitmap(0),
 	}
 }
@@ -120,9 +111,8 @@ func newChunkBools(isNullable bool) *ChunkBools {
 // and then test the bm.count() hasn't changed
 func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	return &ChunkBools{
-		data:     bitmap.NewBitmapFromBits(data, length), // this copies
-		nullable: false,
-		length:   uint32(length),
+		data:   bitmap.NewBitmapFromBits(data, length), // this copies
+		length: uint32(length),
 	}
 }
 
@@ -199,7 +189,7 @@ func (rc *ChunkBools) Hash(hashes []uint64) {
 		// 	val := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
 		// 	fmt.Printf("%x, %v\n", val, bits.OnesCount64(val))
 		// }
-		if rc.nullable && rc.nullability.Get(j) {
+		if rc.nullability != nil && rc.nullability.Get(j) {
 			hashes[j] ^= nullXorHash
 			continue
 		}
@@ -214,7 +204,7 @@ func (rc *ChunkFloats) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
 	for j, el := range rc.data {
-		if rc.nullable && rc.nullability.Get(j) {
+		if rc.nullability != nil && rc.nullability.Get(j) {
 			hashes[j] ^= nullXorHash
 			continue
 		}
@@ -236,10 +226,10 @@ func (rc *ChunkInts) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
 	for j, el := range rc.data {
-		// OPTIM: not just here, in all of these Hash implementations - we might want to check rc.nullable
+		// OPTIM: not just here, in all of these Hash implementations - we might want to check rc.nullability
 		// just once and have two separate loops - see if it helps - it may bloat the code too much (and avoid inlining,
 		// but that's probably a lost cause already)
-		if rc.nullable && rc.nullability.Get(j) {
+		if rc.nullability != nil && rc.nullability.Get(j) {
 			hashes[j] ^= nullXorHash
 			continue
 		}
@@ -261,7 +251,7 @@ func (rc *ChunkNulls) Hash(hashes []uint64) {
 func (rc *ChunkStrings) Hash(hashes []uint64) {
 	hasher := fnv.New64()
 	for j := 0; j < rc.Len(); j++ {
-		if rc.nullable && rc.nullability.Get(j) {
+		if rc.nullability != nil && rc.nullability.Get(j) {
 			hashes[j] ^= nullXorHash
 			continue
 		}
@@ -289,8 +279,8 @@ func (rc *ChunkStrings) AddValue(s string) error {
 
 func (rc *ChunkInts) AddValue(s string) error {
 	if isNull(s) {
-		if !rc.nullable {
-			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
+		if rc.nullability == nil {
+			rc.nullability = bitmap.NewBitmap(rc.Len() + 1)
 		}
 		rc.nullability.Set(rc.Len(), true)
 		rc.data = append(rc.data, 0) // this value is not meant to be read
@@ -324,8 +314,8 @@ func (rc *ChunkFloats) AddValue(s string) error {
 		}
 	}
 	if math.IsNaN(val) {
-		if !rc.nullable {
-			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
+		if rc.nullability == nil {
+			rc.nullability = bitmap.NewBitmap(rc.Len() + 1)
 		}
 		rc.nullability.Set(rc.Len(), true)
 		rc.data = append(rc.data, math.NaN()) // this value is not meant to be read
@@ -344,8 +334,8 @@ func (rc *ChunkFloats) AddValue(s string) error {
 
 func (rc *ChunkBools) AddValue(s string) error {
 	if isNull(s) {
-		if !rc.nullable {
-			return fmt.Errorf("adding %v, which resolves as null: %w", s, errNullInNonNullable)
+		if rc.nullability == nil {
+			rc.nullability = bitmap.NewBitmap(rc.Len() + 1)
 		}
 		rc.nullability.Set(rc.Len(), true)
 		rc.data.Set(rc.Len(), false) // this value is not meant to be read
@@ -419,7 +409,7 @@ func (rc *ChunkStrings) Append(tc Chunk) error {
 	if !ok {
 		return errAppendTypeMismatch
 	}
-	if rc.nullable != nrc.nullable {
+	if (rc.nullability == nil && nrc.nullability != nil) || (rc.nullability != nil && nrc.nullability == nil) {
 		return errAppendNullabilityMismatch
 	}
 	if rc.nullability != nil {
@@ -443,7 +433,7 @@ func (rc *ChunkInts) Append(tc Chunk) error {
 	if !ok {
 		return errAppendTypeMismatch
 	}
-	if rc.nullable != nrc.nullable {
+	if (rc.nullability == nil && nrc.nullability != nil) || (rc.nullability != nil && nrc.nullability == nil) {
 		return errAppendNullabilityMismatch
 	}
 	if rc.nullability != nil {
@@ -460,7 +450,7 @@ func (rc *ChunkFloats) Append(tc Chunk) error {
 	if !ok {
 		return errAppendTypeMismatch
 	}
-	if rc.nullable != nrc.nullable {
+	if (rc.nullability == nil && nrc.nullability != nil) || (rc.nullability != nil && nrc.nullability == nil) {
 		return errAppendNullabilityMismatch
 	}
 	if rc.nullability != nil {
@@ -477,7 +467,7 @@ func (rc *ChunkBools) Append(tc Chunk) error {
 	if !ok {
 		return errAppendTypeMismatch
 	}
-	if rc.nullable != nrc.nullable {
+	if (rc.nullability == nil && nrc.nullability != nil) || (rc.nullability != nil && nrc.nullability == nil) {
 		return errAppendNullabilityMismatch
 	}
 	if rc.nullability != nil {
@@ -500,7 +490,7 @@ func (rc *ChunkNulls) Append(tc Chunk) error {
 }
 
 func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
-	nc := newChunkStrings(rc.nullable)
+	nc := newChunkStrings()
 	if bm == nil {
 		return nc
 	}
@@ -525,7 +515,7 @@ func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 		}
 		// be careful here, AddValue has its own nullability logic and we don't want to mess with that
 		nc.AddValue(rc.nthValue(j))
-		if rc.nullable && rc.nullability.Get(j) {
+		if rc.nullability != nil && rc.nullability.Get(j) {
 			nc.nullability.Set(index, true)
 		}
 		// nc.length++ // once we remove AddValue, we'll need this
@@ -541,7 +531,7 @@ func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 }
 
 func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
-	nc := newChunkInts(rc.nullable)
+	nc := newChunkInts()
 	if bm == nil {
 		return nc
 	}
@@ -559,7 +549,7 @@ func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
 			continue
 		}
 		nc.data = append(nc.data, rc.data[j])
-		if rc.nullable && rc.nullability.Get(j) {
+		if rc.nullability != nil && rc.nullability.Get(j) {
 			nc.nullability.Set(index, true)
 		}
 		nc.length++
@@ -575,7 +565,7 @@ func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
 }
 
 func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
-	nc := newChunkFloats(rc.nullable)
+	nc := newChunkFloats()
 	if bm == nil {
 		return nc
 	}
@@ -593,7 +583,7 @@ func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
 			continue
 		}
 		nc.data = append(nc.data, rc.data[j])
-		if rc.nullable && rc.nullability.Get(j) {
+		if rc.nullability != nil && rc.nullability.Get(j) {
 			nc.nullability.Set(index, true)
 		}
 		nc.length++
@@ -609,7 +599,7 @@ func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
 }
 
 func (rc *ChunkBools) Prune(bm *bitmap.Bitmap) Chunk {
-	nc := newChunkBools(rc.nullable)
+	nc := newChunkBools()
 	if bm == nil {
 		return nc
 	}
@@ -628,7 +618,7 @@ func (rc *ChunkBools) Prune(bm *bitmap.Bitmap) Chunk {
 		}
 		// OPTIM: not need to set false values, we already have them set as zero
 		nc.data.Set(index, rc.data.Get(j))
-		if rc.nullable && rc.nullability.Get(j) {
+		if rc.nullability != nil && rc.nullability.Get(j) {
 			nc.nullability.Set(index, true)
 		}
 		nc.length++
@@ -682,10 +672,6 @@ func Deserialize(r io.Reader, Dtype Dtype) (Chunk, error) {
 }
 
 func deserializeChunkStrings(r io.Reader) (*ChunkStrings, error) {
-	var nullable bool
-	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
-		return nil, err
-	}
 	bm, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
@@ -710,18 +696,12 @@ func deserializeChunkStrings(r io.Reader) (*ChunkStrings, error) {
 	return &ChunkStrings{
 		data:        data,
 		offsets:     offsets,
-		nullable:    nullable,
 		nullability: bm,
 		length:      lenOffsets - 1,
 	}, nil
 }
 
-// TODO: roundtrip tests (for this and floats and bools)
 func deserializeChunkInts(r io.Reader) (*ChunkInts, error) {
-	var nullable bool
-	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
-		return nil, err
-	}
 	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
@@ -736,17 +716,12 @@ func deserializeChunkInts(r io.Reader) (*ChunkInts, error) {
 	}
 	return &ChunkInts{
 		data:        data,
-		nullable:    nullable,
 		nullability: bitmap,
 		length:      nelements,
 	}, nil
 }
 
 func deserializeChunkFloats(r io.Reader) (*ChunkFloats, error) {
-	var nullable bool
-	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
-		return nil, err
-	}
 	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
@@ -761,17 +736,12 @@ func deserializeChunkFloats(r io.Reader) (*ChunkFloats, error) {
 	}
 	return &ChunkFloats{
 		data:        data,
-		nullable:    nullable,
 		nullability: bitmap,
 		length:      nelements,
 	}, nil
 }
 
 func deserializeChunkBools(r io.Reader) (*ChunkBools, error) {
-	var nullable bool
-	if err := binary.Read(r, binary.LittleEndian, &nullable); err != nil {
-		return nil, err
-	}
 	bm, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
 		return nil, err
@@ -786,7 +756,6 @@ func deserializeChunkBools(r io.Reader) (*ChunkBools, error) {
 	}
 	return &ChunkBools{
 		data:        data,
-		nullable:    nullable,
 		nullability: bm,
 		length:      nelements,
 	}, nil
@@ -804,9 +773,6 @@ func deserializeChunkNulls(r io.Reader) (*ChunkNulls, error) {
 
 func (rc *ChunkStrings) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
-	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
-		return nil, err
-	}
 	_, err := rc.nullability.Serialize(w)
 	if err != nil {
 		return nil, err
@@ -833,9 +799,6 @@ func (rc *ChunkStrings) MarshalBinary() ([]byte, error) {
 
 func (rc *ChunkInts) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
-	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
-		return nil, err
-	}
 	_, err := rc.nullability.Serialize(w)
 	if err != nil {
 		return nil, err
@@ -850,9 +813,6 @@ func (rc *ChunkInts) MarshalBinary() ([]byte, error) {
 
 func (rc *ChunkFloats) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
-	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
-		return nil, err
-	}
 	_, err := rc.nullability.Serialize(w)
 	if err != nil {
 		return nil, err
@@ -866,9 +826,6 @@ func (rc *ChunkFloats) MarshalBinary() ([]byte, error) {
 
 func (rc *ChunkBools) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
-	if err := binary.Write(w, binary.LittleEndian, rc.nullable); err != nil {
-		return nil, err
-	}
 	_, err := rc.nullability.Serialize(w)
 	if err != nil {
 		return nil, err
@@ -895,7 +852,7 @@ func (rc *ChunkNulls) MarshalBinary() ([]byte, error) {
 }
 
 func (rc *ChunkStrings) MarshalJSON() ([]byte, error) {
-	if !(rc.nullable && rc.nullability.Count() > 0) {
+	if !(rc.nullability != nil && rc.nullability.Count() > 0) {
 		res := make([]string, 0, int(rc.length))
 		for j := 0; j < rc.Len(); j++ {
 			res = append(res, rc.nthValue(j))
@@ -919,7 +876,7 @@ func (rc *ChunkStrings) MarshalJSON() ([]byte, error) {
 }
 
 func (rc *ChunkInts) MarshalJSON() ([]byte, error) {
-	if !(rc.nullable && rc.nullability.Count() > 0) {
+	if !(rc.nullability != nil && rc.nullability.Count() > 0) {
 		return json.Marshal(rc.data)
 	}
 
@@ -940,7 +897,7 @@ func (rc *ChunkFloats) MarshalJSON() ([]byte, error) {
 	// I thought we didn't need a nullability branch here, because while we do use a bitmap for nullables,
 	// we also store NaNs in the data themselves, so this should be serialised automatically
 	// that's NOT the case, MarshalJSON does not allow NaNs and Infties https://github.com/golang/go/issues/3480
-	if !(rc.nullable && rc.nullability.Count() > 0) {
+	if !(rc.nullability != nil && rc.nullability.Count() > 0) {
 		return json.Marshal(rc.data)
 	}
 
@@ -958,7 +915,7 @@ func (rc *ChunkFloats) MarshalJSON() ([]byte, error) {
 }
 
 func (rc *ChunkBools) MarshalJSON() ([]byte, error) {
-	if !(rc.nullable && rc.nullability.Count() > 0) {
+	if !(rc.nullability != nil && rc.nullability.Count() > 0) {
 		dt := make([]bool, 0, rc.Len())
 		for j := 0; j < rc.Len(); j++ {
 			dt = append(dt, rc.data.Get(j))

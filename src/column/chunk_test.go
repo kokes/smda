@@ -3,7 +3,6 @@ package column
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -44,7 +43,7 @@ func TestBasicStringColumn(t *testing.T) {
 		{""},
 	}
 	for _, vals := range tt {
-		nc := newChunkStrings(false)
+		nc := newChunkStrings()
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -75,7 +74,7 @@ func TestBasicIntColumn(t *testing.T) {
 		{"1", "2", ""},
 	}
 	for _, vals := range tt {
-		nc := newChunkInts(true)
+		nc := newChunkInts()
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -105,7 +104,7 @@ func TestBasicFloatColumn(t *testing.T) {
 		{"1", "", "1.2"},
 	}
 	for _, vals := range tt {
-		nc := newChunkFloats(true)
+		nc := newChunkFloats()
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -127,7 +126,7 @@ func TestBasicBoolColumn(t *testing.T) {
 		{"T", "F", ""},
 	}
 	for _, vals := range tt {
-		nc := newChunkBools(true)
+		nc := newChunkBools()
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -140,36 +139,11 @@ func TestBasicBoolColumn(t *testing.T) {
 	}
 }
 
-func TestAddingInvalidValuesToNonNullableColumns(t *testing.T) {
-	tt := []struct {
-		Dtype  Dtype
-		values []string
-	}{
-		// nullable strings missing, as usual
-		{DtypeInt, []string{""}},
-		{DtypeFloat, []string{"", "nan"}},
-		{DtypeBool, []string{""}},
-	}
-
-	for _, test := range tt {
-		schema := Schema{"", test.Dtype, false}
-		col := NewChunkFromSchema(schema)
-		for _, val := range test.values {
-			if err := col.AddValue(val); !errors.Is(err, errNullInNonNullable) {
-				t.Errorf("adding %v to a nullable %v column, expecting it to fail, got: %v", val, test.Dtype, err)
-			}
-		}
-		if err := col.AddValues(test.values); !errors.Is(err, errNullInNonNullable) {
-			t.Errorf("adding %v to a nullable %v column, expecting it to fail, got: %v", test.values, test.Dtype, err)
-		}
-	}
-}
-
 func TestInvalidInts(t *testing.T) {
 	tt := []string{"1.", ".1", "1e3"}
 
 	for _, testCase := range tt {
-		nc := newChunkInts(false)
+		nc := newChunkInts()
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid int", testCase)
 		}
@@ -180,7 +154,7 @@ func TestInvalidFloats(t *testing.T) {
 	tt := []string{"1e123003030303", ".e", "123f"}
 
 	for _, testCase := range tt {
-		nc := newChunkFloats(false)
+		nc := newChunkFloats()
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid float", testCase)
 		}
@@ -191,7 +165,7 @@ func TestInvalidBools(t *testing.T) {
 	tt := []string{"Y", "N", "YES", "NO", "True", "False", "1", "0"} // add True/False once we stop supporting it
 
 	for _, testCase := range tt {
-		nc := newChunkBools(false)
+		nc := newChunkBools()
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%v\" to not be a valid bool", testCase)
 		}
@@ -305,30 +279,30 @@ func TestJSONMarshaling(t *testing.T) {
 		values   []string
 		expected string
 	}{
-		{newChunkBools(true), []string{}, "[]"},
-		{newChunkBools(false), []string{}, "[]"},
-		{newChunkBools(true), []string{"true", "false"}, "[true,false]"},
-		{newChunkBools(false), []string{"true", "false"}, "[true,false]"},
-		{newChunkBools(true), []string{"", "true", "", ""}, "[null,true,null,null]"},
-		{newChunkInts(true), []string{}, "[]"},
-		{newChunkInts(false), []string{}, "[]"},
-		{newChunkInts(true), []string{"123", "456"}, "[123,456]"},
-		{newChunkInts(false), []string{"123", "456"}, "[123,456]"},
-		{newChunkInts(true), []string{"123", "", "", "456"}, "[123,null,null,456]"},
-		{newChunkFloats(false), []string{"123", "456"}, "[123,456]"},
-		{newChunkFloats(false), []string{"123.456", "456.789"}, "[123.456,456.789]"},
-		{newChunkFloats(true), []string{"123", "", "456"}, "[123,null,456]"},
-		{newChunkFloats(true), []string{"123", "", "nan"}, "[123,null,null]"},
+		{newChunkBools(), []string{}, "[]"},
+		{newChunkBools(), []string{}, "[]"},
+		{newChunkBools(), []string{"true", "false"}, "[true,false]"},
+		{newChunkBools(), []string{"true", "false"}, "[true,false]"},
+		{newChunkBools(), []string{"", "true", "", ""}, "[null,true,null,null]"},
+		{newChunkInts(), []string{}, "[]"},
+		{newChunkInts(), []string{}, "[]"},
+		{newChunkInts(), []string{"123", "456"}, "[123,456]"},
+		{newChunkInts(), []string{"123", "456"}, "[123,456]"},
+		{newChunkInts(), []string{"123", "", "", "456"}, "[123,null,null,456]"},
+		{newChunkFloats(), []string{"123", "456"}, "[123,456]"},
+		{newChunkFloats(), []string{"123.456", "456.789"}, "[123.456,456.789]"},
+		{newChunkFloats(), []string{"123", "", "456"}, "[123,null,456]"},
+		{newChunkFloats(), []string{"123", "", "nan"}, "[123,null,null]"},
 		// {newColumnFloats(true), []string{"123", "+infty", "-infty"}, "[123,+infty,-infty]"}, // no infty support yet
-		{newChunkStrings(true), []string{}, "[]"},
-		{newChunkStrings(false), []string{}, "[]"},
-		{newChunkStrings(true), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
-		{newChunkStrings(false), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
+		{newChunkStrings(), []string{}, "[]"},
+		{newChunkStrings(), []string{}, "[]"},
+		{newChunkStrings(), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
+		{newChunkStrings(), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
 		{newChunkNulls(), []string{""}, "[null]"},
 		{newChunkNulls(), []string{"", "", ""}, "[null,null,null]"},
 
 		// we don't really have nullable strings at this point
-		// {newColumnStrings(true), []string{"", "bar", ""}, "[null,\"bar\",null]"},
+		// {newColumnStrings(), []string{"", "bar", ""}, "[null,\"bar\",null]"},
 	}
 	for _, test := range tests {
 		if err := test.rc.AddValues(test.values); err != nil {
@@ -534,20 +508,6 @@ func TestAppendTypeMismatch(t *testing.T) {
 	}
 }
 
-func TestAppendWithVaryingNullability(t *testing.T) {
-	// explicitly excluding DtypeNull - there's no nullability to be set there
-	Dtypes := []Dtype{DtypeString, DtypeInt, DtypeFloat, DtypeBool}
-
-	for _, dt := range Dtypes {
-		col1 := NewChunkFromSchema(Schema{"", dt, true})
-		col2 := NewChunkFromSchema(Schema{"", dt, false})
-
-		if err := col1.Append(col2); err != errAppendNullabilityMismatch {
-			t.Errorf("expecting a nullability mismatch in Append to result in errAppendNullabilityMismatch, got: %v", err)
-		}
-	}
-}
-
 func TestHashing(t *testing.T) {
 	tests := []struct {
 		Dtype Dtype
@@ -590,7 +550,7 @@ func TestHashing(t *testing.T) {
 // plain maphash would pass tests, but it would be very incorrect)
 func BenchmarkHashingInts(b *testing.B) {
 	n := 10000
-	col := newChunkInts(false)
+	col := newChunkInts()
 	for j := 0; j < n; j++ {
 		col.AddValue(strconv.Itoa(j))
 	}
@@ -606,7 +566,7 @@ func BenchmarkHashingInts(b *testing.B) {
 
 func BenchmarkHashingFloats(b *testing.B) {
 	n := 10000
-	col := newChunkFloats(false)
+	col := newChunkFloats()
 	for j := 0; j < n; j++ {
 		col.AddValue(strconv.Itoa(j))
 	}
