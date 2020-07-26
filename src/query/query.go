@@ -23,8 +23,6 @@ type Query struct {
 	Limit     *int             `json:"limit,omitempty"`
 }
 
-// TODO: will we need three-valued logic here? Or will be simply default null to false? because that's how
-// the where clause behaves
 func Filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expression) ([]*bitmap.Bitmap, error) {
 	rettype, err := filterExpr.ReturnType(ds.Schema)
 	if err != nil {
@@ -44,6 +42,9 @@ func Filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 		if err != nil {
 			return nil, err
 		}
+		// it's essential that we clone the bool column here (implicitly in Truths),
+		// because this bitmap may be truncated later on (e.g. in KeepFirstN)
+		// and expr.Evaluate may return a reference, not a clone (e.g. in exprIdent)
 		bm := fvals.(*column.ChunkBools).Truths()
 		retval = append(retval, bm)
 	}
