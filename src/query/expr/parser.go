@@ -89,11 +89,11 @@ func ParseStringExpr(s string) (*Expression, error) {
 
 // TODO: what about quoted identifiers? (case sensitive identifiers)
 func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
-	switch expr.(type) {
+	switch node := expr.(type) {
 	case *ast.Ident:
 		// TODO: what if this a reserved keyword?
 		// TODO: what if it's null/NULL?
-		value := expr.(*ast.Ident).Name
+		value := node.Name
 
 		// TODO: copied from parseBool, should probably centralise this (or simply export parseBool)
 		// though come to think of it, we may want to allow only true/false/TRUE/FALSE in expressions...
@@ -110,7 +110,6 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 		}, nil
 	case *ast.BasicLit:
 		// TODO: do we need to recheck this with our own type parsers?
-		node := expr.(*ast.BasicLit)
 		var etype exprType
 		switch node.Kind {
 		case token.INT:
@@ -128,7 +127,6 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			value: node.Value,
 		}, nil
 	case *ast.BinaryExpr:
-		node := expr.(*ast.BinaryExpr)
 		var ntype exprType
 		switch node.Op {
 		case token.ADD:
@@ -167,7 +165,6 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			children: children,
 		}, nil
 	case *ast.CallExpr:
-		node := expr.(*ast.CallExpr)
 		funName := node.Fun.(*ast.Ident).Name
 		var children []*Expression
 		for _, arg := range node.Args {
@@ -185,7 +182,6 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 	case *ast.ParenExpr:
 		// I think we can just take what's in it and treat it as a node - since our evaluation/encapsulation
 		// treats it as a paren expression anyway, right?
-		node := expr.(*ast.ParenExpr)
 		return convertAstExprToOwnExpr(node.X)
 	default:
 		fmt.Println(reflect.TypeOf(expr))

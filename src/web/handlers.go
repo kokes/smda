@@ -87,7 +87,6 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 			responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed to serialise query results: %v", err))
 		}
 		w.Write(resp)
-		return
 	}
 }
 

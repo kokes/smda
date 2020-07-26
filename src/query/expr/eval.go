@@ -47,7 +47,9 @@ func Evaluate(expr *Expression, colnames []string, columns []column.Chunk) (colu
 		if err != nil {
 			return nil, err
 		}
-		// TODO: this would be a good place for NULL handling?
+		// TODO: this would be a good place for NULL handling? though we don't have access to these fields
+		// this handling would be best done in all these column.Eval{...} functions, but we don't have
+		// one good place there to resolve nulls
 		// bm := bitmap.Or(c1.Nullability, c2.Nullability)
 		switch expr.etype {
 		case exprEquality:
