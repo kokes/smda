@@ -122,6 +122,7 @@ func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	return &ChunkBools{
 		data:     bitmap.NewBitmapFromBits(data, length), // this copies
 		nullable: false,
+		length:   uint32(length),
 	}
 }
 

@@ -1,6 +1,7 @@
 package expr
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -113,6 +114,14 @@ func (expr *Expression) UnmarshalJSON(data []byte) error {
 	ex, err := ParseStringExpr(sdata)
 	*expr = *ex
 	return err
+}
+
+func (expr *Expression) MarshalJSON() ([]byte, error) {
+	bf := new(bytes.Buffer)
+	bf.WriteByte('"')
+	bf.WriteString(expr.String()) // TODO: what about literals with quotes?
+	bf.WriteByte('"')
+	return bf.Bytes(), nil
 }
 
 // limitations:

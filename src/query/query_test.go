@@ -7,6 +7,7 @@ import (
 
 	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
+	"github.com/kokes/smda/src/query/expr"
 )
 
 func TestQueryingEmptyDatasets(t *testing.T) {
@@ -34,6 +35,18 @@ func TestQueryingEmptyDatasets(t *testing.T) {
 	}
 }
 
+func selectExpr(cols []string) []*expr.Expression {
+	var ret []*expr.Expression
+	for _, col := range cols {
+		colExpr, err := expr.ParseStringExpr(col)
+		if err != nil {
+			panic(err)
+		}
+		ret = append(ret, colExpr)
+	}
+	return ret
+}
+
 func TestBasicQueries(t *testing.T) {
 	db, err := database.NewDatabase(nil)
 	if err != nil {
@@ -52,7 +65,8 @@ func TestBasicQueries(t *testing.T) {
 	}
 	db.AddDataset(ds)
 	limit := 100
-	q := Query{Dataset: ds.ID, Limit: &limit}
+	cols := selectExpr([]string{"foo", "bar", "baz"})
+	q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 
 	qr, err := QueryData(db, q)
 	if err != nil {
@@ -90,8 +104,9 @@ func TestLimitsInQueries(t *testing.T) {
 	db.AddDataset(ds)
 
 	firstColRaw := []string{"1", "4", "7"}
+	cols := selectExpr([]string{"foo", "bar", "baz"})
 	for limit := 0; limit < 100; limit++ {
-		q := Query{Dataset: ds.ID, Limit: &limit}
+		q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 
 		qr, err := QueryData(db, q)
 		if err != nil {

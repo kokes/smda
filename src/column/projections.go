@@ -93,7 +93,7 @@ func algebraicEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
 	case DtypeFloat:
 		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
 	default:
-		return nil, fmt.Errorf("algebraic expression not supported for types %v and %v: %w", c1, c2, c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
+		return nil, fmt.Errorf("algebraic expression not supported for types %s and %s: %w", c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
 	}
 }
 

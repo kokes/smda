@@ -16,6 +16,7 @@ import (
 	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/query"
+	"github.com/kokes/smda/src/query/expr"
 )
 
 // sooo, we're actually not testing just the handlers, we're going through the router as well
@@ -329,7 +330,15 @@ func TestHandlingQueries(t *testing.T) {
 	for _, ds := range dss {
 		url := fmt.Sprintf("%s/api/query", srv.URL)
 		limit := 100
-		qr := query.Query{Dataset: ds.ID, Limit: &limit}
+		var cols []*expr.Expression
+		for _, colSchema := range ds.Schema {
+			colExpr, err := expr.ParseStringExpr(colSchema.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cols = append(cols, colExpr)
+		}
+		qr := query.Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 		body, err := json.Marshal(qr)
 		if err != nil {
 			t.Fatal(err)

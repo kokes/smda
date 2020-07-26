@@ -17,10 +17,11 @@ import (
 //    to the Query struct (the Unmarshaler should mostly take care of this)
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
-	Dataset   database.UID     `json:"dataset"`
-	Filter    *expr.Expression `json:"filter,omitempty"`
-	Aggregate []string         `json:"aggregate"` // this will be *Expr at some point
-	Limit     *int             `json:"limit,omitempty"`
+	Select    []*expr.Expression `json:"select,omitempty"`
+	Dataset   database.UID       `json:"dataset"`
+	Filter    *expr.Expression   `json:"filter,omitempty"`
+	Aggregate []string           `json:"aggregate"`
+	Limit     *int               `json:"limit,omitempty"`
 }
 
 func Filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expression) ([]*bitmap.Bitmap, error) {
@@ -52,6 +53,7 @@ func Filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 	return retval, nil
 }
 
+// TODO: this is not expression aware, also ignores q.Select
 func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]column.Chunk, error) {
 	// TODO: fail if len(exprs) == 0? it will panic later anyway
 
@@ -78,7 +80,7 @@ func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]c
 			rcs = append(rcs, rc)
 		}
 
-		// we don't have a stripe length property - should we?
+		// TODO: we don't have a stripe length property - should we?
 		ln := rcs[0].Len()
 		hashes := make([]uint64, ln) // preserves unique rows (their hashes)
 		bm := bitmap.NewBitmap(ln)   // denotes which rows are the unique ones
@@ -145,10 +147,13 @@ func QueryData(db *database.Database, q Query) (*QueryResult, error) {
 	}
 
 	// this is a branch for non-aggregate queries
-
-	for _, col := range ds.Schema {
-		res.Columns = append(res.Columns, col.Name)
-		res.Data = append(res.Data, column.NewChunkFromSchema(col))
+	for _, col := range q.Select {
+		res.Columns = append(res.Columns, col.String())
+		rschema, err := col.ReturnType(ds.Schema)
+		if err != nil {
+			return nil, err
+		}
+		res.Data = append(res.Data, column.NewChunkFromSchema(rschema))
 	}
 
 	limit := -1
@@ -171,15 +176,22 @@ func QueryData(db *database.Database, q Query) (*QueryResult, error) {
 			limit -= filteredLen
 		}
 		var bmnf *bitmap.Bitmap // bitmap for non-filtered data - I really dislike the way this is handled (TODO)
-		for j := range ds.Schema {
-			col, err := db.ReadColumnFromStripe(ds, stripeID, j)
+		for j, colExpr := range q.Select {
+			colnames := colExpr.ColumnsUsed() // OPTIM: calculated for each stripe, can be cached
+			columns, err := db.ReadColumnsFromStripeByNames(ds, stripeID, colnames)
 			if err != nil {
 				return nil, err
 			}
+			col, err := expr.Evaluate(colExpr, colnames, columns)
+			if err != nil {
+				return nil, err
+			}
+
 			// prune when filtering
 			if bms != nil {
 				col = col.Prune(bms[stripeIndex])
 			}
+
 			// prune non-filtered stripes as well (when limit is applied)
 			// for each stripe, set up the bitmap when in the first column (because we don't
 			// know the columns' length before that)

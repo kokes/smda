@@ -128,6 +128,7 @@
 
     async function getDatasetData(datasetID) {
         const body = {
+            select: ['floats', 'floats_null', 'floats = floats_null', 'bools', 'strings'],
             limit: 25,
             dataset: datasetID,
             // aggregate: ['strings', 'bools'],
