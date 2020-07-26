@@ -280,6 +280,9 @@ func (rc *ChunkStrings) AddValue(s string) error {
 	rc.offsets = append(rc.offsets, valLen)
 
 	rc.length++
+	if rc.nullability != nil {
+		rc.nullability.Ensure(int(rc.length))
+	}
 	return nil
 }
 
@@ -301,7 +304,7 @@ func (rc *ChunkInts) AddValue(s string) error {
 	rc.data = append(rc.data, val)
 	rc.length++
 	// make sure the nullability bitmap aligns with the length of the chunk (TODO: test this explicitly)
-	if rc.nullable {
+	if rc.nullability != nil {
 		rc.nullability.Ensure(int(rc.length))
 	}
 	return nil
@@ -332,7 +335,7 @@ func (rc *ChunkFloats) AddValue(s string) error {
 	rc.data = append(rc.data, val)
 	rc.length++
 	// make sure the nullability bitmap aligns with the length of the chunk
-	if rc.nullable {
+	if rc.nullability != nil {
 		rc.nullability.Ensure(int(rc.length))
 	}
 	return nil
@@ -355,7 +358,7 @@ func (rc *ChunkBools) AddValue(s string) error {
 	rc.data.Set(rc.Len(), val)
 	rc.length++
 	// make sure the nullability bitmap aligns with the length of the chunk
-	if rc.nullable {
+	if rc.nullability != nil {
 		rc.nullability.Ensure(int(rc.length))
 	}
 	return nil
@@ -418,7 +421,7 @@ func (rc *ChunkStrings) Append(tc Chunk) error {
 	if rc.nullable != nrc.nullable {
 		return errAppendNullabilityMismatch
 	}
-	if rc.nullable {
+	if rc.nullability != nil {
 		rc.nullability.Append(nrc.nullability)
 	}
 	rc.data = append(rc.data, nrc.data...)
@@ -442,7 +445,7 @@ func (rc *ChunkInts) Append(tc Chunk) error {
 	if rc.nullable != nrc.nullable {
 		return errAppendNullabilityMismatch
 	}
-	if rc.nullable {
+	if rc.nullability != nil {
 		rc.nullability.Append(nrc.nullability)
 	}
 
@@ -459,7 +462,7 @@ func (rc *ChunkFloats) Append(tc Chunk) error {
 	if rc.nullable != nrc.nullable {
 		return errAppendNullabilityMismatch
 	}
-	if rc.nullable {
+	if rc.nullability != nil {
 		rc.nullability.Append(nrc.nullability)
 	}
 
@@ -476,7 +479,7 @@ func (rc *ChunkBools) Append(tc Chunk) error {
 	if rc.nullable != nrc.nullable {
 		return errAppendNullabilityMismatch
 	}
-	if rc.nullable {
+	if rc.nullability != nil {
 		rc.nullability.Append(nrc.nullability)
 	}
 
@@ -529,7 +532,7 @@ func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 	}
 
 	// make sure the nullability vector aligns with the data
-	if rc.nullable {
+	if rc.nullability != nil {
 		nc.nullability.Ensure(nc.Len())
 	}
 
@@ -563,7 +566,7 @@ func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
 	}
 
 	// make sure the nullability vector aligns with the data
-	if rc.nullable {
+	if rc.nullability != nil {
 		nc.nullability.Ensure(nc.Len())
 	}
 
@@ -597,7 +600,7 @@ func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
 	}
 
 	// make sure the nullability vector aligns with the data
-	if rc.nullable {
+	if rc.nullability != nil {
 		nc.nullability.Ensure(nc.Len())
 	}
 
@@ -632,7 +635,7 @@ func (rc *ChunkBools) Prune(bm *bitmap.Bitmap) Chunk {
 	}
 
 	// make sure the nullability vector aligns with the data
-	if rc.nullable {
+	if rc.nullability != nil {
 		nc.nullability.Ensure(nc.Len())
 	}
 

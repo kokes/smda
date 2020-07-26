@@ -506,9 +506,10 @@ func TestAppending(t *testing.T) {
 			t.Error(err)
 		}
 		if !reflect.DeepEqual(rc, rrc) {
-			fmt.Println(rc.(*ChunkFloats).nullability)
-			fmt.Println(rrc.(*ChunkFloats).nullability)
+			// fmt.Println(rc.(*ChunkFloats).nullability)
+			// fmt.Println(rrc.(*ChunkFloats).nullability)
 			fmt.Println(rc, rrc)
+
 			t.Errorf("expected that %v plus %v results in %v", test.a, test.b, test.res)
 		}
 
