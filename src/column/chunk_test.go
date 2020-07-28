@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/rand"
 	"reflect"
 	"strconv"
 	"strings"
@@ -135,6 +136,24 @@ func TestBasicBoolColumn(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 			return
+		}
+	}
+}
+
+func TestBoolColumnFromBits(t *testing.T) {
+	for length := 3; length < 30; length++ {
+		data := make([]uint64, 0, length)
+		for j := 0; j < length; j++ {
+			data = append(data, rand.Uint64())
+		}
+		bc := newChunkBoolsFromBits(data, length*64)
+		c1 := bc.data.Count()
+		data[length/2] = 1234
+		data[length-1] = 38484
+		c2 := bc.data.Count()
+
+		if c1 != c2 {
+			t.Error("modifying the underlying slice after passing it to newChunkBoolsFromBits should not change the chunk")
 		}
 	}
 }
@@ -437,10 +456,6 @@ func TestPruningFailureMisalignment(t *testing.T) {
 	}
 }
 
-func TestFilterAndPrune(t *testing.T) {
-	// TODO
-}
-
 func TestAppending(t *testing.T) {
 	tests := []struct {
 		Dtype    Dtype
@@ -581,3 +596,4 @@ func BenchmarkHashingFloats(b *testing.B) {
 
 // tests for columnNulls
 // tests for .Dtype()
+// TestFilterAndPrune

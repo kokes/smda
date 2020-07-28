@@ -107,8 +107,6 @@ func newChunkBools() *ChunkBools {
 	}
 }
 
-// TODO: test this by altering the data after this constructor is run
-// and then test the bm.count() hasn't changed
 func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	return &ChunkBools{
 		data:   bitmap.NewBitmapFromBits(data, length), // this copies
@@ -294,7 +292,6 @@ func (rc *ChunkInts) AddValue(s string) error {
 	}
 	rc.data = append(rc.data, val)
 	rc.length++
-	// make sure the nullability bitmap aligns with the length of the chunk (TODO: test this explicitly)
 	if rc.nullability != nil {
 		rc.nullability.Ensure(int(rc.length))
 	}
