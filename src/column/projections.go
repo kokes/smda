@@ -66,10 +66,28 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 	return cdata, nil
 }
 
+func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64) uint64) (*ChunkBools, error) {
+	nvals := c1.Len()
+	c1d := c1.data.Data()
+	c2d := c2.data.Data()
+	res := make([]uint64, len(c1d))
+
+	for j, el := range c1d {
+		res[j] = compFn(el, c2d[j])
+	}
+	cdata := newChunkBoolsFromBits(res, nvals)
+	nulls := bitmap.Or(c1.nullability, c2.nullability)
+	if nulls != nil {
+		cdata.nullability = nulls
+	}
+	return cdata, nil
+}
+
 type compFuncs struct {
 	ints    func(int64, int64) bool
 	floats  func(float64, float64) bool
 	strings func(string, string) bool
+	bools   func(uint64, uint64) uint64
 }
 
 // OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
@@ -89,9 +107,23 @@ func algebraicEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
 		return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts), cf.ints)
 	case DtypeFloat:
 		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
+	case DtypeBool:
+		return compFactoryBools(c1.(*ChunkBools), c2.(*ChunkBools), cf.bools)
 	default:
 		return nil, fmt.Errorf("algebraic expression not supported for types %s and %s: %w", c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
 	}
+}
+
+func EvalAnd(c1 Chunk, c2 Chunk) (Chunk, error) {
+	return algebraicEval(c1, c2, compFuncs{
+		bools: func(a, b uint64) uint64 { return a & b },
+	})
+}
+
+func EvalOr(c1 Chunk, c2 Chunk) (Chunk, error) {
+	return algebraicEval(c1, c2, compFuncs{
+		bools: func(a, b uint64) uint64 { return a | b },
+	})
 }
 
 func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
@@ -99,6 +131,7 @@ func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 		ints:    func(a, b int64) bool { return a == b },
 		floats:  func(a, b float64) bool { return a == b },
 		strings: func(a, b string) bool { return a == b },
+		bools:   func(a, b uint64) uint64 { return a ^ (^b) },
 	})
 }
 
@@ -107,6 +140,7 @@ func EvalNeq(c1 Chunk, c2 Chunk) (Chunk, error) {
 		ints:    func(a, b int64) bool { return a != b },
 		floats:  func(a, b float64) bool { return a != b },
 		strings: func(a, b string) bool { return a != b },
+		bools:   func(a, b uint64) uint64 { return a ^ b },
 	})
 }
 
@@ -115,6 +149,7 @@ func EvalGt(c1 Chunk, c2 Chunk) (Chunk, error) {
 		ints:    func(a, b int64) bool { return a > b },
 		floats:  func(a, b float64) bool { return a > b },
 		strings: func(a, b string) bool { return a > b },
+		bools:   func(a, b uint64) uint64 { return a & (^b) },
 	})
 }
 
@@ -123,6 +158,7 @@ func EvalGte(c1 Chunk, c2 Chunk) (Chunk, error) {
 		ints:    func(a, b int64) bool { return a >= b },
 		floats:  func(a, b float64) bool { return a >= b },
 		strings: func(a, b string) bool { return a >= b },
+		bools:   func(a, b uint64) uint64 { return (a & (^b)) | (a ^ (^b)) },
 	})
 }
 

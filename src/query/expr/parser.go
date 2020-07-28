@@ -101,11 +101,9 @@ func (expr *Expression) String() string {
 	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
 		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
 		return fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
+	case exprLiteralInt, exprLiteralFloat, exprLiteralBool, exprLiteralString:
+		return expr.value
 	// TODO: finish this stringer
-	// exprLiteralInt
-	// exprLiteralFloat
-	// exprLiteralBool
-	// exprLiteralString
 	// exprFunCall
 	default:
 		return "unsupported expression"

@@ -35,7 +35,7 @@ func Evaluate(expr *Expression, colnames []string, columns []column.Chunk) (colu
 	// 	...
 	// case exprFunCall
 	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,
-		exprAddition, exprSubtraction, exprMultiplication, exprDivision:
+		exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprAnd, exprOr:
 		c1, err := Evaluate(expr.children[0], colnames, columns)
 		if err != nil {
 			return nil, err
@@ -45,6 +45,10 @@ func Evaluate(expr *Expression, colnames []string, columns []column.Chunk) (colu
 			return nil, err
 		}
 		switch expr.etype {
+		case exprAnd:
+			return column.EvalAnd(c1, c2)
+		case exprOr:
+			return column.EvalOr(c1, c2)
 		case exprEquality:
 			return column.EvalEq(c1, c2)
 		case exprNequality:
