@@ -74,118 +74,121 @@
         }
     }
 
-    async function init() {
-        // check that our backend is live
-        const sg = new statusGetter('/status', document.getElementById('status'));
-        sg.checkStatus();
-
-        // initiate a router that's based on hash changes
-        window.onhashchange = function() {
-            const hash = window.location.hash.slice(1).split('/');
-            switch (hash[0]) {
-                case 'explore':
-                    setupExplore(hash[1])
-                    break;
-                default:
-                    console.error(`unexpected route base: "${hash[0]}"`);
-            }
-        }
-        // upon a page reload, there is no hashchange even triggered, so we need to fire it manually
-        if (window.location.hash.length > 1) {
-            window.dispatchEvent(new Event('hashchange'));
-        }
-
-        // link all the datasets we have
-        const dss = document.getElementById('datasets');
-        listDatasets(dss);
-
-        // setup our filepicker
-        // TODO: first we need to allow for /api/upload/{raw,auto} to accept FormData
-        // document.getElementById('filepicker').addEventListener('change', (e) => {
-        // formData = new FormData()
-        //     console.log(e);
-        //     fetch('/api/upload/auto', {
-        //         method: 'POST',
-        //         body:
-        //     });
-        // });
-    }
-
-    async function listDatasets(target) {
-        const datasets = await (await fetch('/api/datasets')).json();
-        const list = document.createElement('ul');
-
-        for (const ds of (datasets || [])) {
-            const dsli = document.createElement('li');
-            const link = document.createElement('a');
-            link.setAttribute('href', '#explore/' + ds.id);
-            link.appendChild(document.createTextNode(`${ds.name} (${ds.id})`));
-            dsli.appendChild(link);
-            list.appendChild(dsli);
-        }
-        target.appendChild(list);
-    }
-
-    async function getDatasetData(datasetID) {
-        const body = {
-            select: ['floats', 'floats_null', 'floats = floats_null', 'bools', 'strings'],
-            limit: 25,
-            dataset: datasetID,
-            // aggregate: ['strings', 'bools'],
-            // filter: 'floats != floats_null',
-            // filter: 'strings = strings_null',
-        }
-        const req = await fetch('/api/query', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body)
-        })
-        return await req.json();
-    }
-
     function empty(node) {
         while (node.firstChild) {
             node.removeChild(node.firstChild);
         }
     }
 
-    async function setupExplore(datasetID) {
-        const target = document.getElementById('content');
-        empty(target);
-
-        // TODO: render metadata as well
-        renderTable(datasetID, target);
-    }
-
-    async function renderTable(datasetID, target) {
-        const data = await getDatasetData(datasetID);
-        const table = document.createElement('table');
-        const thead = document.createElement('tr');
-        for (let colname of data.columns) {
-            const th = document.createElement('th');
-            th.innerText = colname;
-            thead.appendChild(th);
+    // ARCH: this does a bit of UI stuff - maybe separate that out completely, so that
+    // this becomes more testable
+    class smda {
+        constructor(remote) {
+            this.remote = remote || window.location.origin;
+            
+            // check that our backend is live
+            this.status = new statusGetter('/status', document.getElementById('status'));
+            this.status.checkStatus();
+            
+            this.setupRouter();
+            this.setupUI();
         }
-        table.appendChild(thead);
-
-        // this works, could only fail if we get zero columns, but that can't happen
-        // might be more convenient/explicit if we send nrows from the backend
-        const nrows = data.data[0].length;
-
-        for (let rowNum=0; rowNum < nrows; rowNum++) {
-            const row = document.createElement('tr');
-            for (let colNum = 0; colNum < data.columns.length; colNum++) {
-                const cell = document.createElement('td');
-                cell.innerText = data.data[colNum][rowNum];
-                row.appendChild(cell);
+        setupRouter() {
+            const that = this;
+            // initiate a router that's based on hash changes
+            window.onhashchange = function() {
+                const hash = window.location.hash.slice(1).split('/');
+                switch (hash[0]) {
+                    case 'explore':
+                        that.setupExplore(hash[1])
+                        break;
+                    default:
+                        console.error(`unexpected route base: "${hash[0]}"`);
+                }
             }
-            table.appendChild(row);
+            // upon a page reload, there is no hashchange even triggered, so we need to fire it manually
+            if (window.location.hash.length > 1) {
+                window.dispatchEvent(new Event('hashchange'));
+            }
         }
+        setupUI() {
+            this.listDatasets(document.getElementById('datasets'));
+        }
+        async setupExplore(datasetID) {
+            const target = document.getElementById('content');
+            empty(target);
 
-        target.appendChild(table);
+            // TODO: render metadata as well
+            const data = await this.getDatasetData(datasetID);
+            this.renderTable(data, target);
+        }
+        // OPTIM: perhaps abort if loaded in the past n miliseconds
+        async loadDatasets() {
+            const raw = await (await fetch('/api/datasets')).json();
+            this.datasets = Object.fromEntries(raw.map(x => [x.id, x]))
+        }
+        async listDatasets(target) {
+            empty(target);
+            await this.loadDatasets();
+            const list = document.createElement('ul');
+
+            for (const [dsID, ds] of Object.entries(this.datasets || {})) {
+                const dsli = document.createElement('li');
+                const link = document.createElement('a');
+                link.setAttribute('href', '#explore/' + dsID);
+                link.appendChild(document.createTextNode(`${ds.name} (${dsID})`));
+                dsli.appendChild(link);
+                list.appendChild(dsli);
+            }
+            target.appendChild(list);
+        }
+        async getDatasetData(datasetID) {
+            await this.loadDatasets();
+            const columns = this.datasets[datasetID].schema.map(x=>x.name)
+            const body = {
+                select: columns,
+                limit: 25,
+                dataset: datasetID,
+                // aggregate: ['strings', 'bools'],
+                // filter: 'floats != floats_null',
+                // filter: 'strings = strings_null',
+            }
+            const req = await fetch('/api/query', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body),
+            })
+            return await req.json();
+        }
+        async renderTable(data, target) {
+            const table = document.createElement('table');
+            const thead = document.createElement('tr');
+            for (let colname of data.columns) {
+                const th = document.createElement('th');
+                th.innerText = colname;
+                thead.appendChild(th);
+            }
+            table.appendChild(thead);
+
+            // this works, could only fail if we get zero columns, but that can't happen
+            // might be more convenient/explicit if we send nrows from the backend
+            const nrows = data.data[0].length;
+
+            for (let rowNum=0; rowNum < nrows; rowNum++) {
+                const row = document.createElement('tr');
+                for (let colNum = 0; colNum < data.columns.length; colNum++) {
+                    const cell = document.createElement('td');
+                    cell.innerText = data.data[colNum][rowNum];
+                    row.appendChild(cell);
+                }
+                table.appendChild(row);
+            }
+
+            target.appendChild(table);
+        }
     }
 
-    init();
+    const db = new smda();
 </script>
 
 </body>
