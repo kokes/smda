@@ -91,8 +91,6 @@ type compFuncs struct {
 }
 
 // OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
-// TODO: these evaleq, evalneq, evalgt etc. only differ in the functions passed in - move all of them into one structure
-// that generates all of these functions at some point (not at evaluation time)
 func algebraicEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
 	if c1.Dtype() != c2.Dtype() {
 		// this includes int == float!

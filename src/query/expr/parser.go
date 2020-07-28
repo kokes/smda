@@ -1,7 +1,7 @@
 package expr
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -31,6 +31,7 @@ const (
 	exprLiteralFloat
 	exprLiteralBool
 	exprLiteralString
+	exprLiteralNull
 	exprFunCall
 )
 
@@ -72,6 +73,8 @@ func (etype exprType) String() string {
 		return "LiteralBool"
 	case exprLiteralString:
 		return "LiteralString"
+	case exprLiteralNull:
+		return "LiteralNull"
 	case exprFunCall:
 		return "FunCall"
 	default:
@@ -103,6 +106,8 @@ func (expr *Expression) String() string {
 		return fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
 	case exprLiteralInt, exprLiteralFloat, exprLiteralBool, exprLiteralString:
 		return expr.value
+	case exprLiteralNull:
+		return "NULL"
 	// TODO: finish this stringer
 	// exprFunCall
 	default:
@@ -123,11 +128,7 @@ func (expr *Expression) UnmarshalJSON(data []byte) error {
 }
 
 func (expr *Expression) MarshalJSON() ([]byte, error) {
-	bf := new(bytes.Buffer)
-	bf.WriteByte('"')
-	bf.WriteString(expr.String()) // TODO: what about literals with quotes?
-	bf.WriteByte('"')
-	return bf.Bytes(), nil
+	return json.Marshal(expr.String())
 }
 
 // limitations:
@@ -167,7 +168,6 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 	switch node := expr.(type) {
 	case *ast.Ident:
 		// TODO: what if this a reserved keyword?
-		// TODO: what if it's null/NULL?
 		value := node.Name
 
 		// TODO: copied from parseBool, should probably centralise this (or simply export parseBool)
@@ -176,6 +176,11 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			return &Expression{
 				etype: exprLiteralBool,
 				value: fmt.Sprintf("%v", value == "t" || value == "true" || value == "TRUE"),
+			}, nil
+		}
+		if value == "null" || value == "NULL" {
+			return &Expression{
+				etype: exprLiteralNull,
 			}, nil
 		}
 

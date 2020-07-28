@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/kokes/smda/src/bitmap"
@@ -55,7 +56,9 @@ func Filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 
 // TODO: this is not expression aware, also ignores q.Select
 func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]column.Chunk, error) {
-	// TODO: fail if len(exprs) == 0? it will panic later anyway
+	if len(exprs) == 0 {
+		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
+	}
 
 	nrc := make([]column.Chunk, 0, len(exprs))
 	colIndices := make([]int, 0, len(exprs))

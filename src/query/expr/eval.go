@@ -31,7 +31,7 @@ func Evaluate(expr *Expression, colnames []string, columns []column.Chunk) (colu
 	switch expr.etype {
 	case exprIdentifier:
 		return getColumn(expr.value, colnames, columns), nil
-	// case exprLiteralBool, exprLiteralFloat, exprLiteralInt, exprLiteralString: // TODO: expr.isLiteral?
+	// case exprLiteralBool, exprLiteralFloat, exprLiteralInt, exprLiteralString, exprLiteralNull: // TODO: expr.isLiteral?
 	// 	...
 	// case exprFunCall
 	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,

@@ -61,7 +61,7 @@ func (expr *Expression) IsValid(ts database.TableSchema) error {
 		if expr.children != nil {
 			return errChildrenNotNil
 		}
-	case exprLiteralInt, exprLiteralFloat, exprLiteralString, exprLiteralBool:
+	case exprLiteralInt, exprLiteralFloat, exprLiteralString, exprLiteralBool, exprLiteralNull:
 		// TODO: test value
 		if expr.children != nil {
 			return errChildrenNotNil
@@ -122,6 +122,9 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 	case exprLiteralString:
 		schema.Dtype = column.DtypeString
 		schema.Nullable = false
+	case exprLiteralNull:
+		schema.Dtype = column.DtypeNull
+		schema.Nullable = false // ARCH: still no consensus whether null columns are nullable
 
 	case exprFunCall:
 		var argTypes []column.Schema
