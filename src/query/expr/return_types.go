@@ -67,7 +67,7 @@ func (expr *Expression) IsValid(ts database.TableSchema) error {
 			return errChildrenNotNil
 		}
 	case exprEquality, exprNequality, exprGreaterThan, exprGreaterThanEqual, exprLessThan, exprLessThanEqual,
-		exprAddition, exprSubtraction, exprDivision, exprMultiplication:
+		exprAddition, exprSubtraction, exprDivision, exprMultiplication, exprAnd, exprOr:
 		if len(expr.children) != 2 {
 			return errChildrenNotTwo
 		}
@@ -79,10 +79,17 @@ func (expr *Expression) IsValid(ts database.TableSchema) error {
 		if err != nil {
 			return err
 		}
-		// TODO: this might be an issue for e.g. colDate = '2020-02-22' - where we'd like to implicitly convert the literal
-		//       to a date, so we may need to extend this to avoid explicit casting
-		if !compatibleTypes(t1.Dtype, t2.Dtype) {
-			return errTypeMismatch
+		if expr.etype == exprAnd || expr.etype == exprOr {
+			if !(t1.Dtype == column.DtypeBool && t2.Dtype == column.DtypeBool) {
+				return fmt.Errorf("AND/OR clauses require both sides to be booleans: %w", errTypeMismatch)
+			}
+			return nil
+		} else {
+			// TODO: this might be an issue for e.g. colDate = '2020-02-22' - where we'd like to implicitly convert the literal
+			//       to a date, so we may need to extend this to avoid explicit casting
+			if !compatibleTypes(t1.Dtype, t2.Dtype) {
+				return errTypeMismatch
+			}
 		}
 	case exprFunCall:
 		// TODO: check the function exists?
@@ -141,7 +148,7 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 			Nullable: col.Nullable,
 		}
 
-	case exprEquality, exprNequality, exprGreaterThan, exprGreaterThanEqual, exprLessThan, exprLessThanEqual:
+	case exprEquality, exprNequality, exprGreaterThan, exprGreaterThanEqual, exprLessThan, exprLessThanEqual, exprAnd, exprOr:
 		schema.Dtype = column.DtypeBool
 		c1, err := expr.children[0].ReturnType(ts)
 		if err != nil {
@@ -168,7 +175,7 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 		}
 		schema.Nullable = c1.Nullable || c2.Nullable
 	default:
-		return schema, fmt.Errorf("TODO: %v", expr.etype)
+		return schema, fmt.Errorf("return types not implemented for: %v", expr.etype)
 	}
 	return schema, nil
 }

@@ -15,6 +15,8 @@ type exprType uint8
 const (
 	exprInvalid exprType = iota
 	exprIdentifier
+	exprAnd
+	exprOr
 	exprAddition
 	exprSubtraction
 	exprMultiplication
@@ -38,6 +40,10 @@ func (etype exprType) String() string {
 		return "Invalid"
 	case exprIdentifier:
 		return "Identifier"
+	case exprAnd:
+		return "&&"
+	case exprOr:
+		return "||"
 	case exprAddition:
 		return "+"
 	case exprSubtraction:
@@ -93,7 +99,7 @@ func (expr *Expression) String() string {
 	case exprIdentifier:
 		return expr.value
 	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
-		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual:
+		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
 		return fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
 	// TODO: finish this stringer
 	// exprLiteralInt
@@ -112,7 +118,9 @@ func (expr *Expression) UnmarshalJSON(data []byte) error {
 	}
 	sdata := string(data[1 : len(data)-1])
 	ex, err := ParseStringExpr(sdata)
-	*expr = *ex
+	if ex != nil {
+		*expr = *ex
+	}
 	return err
 }
 
@@ -195,9 +203,31 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			etype: etype,
 			value: node.Value,
 		}, nil
+	case *ast.UnaryExpr:
+		if node.Op != token.SUB {
+			return nil, fmt.Errorf("unsupported op: %s", node.Op)
+		}
+		var etype exprType
+		x := node.X.(*ast.BasicLit) // TODO: what if it's something else? like a parenExpr?
+		switch x.Kind {
+		case token.INT:
+			etype = exprLiteralInt
+		case token.FLOAT:
+			etype = exprLiteralFloat
+		default:
+			return nil, fmt.Errorf("unsupported token for unary expressions: %v", x.Kind)
+		}
+		return &Expression{
+			etype: etype,
+			value: fmt.Sprintf("-%s", x.Value),
+		}, nil
 	case *ast.BinaryExpr:
 		var ntype exprType
 		switch node.Op {
+		case token.LAND:
+			ntype = exprAnd
+		case token.LOR:
+			ntype = exprOr
 		case token.ADD:
 			ntype = exprAddition
 		case token.SUB:

@@ -11,6 +11,8 @@ func TestBasicParsing(t *testing.T) {
 		"round(1.234, 2)", "count(foo = true)", "bak != 3",
 		"sum(foo > 3)", "sum(foo < 3)", "sum(foo >= 3)", "sum(foo <= 3)",
 		"2 * (1 - foo)", "foo = true",
+		"-2", "-2.4", // unary expressions
+		"foo = 2 && bar = 3", "foo > 3 || foo < -2",
 	}
 
 	for _, expression := range expressions {

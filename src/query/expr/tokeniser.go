@@ -32,6 +32,8 @@ const (
 	tokenIdentifier
 	tokenIdentifierQuoted
 	tokenComment
+	tokenAnd
+	tokenOr
 	tokenAdd
 	tokenSub
 	tokenMul
@@ -60,6 +62,10 @@ func (tok tok) String() string {
 		return fmt.Sprintf("\"%s\"", tok.value)
 	case tokenComment:
 		return fmt.Sprintf("-- %v", tok.value) // TODO: should add a newline? test this
+	case tokenAnd:
+		return "&&" // we might change this to AND (and || to OR) to do this SQL compatibility thing
+	case tokenOr:
+		return "||"
 	case tokenAdd:
 		return "+"
 	case tokenSub:
@@ -166,6 +172,22 @@ func (ts *tokenScanner) Scan() (tok, error) {
 	case ',':
 		ts.position++
 		return tok{tokenComma, nil}, nil
+	case '&':
+		next := ts.peek(2)
+		if bytes.Equal(next, []byte("&&")) {
+			ts.position += 2
+			return tok{tokenAnd, nil}, nil
+		}
+		ts.position++
+		return tok{}, errUnknownToken
+	case '|':
+		next := ts.peek(2)
+		if bytes.Equal(next, []byte("||")) {
+			ts.position += 2
+			return tok{tokenOr, nil}, nil
+		}
+		ts.position++
+		return tok{}, errUnknownToken
 	case '+':
 		ts.position++
 		return tok{tokenAdd, nil}, nil
