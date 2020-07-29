@@ -2,6 +2,7 @@ package expr
 
 import (
 	"bytes"
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -160,7 +161,7 @@ func TestTokenisationErrors(t *testing.T) {
 
 	for _, test := range tt {
 		_, err := TokeniseString(test.source)
-		if err != test.firstErr {
+		if !errors.Is(err, test.firstErr) {
 			t.Errorf("expecting %v, got %v instead", test.firstErr, err)
 		}
 	}

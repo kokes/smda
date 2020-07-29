@@ -191,20 +191,24 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 	case *ast.BasicLit:
 		// TODO: do we need to recheck this with our own type parsers?
 		var etype exprType
+		var value string
 		switch node.Kind {
 		case token.INT:
 			etype = exprLiteralInt
+			value = node.Value
 		case token.FLOAT:
 			etype = exprLiteralFloat
+			value = node.Value
 		case token.CHAR:
-			// TODO: do we need to truncate the value to get rid of the apostrophes? What if there are escaped apostrophes within?
 			etype = exprLiteralString
+			value = node.Value[1 : len(node.Value)-1] // trim apostrophes
+			value = strings.ReplaceAll(value, "\\'", "'")
 		default:
 			return nil, fmt.Errorf("unsupported token: %v", node.Kind)
 		}
 		return &Expression{
 			etype: etype,
-			value: node.Value,
+			value: value,
 		}, nil
 	case *ast.UnaryExpr:
 		if node.Op != token.SUB {

@@ -31,7 +31,11 @@ func TestParsingContents(t *testing.T) {
 		}}},
 		{"bak = 'my_literal'", &Expression{etype: exprEquality, children: []*Expression{
 			{etype: exprIdentifier, value: "bak"},
-			{etype: exprLiteralString, value: "'my_literal'"}, // this will probably not last, should be just `my_literal`
+			{etype: exprLiteralString, value: "my_literal"},
+		}}},
+		{"bak = 'my_li''ter''al'", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprIdentifier, value: "bak"},
+			{etype: exprLiteralString, value: "my_li'ter'al"},
 		}}},
 		{"coalesce(foo, bar, 1) - 4", &Expression{etype: exprSubtraction, children: []*Expression{
 			{etype: exprFunCall, value: "coalesce", children: []*Expression{
@@ -43,7 +47,7 @@ func TestParsingContents(t *testing.T) {
 		}}},
 		{"nullif(baz, 'foo')", &Expression{etype: exprFunCall, value: "nullif", children: []*Expression{
 			{etype: exprIdentifier, value: "baz"},
-			{etype: exprLiteralString, value: "'foo'"},
+			{etype: exprLiteralString, value: "foo"},
 		}}},
 		{"nullif(bak, 103)", &Expression{etype: exprFunCall, value: "nullif", children: []*Expression{
 			{etype: exprIdentifier, value: "bak"},

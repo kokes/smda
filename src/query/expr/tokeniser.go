@@ -97,7 +97,8 @@ func (tok tok) String() string {
 	case tokenLiteralFloat:
 		return string(tok.value)
 	case tokenLiteralString:
-		return fmt.Sprintf("'%s'", tok.value)
+		escaped := bytes.ReplaceAll(tok.value, []byte("'"), []byte("\\'"))
+		return fmt.Sprintf("'%s'", escaped)
 	default:
 		panic(fmt.Sprintf("unknown token type: %v", tok.ttype))
 	}
@@ -328,7 +329,7 @@ func (ts *tokenScanner) consumeStringLiteral() (tok, error) {
 		chunk := ts.code[ts.position+1 : ts.position+idx+1]
 		if bytes.IndexByte(chunk, '\n') > -1 {
 			ts.position++
-			return tok{}, errInvalidString // TODO: add context: cannot have a newline there
+			return tok{}, fmt.Errorf("a string literal cannot contain a newline: %w", errInvalidString)
 		}
 		token.value = append(token.value, chunk...)
 		ts.position += idx + 1
