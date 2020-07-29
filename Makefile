@@ -1,9 +1,13 @@
-.PHONY: build run test bench coverstats build-docker run-docker test-docker bench-many
+.PHONY: check run test bench coverstats build-docker run-docker test-docker bench-many
 
 # call the makefile like `GORLS=gotip make test` to use an alternative Go release
 GORLS ?= go
 
-build:
+check:
+	go fmt ./...
+	CGO_ENABLED=0 go vet ./...
+
+build: check test
 	CGO_ENABLED=0 $(GORLS) build cmd/server.go
 
 build-docker:

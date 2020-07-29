@@ -9,7 +9,7 @@ COPY Makefile go.mod ./
 COPY src src
 COPY cmd cmd
 COPY samples samples
-RUN make test && make build
+RUN make build
 
 FROM alpine:latest
 RUN mkdir -p /smda/

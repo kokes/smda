@@ -29,12 +29,12 @@ func TestDatasetTypeInference(t *testing.T) {
 		raw string
 		cs  TableSchema
 	}{
-		{"foo\n1\n2", TableSchema{{"foo", column.DtypeInt, false}}},
-		{"foo,bar\n1,2\n2,false", TableSchema{{"foo", column.DtypeInt, false}, {"bar", column.DtypeString, false}}},
-		{"foo\ntrue\nFALSE", TableSchema{{"foo", column.DtypeBool, false}}},
-		{"foo,bar\na,b\nc,", TableSchema{{"foo", column.DtypeString, false}, {"bar", column.DtypeString, true}}}, // we do have nullable strings
-		{"foo,bar\n1,\n2,3", TableSchema{{"foo", column.DtypeInt, false}, {"bar", column.DtypeInt, true}}},
-		{"foo,bar\n1,\n2,", TableSchema{{"foo", column.DtypeInt, false}, {"bar", column.DtypeNull, true}}},
+		{"foo\n1\n2", TableSchema{{Name: "foo", Dtype: column.DtypeInt, Nullable: false}}},
+		{"foo,bar\n1,2\n2,false", TableSchema{{Name: "foo", Dtype: column.DtypeInt, Nullable: false}, {Name: "bar", Dtype: column.DtypeString, Nullable: false}}},
+		{"foo\ntrue\nFALSE", TableSchema{{Name: "foo", Dtype: column.DtypeBool, Nullable: false}}},
+		{"foo,bar\na,b\nc,", TableSchema{{Name: "foo", Dtype: column.DtypeString, Nullable: false}, {Name: "bar", Dtype: column.DtypeString, Nullable: true}}}, // we do have nullable strings
+		{"foo,bar\n1,\n2,3", TableSchema{{Name: "foo", Dtype: column.DtypeInt, Nullable: false}, {Name: "bar", Dtype: column.DtypeInt, Nullable: true}}},
+		{"foo,bar\n1,\n2,", TableSchema{{Name: "foo", Dtype: column.DtypeInt, Nullable: false}, {Name: "bar", Dtype: column.DtypeNull, Nullable: true}}},
 		// the following issues are linked to the fact that encoding/csv skips empty rows (???)
 		// {"foo\n\n\n", TableSchema{{"foo", column.DtypeNull, true}}}, // this should work, but we keep returning invalid
 		// {"foo\ntrue\n", TableSchema{{"foo", column.DtypeBool, true}}}, // this should be nullable, but we keep saying it is not
