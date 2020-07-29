@@ -93,7 +93,7 @@ func (bm *Bitmap) Or(obm *Bitmap) {
 	}
 }
 
-// return a copy (unlike the method)
+// Or returns a copy (unlike the method)
 func Or(bm1 *Bitmap, bm2 *Bitmap) *Bitmap {
 	if bm1 == nil && bm2 == nil {
 		return nil
