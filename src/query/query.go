@@ -25,7 +25,9 @@ type Query struct {
 	Limit     *int               `json:"limit,omitempty"`
 }
 
-func Filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expression) ([]*bitmap.Bitmap, error) {
+// OPTIM: this filters the whole dataset, but it we may only need to filter a single stripe - e.g. if we have no order or
+// groupby clause and a limit (implicit or explicit)
+func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expression) ([]*bitmap.Bitmap, error) {
 	rettype, err := filterExpr.ReturnType(ds.Schema)
 	if err != nil {
 		return nil, err
@@ -55,7 +57,7 @@ func Filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 }
 
 // TODO: this is not expression aware, also ignores q.Select
-func Aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]column.Chunk, error) {
+func aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]column.Chunk, error) {
 	if len(exprs) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
 	}
@@ -132,14 +134,14 @@ func QueryData(db *database.Database, q Query) (*QueryResult, error) {
 
 	var bms []*bitmap.Bitmap
 	if q.Filter != nil {
-		bms, err = Filter(db, ds, q.Filter)
+		bms, err = filter(db, ds, q.Filter)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if q.Aggregate != nil {
-		columns, err := Aggregate(db, ds, q.Aggregate)
+		columns, err := aggregate(db, ds, q.Aggregate)
 		if err != nil {
 			return nil, err
 		}

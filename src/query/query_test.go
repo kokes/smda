@@ -130,9 +130,9 @@ func TestLimitsInQueries(t *testing.T) {
 // TODO: not testing nulls here
 func TestBasicAggregation(t *testing.T) {
 	tests := []struct {
-		input     string
-		aggregate []string
-		output    string
+		input   string
+		aggexpr []string
+		output  string
 	}{
 		{"foo\na\nb\nc", []string{"foo"}, "foo\na\nb\nc"},
 		{"foo\na\na\na", []string{"foo"}, "foo\na"},
@@ -174,7 +174,7 @@ func TestBasicAggregation(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		nrc, err := Aggregate(db, ds, test.aggregate)
+		nrc, err := aggregate(db, ds, test.aggexpr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -194,5 +194,77 @@ func TestBasicAggregation(t *testing.T) {
 				t.Errorf("[%d] failed to aggregate %v", testNo, test.input)
 			}
 		}
+	}
+}
+
+func TestBasicFiltering(t *testing.T) {
+	tests := []struct {
+		input            string
+		columns          []string
+		filterExpression string
+		output           string
+	}{
+		// no testing against literals as we don't support literal chunks yet
+		{"foo\na\nb\nc", []string{"foo"}, "foo = foo", "foo\na\nb\nc"},
+		// {"foo\na\nb\nc", []string{"foo"}, "foo != foo", "foo"}, // no type inference for our `output`
+		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "foo > bar", "foo\n10"},
+		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "foo >= bar", "foo\n5\n10"},
+	}
+
+	for _, test := range tests {
+		db, err := database.NewDatabase(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := db.Drop(); err != nil {
+				panic(err)
+			}
+		}()
+
+		input, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.input))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expected, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.output))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var sel []*expr.Expression
+		for _, col := range test.columns {
+			parsed, err := expr.ParseStringExpr(col)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sel = append(sel, parsed)
+		}
+		filter, err := expr.ParseStringExpr(test.filterExpression)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		q := Query{
+			Select:  sel,
+			Dataset: input.ID,
+			Filter:  filter,
+		}
+
+		filtered, err := QueryData(db, q)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		expectedCols, err := db.ReadColumnsFromStripeByNames(expected, expected.Stripes[0], test.columns)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+
+		if !reflect.DeepEqual(filtered.Data, expectedCols) {
+			t.Errorf("expecting filter %v to result in %v, not %v", test.filterExpression, expectedCols, filtered.Data)
+		}
+
 	}
 }
