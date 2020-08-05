@@ -247,7 +247,7 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		{Schema{"", DtypeInt, true}, []string{}},
 		{Schema{"", DtypeInt, true}, []string{""}},
 		{Schema{"", DtypeFloat, true}, []string{}},
-		// {Schema{"", DtypeFloat, true}, []string{""}}, // TODO: cannot compare NaNs
+		{Schema{"", DtypeFloat, true}, []string{""}}, // NaNs get a special treatment (DeepEqual doesn't work here)
 		{Schema{"", DtypeBool, true}, []string{}},
 		{Schema{"", DtypeBool, true}, []string{""}},
 		{Schema{"", DtypeNull, true}, []string{}},
@@ -255,7 +255,7 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		{Schema{"", DtypeInt, false}, []string{"1", "2", "3"}},
 		{Schema{"", DtypeInt, true}, []string{"1", "", "3"}},
 		{Schema{"", DtypeFloat, false}, []string{"1", "2", "3"}},
-		// // {Schema{"", DtypeFloat, true}, []string{"1", "", "3"}}, // NaNs yet again
+		{Schema{"", DtypeFloat, true}, []string{"1", "", "3"}}, // NaNs again
 		{Schema{"", DtypeBool, false}, []string{"t", "f", "t"}},
 		{Schema{"", DtypeBool, true}, []string{"t", "", "f"}},
 	}
@@ -273,10 +273,39 @@ func TestSerialisationRoundtrip(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		if col.Dtype() == DtypeFloat && col2.Dtype() == DtypeFloat {
+			if !floatChunksEqual(col.(*ChunkFloats), col2.(*ChunkFloats)) {
+				t.Errorf("expecting %v, got %v", col, col2)
+			}
+			continue
+		}
+
 		if !reflect.DeepEqual(col, col2) {
-			t.Fatalf("expecting %v, got %v", col, col2)
+			t.Errorf("expecting %v, got %v", col, col2)
 		}
 	}
+}
+
+// reflect.DeepEqual cannot compare nans in []float64, so we have to do it manually
+// https://github.com/golang/go/issues/12025
+func floatChunksEqual(c1 *ChunkFloats, c2 *ChunkFloats) bool {
+	if c1.length != c2.length {
+		return false
+	}
+	if !reflect.DeepEqual(c1.nullability, c2.nullability) {
+		return false
+	}
+	for j, c1v := range c1.data {
+		c2v := c2.data[j]
+		// either both nans or neither is nan
+		if math.IsNaN(c1v) && math.IsNaN(c2v) {
+			continue
+		}
+		if c1v != c2v {
+			return false
+		}
+	}
+	return true
 }
 
 func TestSerialisationUnsupportedTypes(t *testing.T) {
@@ -473,8 +502,8 @@ func TestAppending(t *testing.T) {
 		// {DtypeString, true, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
 		// {DtypeString, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
 		{DtypeInt, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
-		// TODO: I think this hits https://github.com/golang/go/issues/12025 - failure for reflect.DeepEqual to compare nested NaNs
-		// {DtypeFloat, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
+		// NaNs in []float64 -> custom treatment
+		{DtypeFloat, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
 		{DtypeBool, true, []string{"", "", ""}, []string{"F", "F", ""}, []string{"", "", "", "F", "F", ""}},
 	}
 	for _, test := range tests {
@@ -493,6 +522,12 @@ func TestAppending(t *testing.T) {
 		}
 		if err := rc.Append(nrc); err != nil {
 			t.Error(err)
+		}
+		if rc.Dtype() == DtypeFloat && rrc.Dtype() == DtypeFloat {
+			if !floatChunksEqual(rc.(*ChunkFloats), rrc.(*ChunkFloats)) {
+				t.Errorf("expected that %v plus %v results in %v", test.a, test.b, test.res)
+			}
+			continue
 		}
 		if !reflect.DeepEqual(rc, rrc) {
 			// fmt.Println(rc.(*ChunkFloats).nullability)
