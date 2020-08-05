@@ -19,9 +19,18 @@ import (
 	"github.com/kokes/smda/src/query/expr"
 )
 
+func newDatabaseWithRoutes() (*database.Database, error) {
+	db, err := database.NewDatabase(nil)
+	if err != nil {
+		return nil, err
+	}
+	setupRoutes(db)
+	return db, nil
+}
+
 // sooo, we're actually not testing just the handlers, we're going through the router as well
 func TestStatusHandling(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +40,6 @@ func TestStatusHandling(t *testing.T) {
 		}
 	}()
 
-	setupRoutes(db) // this would normally be triggered in RunWebserver, TODO: move elsewhere? (it's everywhere here)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
@@ -60,7 +68,7 @@ func TestStatusHandling(t *testing.T) {
 }
 
 func TestRootHandling(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +78,6 @@ func TestRootHandling(t *testing.T) {
 		}
 	}()
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 	url := fmt.Sprintf("%s/", srv.URL)
@@ -97,7 +104,7 @@ func TestRootHandling(t *testing.T) {
 }
 
 func TestRootDoesNotHandle404(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +114,6 @@ func TestRootDoesNotHandle404(t *testing.T) {
 		}
 	}()
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 	for _, path := range []string{"foo", "bar", "foo/bar"} {
@@ -133,7 +139,7 @@ func TestRootDoesNotHandle404(t *testing.T) {
 }
 
 func TestDatasetListing(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +157,6 @@ func TestDatasetListing(t *testing.T) {
 		}
 	}
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
@@ -194,7 +199,7 @@ func TestDatasetListing(t *testing.T) {
 }
 
 func TestDatasetListingNoDatasets(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +209,6 @@ func TestDatasetListingNoDatasets(t *testing.T) {
 		}
 	}()
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
@@ -262,7 +266,7 @@ func TestErrorsAreWrittenOut(t *testing.T) {
 }
 
 func TestQueryMethods(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +276,6 @@ func TestQueryMethods(t *testing.T) {
 		}
 	}()
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
@@ -303,7 +306,7 @@ func TestQueryMethods(t *testing.T) {
 }
 
 func TestHandlingQueries(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +326,6 @@ func TestHandlingQueries(t *testing.T) {
 		dss = append(dss, ds)
 	}
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
@@ -376,7 +378,7 @@ func TestHandlingQueries(t *testing.T) {
 
 // At this point we only test that when passed an unexpected parameter, the query fails
 func TestInvalidQueries(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +394,6 @@ func TestInvalidQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
@@ -416,7 +417,7 @@ func TestInvalidQueries(t *testing.T) {
 }
 
 func TestBasicRawUpload(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +427,6 @@ func TestBasicRawUpload(t *testing.T) {
 		}
 	}()
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
@@ -461,7 +461,7 @@ func TestBasicRawUpload(t *testing.T) {
 }
 
 func TestBasicAutoUpload(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,7 +471,6 @@ func TestBasicAutoUpload(t *testing.T) {
 		}
 	}()
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 
@@ -530,7 +529,7 @@ func randomIntFuncer(n int) func() []byte {
 }
 
 func BenchmarkAutoUpload(b *testing.B) {
-	db, err := database.NewDatabase(nil)
+	db, err := newDatabaseWithRoutes()
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -540,7 +539,6 @@ func BenchmarkAutoUpload(b *testing.B) {
 		}
 	}()
 
-	setupRoutes(db)
 	srv := httptest.NewServer(db.Server.Handler)
 	defer srv.Close()
 	url := fmt.Sprintf("%s/upload/auto", srv.URL)

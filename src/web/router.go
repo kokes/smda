@@ -34,7 +34,6 @@ func setupRoutes(db *database.Database) {
 // RunWebserver sets up all the necessities for a server to run (namely routes) and launches one
 func RunWebserver(db *database.Database, port int, ensurePort, expose bool) error {
 	setupRoutes(db)
-
 	host := "localhost"
 	if expose {
 		host = ""
