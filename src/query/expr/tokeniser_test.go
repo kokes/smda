@@ -102,6 +102,8 @@ func TestTokenisationWithValues(t *testing.T) {
 		{"hello_world", []tok{{tokenIdentifier, []byte("hello_world")}}},
 		{"\"ahoy\"", []tok{{tokenIdentifierQuoted, []byte("ahoy")}}},
 		{"+\"ahoy\"+", []tok{{tokenAdd, nil}, {tokenIdentifierQuoted, []byte("ahoy")}, {tokenAdd, nil}}},
+		{"-- here is my comment\n1", []tok{{tokenComment, []byte(" here is my comment")}, {tokenLiteralInt, []byte("1")}}},
+		{"--here is my comment\n1", []tok{{tokenComment, []byte("here is my comment")}, {tokenLiteralInt, []byte("1")}}},
 	}
 
 	for _, test := range tt {
@@ -157,6 +159,8 @@ func TestTokenisationErrors(t *testing.T) {
 		{"123 !! 456", errUnknownToken},
 		{"2 == 3", errUnknownToken}, // we disallow == as an equality test, we use SQL's '='
 		{"'some text\nother text'", errInvalidString},
+		// we don't consider nbsp as whitespace (the error isn't the best, but at least it errs)
+		{"1 =\xa01", errInvalidIdentifier},
 	}
 
 	for _, test := range tt {

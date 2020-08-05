@@ -1,9 +1,3 @@
-// major TODOs:
-// - stringer
-// methods: isOperator, isLiteral, isKeyword etc.
-// isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
-//   - then build an expression parser with precedence built in
-// - potentially: positions of errors (for very clear error handling)
 package expr
 
 import (
@@ -61,7 +55,7 @@ func (tok tok) String() string {
 	case tokenIdentifierQuoted:
 		return fmt.Sprintf("\"%s\"", tok.value)
 	case tokenComment:
-		return fmt.Sprintf("-- %v", tok.value) // TODO: should add a newline? test this
+		return fmt.Sprintf("-- %v\n", tok.value)
 	case tokenAnd:
 		return "&&" // we might change this to AND (and || to OR) to do this SQL compatibility thing
 	case tokenOr:
@@ -158,15 +152,12 @@ func (ts *tokenScanner) peek(n int) []byte {
 	return ret
 }
 
-// TODO: check coverage of the switch statement
-// TODO: it'd be nice to have a nice error reporting mechanism (we'll need positions to be embedded in the errors for that)
 func (ts *tokenScanner) Scan() (tok, error) {
 	if ts.position >= len(ts.code) {
 		return tok{tokenEOF, nil}, nil
 	}
 	char := ts.code[ts.position]
 	switch char {
-	// TODO: what about other utf whitespace? if we choose not to consider it as whitespace, test for it
 	case ' ', '\t', '\n':
 		ts.position++
 		return ts.Scan()
@@ -281,38 +272,39 @@ func (ts *tokenScanner) Scan() (tok, error) {
 		return tok{tokenLiteralFloat, floatCandidate}, nil
 	case '\'': // string literal
 		return ts.consumeStringLiteral()
-	case '"': // quoted identifier
-		// TODO: move all this logic to consumeIdentifier? (peek first, see if it starts with a quote etc.)
-		ts.position++
-		ident, err := ts.consumeIdentifier()
-		if err != nil {
-			return tok{}, err
-		}
-		next := ts.peek(1)
-		ts.position++ // this is for the endquote
-		if !bytes.Equal(next, []byte("\"")) {
-			return tok{}, errInvalidIdentifier
-		}
-		ident.ttype = tokenIdentifierQuoted
-		return ident, nil
 	default:
 		return ts.consumeIdentifier()
 	}
 }
 
+// OPTIM: use a function with inequalities instead of this linear scan
 func (ts *tokenScanner) consumeIdentifier() (tok, error) {
-	// OPTIM: use a function with inequalities instead of this linear scan
+	ttoken := tok{ttype: tokenIdentifier}
+	next := ts.peek(1)
+	if bytes.Equal(next, []byte("\"")) {
+		ttoken.ttype = tokenIdentifierQuoted
+		ts.position++
+	}
+
 	// TODO: make sure we restrict columns to be this format
 	identChars := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")
-	identCandidate := sliceUntil(ts.code[ts.position:], identChars)
-	ts.position += len(identCandidate)
-	if len(identCandidate) == 0 {
+	ttoken.value = sliceUntil(ts.code[ts.position:], identChars)
+	ts.position += len(ttoken.value)
+	if len(ttoken.value) == 0 {
 		// TODO: this is not quite the right error (it would be if we were quoted)
 		// this actually means there's nothing identifier-like here
 		ts.position++
 		return tok{}, errInvalidIdentifier
 	}
-	return tok{tokenIdentifier, identCandidate}, nil
+	if ttoken.ttype == tokenIdentifierQuoted {
+		next := ts.peek(1)
+		if !bytes.Equal(next, []byte("\"")) {
+			return tok{}, errInvalidIdentifier
+		}
+		ts.position++
+	}
+
+	return ttoken, nil
 }
 
 const apostrophe = '\''

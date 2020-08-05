@@ -142,6 +142,9 @@ func (expr *Expression) MarshalJSON() ([]byte, error) {
 // this is due to the fact that we don't have our own parser, we're using go's go/parser from the standard
 // library - but we're leveraging our own tokeniser, because we need to "fix" some tokens before passing them
 // to go/parser, because that parser is used for code parsing, not SQL expressions parsing
+// when building our own parser, consider:
+// isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
+//  - then build an expression parser with precedence built in
 func ParseStringExpr(s string) (*Expression, error) {
 	tokens, err := TokeniseString(s)
 	if err != nil {
