@@ -17,6 +17,7 @@ import (
 )
 
 var errPathNotEmpty = errors.New("path not empty")
+var errDatasetNotFound = errors.New("dataset not found")
 
 // Database is the main struct that contains it all - notably the datasets' metadata and the webserver
 // Having the webserver here makes it convenient for testing - we can spawn new servers at a moment's notice
@@ -195,7 +196,7 @@ func (db *Database) GetDataset(datasetID UID) (*Dataset, error) {
 			return dataset, nil
 		}
 	}
-	return nil, fmt.Errorf("dataset not found: %v", datasetID)
+	return nil, fmt.Errorf("dataset %v not found: %w", datasetID, errDatasetNotFound)
 }
 
 // AddDataset adds a Dataset to a Database

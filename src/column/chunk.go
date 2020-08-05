@@ -202,8 +202,6 @@ func (rc *ChunkStrings) nthValue(n int) string {
 const nullXorHash = 0xe96766e0d6221951
 
 // Hash hashes this chunk's values into a provded container
-// TODO: none of these Hash methods accounts for nulls
-// also we don't check that rc.Len() == len(hashes) - should panic otherwise
 func (rc *ChunkBools) Hash(hashes []uint64) {
 	for j := 0; j < rc.Len(); j++ {
 		// xor it with a random big integer - we'll need something similar for bool handling

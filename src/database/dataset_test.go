@@ -148,8 +148,7 @@ func TestRemovingDatasets(t *testing.T) {
 	db.removeDataset(ds)
 
 	_, err = db.GetDataset(ds.ID)
-	if err == nil {
-		// TODO: should probably check for the right error (though we're not wrapping now)
+	if !errors.Is(err, errDatasetNotFound) {
 		t.Error("should not be able to retrieve a deleted dataset")
 	}
 
