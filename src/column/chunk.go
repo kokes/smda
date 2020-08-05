@@ -9,6 +9,7 @@ import (
 	"hash/fnv"
 	"io"
 	"math"
+	"reflect"
 
 	"github.com/kokes/smda/src/bitmap"
 )
@@ -27,6 +28,35 @@ type Chunk interface {
 	Hash([]uint64)
 	Len() int
 	Dtype() Dtype
+}
+
+// ChunksEqual compares two chunks, even if they contain []float64 data
+func ChunksEqual(c1 Chunk, c2 Chunk) bool {
+	if !(c1.Dtype() == DtypeFloat && c2.Dtype() == DtypeFloat) {
+		return reflect.DeepEqual(c1, c2)
+	}
+
+	// this addresses the fact that reflect.DeepEqual cannot compare nans in []float64,
+	// so we have to do it manually, see also: https://github.com/golang/go/issues/12025
+	c1f := c1.(*ChunkFloats)
+	c2f := c2.(*ChunkFloats)
+	if c1f.length != c2f.length {
+		return false
+	}
+	if !reflect.DeepEqual(c1f.nullability, c2f.nullability) {
+		return false
+	}
+	for j, c1v := range c1f.data {
+		c2v := c2f.data[j]
+		// either both nans or neither is nan
+		if math.IsNaN(c1v) && math.IsNaN(c2v) {
+			continue
+		}
+		if c1v != c2v {
+			return false
+		}
+	}
+	return true
 }
 
 // NewChunkFromSchema creates a new Chunk based a column schema provided
@@ -106,6 +136,7 @@ func newChunkFloats() *ChunkFloats {
 		nullability: bitmap.NewBitmap(0),
 	}
 }
+
 func newChunkBools() *ChunkBools {
 	return &ChunkBools{
 		data:        bitmap.NewBitmap(0),

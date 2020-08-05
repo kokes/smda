@@ -148,7 +148,7 @@ func TestBasicAggregation(t *testing.T) {
 		// nulls in aggregation:
 		{"foo,bar\n,1\n0,2", []string{"foo"}, "foo,bar\n,1\n0,2"},
 		{"foo,bar\n1,1\n,2", []string{"foo"}, "foo,bar\n1,1\n,2"},
-		// {"foo,bar\n,1\n.3,2", []string{"foo"}, "foo,bar\n,1\n.3,2"}, // TODO: can't test floats as deepEqual doesn't like NaNs
+		{"foo,bar\n,1\n.3,2", []string{"foo"}, "foo,bar\n,1\n.3,2"},
 		{"foo,bar\n,1\nt,2", []string{"foo"}, "foo,bar\n,1\nt,2"},
 		// TODO: nullable strings tests
 	}
@@ -189,7 +189,7 @@ func TestBasicAggregation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(col, expcol) {
+			if !column.ChunksEqual(col, expcol) {
 				// 	log.Println(string(col.(*columnStrings).data))
 				t.Errorf("[%d] failed to aggregate %v", testNo, test.input)
 			}
