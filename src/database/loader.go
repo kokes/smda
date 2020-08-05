@@ -79,6 +79,24 @@ type rawLoader struct {
 	cr *csv.Reader
 }
 
+var bomBytes []byte = []byte{0xEF, 0xBB, 0xBF}
+
+// the question is if this should be a part of automatic inference or if it should
+// be run on all files received (current solution) - the benefit is that you don't
+// have to specify if your file is BOM-prefixed - which is something people don't
+// tend to care about or know
+func skipBom(r io.Reader) (io.Reader, error) {
+	first := make([]byte, 3)
+	n, err := r.Read(first)
+	if err != nil {
+		return nil, err
+	}
+	if bytes.Equal(first, bomBytes) {
+		return r, nil
+	}
+	return io.MultiReader(bytes.NewReader(first[:n]), r), nil
+}
+
 func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
 	if settings == nil {
 		return nil, errInvalidloadSettings
@@ -87,7 +105,11 @@ func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
 	if err != nil {
 		return nil, err
 	}
-	cr := csv.NewReader(ur)
+	bl, err := skipBom(ur)
+	if err != nil {
+		return nil, err
+	}
+	cr := csv.NewReader(bl)
 	cr.ReuseRecord = true
 	if settings.delimiter != delimiterNone {
 		// we purposefully chose a single byte instead of a rune as a delimiter
@@ -173,7 +195,6 @@ func (db *Database) writeStripeToFile(ds *Dataset, stripe *dataStripe) error {
 	return stripe.writeToWriter(bw)
 }
 
-// TODO: this will fail on BOM
 func (rl *rawLoader) yieldRow() ([]string, error) {
 	row, err := rl.cr.Read()
 	// we don't want to trigger the internal ErrFieldCount,

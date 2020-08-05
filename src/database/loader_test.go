@@ -28,7 +28,8 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		{"foo,bar,baz\n1,2,3", []string{"foo", "bar", "baz"}, compressionNone, "foo.csv"},
 		{"foo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionNone, "foo.tsv"},
 		{"foo,bar,baz\n1,2,3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.csv.gz"},
-		{"foo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.bin"}, // filename need not indicate compression
+		{"foo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.bin"},                 // filename need not indicate compression
+		{"\xEF\xBB\xBFfoo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionNone, "foo_bom.csv"}, // BOM
 	}
 
 	tdir, err := ioutil.TempDir("", "test_compression")
