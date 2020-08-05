@@ -26,7 +26,7 @@ func TestQueryingEmptyDatasets(t *testing.T) {
 	limit := 100
 	q := Query{Dataset: ds.ID, Limit: &limit}
 
-	qr, err := QueryData(db, q)
+	qr, err := Run(db, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestBasicQueries(t *testing.T) {
 	cols := selectExpr([]string{"foo", "bar", "baz"})
 	q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 
-	qr, err := QueryData(db, q)
+	qr, err := Run(db, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestLimitsInQueries(t *testing.T) {
 	for limit := 0; limit < 100; limit++ {
 		q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 
-		qr, err := QueryData(db, q)
+		qr, err := Run(db, q)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -251,7 +251,7 @@ func TestBasicFiltering(t *testing.T) {
 			Filter:  filter,
 		}
 
-		filtered, err := QueryData(db, q)
+		filtered, err := Run(db, q)
 		if err != nil {
 			t.Error(err)
 			continue

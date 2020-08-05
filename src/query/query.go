@@ -112,17 +112,18 @@ func aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]c
 	return nrc, nil
 }
 
-// QueryResult holds the result of a query, at this point it's fairly literal - in the future we may want
-// a QueryResult to be a Dataset of its own (for better interoperability, persistence, caching etc.)
-type QueryResult struct {
+// Result holds the result of a query, at this point it's fairly literal - in the future we may want
+// a Result to be a Dataset of its own (for better interoperability, persistence, caching etc.)
+type Result struct {
 	Columns []string       `json:"columns"`
 	Data    []column.Chunk `json:"data"`
 }
 
+// Run runs a given query against this database
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
 // the former should result in a 4xx, the latter in a 5xx
-func QueryData(db *database.Database, q Query) (*QueryResult, error) {
-	res := &QueryResult{
+func Run(db *database.Database, q Query) (*Result, error) {
+	res := &Result{
 		Columns: make([]string, 0),
 		Data:    make([]column.Chunk, 0),
 	}

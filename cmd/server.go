@@ -16,7 +16,7 @@ func main() {
 	loadSamples := flag.Bool("samples", false, "load sample datasets")
 	flag.Parse()
 
-	d, err := database.NewDatabase(&database.DatabaseConfig{
+	d, err := database.NewDatabase(&database.Config{
 		WorkingDirectory: *wdir,
 	})
 	if err != nil {

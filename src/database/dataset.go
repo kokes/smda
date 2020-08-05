@@ -24,10 +24,12 @@ type Database struct {
 	sync.Mutex
 	Datasets []*Dataset
 	Server   *http.Server
-	Config   *DatabaseConfig
+	Config   *Config
 }
 
-type DatabaseConfig struct {
+// Config sets some high level properties for a new Database. It's useful for testing or for passing
+// settings based on cli flags.
+type Config struct {
 	WorkingDirectory  string
 	MaxRowsPerStripe  int
 	MaxBytesPerStripe int
@@ -35,9 +37,9 @@ type DatabaseConfig struct {
 
 // NewDatabase initiates a new database in a directory, which cannot exist (we wouldn't know what to do with any of
 // the existing files there)
-func NewDatabase(config *DatabaseConfig) (*Database, error) {
+func NewDatabase(config *Config) (*Database, error) {
 	if config == nil {
-		config = &DatabaseConfig{}
+		config = &Config{}
 	}
 	if config.WorkingDirectory == "" {
 		// if no directory supplied, create a database in a temp directory
@@ -76,15 +78,18 @@ func NewDatabase(config *DatabaseConfig) (*Database, error) {
 	return db, nil
 }
 
+// Drop deletes all data for a given Database
 func (db *Database) Drop() error {
 	return os.RemoveAll(db.Config.WorkingDirectory)
 }
 
-// object types (used for UIDs)
-type Otype uint8
+// ObjectType denotes what type an object is (or its ID) - dataset, stripe etc.
+type ObjectType uint8
 
+// object types are reflected in the UID - the first two hex characters define this object type,
+// so it's clear what sort of object you're dealing with based on its prefix
 const (
-	OtypeNone Otype = iota
+	OtypeNone ObjectType = iota
 	OtypeDataset
 	OtypeStripe
 	// when we start using IDs for columns and jobs and other objects, this will be handy
@@ -92,11 +97,11 @@ const (
 
 // UID is a unique ID for a given object, it's NOT a uuid
 type UID struct {
-	Otype Otype
+	Otype ObjectType
 	oid   uint64
 }
 
-func newUID(Otype Otype) UID {
+func newUID(Otype ObjectType) UID {
 	return UID{
 		Otype: Otype,
 		oid:   rand.Uint64(),
@@ -136,7 +141,7 @@ func (uid *UID) UnmarshalJSON(data []byte) error {
 		return errors.New("failed to decode UID")
 	}
 
-	uid.Otype = Otype(unhexed[0])
+	uid.Otype = ObjectType(unhexed[0])
 	uid.oid = binary.LittleEndian.Uint64(unhexed[1:9])
 	return nil
 }
@@ -149,8 +154,11 @@ type Dataset struct {
 	Stripes []UID       `json:"-"`
 }
 
+// TableSchema is a collection of column schemas
 type TableSchema []column.Schema
 
+// LocateColumn returns a column within a schema - its position and definition; error is
+// triggered if this column is not found or the schema is nil
 func (schema *TableSchema) LocateColumn(s string) (int, column.Schema, error) {
 	if schema == nil {
 		return 0, column.Schema{}, errors.New("empty schema cannot contain requested column")
@@ -163,19 +171,22 @@ func (schema *TableSchema) LocateColumn(s string) (int, column.Schema, error) {
 	return 0, column.Schema{}, fmt.Errorf("column %v not found in schema", s)
 }
 
+// NewDataset creates a new empty dataset
 func NewDataset() *Dataset {
 	return &Dataset{ID: newUID(OtypeDataset)}
 }
 
+// DatasetPath returns the path of a given dataset (all the stripes are there)
 func (db *Database) DatasetPath(ds *Dataset) string {
 	return filepath.Join(db.Config.WorkingDirectory, ds.ID.String())
 }
 
 func (db *Database) stripePath(ds *Dataset, stripeID UID) string {
-	return filepath.Join(db.Config.WorkingDirectory, ds.ID.String(), stripeID.String())
+	return filepath.Join(db.DatasetPath(ds), stripeID.String())
 }
 
-// not efficient in this implementation, but we don't have a map-like structure
+// GetDataset retrieves a dataset based on its UID
+// OPTIM: not efficient in this implementation, but we don't have a map-like structure
 // to store our datasets - we keep them in a slice, so that we have predictable order
 // -> we need a sorted map
 func (db *Database) GetDataset(datasetID UID) (*Dataset, error) {
@@ -187,6 +198,7 @@ func (db *Database) GetDataset(datasetID UID) (*Dataset, error) {
 	return nil, fmt.Errorf("dataset not found: %v", datasetID)
 }
 
+// AddDataset adds a Dataset to a Database
 // this is a pretty rare event, so we don't expect much contention
 // it's just to avoid some issues when marshaling the object around in the API etc.
 func (db *Database) AddDataset(ds *Dataset) {

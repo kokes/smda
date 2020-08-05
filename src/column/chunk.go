@@ -16,13 +16,10 @@ import (
 var errAppendTypeMismatch = errors.New("cannot append chunks of differing types")
 var errAppendNullabilityMismatch = errors.New("when appending, both chunks need to have the same nullability")
 
-// at one point I debated whether or not we should have a `data interface{}` in the storage struct or something
-// along the lines of `dataInts []int64, dataFloats []float64` etc. and we'd pick one in a closure
-// upon reading the schema - this would save us type assertions (and give us some perf, potentially),
-// but without measuring this, I'm holding back for now
+// Chunk defines a part of a column - constant type, stored contiguously
 type Chunk interface {
 	AddValue(string) error
-	AddValues([]string) error // just a utility thing, mostly for tests
+	AddValues([]string) error // just a utility thing, mostly for tests (TODO: unexport this)
 	MarshalBinary() ([]byte, error)
 	MarshalJSON() ([]byte, error)
 	Prune(*bitmap.Bitmap) Chunk
@@ -32,6 +29,7 @@ type Chunk interface {
 	Dtype() Dtype
 }
 
+// NewChunkFromSchema creates a new Chunk based a column schema provided
 func NewChunkFromSchema(schema Schema) Chunk {
 	switch schema.Dtype {
 	case DtypeString:
@@ -49,29 +47,37 @@ func NewChunkFromSchema(schema Schema) Chunk {
 	}
 }
 
+// ChunkStrings defines a backing struct for a chunk of string values
 type ChunkStrings struct {
 	data        []byte
 	offsets     []uint32
 	nullability *bitmap.Bitmap
 	length      uint32
 }
+
+// ChunkInts defines a backing struct for a chunk of integer values
 type ChunkInts struct {
 	data        []int64
 	nullability *bitmap.Bitmap
 	length      uint32
 }
+
+// ChunkFloats defines a backing struct for a chunk of floating point values
 type ChunkFloats struct {
 	data        []float64
 	nullability *bitmap.Bitmap
 	length      uint32
 }
+
+// ChunkBools defines a backing struct for a chunk of boolean values
 type ChunkBools struct {
 	data        *bitmap.Bitmap
 	nullability *bitmap.Bitmap
 	length      uint32
 }
 
-// if it's all nulls, we only need to know how many there are
+// ChunkNulls defines a backing struct for a chunk of null values
+// Since it's all nulls, we only need to know how many there are
 type ChunkNulls struct {
 	length uint32
 }
@@ -134,34 +140,52 @@ func newChunkNulls() *ChunkNulls {
 	}
 }
 
+// Len returns the length of this chunk
 func (rc *ChunkBools) Len() int {
 	return int(rc.length)
 }
+
+// Len returns the length of this chunk
 func (rc *ChunkFloats) Len() int {
 	return int(rc.length)
 }
+
+// Len returns the length of this chunk
 func (rc *ChunkInts) Len() int {
 	return int(rc.length)
 }
+
+// Len returns the length of this chunk
 func (rc *ChunkNulls) Len() int {
 	return int(rc.length)
 }
+
+// Len returns the length of this chunk
 func (rc *ChunkStrings) Len() int {
 	return int(rc.length)
 }
 
+// Dtype returns the type of this chunk
 func (rc *ChunkBools) Dtype() Dtype {
 	return DtypeBool
 }
+
+// Dtype returns the type of this chunk
 func (rc *ChunkFloats) Dtype() Dtype {
 	return DtypeFloat
 }
+
+// Dtype returns the type of this chunk
 func (rc *ChunkInts) Dtype() Dtype {
 	return DtypeInt
 }
+
+// Dtype returns the type of this chunk
 func (rc *ChunkNulls) Dtype() Dtype {
 	return DtypeNull
 }
+
+// Dtype returns the type of this chunk
 func (rc *ChunkStrings) Dtype() Dtype {
 	return DtypeString
 }
@@ -177,6 +201,7 @@ func (rc *ChunkStrings) nthValue(n int) string {
 
 const nullXorHash = 0xe96766e0d6221951
 
+// Hash hashes this chunk's values into a provded container
 // TODO: none of these Hash methods accounts for nulls
 // also we don't check that rc.Len() == len(hashes) - should panic otherwise
 func (rc *ChunkBools) Hash(hashes []uint64) {
@@ -198,6 +223,8 @@ func (rc *ChunkBools) Hash(hashes []uint64) {
 		}
 	}
 }
+
+// Hash hashes this chunk's values into a provded container
 func (rc *ChunkFloats) Hash(hashes []uint64) {
 	var buf [8]byte
 	hasher := fnv.New64()
@@ -213,6 +240,7 @@ func (rc *ChunkFloats) Hash(hashes []uint64) {
 	}
 }
 
+// Hash hashes this chunk's values into a provded container
 // OPTIM: maphash might be faster than fnv or maphash? test it and if it is so, implement
 // everywhere, but be careful about the seed (needs to be the same for all chunks)
 // careful about maphash: "The hash value of a given byte sequence is consistent within a single process, but will be different in different processes."
@@ -241,11 +269,14 @@ func (rc *ChunkInts) Hash(hashes []uint64) {
 	}
 }
 
+// Hash hashes this chunk's values into a provded container
 func (rc *ChunkNulls) Hash(hashes []uint64) {
 	for j := range hashes {
 		hashes[j] ^= nullXorHash
 	}
 }
+
+// Hash hashes this chunk's values into a provded container
 func (rc *ChunkStrings) Hash(hashes []uint64) {
 	hasher := fnv.New64()
 	for j := 0; j < rc.Len(); j++ {
@@ -261,6 +292,8 @@ func (rc *ChunkStrings) Hash(hashes []uint64) {
 	}
 }
 
+// AddValue takes in a string representation of a value and converts it into
+// a value suited for this chunk
 func (rc *ChunkStrings) AddValue(s string) error {
 	rc.data = append(rc.data, []byte(s)...)
 
@@ -275,6 +308,8 @@ func (rc *ChunkStrings) AddValue(s string) error {
 	return nil
 }
 
+// AddValue takes in a string representation of a value and converts it into
+// a value suited for this chunk
 func (rc *ChunkInts) AddValue(s string) error {
 	if isNull(s) {
 		if rc.nullability == nil {
@@ -298,6 +333,8 @@ func (rc *ChunkInts) AddValue(s string) error {
 	return nil
 }
 
+// AddValue takes in a string representation of a value and converts it into
+// a value suited for this chunk
 // let's really consider adding standard nulls here, it will probably make our lives a lot easier
 func (rc *ChunkFloats) AddValue(s string) error {
 	var val float64
@@ -329,6 +366,8 @@ func (rc *ChunkFloats) AddValue(s string) error {
 	return nil
 }
 
+// AddValue takes in a string representation of a value and converts it into
+// a value suited for this chunk
 func (rc *ChunkBools) AddValue(s string) error {
 	if isNull(s) {
 		if rc.nullability == nil {
@@ -352,6 +391,8 @@ func (rc *ChunkBools) AddValue(s string) error {
 	return nil
 }
 
+// AddValue takes in a string representation of a value and converts it into
+// a value suited for this chunk
 func (rc *ChunkNulls) AddValue(s string) error {
 	if !isNull(s) {
 		return fmt.Errorf("a null column expects null values, got: %v", s)
@@ -360,6 +401,7 @@ func (rc *ChunkNulls) AddValue(s string) error {
 	return nil
 }
 
+// AddValues is a helper method, it just calls AddValue repeatedly
 func (rc *ChunkBools) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
@@ -368,6 +410,8 @@ func (rc *ChunkBools) AddValues(vals []string) error {
 	}
 	return nil
 }
+
+// AddValues is a helper method, it just calls AddValue repeatedly
 func (rc *ChunkFloats) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
@@ -376,6 +420,8 @@ func (rc *ChunkFloats) AddValues(vals []string) error {
 	}
 	return nil
 }
+
+// AddValues is a helper method, it just calls AddValue repeatedly
 func (rc *ChunkInts) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
@@ -384,6 +430,8 @@ func (rc *ChunkInts) AddValues(vals []string) error {
 	}
 	return nil
 }
+
+// AddValues is a helper method, it just calls AddValue repeatedly
 func (rc *ChunkNulls) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
@@ -392,6 +440,8 @@ func (rc *ChunkNulls) AddValues(vals []string) error {
 	}
 	return nil
 }
+
+// AddValues is a helper method, it just calls AddValue repeatedly
 func (rc *ChunkStrings) AddValues(vals []string) error {
 	for _, el := range vals {
 		if err := rc.AddValue(el); err != nil {
@@ -401,6 +451,7 @@ func (rc *ChunkStrings) AddValues(vals []string) error {
 	return nil
 }
 
+// Append adds a chunk of the same type at the end of this one (in place update)
 func (rc *ChunkStrings) Append(tc Chunk) error {
 	nrc, ok := tc.(*ChunkStrings)
 	if !ok {
@@ -425,6 +476,8 @@ func (rc *ChunkStrings) Append(tc Chunk) error {
 
 	return nil
 }
+
+// Append adds a chunk of the same type at the end of this one (in place update)
 func (rc *ChunkInts) Append(tc Chunk) error {
 	nrc, ok := tc.(*ChunkInts)
 	if !ok {
@@ -442,6 +495,8 @@ func (rc *ChunkInts) Append(tc Chunk) error {
 
 	return nil
 }
+
+// Append adds a chunk of the same type at the end of this one (in place update)
 func (rc *ChunkFloats) Append(tc Chunk) error {
 	nrc, ok := tc.(*ChunkFloats)
 	if !ok {
@@ -459,6 +514,8 @@ func (rc *ChunkFloats) Append(tc Chunk) error {
 
 	return nil
 }
+
+// Append adds a chunk of the same type at the end of this one (in place update)
 func (rc *ChunkBools) Append(tc Chunk) error {
 	nrc, ok := tc.(*ChunkBools)
 	if !ok {
@@ -476,6 +533,8 @@ func (rc *ChunkBools) Append(tc Chunk) error {
 
 	return nil
 }
+
+// Append adds a chunk of the same type at the end of this one (in place update)
 func (rc *ChunkNulls) Append(tc Chunk) error {
 	nrc, ok := tc.(*ChunkNulls)
 	if !ok {
@@ -486,6 +545,7 @@ func (rc *ChunkNulls) Append(tc Chunk) error {
 	return nil
 }
 
+// Prune filter this chunk and only preserves values for which the bitmap is set
 func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 	nc := newChunkStrings()
 	if bm == nil {
@@ -527,6 +587,7 @@ func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 	return nc
 }
 
+// Prune filter this chunk and only preserves values for which the bitmap is set
 func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
 	nc := newChunkInts()
 	if bm == nil {
@@ -561,6 +622,7 @@ func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
 	return nc
 }
 
+// Prune filter this chunk and only preserves values for which the bitmap is set
 func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
 	nc := newChunkFloats()
 	if bm == nil {
@@ -595,6 +657,7 @@ func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
 	return nc
 }
 
+// Prune filter this chunk and only preserves values for which the bitmap is set
 func (rc *ChunkBools) Prune(bm *bitmap.Bitmap) Chunk {
 	nc := newChunkBools()
 	if bm == nil {
@@ -630,6 +693,7 @@ func (rc *ChunkBools) Prune(bm *bitmap.Bitmap) Chunk {
 	return nc
 }
 
+// Prune filter this chunk and only preserves values for which the bitmap is set
 func (rc *ChunkNulls) Prune(bm *bitmap.Bitmap) Chunk {
 	nc := newChunkNulls()
 	if bm == nil {
@@ -648,6 +712,7 @@ func (rc *ChunkNulls) Prune(bm *bitmap.Bitmap) Chunk {
 	return nc
 }
 
+// Deserialize reads a chunk from a reader
 // this shouldn't really accept a Dtype - at this point we're requiring it, because we don't serialize Dtypes
 // into the binary representation - but that's just because we always have the schema at hand... but will we always have it?
 // shouldn't the files be readable as standalone files?
@@ -768,6 +833,7 @@ func deserializeChunkNulls(r io.Reader) (*ChunkNulls, error) {
 	}, nil
 }
 
+// MarshalBinary converts a chunk into its binary representation
 func (rc *ChunkStrings) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	_, err := rc.nullability.Serialize(w)
@@ -794,6 +860,7 @@ func (rc *ChunkStrings) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), err
 }
 
+// MarshalBinary converts a chunk into its binary representation
 func (rc *ChunkInts) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	_, err := rc.nullability.Serialize(w)
@@ -808,6 +875,7 @@ func (rc *ChunkInts) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), err
 }
 
+// MarshalBinary converts a chunk into its binary representation
 func (rc *ChunkFloats) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	_, err := rc.nullability.Serialize(w)
@@ -821,6 +889,7 @@ func (rc *ChunkFloats) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), err
 }
 
+// MarshalBinary converts a chunk into its binary representation
 func (rc *ChunkBools) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	_, err := rc.nullability.Serialize(w)
@@ -839,6 +908,7 @@ func (rc *ChunkBools) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), nil
 }
 
+// MarshalBinary converts a chunk into its binary representation
 func (rc *ChunkNulls) MarshalBinary() ([]byte, error) {
 	w := new(bytes.Buffer)
 	length := rc.length
@@ -848,6 +918,7 @@ func (rc *ChunkNulls) MarshalBinary() ([]byte, error) {
 	return w.Bytes(), nil
 }
 
+// MarshalJSON converts a chunk into its JSON representation
 func (rc *ChunkStrings) MarshalJSON() ([]byte, error) {
 	if !(rc.nullability != nil && rc.nullability.Count() > 0) {
 		res := make([]string, 0, int(rc.length))
@@ -872,6 +943,7 @@ func (rc *ChunkStrings) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dt)
 }
 
+// MarshalJSON converts a chunk into its JSON representation
 func (rc *ChunkInts) MarshalJSON() ([]byte, error) {
 	if !(rc.nullability != nil && rc.nullability.Count() > 0) {
 		return json.Marshal(rc.data)
@@ -890,6 +962,7 @@ func (rc *ChunkInts) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dt)
 }
 
+// MarshalJSON converts a chunk into its JSON representation
 func (rc *ChunkFloats) MarshalJSON() ([]byte, error) {
 	// I thought we didn't need a nullability branch here, because while we do use a bitmap for nullables,
 	// we also store NaNs in the data themselves, so this should be serialised automatically
@@ -911,6 +984,7 @@ func (rc *ChunkFloats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dt)
 }
 
+// MarshalJSON converts a chunk into its JSON representation
 func (rc *ChunkBools) MarshalJSON() ([]byte, error) {
 	if !(rc.nullability != nil && rc.nullability.Count() > 0) {
 		dt := make([]bool, 0, rc.Len())
@@ -933,6 +1007,7 @@ func (rc *ChunkBools) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dt)
 }
 
+// MarshalJSON converts a chunk into its JSON representation
 func (rc *ChunkNulls) MarshalJSON() ([]byte, error) {
 	ret := make([]*uint8, rc.length) // how else can we create a [null, null, null, ...] in JSON?
 	return json.Marshal(ret)

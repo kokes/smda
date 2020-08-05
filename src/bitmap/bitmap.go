@@ -12,10 +12,12 @@ type Bitmap struct {
 	cap  int
 }
 
+// Data returns a slice of the underlying bitmap data
 func (bm *Bitmap) Data() []uint64 {
 	return bm.data
 }
 
+// Cap returns the length of this bitmap (because the storage uints can have a higher capacity)
 func (bm *Bitmap) Cap() int {
 	return bm.cap
 }
@@ -29,6 +31,7 @@ func (bm *Bitmap) Count() int {
 	return ret
 }
 
+// KeepFirstN leaves only the first n bits set, resets the rest to zeroes
 // does not truncate the underlying storage - the cap is still the same - perhaps we should do this?
 // once we hit the n == count condition, we can discard the rest and lower the cap? will require a fair bit
 // of testing, but should be doable
@@ -57,6 +60,7 @@ func (bm *Bitmap) KeepFirstN(n int) {
 	}
 }
 
+// Append adds data from an incoming bitmap to this bitmap (in place modification)
 func (bm *Bitmap) Append(obm *Bitmap) {
 	cap := bm.cap
 	for j := 0; j < obm.cap; j++ {
@@ -64,6 +68,7 @@ func (bm *Bitmap) Append(obm *Bitmap) {
 	}
 }
 
+// Clone returns a new bitmap with identical content (but a different backing data structure)
 func (bm *Bitmap) Clone() *Bitmap {
 	data := make([]uint64, len(bm.data))
 	copy(data, bm.data)
@@ -73,6 +78,7 @@ func (bm *Bitmap) Clone() *Bitmap {
 	}
 }
 
+// AndNot modified this bitmap in place by executing &^ on each element
 func (bm *Bitmap) AndNot(obm *Bitmap) {
 	if bm.cap != obm.cap {
 		panic("cannot &^ two not aligned bitmaps")
@@ -83,6 +89,7 @@ func (bm *Bitmap) AndNot(obm *Bitmap) {
 	}
 }
 
+// Or ors this bitmap with another one (a | b)
 func (bm *Bitmap) Or(obm *Bitmap) {
 	if bm.cap != obm.cap {
 		panic("cannot OR two not aligned bitmaps")
@@ -109,6 +116,7 @@ func Or(bm1 *Bitmap, bm2 *Bitmap) *Bitmap {
 	return bm
 }
 
+// Ensure makes sure we have at least n capacity in this bitmap (e.g. so that .Get works)
 func (bm *Bitmap) Ensure(n int) {
 	if bm.data != nil && n <= bm.cap {
 		return
@@ -148,6 +156,7 @@ func NewBitmapFromBits(data []uint64, length int) *Bitmap {
 	return bm
 }
 
+// Set sets nth bit to `val` - true (1) or false (0)
 // OPTIM: cost is 84, can be almost inlined
 func (bm *Bitmap) Set(n int, val bool) {
 	bm.Ensure(n + 1)
@@ -158,6 +167,7 @@ func (bm *Bitmap) Set(n int, val bool) {
 	}
 }
 
+// Get returns nth bit as a boolean (true for 1, false for 0)
 func (bm *Bitmap) Get(n int) bool {
 	// OPTIM: this will always escape to the heap, so it's an inlining blocker
 	//        maybe make sure the bitmap is long enough some other place and leave this to be just a return
@@ -165,6 +175,7 @@ func (bm *Bitmap) Get(n int) bool {
 	return (bm.data[n/64] & uint64(1<<(n%64))) > 0
 }
 
+// Invert flips all the bits in this bitmap
 func (bm *Bitmap) Invert() {
 	for j, el := range bm.data {
 		bm.data[j] = ^el
@@ -175,6 +186,7 @@ func (bm *Bitmap) Invert() {
 	}
 }
 
+// Serialize writes this bitmap into a writer, so that it can be deserialised later
 func (bm *Bitmap) Serialize(w io.Writer) (int, error) {
 	cap := uint32(bm.cap)
 	if err := binary.Write(w, binary.LittleEndian, cap); err != nil {
@@ -188,6 +200,7 @@ func (bm *Bitmap) Serialize(w io.Writer) (int, error) {
 	return 4 + 4 + 8*int(nelements), binary.Write(w, binary.LittleEndian, bm.data)
 }
 
+// DeserializeBitmapFromReader is the inverse of Serialize
 func DeserializeBitmapFromReader(r io.Reader) (*Bitmap, error) {
 	var cap uint32
 	if err := binary.Read(r, binary.LittleEndian, &cap); err != nil {

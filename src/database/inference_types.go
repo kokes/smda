@@ -7,6 +7,9 @@ import (
 	"github.com/kokes/smda/src/column"
 )
 
+// InferTypes loads a file from a path and tries to determine the schema of said file.
+// This is only about the schema, not the file format (delimiter, BOM, compression, ...), all
+// of that is within the loadSettings struct
 func InferTypes(path string, settings *loadSettings) (TableSchema, error) {
 	f, err := os.Open(path)
 	if err != nil {

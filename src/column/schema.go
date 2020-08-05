@@ -6,8 +6,10 @@ import (
 	"strconv"
 )
 
+// Dtype denotes the data type of a given object (e.g. int or string)
 type Dtype uint8
 
+// individual dtypes defined as a sequence
 const (
 	DtypeInvalid Dtype = iota
 	DtypeNull
@@ -23,6 +25,7 @@ func (dt Dtype) String() string {
 	return []string{"invalid", "null", "string", "int", "float", "bool"}[dt]
 }
 
+// MarshalJSON returns the JSON representation of a dtype (stringified + json string)
 // we want Dtypes to be marshaled within Schema correctly
 // without this they'd be returned as an integer (even with ",string" tags)
 func (dt Dtype) MarshalJSON() ([]byte, error) {
@@ -31,6 +34,7 @@ func (dt Dtype) MarshalJSON() ([]byte, error) {
 	return retval, nil
 }
 
+// UnmarshalJSON deserialises a given dtype from a JSON value
 func (dt *Dtype) UnmarshalJSON(data []byte) error {
 	if !(len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"') {
 		return errors.New("unexpected string to be unmarshaled into a Dtype")
@@ -56,6 +60,7 @@ func (dt *Dtype) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Schema defines all the necessary properties of column
 type Schema struct {
 	Name     string `json:"name"`
 	Dtype    Dtype  `json:"dtype"`
@@ -142,6 +147,7 @@ func guessType(s string) Dtype {
 	return DtypeString
 }
 
+// TypeGuesser contains state necessary for inferring types from a stream of strings
 // TODO: this is closely tied to inference_types.go, so we may as well just move it there?
 type TypeGuesser struct {
 	nullable bool
@@ -149,10 +155,12 @@ type TypeGuesser struct {
 	nrows    int
 }
 
+// NewTypeGuesser creates a new type guesser
 func NewTypeGuesser() *TypeGuesser {
 	return &TypeGuesser{}
 }
 
+// AddValue feeds a new value to a type guesser
 func (tg *TypeGuesser) AddValue(s string) {
 	tg.nrows++
 	if isNull(s) {
@@ -167,6 +175,7 @@ func (tg *TypeGuesser) AddValue(s string) {
 	tg.types[guessType(s)]++
 }
 
+// InferredType returns the best guess of a type for a given stream of strings
 func (tg *TypeGuesser) InferredType() Schema {
 	if tg.nrows == 0 {
 		return Schema{

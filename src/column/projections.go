@@ -112,18 +112,21 @@ func algebraicEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
 	}
 }
 
+// EvalAnd produces a bitwise operation on two bool chunks
 func EvalAnd(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return algebraicEval(c1, c2, compFuncs{
 		bools: func(a, b uint64) uint64 { return a & b },
 	})
 }
 
+// EvalOr produces a bitwise operation on two bool chunks
 func EvalOr(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return algebraicEval(c1, c2, compFuncs{
 		bools: func(a, b uint64) uint64 { return a | b },
 	})
 }
 
+// EvalEq compares values from two different chunks
 func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return algebraicEval(c1, c2, compFuncs{
 		ints:    func(a, b int64) bool { return a == b },
@@ -133,6 +136,7 @@ func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	})
 }
 
+// EvalNeq compares values from two different chunks for inequality
 func EvalNeq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return algebraicEval(c1, c2, compFuncs{
 		ints:    func(a, b int64) bool { return a != b },
@@ -142,6 +146,7 @@ func EvalNeq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	})
 }
 
+// EvalGt checks if values in c1 are greater than in c2
 func EvalGt(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return algebraicEval(c1, c2, compFuncs{
 		ints:    func(a, b int64) bool { return a > b },
@@ -151,6 +156,7 @@ func EvalGt(c1 Chunk, c2 Chunk) (Chunk, error) {
 	})
 }
 
+// EvalGte checks if values in c1 are greater than or equal to those in c2
 func EvalGte(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return algebraicEval(c1, c2, compFuncs{
 		ints:    func(a, b int64) bool { return a >= b },
@@ -160,10 +166,12 @@ func EvalGte(c1 Chunk, c2 Chunk) (Chunk, error) {
 	})
 }
 
+// EvalLt checks if values in c1 are lower than in c2
 func EvalLt(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return EvalGt(c2, c1)
 }
 
+// EvalLte checks if values in c1 are lower than or equal to those in c2
 func EvalLte(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return EvalGte(c2, c1)
 }

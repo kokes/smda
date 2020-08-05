@@ -45,6 +45,7 @@ func (db *Database) LoadSampleData(path string) error {
 	return nil
 }
 
+// CacheIncomingFile saves data from a given reader to a file
 func CacheIncomingFile(r io.Reader, path string) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -184,6 +185,7 @@ func (rl *rawLoader) yieldRow() ([]string, error) {
 	return row, nil
 }
 
+// ReadIntoStripe reads data from a source file and saves them into a stripe
 // maybe these two arguments can be embedded into rl.settings?
 func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
 	ds := newDataStripe()
@@ -237,6 +239,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 	return ds, nil
 }
 
+// ReadColumnFromStripe reads a column chunk from a given stripe (identified by its UID)
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
 // OPTIM: this does not buffer any reads... but it only reads things thrice, so it shouldn't matter, right?
@@ -304,6 +307,8 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 	return column.Deserialize(br, ds.Schema[nthColumn].Dtype)
 }
 
+// ReadColumnFromStripeByName reads a column by its name rather than position (that's
+// what ReadColumnFromStripe is for)
 func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripeID UID, column string) (column.Chunk, error) {
 	idx, _, err := ds.Schema.LocateColumn(column)
 	if err != nil {
@@ -312,6 +317,7 @@ func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripeID UID, column
 	return db.ReadColumnFromStripe(ds, stripeID, idx)
 }
 
+// ReadColumnsFromStripeByNames repeatedly calls ReadColumnFromStripeByName, so it's just a helper method
 // OPTIM: here we could use a stripe reader (or a ReadColumsFromStripe([]idx))
 func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripeID UID, columns []string) ([]column.Chunk, error) {
 	var cols []column.Chunk
@@ -399,6 +405,7 @@ func (db *Database) loadDatasetFromLocalFile(path string, settings *loadSettings
 	return db.loadDatasetFromReader(f, settings)
 }
 
+// LoadDatasetFromReaderAuto loads data from a reader and returns a Dataset
 func (db *Database) LoadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
 	f, err := ioutil.TempFile("", "")
 	if err != nil {
