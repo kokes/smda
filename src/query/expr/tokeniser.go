@@ -152,6 +152,10 @@ func (ts *tokenScanner) peek(n int) []byte {
 	return ret
 }
 
+func (ts *tokenScanner) peekOne() byte {
+	return ts.peek(1)[0]
+}
+
 func (ts *tokenScanner) Scan() (tok, error) {
 	if ts.position >= len(ts.code) {
 		return tok{tokenEOF, nil}, nil
@@ -280,25 +284,26 @@ func (ts *tokenScanner) Scan() (tok, error) {
 // OPTIM: use a function with inequalities instead of this linear scan
 func (ts *tokenScanner) consumeIdentifier() (tok, error) {
 	ttoken := tok{ttype: tokenIdentifier}
-	next := ts.peek(1)
-	if bytes.Equal(next, []byte("\"")) {
+	if ts.peekOne() == '"' {
+		// TODO: quoted identifier should allow for more characters - basically anything
+		// but a quote - unless preceded by a quote - should be fair game
+		// So maybe split this out into consumeQuotedIdentifier?
 		ttoken.ttype = tokenIdentifierQuoted
 		ts.position++
 	}
 
-	// TODO: make sure we restrict columns to be this format
 	identChars := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")
 	ttoken.value = sliceUntil(ts.code[ts.position:], identChars)
 	ts.position += len(ttoken.value)
 	if len(ttoken.value) == 0 {
 		// TODO: this is not quite the right error (it would be if we were quoted)
 		// this actually means there's nothing identifier-like here
+		// a good way to check would be to see if the first char is one of those a-zA-Z_0-9 and if not, fallthrough to invalididentifier
 		ts.position++
 		return tok{}, errInvalidIdentifier
 	}
 	if ttoken.ttype == tokenIdentifierQuoted {
-		next := ts.peek(1)
-		if !bytes.Equal(next, []byte("\"")) {
+		if ts.peekOne() != '"' {
 			return tok{}, errInvalidIdentifier
 		}
 		ts.position++

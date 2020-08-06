@@ -170,15 +170,14 @@ func ParseStringExpr(s string) (*Expression, error) {
 func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 	switch node := expr.(type) {
 	case *ast.Ident:
-		// TODO: what if this a reserved keyword?
+		// TODO: what if this a reserved keyword? (we don't have any just yet)
 		value := node.Name
 
-		// TODO: copied from parseBool, should probably centralise this (or simply export parseBool)
-		// though come to think of it, we may want to allow only true/false/TRUE/FALSE in expressions...
-		if value == "t" || value == "f" || value == "true" || value == "TRUE" || value == "false" || value == "FALSE" {
+		// not the same set of values as in parseBool, because we only want true/false (upper/lower) in literal expressions
+		if value == "true" || value == "TRUE" || value == "false" || value == "FALSE" {
 			return &Expression{
 				etype: exprLiteralBool,
-				value: fmt.Sprintf("%v", value == "t" || value == "true" || value == "TRUE"),
+				value: fmt.Sprintf("%v", value == "true" || value == "TRUE"),
 			}, nil
 		}
 		if value == "null" || value == "NULL" {
@@ -214,22 +213,41 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			value: value,
 		}, nil
 	case *ast.UnaryExpr:
+		if node.Op == token.ADD {
+			return convertAstExprToOwnExpr(node.X)
+		}
 		if node.Op != token.SUB {
 			return nil, fmt.Errorf("unsupported op: %s", node.Op)
 		}
-		var etype exprType
-		x := node.X.(*ast.BasicLit) // TODO: what if it's something else? like a parenExpr?
-		switch x.Kind {
-		case token.INT:
-			etype = exprLiteralInt
-		case token.FLOAT:
-			etype = exprLiteralFloat
-		default:
-			return nil, fmt.Errorf("unsupported token for unary expressions: %v", x.Kind)
+
+		// simple -1 or -2.4 should be converted into a literal
+		if x, ok := node.X.(*ast.BasicLit); ok {
+			var etype exprType
+			switch x.Kind {
+			case token.INT:
+				etype = exprLiteralInt
+			case token.FLOAT:
+				etype = exprLiteralFloat
+			default:
+				return nil, fmt.Errorf("unsupported token for unary expressions: %v", x.Kind)
+			}
+			return &Expression{
+				etype: etype,
+				value: fmt.Sprintf("-%s", x.Value),
+			}, nil
+		}
+
+		// all the other unary expressions, e.g. -foo, -(2 - bar) should be extended to (-1)*something
+		ch, err := convertAstExprToOwnExpr(node.X)
+		if err != nil {
+			return nil, err
 		}
 		return &Expression{
-			etype: etype,
-			value: fmt.Sprintf("-%s", x.Value),
+			etype: exprMultiplication,
+			children: []*Expression{
+				{etype: exprLiteralInt, value: "-1"},
+				ch,
+			},
 		}, nil
 	case *ast.BinaryExpr:
 		var ntype exprType

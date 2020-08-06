@@ -109,6 +109,18 @@ func TestParsingContents(t *testing.T) {
 				{etype: exprIdentifier, value: "bar"},
 			}},
 		}}},
+		{"+foo", &Expression{etype: exprIdentifier, value: "foo"}},
+		{"-foo", &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprLiteralInt, value: "-1"},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"-(foo*bar)", &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprLiteralInt, value: "-1"},
+			{etype: exprMultiplication, children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprIdentifier, value: "bar"},
+			}},
+		}}},
 	}
 
 	for _, test := range tests {
