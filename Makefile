@@ -4,8 +4,8 @@
 GORLS ?= go
 
 check:
-	go fmt ./...
-	CGO_ENABLED=0 go vet ./...
+	$(GORLS) fmt ./...
+	CGO_ENABLED=0 $(GORLS) vet ./...
 
 build: check test
 	CGO_ENABLED=0 $(GORLS) build cmd/server.go
@@ -24,7 +24,7 @@ test:
 	CGO_ENABLED=0 $(GORLS) test -timeout 5s -coverprofile=coverage.out ./...
 
 test-docker:
-	docker run --rm -v $(PWD):/smda golang:alpine sh -c "apk add --no-cache make && cd /smda && make test"
+	docker run --rm -v $(PWD):/smda golang:1.14-alpine sh -c "apk add --no-cache make && cd /smda && make test"
 
 bench:
 	CGO_ENABLED=0 $(GORLS) test -run=NONE -bench=. -benchmem ./...
