@@ -746,6 +746,7 @@ func (rc *ChunkNulls) Prune(bm *bitmap.Bitmap) Chunk {
 // into the binary representation - but that's just because we always have the schema at hand... but will we always have it?
 // shouldn't the files be readable as standalone files?
 // OPTIM: shouldn't we deserialize based on a byte slice instead? We already have it, so we're just duplicating it using a byte buffer
+// OPTIM: we may be able to safely cast these byte slice in the future - see https://github.com/golang/go/issues/19367
 func Deserialize(r io.Reader, Dtype Dtype) (Chunk, error) {
 	switch Dtype {
 	case DtypeString:

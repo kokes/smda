@@ -210,6 +210,7 @@ func DeserializeBitmapFromReader(r io.Reader) (*Bitmap, error) {
 	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
 		return nil, err
 	}
+	// OPTIM: we may be able to safely cast these byte slice in the future - see https://github.com/golang/go/issues/19367
 	data := make([]uint64, int(nelements))
 	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
 		return nil, err
