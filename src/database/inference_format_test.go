@@ -80,10 +80,9 @@ func TestInferDelimiterBasic(t *testing.T) {
 		{"hello\tworld", delimiterTab},
 		{"hello|world", delimiterPipe},
 
-		// TODO: both of these could be perhaps resolved by reading two rows and comparing the number of fields
-		// as soon as we get the same number, we return (and we try this first for commas, then semicolons etc.)
-		{"hello,\"world;other;things\"", delimiterSemicolon},         // incorrect, but what can we do?
-		{"\"my first column\",\"my second column\"", delimiterSpace}, // again, incorrect
+		{"hello,\"world;other;things\"\n1,2\n", delimiterComma},
+		{"\"my first column\",\"my second column\"\nsome,data\n", delimiterComma},
+		{"\"my first column\";\"my second column\"\nsome;data\n", delimiterSemicolon},
 
 		{"hello,world\n", delimiterComma},
 
@@ -93,11 +92,7 @@ func TestInferDelimiterBasic(t *testing.T) {
 
 	for _, testCase := range tests {
 		r := []byte(testCase.firstLine)
-		inferredDelimiter, err := inferDelimiter(r)
-		if err != nil {
-			t.Error(err)
-			return
-		}
+		inferredDelimiter := inferDelimiter(r)
 		if inferredDelimiter != testCase.expectedDelimiter {
 			t.Errorf("inferring delimiters, expected %v, got %v", testCase.expectedDelimiter, inferredDelimiter)
 			return

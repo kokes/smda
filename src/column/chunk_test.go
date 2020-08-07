@@ -560,19 +560,15 @@ func TestHashing(t *testing.T) {
 	}
 }
 
-// TODO: we absolutely need to make sure the column spans more stripes,
-// so that we can test that we don't mess with the seeds or anything (e.g. using
-// plain maphash would pass tests, but it would be very incorrect)
 func BenchmarkHashingInts(b *testing.B) {
 	n := 10000
 	col := newChunkInts()
 	for j := 0; j < n; j++ {
 		col.AddValue(strconv.Itoa(j))
 	}
+	hashes := make([]uint64, col.Len())
 	b.ResetTimer()
 
-	// why are we testing allocations? consider moving this before the timer reset (in floats as well)
-	hashes := make([]uint64, col.Len())
 	for j := 0; j < b.N; j++ {
 		col.Hash(hashes)
 	}

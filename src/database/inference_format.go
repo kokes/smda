@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/bzip2"
 	"compress/gzip"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
@@ -78,7 +79,32 @@ func wrapCompressed(r io.Reader, ctype compression) (io.Reader, error) {
 }
 
 // this is now specifically for delimited files
-func inferDelimiter(buf []byte) (delimiter, error) {
+// what we do is that we try to read two rows of data given various delimiters and if we succeed
+// in getting the same number of entries per each row, this is our detected delimiter
+// if we fail to find one this way, we try and detect it by looking up the most common character in the buffer
+func inferDelimiter(buf []byte) delimiter {
+	for _, dlim := range []delimiter{delimiterComma, delimiterSemicolon, delimiterTab, delimiterSpace, delimiterPipe} {
+		br := bytes.NewReader(buf)
+		cr := csv.NewReader(br)
+		cr.Comma = rune(dlim)
+		r1, err := cr.Read()
+		// these err checks are quite lazy
+		if err != nil {
+			continue
+		}
+		r2, err := cr.Read()
+		if err != nil {
+			continue
+		}
+		if len(r1) > 1 && len(r1) == len(r2) {
+			return dlim
+		}
+	}
+
+	return inferDelimiterByCount(buf)
+}
+
+func inferDelimiterByCount(buf []byte) delimiter {
 	var stats [256]uint32
 	for _, char := range buf {
 		stats[char]++
@@ -93,7 +119,7 @@ func inferDelimiter(buf []byte) (delimiter, error) {
 	}
 
 	// could return delimiterNone! if it could not infer it
-	return mostCommon, nil
+	return mostCommon
 }
 
 func inferCompressionAndDelimiter(path string) (compression, delimiter, error) {
@@ -128,10 +154,7 @@ func inferCompressionAndDelimiter(path string) (compression, delimiter, error) {
 	}
 	uheader = uheader[:n]
 
-	dlim, err := inferDelimiter(uheader)
-	if err != nil {
-		return 0, 0, err
-	}
+	dlim := inferDelimiter(uheader)
 
 	return ctype, dlim, nil
 }
