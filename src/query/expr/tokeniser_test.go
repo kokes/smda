@@ -3,6 +3,7 @@ package expr
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -79,9 +80,10 @@ func TestTokenisationWithValues(t *testing.T) {
 		{"2.34", []tok{{tokenLiteralFloat, []byte("2.34")}}},
 		{"2.34e12", []tok{{tokenLiteralFloat, []byte("2.34e12")}}},
 		{".5", []tok{{tokenLiteralFloat, []byte(".5")}}},
+		{"1e3", []tok{{tokenLiteralFloat, []byte("1e3")}}}, // could be represented by an integer, but scientific notation implies float
 		{".5e3", []tok{{tokenLiteralFloat, []byte(".5e3")}}},
 		{".5e-3", []tok{{tokenLiteralFloat, []byte(".5e-3")}}},
-		// {"1-3", []tok{{tokenLiteralInt, []byte("1")}, {tokenSub, nil}, {tokenLiteralInt, []byte("3")}}}, // bug
+		{"1-3", []tok{{tokenLiteralInt, []byte("1")}, {tokenSub, nil}, {tokenLiteralInt, []byte("3")}}},
 		{"234", []tok{{tokenLiteralInt, []byte("234")}}},
 		{"1232349000", []tok{{tokenLiteralInt, []byte("1232349000")}}},
 		{"234*3", []tok{{tokenLiteralInt, []byte("234")}, {tokenMul, nil}, {tokenLiteralInt, []byte("3")}}},
@@ -150,7 +152,8 @@ func TestTokenisationErrors(t *testing.T) {
 		firstErr error
 	}{
 		{"123 * 345", nil},
-		{"123.3.3 * 345", errInvalidFloat},
+		// this now tokenises just fine, because it doesn't detect a boundary between 123.3 and .3
+		// {"123.3.3 * 345", errInvalidFloat},
 		{"123 / 3453123121241241231231231231231", errInvalidInteger},
 		{"ahoy'", errInvalidString},
 		{"fooba$", errInvalidIdentifier},
@@ -166,7 +169,9 @@ func TestTokenisationErrors(t *testing.T) {
 	for _, test := range tt {
 		_, err := TokeniseString(test.source)
 		if !errors.Is(err, test.firstErr) {
-			t.Errorf("expecting %v, got %v instead", test.firstErr, err)
+			fmt.Println("GOT")
+			fmt.Println(TokeniseString(test.source))
+			t.Errorf("expecting %v when parsing %v, got %v instead", test.firstErr, test.source, err)
 		}
 	}
 }

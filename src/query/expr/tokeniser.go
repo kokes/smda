@@ -251,34 +251,73 @@ func (ts *tokenScanner) Scan() (tok, error) {
 		ts.position++
 		return tok{tokenLt, nil}, nil
 	case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		// TODO: well, test this thoroughly (especially the sad paths)
-		// TODO: refactor into a method, that returns (tok, error), just like consumeStringLiteral
-		//       this could also advance the position
-		floatChars := []byte("0123456789e.-") // the minus here is not a unary minus, but for exponents - e.g. 2e-12
-		intChars := []byte("0123456789")
-
-		floatCandidate := sliceUntil(ts.code[ts.position:], floatChars)
-		intCandidate := sliceUntil(ts.code[ts.position:], intChars)
-		if len(intCandidate) == len(floatCandidate) {
-			ts.position += len(intCandidate)
-			if _, err := strconv.ParseInt(string(intCandidate), 10, 64); err != nil {
-				return tok{}, errInvalidInteger
-			}
-			return tok{tokenLiteralInt, intCandidate}, nil
-		}
-		ts.position += len(floatCandidate)
-		if _, err := strconv.ParseFloat(string(floatCandidate), 64); err != nil {
-			// TODO: we're getting false negatives for 2*(1-d), where it tokenises the 1- as a float
-			// also 1-3 gets tokenised as a single unit instead of three
-			// solution? allow for - only at the beginning and after an e?
-			return tok{}, errInvalidFloat
-		}
-		return tok{tokenLiteralFloat, floatCandidate}, nil
+		return ts.consumeNumber()
 	case '\'': // string literal
 		return ts.consumeStringLiteral()
 	default:
 		return ts.consumeIdentifier()
 	}
+}
+
+func (ts *tokenScanner) consumeNumber() (tok, error) {
+	var (
+		seenDecPoint bool
+		seenExp      bool
+	)
+	char := ts.code[ts.position]
+	if char == '.' {
+		seenDecPoint = true
+	}
+	val := []byte{char}
+	ts.position++
+	intChars := []byte("0123456789")
+	ints := sliceUntil(ts.code[ts.position:], intChars)
+	ts.position += len(ints)
+	val = append(val, ints...)
+
+scan:
+	for {
+		switch ts.peekOne() {
+		case '.':
+			if seenDecPoint {
+				break scan
+			}
+			seenDecPoint = true
+			val = append(val, '.')
+			ts.position++
+			ints = sliceUntil(ts.code[ts.position:], intChars)
+			ts.position += len(ints)
+			val = append(val, ints...)
+		case 'e':
+			if seenExp {
+				break scan
+			}
+			seenExp = true
+			val = append(val, 'e')
+			ts.position++
+			if ts.peekOne() == '-' {
+				ts.position++
+				val = append(val, '-')
+			}
+			ints = sliceUntil(ts.code[ts.position:], intChars)
+			ts.position += len(ints)
+			val = append(val, ints...)
+			break scan
+		default:
+			break scan
+		}
+	}
+
+	if seenDecPoint || seenExp {
+		if _, err := strconv.ParseFloat(string(val), 64); err != nil {
+			return tok{}, errInvalidFloat
+		}
+		return tok{tokenLiteralFloat, val}, nil
+	}
+	if _, err := strconv.ParseInt(string(val), 10, 64); err != nil {
+		return tok{}, errInvalidInteger
+	}
+	return tok{tokenLiteralInt, val}, nil
 }
 
 // OPTIM: use a function with inequalities instead of this linear scan
