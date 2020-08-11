@@ -424,10 +424,9 @@ func TestInvalidOffsets(t *testing.T) {
 	}
 	testSlice := make([]byte, len(data))
 
-	tests := [][]uint64{
-		{1, 2, 3},                   // not enough space for even a checksum
-		{1, 0, 120},                 // lower offset than the previous (sort of covered by the space criterion as well)
-		{1 << 40, 1 << 62, 1 << 63}, // too big
+	tests := [][]uint32{
+		{1, 2, 3},   // not enough space for even a checksum
+		{1, 0, 120}, // lower offset than the previous (sort of covered by the space criterion as well)
 	}
 
 	for _, test := range tests {

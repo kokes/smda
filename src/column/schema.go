@@ -148,7 +148,6 @@ func guessType(s string) Dtype {
 }
 
 // TypeGuesser contains state necessary for inferring types from a stream of strings
-// TODO: this is closely tied to inference_types.go, so we may as well just move it there?
 type TypeGuesser struct {
 	nullable bool
 	types    [DtypeMax]int

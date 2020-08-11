@@ -132,12 +132,12 @@ func newDataStripe() *dataStripe {
 
 // the layout is: [column][column][column][offsets]
 // where [column] is a byte-representation of a column (or its chunk, if there are multiple stripes)
-// and [offsets] is an array of uint64 offsets of individual columns (start + end, so ncolumns + 1 uints)
+// and [offsets] is an array of uint32 offsets of individual columns (start + end, so ncolumns + 1 uints)
 // since we know how many columns are in this file (from the dataset metadata), we first
 // need to read that many bytes off the end of the file and then offset to whichever column we want
 func (ds *dataStripe) writeToWriter(w io.Writer) error {
-	totalOffset := uint64(0)
-	offsets := make([]uint64, 0, len(ds.columns))
+	totalOffset := uint32(0)
+	offsets := make([]uint32, 0, len(ds.columns))
 	for _, column := range ds.columns {
 		// OPTIM: we used to write column data directly into the underlying writer, but we introduced
 		// a method that returns a slice, so that we can checksum it - this increased our allocations, so
@@ -157,7 +157,7 @@ func (ds *dataStripe) writeToWriter(w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		totalOffset += uint64(len(b)) + 4 // byte slice length + checksum
+		totalOffset += uint32(len(b)) + 4 // byte slice length + checksum
 		offsets = append(offsets, totalOffset)
 	}
 
@@ -278,6 +278,10 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 	if err := binary.Read(f, binary.LittleEndian, &headerSize); err != nil {
 		return nil, err
 	}
+	expHeaderLen := uint32(2 + 4*len(ds.Schema)) // 2 bytes for version and a uint32 for each offset
+	if headerSize != expHeaderLen {
+		return nil, fmt.Errorf("expecting the header to be %d bytes, got %d instead", expHeaderLen, headerSize)
+	}
 	if _, err := f.Seek(-4-int64(headerSize), os.SEEK_END); err != nil {
 		return nil, err
 	}
@@ -292,19 +296,19 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 	}
 
 	ncolumns := len(ds.Schema)
-	offsets := make([]uint64, 0, ncolumns)
+	offsets := make([]uint32, 0, ncolumns)
 	offsets = append(offsets, 0)
 
 	// OPTIM: technically, we don't need to load all the offsets (unless we want to cache them)
 	for j := 0; j < ncolumns; j++ {
-		newOffset := binary.LittleEndian.Uint64(header[2+j*8 : 2+(j+1)*8]) // TODO: test the length some place above
+		newOffset := binary.LittleEndian.Uint32(header[2+j*4 : 2+(j+1)*4])
 		offsets = append(offsets, newOffset)
 	}
 	offsetStart, offsetEnd := offsets[nthColumn], offsets[nthColumn+1]
 	// a non-complete guard against bit rot and other nasties
 	// only allow sequential offsets and only offer 4 gigs per column chunk
 	// it should also have at least four bytes
-	if offsetEnd < offsetStart || offsetEnd-offsetStart > 1<<32 || offsetEnd-offsetStart < 4 {
+	if offsetEnd < offsetStart || offsetEnd-offsetStart < 4 {
 		return nil, errInvalidOffsetData
 	}
 
