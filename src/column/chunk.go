@@ -20,7 +20,7 @@ var errAppendNullabilityMismatch = errors.New("when appending, both chunks need 
 // Chunk defines a part of a column - constant type, stored contiguously
 type Chunk interface {
 	AddValue(string) error
-	AddValues([]string) error // just a utility thing, mostly for tests (TODO: unexport this)
+	AddValues([]string) error // consider merging AddValues and AddValue (using varargs)
 	MarshalBinary() ([]byte, error)
 	MarshalJSON() ([]byte, error)
 	Prune(*bitmap.Bitmap) Chunk

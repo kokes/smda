@@ -215,7 +215,8 @@ func (db *Database) removeDataset(ds *Dataset) error {
 	for j, dataset := range db.Datasets {
 		if dataset == ds {
 			db.Datasets = append(db.Datasets[:j], db.Datasets[j+1:]...)
-			break // TODO: what if dataset is not found? return an error that we'll ignore?
+			// if the dataset isn't found, this is a noop
+			break
 		}
 	}
 
@@ -224,9 +225,10 @@ func (db *Database) removeDataset(ds *Dataset) error {
 			return err
 		}
 	}
+	// This might throw a "directory not empty" in the future as other datasets might claim
+	// parts of this directory (if we start sharing stripes). But let's cross that bridge
+	// when we get to it
 	if err := os.Remove(db.DatasetPath(ds)); err != nil {
-		// TODO: ignore if "directory not empty"? Because other datasets might claim this directory
-		// and we only want to remove it if it's actually empty, so this error is fine.
 		return err
 	}
 

@@ -47,7 +47,7 @@ func (d delimiter) String() string {
 }
 
 // https://en.wikipedia.org/wiki/List_of_file_signatures
-func inferCompression(buffer []byte) (compression, error) {
+func inferCompression(buffer []byte) compression {
 	// 1) detect compression from contents, not filename
 	signatures := map[compression][]byte{
 		compressionGzip:  {0x1f, 0x8b},
@@ -56,11 +56,11 @@ func inferCompression(buffer []byte) (compression, error) {
 
 	for ctype, signature := range signatures {
 		if bytes.Equal(buffer[:len(signature)], signature) {
-			return ctype, nil
+			return ctype
 		}
 	}
 
-	return compressionNone, nil
+	return compressionNone
 }
 
 // the caller is responsible for closing this (but will they close the underlying file?
@@ -136,10 +136,7 @@ func inferCompressionAndDelimiter(path string) (compression, delimiter, error) {
 		return 0, 0, err
 	}
 	header = header[:n] // we'd otherwise have null-byte padding after whatever we loaded
-	ctype, err := inferCompression(header)
-	if err != nil {
-		return 0, 0, err
-	}
+	ctype := inferCompression(header)
 	mr := io.MultiReader(bytes.NewReader(header), r)
 	uf, err := wrapCompressed(mr, ctype)
 	if err != nil {

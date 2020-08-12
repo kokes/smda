@@ -54,6 +54,7 @@ func TestNewUidDeJSONify(t *testing.T) {
 }
 
 func TestInitDB(t *testing.T) {
+	// REFACTOR: use t.TempDir here and everywhere else (go 1.15+)
 	dr, err := ioutil.TempDir("", "init_db_testing")
 	if err != nil {
 		t.Fatal(err)

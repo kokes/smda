@@ -10,11 +10,7 @@ import (
 
 func TestBasicCompressionInference(t *testing.T) {
 	file := []byte("a,b,c\n1,2,3")
-	ctype, err := inferCompression(file)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	ctype := inferCompression(file)
 	if ctype != compressionNone {
 		t.Error("expecting an uncompressed file to be recognised as such")
 		return
@@ -29,11 +25,7 @@ func TestGzippedFile(t *testing.T) {
 		return
 	}
 	gf.Flush()
-	ctype, err := inferCompression(file.Bytes())
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	ctype := inferCompression(file.Bytes())
 	if ctype != compressionGzip {
 		t.Error("expecting a gzip file to be recognised as such")
 		return
@@ -57,11 +49,7 @@ func TestGzippedFile(t *testing.T) {
 //     print(data[2*j:2*j+2])
 func TestBzippedFile(t *testing.T) {
 	buf := []byte{0x42, 0x5a, 0x68, 0x39, 0x31, 0x41, 0x59, 0x26, 0x53, 0x59, 0xc9, 0x4b, 0x05, 0x83, 0x00, 0x00, 0x04, 0x59, 0x00, 0x00, 0x10, 0x00, 0x04, 0x38, 0x00, 0x38, 0x00, 0x20, 0x00, 0x21, 0xa0, 0x66, 0xa1, 0x0c, 0x08, 0x37, 0xa0, 0xe2, 0x2d, 0x78, 0xbb, 0x92, 0x29, 0xc2, 0x84, 0x86, 0x4a, 0x58, 0x2c, 0x18}
-	ctype, err := inferCompression(buf)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	ctype := inferCompression(buf)
 	if ctype != compressionBzip2 {
 		t.Error("expecting a bzip2 file to be recognised as such")
 		return

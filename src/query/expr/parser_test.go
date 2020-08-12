@@ -126,7 +126,7 @@ func TestParsingContents(t *testing.T) {
 	for _, test := range tests {
 		parsed, err := ParseStringExpr(test.raw)
 		if err != nil {
-			t.Error(err)
+			t.Errorf("expression %v failed: %w", test.raw, err)
 			continue
 		}
 		// we skip equality tests for nil cases (essentially placeholders, perhaps too complex)
