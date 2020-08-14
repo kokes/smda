@@ -75,6 +75,8 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 	for j, el := range c1d {
 		res[j] = compFn(el, c2d[j])
 	}
+	// ARCH: clear unused bits, which we may have altered in compFn? (only relevant for cap%64 != 0)
+	// we might also have to data ^= ~nullability, so that we clear all the bits that are masked by being nulls
 	cdata := newChunkBoolsFromBits(res, nvals)
 	nulls := bitmap.Or(c1.nullability, c2.nullability)
 	if nulls != nil {
