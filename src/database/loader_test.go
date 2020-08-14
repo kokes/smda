@@ -470,6 +470,58 @@ func TestHeaderValidation(t *testing.T) {
 	}
 }
 
+func TestLoadingFromMaps(t *testing.T) {
+	db, err := NewDatabase(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+	tests := []struct {
+		data   map[string][]string
+		header []string
+		length int // not checking this, remove?
+		err    error
+	}{
+		{nil, nil, 0, errNoMapData},
+		{map[string][]string{}, nil, 0, errNoMapData},
+		{map[string][]string{
+			"foo": {"1", "2", "3"},
+		}, []string{"foo"}, 3, nil},
+		{map[string][]string{
+			"foo": {"1", "2", "3"},
+			"bar": {"ahoy", "", "bak"},
+		}, []string{"bar", "foo"}, 3, nil},
+		{map[string][]string{
+			"foo": {"1", "2", "3"},
+			"bar": {"ahoy", "", "bak", "extra data"},
+		}, nil, 0, errLengthMismatch},
+	}
+
+	for _, test := range tests {
+		ds, err := db.LoadDatasetFromMap(test.data)
+		if !errors.Is(err, test.err) {
+			t.Errorf("expecting %v to fail with %v, got %v instead", test.data, test.err, err)
+			continue
+		}
+		if err != nil {
+			continue
+		}
+		var columns []string
+		for _, col := range ds.Schema {
+			columns = append(columns, col.Name)
+		}
+		if !reflect.DeepEqual(columns, test.header) {
+			t.Errorf("expecting %v to result in %v columns, got %v instead", test.data, test.header, columns)
+			continue
+		}
+	}
+
+}
+
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 // func (ds *dataStripe) writeToWriter(w io.Writer) error {
 // func (ds *dataStripe) writeToFile(rootDir, datasetID string) error { -- signature has changed, it's now writeStripeToFile

@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/kokes/smda/src/column"
 )
@@ -25,6 +26,8 @@ var errIncompatibleOnDiskFormat = errors.New("cannot open data stripes with a ve
 var errInvalidloadSettings = errors.New("expecting load settings for a rawLoader, got nil")
 var errInvalidOffsetData = errors.New("invalid offset data")
 var errSchemaMismatch = errors.New("dataset does not conform to the schema provided")
+var errNoMapData = errors.New("cannot load data from a map with no data")
+var errLengthMismatch = errors.New("column length mismatch")
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
 // using default settings
@@ -462,4 +465,44 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 	ls.schema = schema
 
 	return db.loadDatasetFromLocalFile(path, ls)
+}
+
+// LoadDatasetFromMap allows for an easy setup of a new dataset, mostly useful for tests
+// Converts this map into an in-memory CSV file and passes it to our usual routines
+// TODO: refactor existing tests that load data from strings
+// OPTIM: the underlying call (LoadDatasetFromReaderAuto) caches this raw data on disk, may be unecessary
+func (db *Database) LoadDatasetFromMap(data map[string][]string) (*Dataset, error) {
+	if len(data) == 0 {
+		return nil, errNoMapData
+	}
+	var columns []string
+	for key := range data {
+		columns = append(columns, key)
+	}
+	sort.Strings(columns) // to make it deterministic
+	colLength := len(data[columns[0]])
+
+	for _, col := range columns {
+		vals := data[col]
+		if len(vals) != colLength {
+			return nil, fmt.Errorf("length mismatch in column %v: %w", col, errLengthMismatch)
+		}
+	}
+	bf := new(bytes.Buffer)
+	cw := csv.NewWriter(bf)
+	if err := cw.Write(columns); err != nil {
+		return nil, err
+	}
+	row := make([]string, len(columns))
+	for j := 0; j < colLength; j++ {
+		for cn := 0; cn < len(columns); cn++ {
+			row[cn] = data[columns[cn]][j]
+		}
+		if err := cw.Write(row); err != nil {
+			return nil, err
+		}
+	}
+	cw.Flush()
+
+	return db.LoadDatasetFromReaderAuto(bf)
 }
