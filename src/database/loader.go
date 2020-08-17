@@ -469,7 +469,6 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 
 // LoadDatasetFromMap allows for an easy setup of a new dataset, mostly useful for tests
 // Converts this map into an in-memory CSV file and passes it to our usual routines
-// TODO: refactor existing tests that load data from strings
 // OPTIM: the underlying call (LoadDatasetFromReaderAuto) caches this raw data on disk, may be unecessary
 func (db *Database) LoadDatasetFromMap(data map[string][]string) (*Dataset, error) {
 	if len(data) == 0 {

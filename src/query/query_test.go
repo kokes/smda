@@ -1,6 +1,7 @@
 package query
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -83,8 +84,6 @@ func TestBasicQueries(t *testing.T) {
 	}
 }
 
-// TODO: test that a limit omitted is equivalent to loading all data (test with and without filters)
-// also test negative limits
 func TestLimitsInQueries(t *testing.T) {
 	db, err := database.NewDatabase(nil)
 	if err != nil {
@@ -105,8 +104,30 @@ func TestLimitsInQueries(t *testing.T) {
 
 	firstColRaw := []string{"1", "4", "7"}
 	cols := selectExpr([]string{"foo", "bar", "baz"})
+	q := Query{Select: cols, Dataset: ds.ID}
+
+	// limit omitted
+	qr, err := Run(db, q)
+	if err != nil {
+		t.Error(err)
+	}
+	// TODO: edit this once we get chunk lengths
+	if qr.Data[0].Len() != len(firstColRaw) {
+		t.Errorf("omitting a limit should result in getting all the data, got only %d rows", qr.Data[0].Len())
+	}
+
+	// negative limits
+	for _, limit := range []int{-100, -20, -1} {
+		q.Limit = &limit
+		_, err := Run(db, q)
+		if !errors.Is(err, errInvalidLimitValue) {
+			t.Errorf("expected error for negative values to be %v, got %v instead", errInvalidLimitValue, err)
+		}
+	}
+
+	// non-negative limits
 	for limit := 0; limit < 100; limit++ {
-		q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
+		q.Limit = &limit
 
 		qr, err := Run(db, q)
 		if err != nil {

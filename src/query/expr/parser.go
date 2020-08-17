@@ -15,6 +15,7 @@ type exprType uint8
 const (
 	exprInvalid exprType = iota
 	exprIdentifier
+	exprIdentifierQuoted
 	exprAnd
 	exprOr
 	exprAddition
@@ -41,6 +42,8 @@ func (etype exprType) String() string {
 		return "Invalid"
 	case exprIdentifier:
 		return "Identifier"
+	case exprIdentifierQuoted:
+		return "QuotedIdentifier"
 	case exprAnd:
 		return "&&"
 	case exprOr:
@@ -101,6 +104,8 @@ func (expr *Expression) String() string {
 		return "invalid_expression"
 	case exprIdentifier:
 		return expr.value
+	case exprIdentifierQuoted:
+		return fmt.Sprintf("\"%s\"", expr.value)
 	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
 		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
 		return fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
@@ -166,7 +171,6 @@ func ParseStringExpr(s string) (*Expression, error) {
 	return tree, err
 }
 
-// TODO: what about quoted identifiers? (case sensitive identifiers)
 func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 	switch node := expr.(type) {
 	case *ast.Ident:
@@ -195,6 +199,9 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 		var etype exprType
 		var value string
 		switch node.Kind {
+		case token.STRING:
+			etype = exprIdentifierQuoted
+			value = node.Value[1 : len(node.Value)-1]
 		case token.INT:
 			etype = exprLiteralInt
 			value = node.Value

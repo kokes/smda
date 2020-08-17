@@ -10,6 +10,8 @@ import (
 	"github.com/kokes/smda/src/query/expr"
 )
 
+var errInvalidLimitValue = errors.New("invalid limit value")
+
 // Query describes what we want to retrieve from a given dataset
 // There are basically four places you need to edit (and test!) in order to extend this:
 // 1) The engine itself needs to support this functionality (usually a method on Dataset or column.Chunk)
@@ -165,7 +167,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 	limit := -1
 	if q.Limit != nil {
 		if *q.Limit < 0 {
-			return nil, fmt.Errorf("invalid limit value: %v", *q.Limit)
+			return nil, fmt.Errorf("%w: %v", errInvalidLimitValue, *q.Limit)
 		}
 		limit = *q.Limit
 	}

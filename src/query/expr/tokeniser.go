@@ -325,7 +325,7 @@ func (ts *tokenScanner) consumeIdentifier() (tok, error) {
 	ttoken := tok{ttype: tokenIdentifier}
 	if ts.peekOne() == '"' {
 		// TODO: quoted identifier should allow for more characters - basically anything
-		// but a quote - unless preceded by a quote - should be fair game
+		// but a newline of a quote - unless preceded by a quote - should be fair game
 		// So maybe split this out into consumeQuotedIdentifier?
 		ttoken.ttype = tokenIdentifierQuoted
 		ts.position++
