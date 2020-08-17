@@ -238,6 +238,48 @@ func TestBitmapAppending(t *testing.T) {
 	}
 }
 
+func TestOr(t *testing.T) {
+	tests := []struct {
+		a, b, exp []bool
+	}{
+		{nil, []bool{true}, []bool{true}},
+		{[]bool{true}, nil, []bool{true}},
+		{nil, nil, nil},
+		{[]bool{true}, []bool{true}, []bool{true}},
+		{[]bool{true}, []bool{false}, []bool{true}},
+		{[]bool{false}, []bool{true}, []bool{true}},
+		{[]bool{false}, []bool{false}, []bool{false}},
+		{[]bool{true, false}, []bool{true, false}, []bool{true, false}},
+		{[]bool{true, true}, []bool{true, false}, []bool{true, true}},
+		{[]bool{false, false}, []bool{false, false}, []bool{false, false}},
+		{[]bool{false, false}, []bool{false, true}, []bool{false, true}},
+	}
+
+	for _, test := range tests {
+		var ba, bb, exp *Bitmap
+		if test.a != nil {
+			ba = NewBitmapFromBools(test.a)
+		}
+		if test.b != nil {
+			bb = NewBitmapFromBools(test.b)
+		}
+		if test.exp != nil {
+			exp = NewBitmapFromBools(test.exp)
+		}
+
+		ored := Or(ba, bb)
+		if !reflect.DeepEqual(ored, exp) {
+			t.Errorf("expecting %v | %v to result in %v, got %v instead", test.a, test.b, test.exp, ored)
+		}
+		if ba != nil {
+			ba.Or(bb)
+			if !reflect.DeepEqual(ba, exp) {
+				t.Errorf("expecting %v |= %v to result in %v, got %v instead", test.a, test.b, test.exp, ba)
+			}
+		}
+	}
+}
+
 // func NewBitmap(n int) *bitmap {
 // func NewBitmapFromBools(data []bool) *bitmap {
 // func (bm *Bitmap) Count() int {

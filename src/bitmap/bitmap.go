@@ -91,6 +91,9 @@ func (bm *Bitmap) AndNot(obm *Bitmap) {
 
 // Or ors this bitmap with another one (a | b)
 func (bm *Bitmap) Or(obm *Bitmap) {
+	if obm == nil {
+		return
+	}
 	if bm.cap != obm.cap {
 		panic("cannot OR two not aligned bitmaps")
 	}
