@@ -27,6 +27,14 @@ type Query struct {
 	Limit     *int               `json:"limit,omitempty"`
 }
 
+func colmap(columns []string, coldata []column.Chunk) map[string]column.Chunk {
+	colmap := make(map[string]column.Chunk)
+	for j, colname := range columns {
+		colmap[colname] = coldata[j]
+	}
+	return colmap
+}
+
 // OPTIM: this filters the whole dataset, but it we may only need to filter a single stripe - e.g. if we have no order or
 // groupby clause and a limit (implicit or explicit)
 func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expression) ([]*bitmap.Bitmap, error) {
@@ -44,7 +52,7 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 		if err != nil {
 			return nil, err
 		}
-		fvals, err := expr.Evaluate(filterExpr, colnames, columns)
+		fvals, err := expr.Evaluate(filterExpr, colmap(colnames, columns))
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +198,8 @@ func Run(db *database.Database, q Query) (*Result, error) {
 			if err != nil {
 				return nil, err
 			}
-			col, err := expr.Evaluate(colExpr, colnames, columns)
+
+			col, err := expr.Evaluate(colExpr, colmap(colnames, columns))
 			if err != nil {
 				return nil, err
 			}

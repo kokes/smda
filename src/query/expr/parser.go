@@ -36,6 +36,7 @@ const (
 	exprFunCall
 )
 
+// ARCH: is this used anywhere?
 func (etype exprType) String() string {
 	switch etype {
 	case exprInvalid:

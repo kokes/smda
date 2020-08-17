@@ -9,38 +9,28 @@ import (
 
 var errQueryPatternNotSupported = errors.New("query pattern not supported")
 
-// OPTIM/TODO: rename to sorted slice search and implement binary search (since we know colnames to be sorted)
-func findInStringSlice(haystack []string, needle string) int {
-	for j, el := range haystack {
-		if el == needle {
-			return j
-		}
-	}
-	return -1
-}
-
-// OPTIM: consider replacing this with a map (O(log n) -> O(1), only some minor prep needed)
-//        this would alter the Evaluate function signature - we'd accept map on the input
-func getColumn(colName string, colNames []string, columns []column.Chunk) column.Chunk {
-	return columns[findInStringSlice(colNames, colName)]
-}
-
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
 // the same tree of operations - we could detect what functions/methods need to be called at parse time
-func Evaluate(expr *Expression, colnames []string, columns []column.Chunk) (column.Chunk, error) {
+func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chunk, error) {
 	switch expr.etype {
 	case exprIdentifier:
-		return getColumn(expr.value, colnames, columns), nil
+		col, ok := columnData[expr.value]
+		if !ok {
+			// we validated the expression, so this should not happen?
+			// perhaps to catch bugs in case folding?
+			return nil, fmt.Errorf("column %v not found", expr.value)
+		}
+		return col, nil
 	// case exprLiteralBool, exprLiteralFloat, exprLiteralInt, exprLiteralString, exprLiteralNull: // TODO: expr.isLiteral?
 	// 	...
 	// case exprFunCall
 	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,
 		exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprAnd, exprOr:
-		c1, err := Evaluate(expr.children[0], colnames, columns)
+		c1, err := Evaluate(expr.children[0], columnData)
 		if err != nil {
 			return nil, err
 		}
-		c2, err := Evaluate(expr.children[1], colnames, columns)
+		c2, err := Evaluate(expr.children[1], columnData)
 		if err != nil {
 			return nil, err
 		}
