@@ -11,8 +11,7 @@ COPY cmd cmd
 COPY samples samples
 RUN make build
 
-FROM alpine:latest
-RUN mkdir -p /smda/
+FROM scratch
 WORKDIR /smda/
 COPY --from=build /smda/server .
 # TODO: this will not be necessary once we include artifacts in our binary
