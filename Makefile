@@ -27,7 +27,7 @@ test-docker:
 	docker run --rm -v $(PWD):/smda golang:1.15-alpine sh -c "apk add --no-cache make && cd /smda && make test"
 
 bench:
-	CGO_ENABLED=0 $(GORLS) test -run=NONE -bench=. -benchmem ./...
+	GOMAXPROCS=1 CGO_ENABLED=0 $(GORLS) test -run=NONE -bench=. -benchmem ./...
 
 bench-many:
 	for i in {1..10}; do make bench; done | tee $(shell eval git rev-parse --abbrev-ref HEAD).txt
