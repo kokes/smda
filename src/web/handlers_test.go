@@ -57,13 +57,16 @@ func TestStatusHandling(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	var dec map[string]string
-	// TODO: fix this NewDecoder call (and all the other ones): https://github.com/golang/go/issues/36225
-	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
+	var body map[string]string
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if !(len(dec) == 1 && dec["status"] == "ok") {
-		t.Fatalf("unexpected payload: %v", dec)
+	if dec.More() {
+		t.Fatal("body cannot contain multiple JSON objects")
+	}
+	if !(len(body) == 1 && body["status"] == "ok") {
+		t.Fatalf("unexpected payload: %v", body)
 	}
 }
 
@@ -129,8 +132,12 @@ func TestRootDoesNotHandle404(t *testing.T) {
 			t.Errorf("expected a 404 to return a JSON, got: %v", resp.Header.Get("Content-Type"))
 		}
 		var errbody map[string]string
-		if err := json.NewDecoder(resp.Body).Decode(&errbody); err != nil {
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&errbody); err != nil {
 			t.Fatal(err)
+		}
+		if dec.More() {
+			t.Fatal("body cannot contain multiple JSON objects")
 		}
 		if !(len(errbody) == 1 && errbody["error"] == "file not found") {
 			t.Errorf("unexpected error message: %v", errbody)
@@ -174,7 +181,7 @@ func TestDatasetListing(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	var dec []struct {
+	var body []struct {
 		ID     string
 		Name   string
 		Schema []struct {
@@ -183,10 +190,14 @@ func TestDatasetListing(t *testing.T) {
 			Nullable bool
 		}
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	for _, ds := range dec {
+	if dec.More() {
+		t.Fatal("body cannot contain multiple JSON objects")
+	}
+	for _, ds := range body {
 		if len(ds.ID) != 18 {
 			t.Errorf("unexpected dataset ID: %v", ds.ID)
 		}
@@ -256,8 +267,12 @@ func TestErrorsAreWrittenOut(t *testing.T) {
 		}
 
 		var resp map[string]string
-		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		dec := json.NewDecoder(rec.Body)
+		if err := dec.Decode(&resp); err != nil {
 			t.Fatal(err)
+		}
+		if dec.More() {
+			t.Fatal("body cannot contain multiple JSON objects")
 		}
 		if !(len(resp) == 1 && resp["error"] == test.error) {
 			t.Errorf("did not expect this response error: %v", resp)
@@ -358,20 +373,24 @@ func TestHandlingQueries(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		var dec struct {
+		var respBody struct {
 			Columns []string `json:"columns"`
 			Data    [][]int  `json:"data"`
 		}
-		if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&respBody); err != nil {
 			t.Fatal(err)
+		}
+		if dec.More() {
+			t.Fatal("body cannot contain multiple JSON objects")
 		}
 
 		expCol := []string{"foo", "bar"}
-		if !reflect.DeepEqual(expCol, dec.Columns) {
-			t.Errorf("expected the columns to be %v, got %v", expCol, dec.Columns)
+		if !reflect.DeepEqual(expCol, respBody.Columns) {
+			t.Errorf("expected the columns to be %v, got %v", expCol, respBody.Columns)
 		}
-		if !(len(dec.Data) == 2 && len(dec.Data[0]) == 2) {
-			t.Errorf("unexpected payload: %v", dec.Data)
+		if !(len(respBody.Data) == 2 && len(respBody.Data[0]) == 2) {
+			t.Errorf("unexpected payload: %v", respBody.Data)
 		}
 	}
 }
@@ -408,8 +427,12 @@ func TestInvalidQueries(t *testing.T) {
 		t.Fatalf("unexpected status: %v", resp.Status)
 	}
 	var rerr map[string]string
-	if err := json.NewDecoder(resp.Body).Decode(&rerr); err != nil {
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&rerr); err != nil {
 		t.Fatal(err)
+	}
+	if dec.More() {
+		t.Fatal("body cannot contain multiple JSON objects")
 	}
 	if rerr["error"] != `did not supply correct query parameters: json: unknown field "foobar"` {
 		t.Fatalf("expected query to fail with an unexpected query parameter, but got: %v", rerr["error"])
@@ -446,8 +469,12 @@ func TestBasicRawUpload(t *testing.T) {
 	defer resp.Body.Close()
 	var dec database.Dataset
 
-	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(&dec); err != nil {
 		t.Fatal(err)
+	}
+	if decoder.More() {
+		t.Fatal("body cannot contain multiple JSON objects")
 	}
 	if dec.ID.Otype != database.OtypeDataset {
 		t.Errorf("expecting an ID for a dataset")
@@ -490,8 +517,12 @@ func TestBasicAutoUpload(t *testing.T) {
 	defer resp.Body.Close()
 	var dec database.Dataset
 
-	if err := json.NewDecoder(resp.Body).Decode(&dec); err != nil {
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(&dec); err != nil {
 		t.Fatal(err)
+	}
+	if decoder.More() {
+		t.Fatal("body cannot contain multiple JSON objects")
 	}
 	if dec.Name != "auto_file" {
 		t.Errorf("expected the name to be %v, got %v", "auto_file", dec.Name)

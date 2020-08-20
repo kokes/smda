@@ -71,10 +71,15 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 			return
 		}
 		var qr query.Query
-		dec := json.NewDecoder(r.Body) // TODO: check that this call is correct: https://github.com/golang/go/issues/36225
+		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&qr); err != nil {
 			responseError(w, http.StatusBadRequest, fmt.Sprintf("did not supply correct query parameters: %v", err))
+			return
+		}
+		// NewDecoder(r).Decode() can lead to bugs: https://github.com/golang/go/issues/36225
+		if dec.More() {
+			responseError(w, http.StatusBadRequest, "body can only contain a single JSON object")
 			return
 		}
 		res, err := query.Run(db, qr)
