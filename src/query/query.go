@@ -67,6 +67,12 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 }
 
 // TODO: this is not expression aware, also ignores q.Select
+// doesn't seem to be NULL-aware
+// also, downstream .Hash methods do not take column order into consideration (XOR)\
+// Once we migrate this to take all of this into account, we should perhaps return `hashes`
+// and feed that into our aggregators? Or perhaps return `groupIds`, which would be a []int
+// identifying individual groups found - may be easier to work with than hashes (+ return the number
+// or unique rows, so that we can preallocate things)
 func aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]column.Chunk, error) {
 	if len(exprs) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
@@ -88,6 +94,7 @@ func aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]c
 	for _, stripeID := range ds.Stripes {
 		rcs := make([]column.Chunk, 0, len(exprs))
 		for _, colIndex := range colIndices {
+			// be careful about caching this chunk, because we do mutate it later on (.Append)
 			rc, err := db.ReadColumnFromStripe(ds, stripeID, colIndex)
 			if err != nil {
 				return nil, err
