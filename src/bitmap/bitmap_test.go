@@ -128,7 +128,8 @@ func TestBitmapAndNot(t *testing.T) {
 }
 
 func TestBitmapCloning(t *testing.T) {
-	bm1, bm2 := NewBitmap(1000), NewBitmap(1000)
+	var bm1, bm2 *Bitmap
+	bm1 = NewBitmap(1000)
 	rand.Seed(0)
 
 	for j := 0; j < 100; j++ {
