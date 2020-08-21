@@ -377,10 +377,6 @@ func validateHeaderAgainstSchema(header []string, schema TableSchema) error {
 }
 
 // This is how data gets in! This is the main entrypoint
-// TODO: log dependency on the raw dataset somehow? lineage?
-// TODO: we have quite an inconsistency here - LoadDatasetFromReaderAuto caches incoming data and loads them then,
-// this reads it without any caching (at the same time... if we cache it here, we'll be caching it twice,
-// because we load it from our Auto methods - we'd have to call the file reader here [should be fine])
 func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (*Dataset, error) {
 	dataset := NewDataset()
 	rl, err := newRawLoader(r, settings)

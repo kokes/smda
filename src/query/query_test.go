@@ -111,7 +111,7 @@ func TestLimitsInQueries(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	// TODO: edit this once we get chunk lengths
+	// TODO: edit this once we get chunk/stripe lengths
 	if qr.Data[0].Len() != len(firstColRaw) {
 		t.Errorf("omitting a limit should result in getting all the data, got only %d rows", qr.Data[0].Len())
 	}
