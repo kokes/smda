@@ -61,6 +61,11 @@ func TestInferDelimiterBasic(t *testing.T) {
 		firstLine         string
 		expectedDelimiter delimiter
 	}{
+		// there's nothing we can do for single-column datasets
+		{"hello", delimiterNone},
+		{"hello\n", delimiterNone},
+		{"hello\nworld\nhi\n", delimiterNone},
+
 		{"hello,world", delimiterComma},
 		{"hello,;world", delimiterComma}, // there is ordering to deal with ties
 		{"hello;,world", delimiterComma},
