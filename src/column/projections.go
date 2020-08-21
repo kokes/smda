@@ -18,6 +18,17 @@ var errProjectionNotSupported = errors.New("projection not supported")
 
 // when this gets too long, split it up into projections_string, projections_date etc.
 
+// ARCH: clear unused bits, which we may have altered in compFn? (only relevant for cap%64 != 0)
+// we might also have to data ^= ~nullability, so that we clear all the bits that are masked by being nulls
+func boolChunkFromParts(data []uint64, length int, null1, null2 *bitmap.Bitmap) *ChunkBools {
+	cdata := newChunkBoolsFromBits(data, length)
+	nulls := bitmap.Or(null1, null2)
+	if nulls != nil {
+		cdata.nullability = nulls
+	}
+	return cdata
+}
+
 func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, string) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
 	bm := bitmap.NewBitmap(nvals)
@@ -26,12 +37,7 @@ func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, 
 			bm.Set(j, true)
 		}
 	}
-	cdata := newChunkBoolsFromBits(bm.Data(), nvals)
-	nulls := bitmap.Or(c1.nullability, c2.nullability)
-	if nulls != nil {
-		cdata.nullability = nulls
-	}
-	return cdata, nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
 }
 
 func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) bool) (*ChunkBools, error) {
@@ -42,12 +48,7 @@ func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) boo
 			bm.Set(j, true)
 		}
 	}
-	cdata := newChunkBoolsFromBits(bm.Data(), nvals)
-	nulls := bitmap.Or(c1.nullability, c2.nullability)
-	if nulls != nil {
-		cdata.nullability = nulls
-	}
-	return cdata, nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
 }
 
 func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, float64) bool) (*ChunkBools, error) {
@@ -58,12 +59,7 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 			bm.Set(j, true)
 		}
 	}
-	cdata := newChunkBoolsFromBits(bm.Data(), nvals)
-	nulls := bitmap.Or(c1.nullability, c2.nullability)
-	if nulls != nil {
-		cdata.nullability = nulls
-	}
-	return cdata, nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
 }
 
 func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64) uint64) (*ChunkBools, error) {
@@ -75,14 +71,7 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 	for j, el := range c1d {
 		res[j] = compFn(el, c2d[j])
 	}
-	// ARCH: clear unused bits, which we may have altered in compFn? (only relevant for cap%64 != 0)
-	// we might also have to data ^= ~nullability, so that we clear all the bits that are masked by being nulls
-	cdata := newChunkBoolsFromBits(res, nvals)
-	nulls := bitmap.Or(c1.nullability, c2.nullability)
-	if nulls != nil {
-		cdata.nullability = nulls
-	}
-	return cdata, nil
+	return boolChunkFromParts(res, nvals, c1.nullability, c2.nullability), nil
 }
 
 type compFuncs struct {
