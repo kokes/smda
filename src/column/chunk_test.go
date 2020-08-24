@@ -3,6 +3,7 @@ package column
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -557,6 +558,93 @@ func TestHashing(t *testing.T) {
 		if !reflect.DeepEqual(hashes1, hashes2) {
 			t.Errorf("hashing twice did not result in the same slice: %v vs. %v", hashes1, hashes2)
 		}
+	}
+}
+
+func TestNewLiterals(t *testing.T) {
+	tests := []struct {
+		val      string
+		length   int
+		dtype    Dtype
+		jsondata string
+	}{
+		{"1", 0, DtypeInt, "[]"},
+		{"1.2", 0, DtypeFloat, "[]"},
+		{"foo", 0, DtypeString, "[]"},
+
+		{"1", 3, DtypeInt, "[1,1,1]"},
+		{"1e3", 1, DtypeFloat, "[1000]"},
+		{"1.2", 5, DtypeFloat, "[1.2,1.2,1.2,1.2,1.2]"},
+		{"true", 2, DtypeBool, "[true,true]"},
+		{"false", 3, DtypeBool, "[false,false,false]"},
+		{"foo", 5, DtypeString, "[\"foo\",\"foo\",\"foo\",\"foo\",\"foo\"]"},
+	}
+	for _, test := range tests {
+		chunk := NewChunkLiteral(test.val, test.length)
+		if chunk.Dtype() != test.dtype {
+			t.Errorf("expecting literal '%s' to have dtype of %s, got %s instead", test.val, test.dtype, chunk.Dtype())
+		}
+		if chunk.Len() != test.length {
+			t.Errorf("expecting literal '%s' to have length of %v, got %v instead", test.val, test.length, chunk.Len())
+		}
+
+		if err := chunk.AddValue(test.val); !errors.Is(err, errNoAddToLiterals) {
+			t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
+		}
+		if err := chunk.AddValues([]string{test.val}); !errors.Is(err, errNoAddToLiterals) {
+			t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
+		}
+		// if err := chunk.Prune(new(bitmap.Bitmap)); !errors.Is(err, ...) // currently panics (TODO)
+		// if err := chunk.MarshalBinary(); !errors.Is(err, ...) // not implemented yet (TODO)
+		if err := chunk.Append(chunk); !errors.Is(err, errNoAddToLiterals) {
+			t.Errorf("should not be able to append values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
+		}
+		h1 := make([]uint64, test.length)
+		h2 := make([]uint64, test.length)
+		chunk.Hash(h1)
+		chunk.Hash(h2)
+		if !reflect.DeepEqual(h1, h2) {
+			t.Errorf("hashing %v twice should result in the same slice, got %v and %v instead", test.val, h1, h2)
+		}
+
+		blob, err := chunk.MarshalJSON()
+		if err != nil {
+			t.Errorf("could not marshal %v into JSON", test.val)
+		}
+		if !bytes.Equal(blob, []byte(test.jsondata)) {
+			t.Errorf("expecting %v to json serialise as %s, got %s instead", test.val, test.jsondata, blob)
+		}
+	}
+}
+
+func TestTruths(t *testing.T) {
+	tests := []struct {
+		values string
+		result []bool
+	}{
+		{"", []bool{false}},
+		{"t", []bool{true}},
+		{"f", []bool{false}},
+		{"t,t,t", []bool{true, true, true}},
+		{"t,f,t", []bool{true, false, true}},
+		{"t,,t", []bool{true, false, true}},
+		{"f,,", []bool{false, false, false}},
+		{",,", []bool{false, false, false}},
+	}
+
+	for _, test := range tests {
+		rc := newChunkBools()
+		if err := rc.AddValues(strings.Split(test.values, ",")); err != nil {
+			t.Error(err)
+			continue
+		}
+		truths := rc.Truths()
+		expected := bitmap.NewBitmapFromBools(test.result)
+
+		if !reflect.DeepEqual(truths, expected) {
+			t.Errorf("expected Truths(%s) to result in %v, got %b instead", test.values, test.result, truths.Data())
+		}
+
 	}
 }
 

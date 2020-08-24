@@ -56,32 +56,60 @@ func TestEqsSameType(t *testing.T) {
 	tests := []struct {
 		dtype            Dtype
 		fnc              func(Chunk, Chunk) (Chunk, error)
+		nrows            int
 		c1, c2, expected string
 	}{
 		// eq
-		{DtypeInt, EvalEq, "1,2,3", "3,3,3", "f,f,t"},
-		{DtypeFloat, EvalEq, "1.2,2.2,3", "3,2.2,3.0", "f,t,t"},
-		// cannot use reflect.DeepEqual on this, because we flip unused bits in here
-		// will probably adapt ChunksEqual for this
-		// {DtypeBool, EvalEq, "t,t,f,t", "f,t,f,f", "f,t,t,f"},
-		{DtypeString, EvalEq, "foo,bar,baz", "foo,bak,baz", "t,f,t"},
+		{DtypeInt, EvalEq, 3, "1,2,3", "3,3,3", "f,f,t"},
+		{DtypeFloat, EvalEq, 3, "1.2,2.2,3", "3,2.2,3.0", "f,t,t"},
+		{DtypeBool, EvalEq, 4, "t,t,f,t", "f,t,f,f", "f,t,t,f"},
+		{DtypeBool, EvalNeq, 4, "t,t,f,t", "f,t,f,f", "t,f,f,t"},
+		{DtypeString, EvalEq, 3, "foo,bar,baz", "foo,bak,baz", "t,f,t"},
 		// eq with nulls
-		{DtypeInt, EvalEq, "1,,3", "1,2,3", "t,,t"}, // once we implement ChunksEqual here, we can compare 1,,3 and 1,0,3
+		{DtypeInt, EvalEq, 3, "1,,3", "1,2,3", "t,,t"}, // once we implement ChunksEqual here, we can compare 1,,3 and 1,0,3
 		// neq
-		{DtypeInt, EvalNeq, "1,2,3", "3,3,3", "t,t,f"},
-		{DtypeFloat, EvalNeq, "1,2.0,3.1", "3,2,3", "t,f,t"},
+		{DtypeInt, EvalNeq, 3, "1,2,3", "3,3,3", "t,t,f"},
+		{DtypeFloat, EvalNeq, 3, "1,2.0,3.1", "3,2,3", "t,f,t"},
+
+		// literals
+		{DtypeInt, EvalEq, 3, "lit:1", "3,1,2", "f,t,f"},
+		{DtypeInt, EvalEq, 3, "3,1,2", "lit:1", "f,t,f"},
+		{DtypeInt, EvalNeq, 3, "lit:1", "3,1,2", "t,f,t"},
+		{DtypeInt, EvalNeq, 3, "3,1,2", "lit:1", "t,f,t"},
+		{DtypeInt, EvalGte, 3, "lit:2", "3,1,2", "f,t,t"},
+		{DtypeFloat, EvalEq, 3, "3,1,2", "lit:1.0", "f,t,f"},
+		{DtypeBool, EvalNeq, 3, "lit:t", "f,t,f", "t,f,t"},
+		{DtypeBool, EvalGt, 2, "t,f", "lit:t", "f,f"},
+		{DtypeString, EvalGt, 3, "lit:ahoy", "ahey,boo,a", "t,f,t"},
+		{DtypeString, EvalLte, 3, "ahey,boo,a", "lit:ahoy", "t,f,t"},
+		// all literals
+		// TODO: probably doesn't work due to the nullability==nil mismatch
+		// perhaps use ChunksEqual and make the distiction there
+		// or maybe drop the nullability allocation in the chunks constructor (will need to fix MarshalBinary for that)
+		// {DtypeInt, EvalEq, 3, "lit:1", "lit:2", "f,f,f"},
+		// {DtypeFloat, EvalEq, 3, "lit:1", "lit:2", "f,f,f"},
 	}
+	litPrefix := "lit:"
 	for _, test := range tests {
 		schema := Schema{Dtype: test.dtype}
 		c1, c2, expected := NewChunkFromSchema(schema), NewChunkFromSchema(schema), NewChunkFromSchema(Schema{Dtype: DtypeBool})
-		if err := c1.AddValues(strings.Split(test.c1, ",")); err != nil {
-			t.Error(err)
-			continue
+		if strings.HasPrefix(test.c1, litPrefix) {
+			c1 = NewChunkLiteral(strings.TrimPrefix(test.c1, litPrefix), test.nrows)
+		} else {
+			if err := c1.AddValues(strings.Split(test.c1, ",")); err != nil {
+				t.Error(err)
+				continue
+			}
 		}
-		if err := c2.AddValues(strings.Split(test.c2, ",")); err != nil {
-			t.Error(err)
-			continue
+		if strings.HasPrefix(test.c2, litPrefix) {
+			c2 = NewChunkLiteral(strings.TrimPrefix(test.c2, litPrefix), test.nrows)
+		} else {
+			if err := c2.AddValues(strings.Split(test.c2, ",")); err != nil {
+				t.Error(err)
+				continue
+			}
 		}
+
 		if err := expected.AddValues(strings.Split(test.expected, ",")); err != nil {
 			t.Error(err)
 			continue

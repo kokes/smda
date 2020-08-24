@@ -22,6 +22,37 @@ func TestBasicEval(t *testing.T) {
 		{"foo123 <= bar134", column.DtypeBool, []string{"t", "t", "t"}},
 		{"bool_tff || bool_ftf", column.DtypeBool, []string{"t", "t", "f"}},
 		{"bool_tff && bool_ftf", column.DtypeBool, []string{"f", "f", "f"}},
+
+		// literals
+		{"foo123 > 1", column.DtypeBool, []string{"f", "t", "t"}},
+		{"foo123 >= 1", column.DtypeBool, []string{"t", "t", "t"}},
+		{"1 < foo123", column.DtypeBool, []string{"f", "t", "t"}},
+		{"2 >= foo123", column.DtypeBool, []string{"t", "t", "f"}},
+
+		{"float123 > 1.1", column.DtypeBool, []string{"f", "t", "t"}},
+		{"float123 >= 0.9", column.DtypeBool, []string{"t", "t", "t"}},
+		{"1.1 < float123", column.DtypeBool, []string{"f", "t", "t"}},
+		{"2.2 >= float123", column.DtypeBool, []string{"t", "t", "f"}},
+
+		{"bool_tff = true", column.DtypeBool, []string{"t", "f", "f"}},
+		{"bool_tff != true", column.DtypeBool, []string{"f", "t", "t"}},
+		{"bool_tff = false", column.DtypeBool, []string{"f", "t", "t"}},
+		{"bool_tff >= false", column.DtypeBool, []string{"t", "t", "t"}},
+		{"bool_tff > false", column.DtypeBool, []string{"t", "f", "f"}},
+		{"false = bool_tff", column.DtypeBool, []string{"f", "t", "t"}},
+		{"false <= bool_tff", column.DtypeBool, []string{"t", "t", "t"}},
+		{"false < bool_tff", column.DtypeBool, []string{"t", "f", "f"}},
+
+		{"str_foo >= str_foo", column.DtypeBool, []string{"t", "t", "t"}},
+		{"str_foo != str_foo", column.DtypeBool, []string{"f", "f", "f"}},
+		{"str_foo = 'o'", column.DtypeBool, []string{"f", "t", "t"}},
+		// TODO (BUG): we somehow think 'f' is a literal false
+		// this is because we feed the 'f' into NewChunkLiteral, which does a type guess
+		// {"str_foo != 'f'", column.DtypeBool, []string{"f", "t", "t"}},
+
+		// all literals
+		// doesn't work yet, because we don't have stripe length info in our expression evaluator
+		// {"(foo123 > 0) && (2 >= 1)", column.DtypeBool, []string{"t", "t", "t"}},
 	}
 
 	db, err := database.NewDatabase(nil)
@@ -37,8 +68,10 @@ func TestBasicEval(t *testing.T) {
 	ds, err := db.LoadDatasetFromMap(map[string][]string{
 		"foo123":   {"1", "2", "3"},
 		"bar134":   {"1", "3", "4"},
+		"float123": {"1.0", "2.", "3"},
 		"bool_tff": {"t", "f", "f"},
 		"bool_ftf": {"f", "t", "f"},
+		"str_foo":  {"f", "o", "o"},
 	})
 	if err != nil {
 		t.Fatal(err)

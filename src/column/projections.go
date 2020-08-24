@@ -20,6 +20,7 @@ var errProjectionNotSupported = errors.New("projection not supported")
 
 // ARCH: clear unused bits, which we may have altered in compFn? (only relevant for cap%64 != 0)
 // we might also have to data ^= ~nullability, so that we clear all the bits that are masked by being nulls
+// OPTIM: this copies, but in some (most?) cases, we create new bitmaps, so there's no need to copy here
 func boolChunkFromParts(data []uint64, length int, null1, null2 *bitmap.Bitmap) *ChunkBools {
 	cdata := newChunkBoolsFromBits(data, length)
 	nulls := bitmap.Or(null1, null2)
@@ -31,46 +32,195 @@ func boolChunkFromParts(data []uint64, length int, null1, null2 *bitmap.Bitmap) 
 
 func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, string) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
+	// if one column is a literal, it won't have the right length set
+	// TODO: remove this once we implement stripe lengths
+	if c2.Len() > nvals {
+		nvals = c2.Len()
+	}
 	bm := bitmap.NewBitmap(nvals)
-	for j := 0; j < nvals; j++ {
-		if compFn(c1.nthValue(j), c2.nthValue(j)) {
-			bm.Set(j, true)
+	switch {
+	case c1.isLiteral && c2.isLiteral:
+		// OPTIM: this should be a part of constant folding and should never get to this point
+		val := compFn(c1.nthValue(0), c2.nthValue(0))
+		if val {
+			bm.Invert()
+		}
+	case c1.isLiteral || c2.isLiteral:
+		var eval func(j int) bool
+		if c1.isLiteral {
+			val := c1.nthValue(0)
+			eval = func(j int) bool { return compFn(val, c2.nthValue(j)) }
+		}
+		if c2.isLiteral {
+			val := c2.nthValue(0)
+			eval = func(j int) bool { return compFn(c1.nthValue(j), val) }
+		}
+		for j := 0; j < nvals; j++ {
+			if eval(j) {
+				bm.Set(j, true)
+			}
+		}
+	default:
+		for j := 0; j < nvals; j++ {
+			if compFn(c1.nthValue(j), c2.nthValue(j)) {
+				bm.Set(j, true)
+			}
 		}
 	}
+
 	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
 }
 
+// OPTIM: instead of treating literals in a separate tree, we could have data access functions:
+//		`c1data(j) = func(...) {return c1.Data[j]}` for dense chunks and
+//		`c1data(j) = func(...) return c1.Data[0]}` for literals
+// I'm worried that this runtime func assignment will limit inlining and thus lead to large overhead of
+// function calls
+// Maybe try this once we have tests and benchmarks in place
 func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
+	// if one column is a literal, it won't have the right length set
+	// TODO: remove this once we implement stripe lengths
+	if c2.Len() > nvals {
+		nvals = c2.Len()
+	}
 	bm := bitmap.NewBitmap(nvals)
-	for j, el := range c1.data {
-		if compFn(el, c2.data[j]) {
-			bm.Set(j, true)
+
+	switch {
+	case c1.isLiteral && c2.isLiteral:
+		// OPTIM: this should be a part of constant folding and should never get to this point
+		val := compFn(c1.data[0], c2.data[0])
+		if val {
+			bm.Invert()
+		}
+	case c1.isLiteral || c2.isLiteral:
+		var eval func(j int) bool
+		if c1.isLiteral {
+			val := c1.data[0]
+			eval = func(j int) bool { return compFn(val, c2.data[j]) }
+		}
+		if c2.isLiteral {
+			val := c2.data[0]
+			eval = func(j int) bool { return compFn(c1.data[j], val) }
+		}
+		for j := 0; j < nvals; j++ {
+			if eval(j) {
+				bm.Set(j, true)
+			}
+		}
+	default:
+		for j, el := range c1.data {
+			if compFn(el, c2.data[j]) {
+				bm.Set(j, true)
+			}
 		}
 	}
 	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
 }
 
+// ARCH: this function is identical to compFactoryInts, so it's probably the first to make use of generics
 func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, float64) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
+	// if one column is a literal, it won't have the right length set
+	// TODO: remove this once we implement stripe lengths
+	if c2.Len() > nvals {
+		nvals = c2.Len()
+	}
 	bm := bitmap.NewBitmap(nvals)
-	for j, el := range c1.data {
-		if compFn(el, c2.data[j]) {
-			bm.Set(j, true)
+
+	switch {
+	case c1.isLiteral && c2.isLiteral:
+		// OPTIM: this should be a part of constant folding and should never get to this point
+		val := compFn(c1.data[0], c2.data[0])
+		if val {
+			bm.Invert()
+		}
+	case c1.isLiteral || c2.isLiteral:
+		var eval func(j int) bool
+		if c1.isLiteral {
+			val := c1.data[0]
+			eval = func(j int) bool { return compFn(val, c2.data[j]) }
+		}
+		if c2.isLiteral {
+			val := c2.data[0]
+			eval = func(j int) bool { return compFn(c1.data[j], val) }
+		}
+		for j := 0; j < nvals; j++ {
+			if eval(j) {
+				bm.Set(j, true)
+			}
+		}
+	default:
+		for j, el := range c1.data {
+			if compFn(el, c2.data[j]) {
+				bm.Set(j, true)
+			}
 		}
 	}
 	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
 }
+
+const ALL_ZEROS = uint64(0)
+const ALL_ONES = uint64(1<<64 - 1)
 
 func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64) uint64) (*ChunkBools, error) {
 	nvals := c1.Len()
-	c1d := c1.data.Data()
-	c2d := c2.data.Data()
-	res := make([]uint64, len(c1d))
-
-	for j, el := range c1d {
-		res[j] = compFn(el, c2d[j])
+	// if one column is a literal, it won't have the right length set
+	// TODO: remove this once we implement stripe lengths
+	if c2.Len() > nvals {
+		nvals = c2.Len()
 	}
+	res := make([]uint64, (nvals+63)/64)
+
+	switch {
+	case c1.isLiteral && c2.isLiteral:
+		// OPTIM: this should be a part of constant folding and should never get to this point
+		panic("not implemented yet") // TODO
+		// idea: compFn the thing, extract that one relevant bit and then set all values in res
+		// to either all zeroes or all ones
+		// but first get some test cases for it (be careful about all the other bits in val)
+		// val := compFn(c1.data.Data()[0], c2.data.Data()[0])
+		// if val & 1 > 0 {
+		// 	for j := 0; j < len(res); j++ {
+		// 		res[j] = ALL_ONES
+		// 	}
+		// }
+	case c1.isLiteral || c2.isLiteral:
+		var eval func(j int) uint64
+		if c1.isLiteral {
+			mask := ALL_ZEROS
+			if c1.data.Get(0) {
+				mask = ALL_ONES
+			}
+			data := c2.data.Data()
+			eval = func(j int) uint64 { return compFn(mask, data[j]) }
+		}
+		if c2.isLiteral {
+			mask := ALL_ZEROS
+			if c2.data.Get(0) {
+				mask = ALL_ONES
+			}
+			data := c1.data.Data()
+			eval = func(j int) uint64 { return compFn(data[j], mask) }
+		}
+		for j := 0; j < len(res); j++ {
+			res[j] = eval(j)
+		}
+	default:
+		c2d := c2.data.Data()
+		for j, el := range c1.data.Data() {
+			res[j] = compFn(el, c2d[j])
+		}
+	}
+
+	// we may have flipped some bits that are not relevant (beyond the bitmap's cap)
+	// so we have to reset them
+	if nvals%64 != 0 {
+		rem := nvals % 64
+		mask := uint64(1<<rem - 1)
+		res[len(res)-1] &= mask
+	}
+
 	return boolChunkFromParts(res, nvals, c1.nullability, c2.nullability), nil
 }
 

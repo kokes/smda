@@ -21,7 +21,11 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 			return nil, fmt.Errorf("column %v not found", expr.value)
 		}
 		return col, nil
-	// case exprLiteralBool, exprLiteralFloat, exprLiteralInt, exprLiteralString, exprLiteralNull: // TODO: expr.isLiteral?
+	case exprLiteralBool, exprLiteralFloat, exprLiteralInt, exprLiteralString, exprLiteralNull:
+		// TODO: there's no way of knowing the length now
+		// we'll need to pass in stripe length into Evaluate to deal with these cases
+		length := 0
+		return column.NewChunkLiteral(expr.value, length), nil
 	// 	...
 	// case exprFunCall
 	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,
