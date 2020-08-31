@@ -190,7 +190,13 @@ func (bm *Bitmap) Invert() {
 }
 
 // Serialize writes this bitmap into a writer, so that it can be deserialised later
-func (bm *Bitmap) Serialize(w io.Writer) (int, error) {
+func Serialize(w io.Writer, bm *Bitmap) (int, error) {
+	if bm == nil {
+		if err := binary.Write(w, binary.LittleEndian, uint32(0)); err != nil {
+			return 0, err
+		}
+		return 4, nil
+	}
 	cap := uint32(bm.cap)
 	if err := binary.Write(w, binary.LittleEndian, cap); err != nil {
 		return 0, err
@@ -208,6 +214,9 @@ func DeserializeBitmapFromReader(r io.Reader) (*Bitmap, error) {
 	var cap uint32
 	if err := binary.Read(r, binary.LittleEndian, &cap); err != nil {
 		return nil, err
+	}
+	if cap == 0 {
+		return nil, nil
 	}
 	var nelements uint32
 	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {

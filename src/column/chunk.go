@@ -15,7 +15,6 @@ import (
 )
 
 var errAppendTypeMismatch = errors.New("cannot append chunks of differing types")
-var errAppendNullabilityMismatch = errors.New("when appending, both chunks need to have the same nullability")
 var errNoAddToLiterals = errors.New("literal chunks are not meant to be added values to")
 var errLiteralsCannotBeSerialised = errors.New("cannot serialise literal columns")
 
@@ -180,28 +179,24 @@ func newChunkStrings() *ChunkStrings {
 	offsets := make([]uint32, 1, defaultChunkCap)
 	offsets[0] = 0
 	return &ChunkStrings{
-		data:        make([]byte, 0, defaultChunkCap),
-		offsets:     offsets,
-		nullability: bitmap.NewBitmap(0),
+		data:    make([]byte, 0, defaultChunkCap),
+		offsets: offsets,
 	}
 }
 func newChunkInts() *ChunkInts {
 	return &ChunkInts{
-		data:        make([]int64, 0, defaultChunkCap),
-		nullability: bitmap.NewBitmap(0),
+		data: make([]int64, 0, defaultChunkCap),
 	}
 }
 func newChunkFloats() *ChunkFloats {
 	return &ChunkFloats{
-		data:        make([]float64, 0, defaultChunkCap),
-		nullability: bitmap.NewBitmap(0),
+		data: make([]float64, 0, defaultChunkCap),
 	}
 }
 
 func newChunkBools() *ChunkBools {
 	return &ChunkBools{
-		data:        bitmap.NewBitmap(0),
-		nullability: bitmap.NewBitmap(0),
+		data: bitmap.NewBitmap(0),
 	}
 }
 
@@ -625,8 +620,11 @@ func (rc *ChunkStrings) Append(tc Chunk) error {
 	if !ok {
 		return errAppendTypeMismatch
 	}
-	if (rc.nullability == nil && nrc.nullability != nil) || (rc.nullability != nil && nrc.nullability == nil) {
-		return errAppendNullabilityMismatch
+	if rc.nullability == nil && nrc.nullability != nil {
+		rc.nullability = bitmap.NewBitmap(rc.Len())
+	}
+	if nrc.nullability == nil && rc.nullability != nil {
+		nrc.nullability = bitmap.NewBitmap(nrc.Len())
 	}
 	if rc.nullability != nil {
 		rc.nullability.Append(nrc.nullability)
@@ -654,8 +652,11 @@ func (rc *ChunkInts) Append(tc Chunk) error {
 	if !ok {
 		return errAppendTypeMismatch
 	}
-	if (rc.nullability == nil && nrc.nullability != nil) || (rc.nullability != nil && nrc.nullability == nil) {
-		return errAppendNullabilityMismatch
+	if rc.nullability == nil && nrc.nullability != nil {
+		rc.nullability = bitmap.NewBitmap(rc.Len())
+	}
+	if nrc.nullability == nil && rc.nullability != nil {
+		nrc.nullability = bitmap.NewBitmap(nrc.Len())
 	}
 	if rc.nullability != nil {
 		rc.nullability.Append(nrc.nullability)
@@ -676,8 +677,11 @@ func (rc *ChunkFloats) Append(tc Chunk) error {
 	if !ok {
 		return errAppendTypeMismatch
 	}
-	if (rc.nullability == nil && nrc.nullability != nil) || (rc.nullability != nil && nrc.nullability == nil) {
-		return errAppendNullabilityMismatch
+	if rc.nullability == nil && nrc.nullability != nil {
+		rc.nullability = bitmap.NewBitmap(rc.Len())
+	}
+	if nrc.nullability == nil && rc.nullability != nil {
+		nrc.nullability = bitmap.NewBitmap(nrc.Len())
 	}
 	if rc.nullability != nil {
 		rc.nullability.Append(nrc.nullability)
@@ -698,8 +702,11 @@ func (rc *ChunkBools) Append(tc Chunk) error {
 	if !ok {
 		return errAppendTypeMismatch
 	}
-	if (rc.nullability == nil && nrc.nullability != nil) || (rc.nullability != nil && nrc.nullability == nil) {
-		return errAppendNullabilityMismatch
+	if rc.nullability == nil && nrc.nullability != nil {
+		rc.nullability = bitmap.NewBitmap(rc.Len())
+	}
+	if nrc.nullability == nil && rc.nullability != nil {
+		nrc.nullability = bitmap.NewBitmap(nrc.Len())
 	}
 	if rc.nullability != nil {
 		rc.nullability.Append(nrc.nullability)
@@ -753,6 +760,10 @@ func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 		// be careful here, AddValue has its own nullability logic and we don't want to mess with that
 		nc.AddValue(rc.nthValue(j))
 		if rc.nullability != nil && rc.nullability.Get(j) {
+			// ARCH: consider making Set a package function (bitmap.Set) to handle nilness
+			if nc.nullability == nil {
+				nc.nullability = bitmap.NewBitmap(index)
+			}
 			nc.nullability.Set(index, true)
 		}
 		// nc.length++ // once we remove AddValue, we'll need this
@@ -760,7 +771,7 @@ func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 	}
 
 	// make sure the nullability vector aligns with the data
-	if rc.nullability != nil {
+	if nc.nullability != nil {
 		nc.nullability.Ensure(nc.Len())
 	}
 
@@ -791,6 +802,9 @@ func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
 		}
 		nc.data = append(nc.data, rc.data[j])
 		if rc.nullability != nil && rc.nullability.Get(j) {
+			if nc.nullability == nil {
+				nc.nullability = bitmap.NewBitmap(index)
+			}
 			nc.nullability.Set(index, true)
 		}
 		nc.length++
@@ -798,7 +812,7 @@ func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
 	}
 
 	// make sure the nullability vector aligns with the data
-	if rc.nullability != nil {
+	if nc.nullability != nil {
 		nc.nullability.Ensure(nc.Len())
 	}
 
@@ -829,6 +843,9 @@ func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
 		}
 		nc.data = append(nc.data, rc.data[j])
 		if rc.nullability != nil && rc.nullability.Get(j) {
+			if nc.nullability == nil {
+				nc.nullability = bitmap.NewBitmap(index)
+			}
 			nc.nullability.Set(index, true)
 		}
 		nc.length++
@@ -836,7 +853,7 @@ func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
 	}
 
 	// make sure the nullability vector aligns with the data
-	if rc.nullability != nil {
+	if nc.nullability != nil {
 		nc.nullability.Ensure(nc.Len())
 	}
 
@@ -868,6 +885,9 @@ func (rc *ChunkBools) Prune(bm *bitmap.Bitmap) Chunk {
 		// OPTIM: not need to set false values, we already have them set as zero
 		nc.data.Set(index, rc.data.Get(j))
 		if rc.nullability != nil && rc.nullability.Get(j) {
+			if nc.nullability == nil {
+				nc.nullability = bitmap.NewBitmap(index)
+			}
 			nc.nullability.Set(index, true)
 		}
 		nc.length++
@@ -875,7 +895,7 @@ func (rc *ChunkBools) Prune(bm *bitmap.Bitmap) Chunk {
 	}
 
 	// make sure the nullability vector aligns with the data
-	if rc.nullability != nil {
+	if nc.nullability != nil {
 		nc.nullability.Ensure(nc.Len())
 	}
 
@@ -1006,6 +1026,13 @@ func deserializeChunkBools(r io.Reader) (*ChunkBools, error) {
 	if err != nil {
 		return nil, err
 	}
+	// an empty bitmap deserialises as a <nil>, so we'll initialise it here, just to
+	// make it a valid container
+	// Note: it doesn't deserialise as a NewBitmap(0), because we want our nullability bitmaps
+	// to stay small and possibly empty
+	if data == nil {
+		data = bitmap.NewBitmap(0)
+	}
 	return &ChunkBools{
 		data:        data,
 		nullability: bm,
@@ -1029,7 +1056,7 @@ func (rc *ChunkStrings) MarshalBinary() ([]byte, error) {
 		return nil, errLiteralsCannotBeSerialised
 	}
 	w := new(bytes.Buffer)
-	_, err := rc.nullability.Serialize(w)
+	_, err := bitmap.Serialize(w, rc.nullability)
 	if err != nil {
 		return nil, err
 	}
@@ -1059,7 +1086,7 @@ func (rc *ChunkInts) MarshalBinary() ([]byte, error) {
 		return nil, errLiteralsCannotBeSerialised
 	}
 	w := new(bytes.Buffer)
-	_, err := rc.nullability.Serialize(w)
+	_, err := bitmap.Serialize(w, rc.nullability)
 	if err != nil {
 		return nil, err
 	}
@@ -1077,7 +1104,7 @@ func (rc *ChunkFloats) MarshalBinary() ([]byte, error) {
 		return nil, errLiteralsCannotBeSerialised
 	}
 	w := new(bytes.Buffer)
-	_, err := rc.nullability.Serialize(w)
+	_, err := bitmap.Serialize(w, rc.nullability)
 	if err != nil {
 		return nil, err
 	}
@@ -1094,7 +1121,7 @@ func (rc *ChunkBools) MarshalBinary() ([]byte, error) {
 		return nil, errLiteralsCannotBeSerialised
 	}
 	w := new(bytes.Buffer)
-	_, err := rc.nullability.Serialize(w)
+	_, err := bitmap.Serialize(w, rc.nullability)
 	if err != nil {
 		return nil, err
 	}
@@ -1103,7 +1130,7 @@ func (rc *ChunkBools) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(w, binary.LittleEndian, rc.length); err != nil {
 		return nil, err
 	}
-	_, err = rc.data.Serialize(w)
+	_, err = bitmap.Serialize(w, rc.data)
 	if err != nil {
 		return nil, err
 	}

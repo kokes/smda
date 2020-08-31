@@ -148,7 +148,7 @@ func TestBitmapCloning(t *testing.T) {
 func TestBitmapRoundtrip(t *testing.T) {
 	bitmaps := []*Bitmap{
 		NewBitmapFromBools([]bool{true, false, true, false}),
-		NewBitmap(0),
+		// NewBitmap(0), // this now deserialises as nil, so we can't test it like this
 		NewBitmap(1),
 		NewBitmap(9),
 		NewBitmap(64),
@@ -159,7 +159,7 @@ func TestBitmapRoundtrip(t *testing.T) {
 	}
 	for _, b := range bitmaps {
 		bf := new(bytes.Buffer)
-		_, err := b.Serialize(bf)
+		_, err := Serialize(bf, b)
 		if err != nil {
 			t.Error(err)
 			return

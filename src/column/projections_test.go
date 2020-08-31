@@ -83,11 +83,8 @@ func TestEqsSameType(t *testing.T) {
 		{DtypeString, EvalGt, 3, "lit:ahoy", "ahey,boo,a", "t,f,t"},
 		{DtypeString, EvalLte, 3, "ahey,boo,a", "lit:ahoy", "t,f,t"},
 		// all literals
-		// TODO: probably doesn't work due to the nullability==nil mismatch
-		// perhaps use ChunksEqual and make the distiction there
-		// or maybe drop the nullability allocation in the chunks constructor (will need to fix MarshalBinary for that)
-		// {DtypeInt, EvalEq, 3, "lit:1", "lit:2", "f,f,f"},
-		// {DtypeFloat, EvalEq, 3, "lit:1", "lit:2", "f,f,f"},
+		{DtypeInt, EvalEq, 3, "lit:1", "lit:2", "f,f,f"},
+		{DtypeFloat, EvalEq, 3, "lit:1", "lit:2", "f,f,f"},
 	}
 	litPrefix := "lit:"
 	for _, test := range tests {
