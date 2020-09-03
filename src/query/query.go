@@ -95,6 +95,7 @@ func aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]c
 		rcs := make([]column.Chunk, 0, len(exprs))
 		for _, colIndex := range colIndices {
 			// be careful about caching this chunk, because we do mutate it later on (.Append)
+			// OPTIM/ARCH: question is whether we need to mutate here
 			rc, err := db.ReadColumnFromStripe(ds, stripeID, colIndex)
 			if err != nil {
 				return nil, err

@@ -1,0 +1,3 @@
+package column
+
+// EvalNullIf

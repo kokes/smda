@@ -51,6 +51,9 @@ func TestBasicEval(t *testing.T) {
 		// all literals
 		// doesn't work yet, because we don't have stripe length info in our expression evaluator
 		// {"(foo123 > 0) && (2 >= 1)", column.DtypeBool, []string{"t", "t", "t"}},
+
+		// functions
+		// {"nullif(foo123, 2)", column.DtypeInt, []string{"1", "", "3"}},
 	}
 
 	db, err := database.NewDatabase(nil)

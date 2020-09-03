@@ -34,7 +34,23 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 	// null is not a literal type yet
 	// case exprLiteralNull:
 	// 	return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0), nil
-	// case exprFunCall
+	case exprFunCall:
+		// ARCH: abstract out this `children` construction and use it elsewhere (in exprEquality etc.)
+		children := make([]column.Chunk, 0, len(expr.children))
+		for _, ch := range expr.children {
+			child, err := Evaluate(ch, columnData)
+			if err != nil {
+				return nil, err
+			}
+			children = append(children, child)
+		}
+		// expr.value:
+		switch expr.value {
+		case "nullif":
+			return column.EvalNullIf(children...)
+		default:
+			return nil, fmt.Errorf("function %v not supported", expr.value)
+		}
 	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,
 		exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprAnd, exprOr:
 		c1, err := Evaluate(expr.children[0], columnData)

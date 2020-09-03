@@ -94,6 +94,7 @@ func (expr *Expression) IsValid(ts database.TableSchema) error {
 	case exprFunCall:
 		// TODO: check the function exists?
 		// also check its arguments (e.g. nullif needs exactly two)
+		// TODO (ARCH): it would be best if ReturnType and IsValid were merged, I guess
 	default:
 		return fmt.Errorf("unsupported expression type for validity checks: %v", expr.etype)
 	}

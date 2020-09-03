@@ -114,8 +114,13 @@ func (expr *Expression) String() string {
 		return expr.value
 	case exprLiteralNull:
 		return "NULL"
-	// TODO: finish this stringer
-	// exprFunCall
+	case exprFunCall:
+		args := make([]string, 0, len(expr.children))
+		for _, ch := range expr.children {
+			args = append(args, ch.String())
+		}
+
+		return fmt.Sprintf("%s(%s)", expr.value, strings.Join(args, ", "))
 	default:
 		return "unsupported expression"
 	}
