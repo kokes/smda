@@ -29,6 +29,7 @@ type Chunk interface {
 	Hash([]uint64)
 	Len() int
 	Dtype() Dtype
+	Clone() Chunk
 }
 
 // ChunksEqual compares two chunks, even if they contain []float64 data
@@ -304,6 +305,7 @@ const hashBoolFalse = uint64(0x1549571b97ff2995)
 
 // Hash hashes this chunk's values into a provded container
 func (rc *ChunkBools) Hash(hashes []uint64) {
+	// TODO: we may have to revisit the idea that literal chunks cannot be nullable (review all the uses of isLiteral in this package)
 	if rc.isLiteral {
 		hashVal := hashBoolFalse
 		if rc.data.Get(0) {
@@ -1299,4 +1301,74 @@ func (rc *ChunkBools) MarshalJSON() ([]byte, error) {
 func (rc *ChunkNulls) MarshalJSON() ([]byte, error) {
 	ret := make([]*uint8, rc.length) // how else can we create a [null, null, null, ...] in JSON?
 	return json.Marshal(ret)
+}
+
+func (rc *ChunkBools) Clone() Chunk {
+	var nulls, data *bitmap.Bitmap
+	// ARCH: consider bitmap.Clone(bm) to handle nils
+	if rc.nullability != nil {
+		nulls = rc.nullability.Clone()
+	}
+	if rc.data != nil {
+		data = rc.data.Clone()
+	}
+	return &ChunkBools{
+		isLiteral:   rc.isLiteral,
+		data:        data,
+		nullability: nulls,
+		length:      rc.length,
+	}
+}
+
+func (rc *ChunkFloats) Clone() Chunk {
+	var nulls *bitmap.Bitmap
+	if rc.nullability != nil {
+		nulls = rc.nullability.Clone()
+	}
+
+	data := append(rc.data[:0:0], rc.data...)
+
+	return &ChunkFloats{
+		isLiteral:   rc.isLiteral,
+		data:        data,
+		nullability: nulls,
+		length:      rc.length,
+	}
+}
+
+func (rc *ChunkInts) Clone() Chunk {
+	var nulls *bitmap.Bitmap
+	if rc.nullability != nil {
+		nulls = rc.nullability.Clone()
+	}
+
+	data := append(rc.data[:0:0], rc.data...)
+
+	return &ChunkInts{
+		isLiteral:   rc.isLiteral,
+		data:        data,
+		nullability: nulls,
+		length:      rc.length,
+	}
+}
+
+func (rc *ChunkNulls) Clone() Chunk {
+	return &ChunkNulls{length: rc.length}
+}
+
+func (rc *ChunkStrings) Clone() Chunk {
+	var nulls *bitmap.Bitmap
+	if rc.nullability != nil {
+		nulls = rc.nullability.Clone()
+	}
+	offsets := append(rc.offsets[:0:0], rc.offsets...)
+	data := append(rc.data[:0:0], rc.data...)
+
+	return &ChunkStrings{
+		isLiteral:   rc.isLiteral,
+		data:        data,
+		offsets:     offsets,
+		nullability: nulls,
+		length:      rc.length,
+	}
 }

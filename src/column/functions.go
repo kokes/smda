@@ -15,6 +15,6 @@ func EvalNullIf(cs ...Chunk) (Chunk, error) {
 	// 	return cs[0], nil
 	// }
 	// cb := cs[0].Clone()
-	// cb.nullability.Or(bm) - also Or with cs[1].nullability, but only if cs[1] is not a literal
+	// cb.nullability.Or(bm)
 	return nil, nil
 }

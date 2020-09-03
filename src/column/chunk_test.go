@@ -684,3 +684,4 @@ func BenchmarkHashingFloats(b *testing.B) {
 // tests for columnNulls
 // tests for .Dtype()
 // TestFilterAndPrune
+// Clone - reflect.DeepEqual? ChunksEqual? isLiteral, null and not null etc.
