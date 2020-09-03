@@ -580,39 +580,42 @@ func TestNewLiterals(t *testing.T) {
 		{"foo", 5, DtypeString, "[\"foo\",\"foo\",\"foo\",\"foo\",\"foo\"]"},
 	}
 	for _, test := range tests {
-		chunk := NewChunkLiteral(test.val, test.length)
-		if chunk.Dtype() != test.dtype {
-			t.Errorf("expecting literal '%s' to have dtype of %s, got %s instead", test.val, test.dtype, chunk.Dtype())
-		}
-		if chunk.Len() != test.length {
-			t.Errorf("expecting literal '%s' to have length of %v, got %v instead", test.val, test.length, chunk.Len())
-		}
+		chunkAuto := NewChunkLiteralAuto(test.val, test.length)
+		chunkTyped := NewChunkLiteralTyped(test.val, test.dtype, test.length)
+		for _, chunk := range []Chunk{chunkAuto, chunkTyped} {
+			if chunk.Dtype() != test.dtype {
+				t.Errorf("expecting literal '%s' to have dtype of %s, got %s instead", test.val, test.dtype, chunk.Dtype())
+			}
+			if chunk.Len() != test.length {
+				t.Errorf("expecting literal '%s' to have length of %v, got %v instead", test.val, test.length, chunk.Len())
+			}
 
-		if err := chunk.AddValue(test.val); !errors.Is(err, errNoAddToLiterals) {
-			t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
-		}
-		if err := chunk.AddValues([]string{test.val}); !errors.Is(err, errNoAddToLiterals) {
-			t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
-		}
-		// if err := chunk.Prune(new(bitmap.Bitmap)); !errors.Is(err, ...) // currently panics (TODO)
-		// if err := chunk.MarshalBinary(); !errors.Is(err, ...) // not implemented yet (TODO)
-		if err := chunk.Append(chunk); !errors.Is(err, errNoAddToLiterals) {
-			t.Errorf("should not be able to append values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
-		}
-		h1 := make([]uint64, test.length)
-		h2 := make([]uint64, test.length)
-		chunk.Hash(h1)
-		chunk.Hash(h2)
-		if !reflect.DeepEqual(h1, h2) {
-			t.Errorf("hashing %v twice should result in the same slice, got %v and %v instead", test.val, h1, h2)
-		}
+			if err := chunk.AddValue(test.val); !errors.Is(err, errNoAddToLiterals) {
+				t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
+			}
+			if err := chunk.AddValues([]string{test.val}); !errors.Is(err, errNoAddToLiterals) {
+				t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
+			}
+			// if err := chunk.Prune(new(bitmap.Bitmap)); !errors.Is(err, ...) // currently panics (TODO)
+			// if err := chunk.MarshalBinary(); !errors.Is(err, ...) // not implemented yet (TODO)
+			if err := chunk.Append(chunk); !errors.Is(err, errNoAddToLiterals) {
+				t.Errorf("should not be able to append values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
+			}
+			h1 := make([]uint64, test.length)
+			h2 := make([]uint64, test.length)
+			chunk.Hash(h1)
+			chunk.Hash(h2)
+			if !reflect.DeepEqual(h1, h2) {
+				t.Errorf("hashing %v twice should result in the same slice, got %v and %v instead", test.val, h1, h2)
+			}
 
-		blob, err := chunk.MarshalJSON()
-		if err != nil {
-			t.Errorf("could not marshal %v into JSON", test.val)
-		}
-		if !bytes.Equal(blob, []byte(test.jsondata)) {
-			t.Errorf("expecting %v to json serialise as %s, got %s instead", test.val, test.jsondata, blob)
+			blob, err := chunk.MarshalJSON()
+			if err != nil {
+				t.Errorf("could not marshal %v into JSON", test.val)
+			}
+			if !bytes.Equal(blob, []byte(test.jsondata)) {
+				t.Errorf("expecting %v to json serialise as %s, got %s instead", test.val, test.jsondata, blob)
+			}
 		}
 	}
 }

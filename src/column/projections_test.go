@@ -91,7 +91,7 @@ func TestEqsSameType(t *testing.T) {
 		schema := Schema{Dtype: test.dtype}
 		c1, c2, expected := NewChunkFromSchema(schema), NewChunkFromSchema(schema), NewChunkFromSchema(Schema{Dtype: DtypeBool})
 		if strings.HasPrefix(test.c1, litPrefix) {
-			c1 = NewChunkLiteral(strings.TrimPrefix(test.c1, litPrefix), test.nrows)
+			c1 = NewChunkLiteralAuto(strings.TrimPrefix(test.c1, litPrefix), test.nrows)
 		} else {
 			if err := c1.AddValues(strings.Split(test.c1, ",")); err != nil {
 				t.Error(err)
@@ -99,7 +99,7 @@ func TestEqsSameType(t *testing.T) {
 			}
 		}
 		if strings.HasPrefix(test.c2, litPrefix) {
-			c2 = NewChunkLiteral(strings.TrimPrefix(test.c2, litPrefix), test.nrows)
+			c2 = NewChunkLiteralAuto(strings.TrimPrefix(test.c2, litPrefix), test.nrows)
 		} else {
 			if err := c2.AddValues(strings.Split(test.c2, ",")); err != nil {
 				t.Error(err)

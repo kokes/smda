@@ -46,9 +46,7 @@ func TestBasicEval(t *testing.T) {
 		{"str_foo >= str_foo", column.DtypeBool, []string{"t", "t", "t"}},
 		{"str_foo != str_foo", column.DtypeBool, []string{"f", "f", "f"}},
 		{"str_foo = 'o'", column.DtypeBool, []string{"f", "t", "t"}},
-		// TODO (BUG): we somehow think 'f' is a literal false
-		// this is because we feed the 'f' into NewChunkLiteral, which does a type guess
-		// {"str_foo != 'f'", column.DtypeBool, []string{"f", "t", "t"}},
+		{"str_foo != 'f'", column.DtypeBool, []string{"f", "t", "t"}},
 
 		// all literals
 		// doesn't work yet, because we don't have stripe length info in our expression evaluator

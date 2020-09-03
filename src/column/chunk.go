@@ -79,13 +79,7 @@ func NewChunkFromSchema(schema Schema) Chunk {
 	}
 }
 
-// NewChunkLiteral creates a chunk that only contains a single value in the whole chunk
-// it's useful in e.g. 'foo > 1', where can convert the '1' to a whole chunk
-// TODO: consider returning (Chunk, error) to avoid all those panics
-// OPTIM: we're using single-value slices, should we perhaps have a value specific for each literal
-// to avoid working with slices (stack allocation etc.)
-func NewChunkLiteral(s string, length int) Chunk {
-	dtype := guessType(s)
+func NewChunkLiteralTyped(s string, dtype Dtype, length int) Chunk {
 	switch dtype {
 	case DtypeInt:
 		val, err := parseInt(s)
@@ -131,6 +125,17 @@ func NewChunkLiteral(s string, length int) Chunk {
 	default:
 		panic(fmt.Sprintf("no support for literal chunks of type %v", dtype))
 	}
+}
+
+// NewChunkLiteral creates a chunk that only contains a single value in the whole chunk
+// it's useful in e.g. 'foo > 1', where can convert the '1' to a whole chunk
+// TODO: consider returning (Chunk, error) to avoid all those panics
+// OPTIM: we're using single-value slices, should we perhaps have a value specific for each literal
+// to avoid working with slices (stack allocation etc.)
+func NewChunkLiteralAuto(s string, length int) Chunk {
+	dtype := guessType(s)
+
+	return NewChunkLiteralTyped(s, dtype, length)
 }
 
 // ChunkStrings defines a backing struct for a chunk of string values

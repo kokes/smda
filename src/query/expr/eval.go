@@ -21,12 +21,19 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 			return nil, fmt.Errorf("column %v not found", expr.value)
 		}
 		return col, nil
-	case exprLiteralBool, exprLiteralFloat, exprLiteralInt, exprLiteralString, exprLiteralNull:
-		// TODO: there's no way of knowing the length now
-		// we'll need to pass in stripe length into Evaluate to deal with these cases
-		length := 0
-		return column.NewChunkLiteral(expr.value, length), nil
-	// 	...
+	// TODO: there's no way of knowing the length now in any of the literal cases
+	// we'll need to pass in stripe length into Evaluate to deal with these cases
+	case exprLiteralBool:
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0), nil
+	case exprLiteralFloat:
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeFloat, 0), nil
+	case exprLiteralInt:
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeInt, 0), nil
+	case exprLiteralString:
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeString, 0), nil
+	// null is not a literal type yet
+	// case exprLiteralNull:
+	// 	return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0), nil
 	// case exprFunCall
 	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,
 		exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprAnd, exprOr:
