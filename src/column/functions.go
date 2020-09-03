@@ -8,13 +8,11 @@ func EvalNullIf(cs ...Chunk) (Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = eq
-	panic("not implemented yet (don't have chunk.Clone())") // TODO
-	// bm := eq.(*ChunkBools).data
-	// if bm.Count() == 0 {
-	// 	return cs[0], nil
-	// }
-	// cb := cs[0].Clone()
-	// cb.nullability.Or(bm)
-	return nil, nil
+	truths := eq.(*ChunkBools).Truths()
+	if truths.Count() == 0 {
+		return cs[0], nil
+	}
+	cb := cs[0].Clone()
+	cb.Nullify(truths)
+	return cb, nil
 }

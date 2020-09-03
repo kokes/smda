@@ -25,6 +25,8 @@ type Chunk interface {
 	MarshalBinary() ([]byte, error)
 	MarshalJSON() ([]byte, error)
 	Prune(*bitmap.Bitmap) Chunk
+	// we could potentially add "dropnulls" and then prune would become nullify.dropnulls
+	Nullify(*bitmap.Bitmap)
 	Append(Chunk) error
 	Hash([]uint64)
 	Len() int
@@ -1371,4 +1373,26 @@ func (rc *ChunkStrings) Clone() Chunk {
 		nullability: nulls,
 		length:      rc.length,
 	}
+}
+
+// ARCH: Nullify does NOT switch the data values to be nulls/empty as well
+func (rc *ChunkBools) Nullify(bm *bitmap.Bitmap) {
+	// OPTIM: this copies, but it covers all the cases
+	rc.nullability = bitmap.Or(rc.nullability, bm)
+}
+
+func (rc *ChunkFloats) Nullify(bm *bitmap.Bitmap) {
+	rc.nullability = bitmap.Or(rc.nullability, bm)
+}
+
+func (rc *ChunkInts) Nullify(bm *bitmap.Bitmap) {
+	rc.nullability = bitmap.Or(rc.nullability, bm)
+}
+
+func (rc *ChunkStrings) Nullify(bm *bitmap.Bitmap) {
+	rc.nullability = bitmap.Or(rc.nullability, bm)
+}
+
+func (rc *ChunkNulls) Nullify(bm *bitmap.Bitmap) {
+	panic("operation not supported: cannot nullify a null column")
 }
