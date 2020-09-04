@@ -180,3 +180,5 @@ func TestReturnTypes(t *testing.T) {
 
 	}
 }
+
+// ColumnsUsed (as a function accepting varargs)

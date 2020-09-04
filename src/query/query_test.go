@@ -171,6 +171,9 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\n1,1\n,2", []string{"foo"}, "foo,bar\n1,1\n,2"},
 		{"foo,bar\n,1\n.3,2", []string{"foo"}, "foo,bar\n,1\n.3,2"},
 		{"foo,bar\n,1\nt,2", []string{"foo"}, "foo,bar\n,1\nt,2"},
+		// basic expression aggregation
+		{"foo,bar\n,1\nt,2", []string{"bar=1"}, "bar=1\nt\nf"},
+		{"foo,bar\n,1\nt,2", []string{"bar > 0"}, "bar>0\nt"},
 		// TODO: nullable strings tests
 	}
 
@@ -195,7 +198,15 @@ func TestBasicAggregation(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		nrc, err := aggregate(db, ds, test.aggexpr)
+		aggexpr := make([]*expr.Expression, 0, len(test.aggexpr))
+		for _, el := range test.aggexpr {
+			parsed, err := expr.ParseStringExpr(el)
+			if err != nil {
+				t.Fatal(err)
+			}
+			aggexpr = append(aggexpr, parsed)
+		}
+		nrc, err := aggregate(db, ds, aggexpr)
 		if err != nil {
 			t.Fatal(err)
 		}

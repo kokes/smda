@@ -54,6 +54,15 @@ func (expr *Expression) ColumnsUsed() []string {
 	return dedupeSortedStrings(cols) // so that e.g. a*b - a will yield [a, b]
 }
 
+func ColumnsUsed(exprs ...*Expression) []string {
+	var cols []string
+	for _, expr := range exprs {
+		cols = append(cols, expr.ColumnsUsed()...)
+	}
+	sort.Strings(cols)
+	return dedupeSortedStrings(cols)
+}
+
 func (expr *Expression) IsValid(ts database.TableSchema) error {
 	switch expr.etype {
 	case exprIdentifier:

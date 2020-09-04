@@ -23,7 +23,7 @@ type Query struct {
 	Select    []*expr.Expression `json:"select,omitempty"`
 	Dataset   database.UID       `json:"dataset"`
 	Filter    *expr.Expression   `json:"filter,omitempty"`
-	Aggregate []string           `json:"aggregate"`
+	Aggregate []*expr.Expression `json:"aggregate,omitempty"`
 	Limit     *int               `json:"limit,omitempty"`
 }
 
@@ -66,41 +66,44 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 	return retval, nil
 }
 
-// TODO: this is not expression aware, also ignores q.Select
+// TODO: this ignores q.Select
 // doesn't seem to be NULL-aware
 // also, downstream .Hash methods do not take column order into consideration (XOR)\
 // Once we migrate this to take all of this into account, we should perhaps return `hashes`
 // and feed that into our aggregators? Or perhaps return `groupIds`, which would be a []int
 // identifying individual groups found - may be easier to work with than hashes (+ return the number
 // or unique rows, so that we can preallocate things)
-func aggregate(db *database.Database, ds *database.Dataset, exprs []string) ([]column.Chunk, error) {
+func aggregate(db *database.Database, ds *database.Dataset, exprs []*expr.Expression) ([]column.Chunk, error) {
 	if len(exprs) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
 	}
 
+	// ARCH: theoretically, we don't have to create nrc just now, just allocate it
+	// and if it's nil when appending to it, we'll assign it a new value
 	nrc := make([]column.Chunk, 0, len(exprs))
-	colIndices := make([]int, 0, len(exprs))
-
-	for _, expr := range exprs {
-		idx, col, err := ds.Schema.LocateColumn(expr)
+	for _, expression := range exprs {
+		schema, err := expression.ReturnType(ds.Schema)
 		if err != nil {
 			return nil, err
 		}
-		nrc = append(nrc, column.NewChunkFromSchema(col))
-		colIndices = append(colIndices, idx)
+		nrc = append(nrc, column.NewChunkFromSchema(schema))
 	}
 
+	columnNames := expr.ColumnsUsed(exprs...)
 	groups := make(map[uint64]int)
+	rcs := make([]column.Chunk, len(exprs))
+
 	for _, stripeID := range ds.Stripes {
-		rcs := make([]column.Chunk, 0, len(exprs))
-		for _, colIndex := range colIndices {
-			// be careful about caching this chunk, because we do mutate it later on (.Append)
-			// OPTIM/ARCH: question is whether we need to mutate here
-			rc, err := db.ReadColumnFromStripe(ds, stripeID, colIndex)
+		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripeID, columnNames)
+		if err != nil {
+			return nil, err
+		}
+		for j, expression := range exprs {
+			rc, err := expr.Evaluate(expression, colmap(columnNames, columnData))
 			if err != nil {
 				return nil, err
 			}
-			rcs = append(rcs, rc)
+			rcs[j] = rc
 		}
 
 		// TODO: we don't have a stripe length property - should we?
@@ -164,7 +167,11 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		if err != nil {
 			return nil, err
 		}
-		res.Columns = q.Aggregate // no projections yet
+		// no projections yet
+		res.Columns = make([]string, 0, len(columns))
+		for _, col := range q.Aggregate {
+			res.Columns = append(res.Columns, col.String())
+		}
 		res.Data = columns
 		return res, nil
 		// no limit?
