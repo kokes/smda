@@ -57,6 +57,10 @@ func TestBasicEval(t *testing.T) {
 		// the underlying []int64 doesn't change, but ChunksEqual doesn't compare those, it looks at the "real" values
 		{"nullif(foo123, 2)", column.DtypeInt, []string{"1", "", "3"}},
 		// test nullifs with nulls, with literals, with other types
+
+		{"round(float123, 2)", column.DtypeFloat, []string{"1", "2", "3"}},
+		// {"round(2.234, 2)", column.DtypeFloat, []string{"2.23"}}, // don't have a way of testing literals just yet
+		{"round(float1p452p13p0, 1)", column.DtypeFloat, []string{"1.5", "2.1", "3.0"}},
 	}
 
 	db, err := database.NewDatabase(nil)
@@ -70,12 +74,13 @@ func TestBasicEval(t *testing.T) {
 	}()
 
 	ds, err := db.LoadDatasetFromMap(map[string][]string{
-		"foo123":   {"1", "2", "3"},
-		"bar134":   {"1", "3", "4"},
-		"float123": {"1.0", "2.", "3"},
-		"bool_tff": {"t", "f", "f"},
-		"bool_ftf": {"f", "t", "f"},
-		"str_foo":  {"f", "o", "o"},
+		"foo123":          {"1", "2", "3"},
+		"bar134":          {"1", "3", "4"},
+		"float123":        {"1.0", "2.", "3"},
+		"float1p452p13p0": {"1.45", "2.1", "3.0"},
+		"bool_tff":        {"t", "f", "f"},
+		"bool_ftf":        {"f", "t", "f"},
+		"str_foo":         {"f", "o", "o"},
 	})
 	if err != nil {
 		t.Fatal(err)

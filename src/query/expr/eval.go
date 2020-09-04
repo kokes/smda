@@ -44,10 +44,11 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 			}
 			children = append(children, child)
 		}
-		// expr.value:
 		switch expr.value {
 		case "nullif":
 			return column.EvalNullIf(children...)
+		case "round":
+			return column.EvalRound(children...)
 		default:
 			return nil, fmt.Errorf("function %v not supported", expr.value)
 		}
