@@ -248,7 +248,7 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		{Schema{"", DtypeInt, true}, []string{}},
 		{Schema{"", DtypeInt, true}, []string{""}},
 		{Schema{"", DtypeFloat, true}, []string{}},
-		{Schema{"", DtypeFloat, true}, []string{""}}, // NaNs get a special treatment (DeepEqual doesn't work here)
+		{Schema{"", DtypeFloat, true}, []string{""}},
 		{Schema{"", DtypeBool, true}, []string{}},
 		{Schema{"", DtypeBool, true}, []string{""}},
 		{Schema{"", DtypeNull, true}, []string{}},
@@ -256,7 +256,7 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		{Schema{"", DtypeInt, false}, []string{"1", "2", "3"}},
 		{Schema{"", DtypeInt, true}, []string{"1", "", "3"}},
 		{Schema{"", DtypeFloat, false}, []string{"1", "2", "3"}},
-		{Schema{"", DtypeFloat, true}, []string{"1", "", "3"}}, // NaNs again
+		{Schema{"", DtypeFloat, true}, []string{"1", "", "3"}},
 		{Schema{"", DtypeBool, false}, []string{"t", "f", "t"}},
 		{Schema{"", DtypeBool, true}, []string{"t", "", "f"}},
 	}
@@ -395,7 +395,7 @@ func TestBasicPruning(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		if !reflect.DeepEqual(pruned, expected) {
+		if !ChunksEqual(pruned, expected) {
 			t.Errorf("expected that pruning %v using %v would result in %v", test.values, test.bools, test.expected)
 		}
 	}
@@ -684,4 +684,5 @@ func BenchmarkHashingFloats(b *testing.B) {
 // tests for columnNulls
 // tests for .Dtype()
 // TestFilterAndPrune
+// chunksequal
 // Clone - reflect.DeepEqual? ChunksEqual? isLiteral, null and not null etc.

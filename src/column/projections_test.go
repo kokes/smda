@@ -1,7 +1,6 @@
 package column
 
 import (
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -46,7 +45,7 @@ func TestAndOr(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		if !reflect.DeepEqual(res, expected) {
+		if !ChunksEqual(res, expected) {
 			t.Errorf("expected AND of %v and %v to result in %v, got %v instead", test.c1, test.c2, test.expected, res)
 		}
 	}
@@ -117,7 +116,7 @@ func TestEqsSameType(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		if !reflect.DeepEqual(res, expected) {
+		if !ChunksEqual(res, expected) {
 			t.Errorf("expected %v and %v to result in %v, got %v instead", test.c1, test.c2, test.expected, res)
 		}
 	}

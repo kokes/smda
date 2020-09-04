@@ -54,9 +54,8 @@ func TestBasicEval(t *testing.T) {
 
 		// functions
 		{"nullif(foo123, 5)", column.DtypeInt, []string{"1", "2", "3"}},
-		// doesn't work yet, because the data vector is different
-		// so the answer is right, the verification code just doesn't understand it
-		// {"nullif(foo123, 2)", column.DtypeInt, []string{"1", "", "3"}},
+		// the underlying []int64 doesn't change, but ChunksEqual doesn't compare those, it looks at the "real" values
+		{"nullif(foo123, 2)", column.DtypeInt, []string{"1", "", "3"}},
 		// test nullifs with nulls, with literals, with other types
 	}
 

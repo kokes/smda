@@ -37,31 +37,98 @@ type Chunk interface {
 // ChunksEqual compares two chunks, even if they contain []float64 data
 // consider making this lenient enough to compare only the relevant bits in ChunkBools
 func ChunksEqual(c1 Chunk, c2 Chunk) bool {
-	if !(c1.Dtype() == DtypeFloat && c2.Dtype() == DtypeFloat) {
-		return reflect.DeepEqual(c1, c2)
+	if c1.Dtype() != c2.Dtype() {
+		return false
+	}
+	if c1.Len() != c2.Len() {
+		return false
 	}
 
-	// this addresses the fact that reflect.DeepEqual cannot compare nans in []float64,
-	// so we have to do it manually, see also: https://github.com/golang/go/issues/12025
-	c1f := c1.(*ChunkFloats)
-	c2f := c2.(*ChunkFloats)
-	if c1f.length != c2f.length {
-		return false
-	}
-	if !reflect.DeepEqual(c1f.nullability, c2f.nullability) {
-		return false
-	}
-	for j, c1v := range c1f.data {
-		c2v := c2f.data[j]
-		// either both nans or neither is nan
-		if math.IsNaN(c1v) && math.IsNaN(c2v) {
-			continue
+	switch c1t := c1.(type) {
+	case *ChunkBools:
+		c2t := c2.(*ChunkBools)
+		if c1t.nullability == nil && c2t.nullability == nil {
+			return reflect.DeepEqual(c1t, c2t)
 		}
-		if c1v != c2v {
+		if c1t.isLiteral != c2t.isLiteral {
 			return false
 		}
+		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
+			return false
+		}
+		// compare only the valid bits in data
+		// ARCH: what about the bits beyond the cap?
+		c1d := c1t.data.Clone()
+		c1d.AndNot(c1t.nullability)
+		c2d := c2t.data.Clone()
+		c2d.AndNot(c2t.nullability)
+		return reflect.DeepEqual(c1d, c2d)
+	case *ChunkInts:
+		c2t := c2.(*ChunkInts)
+		if c1t.nullability == nil && c2t.nullability == nil {
+			return reflect.DeepEqual(c1t, c2t)
+		}
+		if c1t.isLiteral != c2t.isLiteral {
+			return false
+		}
+		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
+			return false
+		}
+		for j := 0; j < c1t.Len(); j++ {
+			if c1t.nullability.Get(j) {
+				continue
+			}
+			if c1t.data[j] != c2t.data[j] {
+				return false
+			}
+		}
+		return true
+	case *ChunkFloats:
+		c2t := c2.(*ChunkFloats)
+		if c1t.nullability == nil && c2t.nullability == nil {
+			return reflect.DeepEqual(c1t, c2t)
+		}
+		if c1t.isLiteral != c2t.isLiteral {
+			return false
+		}
+		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
+			return false
+		}
+		for j := 0; j < c1t.Len(); j++ {
+			if c1t.nullability.Get(j) {
+				continue
+			}
+			if c1t.data[j] != c2t.data[j] {
+				return false
+			}
+		}
+		return true
+	case *ChunkStrings:
+		c2t := c2.(*ChunkStrings)
+		if c1t.nullability == nil && c2t.nullability == nil {
+			return reflect.DeepEqual(c1t, c2t)
+		}
+		if c1t.isLiteral != c2t.isLiteral {
+			return false
+		}
+		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
+			return false
+		}
+		for j := 0; j < c1t.Len(); j++ {
+			if c1t.nullability.Get(j) {
+				continue
+			}
+			if c1t.nthValue(j) != c2t.nthValue(j) {
+				return false
+			}
+		}
+		return true
+	case *ChunkNulls:
+		c2t := c2.(*ChunkNulls)
+		return c1t.length == c2t.length
+	default:
+		panic("type not supported")
 	}
-	return true
 }
 
 // NewChunkFromSchema creates a new Chunk based a column schema provided
@@ -506,7 +573,7 @@ func (rc *ChunkFloats) AddValue(s string) error {
 			rc.nullability = bitmap.NewBitmap(rc.Len() + 1)
 		}
 		rc.nullability.Set(rc.Len(), true)
-		rc.data = append(rc.data, math.NaN()) // this value is not meant to be read
+		rc.data = append(rc.data, 0) // this value is not meant to be read
 		rc.length++
 		return nil
 	}
