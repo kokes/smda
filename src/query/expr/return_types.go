@@ -196,6 +196,10 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 	case "count":
 		schema.Dtype = column.DtypeInt
 		schema.Nullable = false // can we get somehow get empty groups and thus nulls in counts?
+
+	case "sin", "cos", "tan", "exp", "exp2", "log", "log2", "log10":
+		schema.Dtype = column.DtypeFloat
+		schema.Nullable = true
 	case "round":
 		// TODO: check the number of params
 		// disallow anything but literals in the second argument

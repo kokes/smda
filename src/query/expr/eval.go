@@ -11,6 +11,10 @@ var errQueryPatternNotSupported = errors.New("query pattern not supported")
 
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
 // the same tree of operations - we could detect what functions/methods need to be called at parse time
+// we could save these functions within the expression - as long as they have the same signature (we're trying
+// to adehere to func(...Chunk) (Chunk, error))
+// Also, we can construct some of these beforehand - like the generated sin/cos/acos/... functions
+//  - we know about these function calls at parse time, so just assign function calls there
 func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chunk, error) {
 	switch expr.etype {
 	case exprIdentifier:
@@ -49,6 +53,22 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 			return column.EvalNullIf(children...)
 		case "round":
 			return column.EvalRound(children...)
+		case "sin":
+			return column.EvalSin(children...)
+		case "cos":
+			return column.EvalCos(children...)
+		case "tan":
+			return column.EvalTan(children...)
+		case "exp":
+			return column.EvalExp(children...)
+		case "exp2":
+			return column.EvalExp2(children...)
+		case "log":
+			return column.EvalLog(children...)
+		case "log2":
+			return column.EvalLog2(children...)
+		case "log10":
+			return column.EvalLog10(children...)
 		default:
 			return nil, fmt.Errorf("function %v not supported", expr.value)
 		}
