@@ -2,13 +2,18 @@ package expr
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"reflect"
 	"strings"
+
+	"github.com/kokes/smda/src/column"
 )
+
+var errFunctionDoesNotExist = errors.New("function does not exist")
 
 type exprType uint8
 
@@ -97,6 +102,7 @@ type Expression struct {
 	etype    exprType
 	children []*Expression
 	value    string
+	evaler   func(...column.Chunk) (column.Chunk, error)
 }
 
 func (expr *Expression) String() string {
@@ -306,6 +312,10 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 		}, nil
 	case *ast.CallExpr:
 		funName := node.Fun.(*ast.Ident).Name
+		fnc, ok := column.FuncProj[funName]
+		if !ok {
+			return nil, fmt.Errorf("%w: %s", errFunctionDoesNotExist, funName)
+		}
 		var children []*Expression
 		for _, arg := range node.Args {
 			newc, err := convertAstExprToOwnExpr(arg)
@@ -318,6 +328,7 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			etype:    exprFunCall,
 			value:    funName,
 			children: children,
+			evaler:   fnc,
 		}, nil
 	case *ast.ParenExpr:
 		// I think we can just take what's in it and treat it as a node - since our evaluation/encapsulation

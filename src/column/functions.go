@@ -1,8 +1,7 @@
 // steps to add a new function:
-// 1. add an implementation here
+// 1. add an implementation here and add it to FuncProj
 // 2. specify its return types (return_types.go)
-// 3. dispatch it in Evaluate (eval.go) - may be done in the parser at some point
-// 4. test all three implementations above
+// 3. test both implementations above
 package column
 
 import (
@@ -13,6 +12,27 @@ import (
 
 var errTypeNotSupported = errors.New("type not supported in this function")
 var errNotImplemented = errors.New("not implemented yet")
+
+// TODO: this will be hard to cover properly, so let's make sure we test everything explicitly
+var FuncProj = map[string]func(...Chunk) (Chunk, error){
+	"nullif": EvalNullIf,
+	"round":  EvalRound,
+	"sin":    numFunc(math.Sin),
+	"cos":    numFunc(math.Cos),
+	"tan":    numFunc(math.Tan),
+	"exp":    numFunc(math.Exp),
+	"exp2":   numFunc(math.Exp2),
+	"log":    numFunc(math.Log),
+	"log2":   numFunc(math.Log2),
+	"log10":  numFunc(math.Log10),
+	// TODO: these are just placeholders for parser tests to pass
+	// some of these will be in FuncAgg, once we start with that
+	"count":    nil,
+	"sum":      nil,
+	"coalesce": nil,
+}
+
+// var EvalAbs = numFunc(math.Abs) // this should probably behave differently for ints
 
 // at some point test sum(nullif([1,2,3], 2)) to check we're not interpreting
 // "dead" values
@@ -70,15 +90,3 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 		}
 	}
 }
-
-// TODO: rest of these functions
-var EvalSin = numFunc(math.Sin)
-var EvalCos = numFunc(math.Cos)
-var EvalTan = numFunc(math.Tan)
-var EvalExp = numFunc(math.Exp)
-var EvalExp2 = numFunc(math.Exp2)
-var EvalLog = numFunc(math.Log)
-var EvalLog2 = numFunc(math.Log2)
-var EvalLog10 = numFunc(math.Log10)
-
-// var EvalAbs = numFunc(math.Abs) // this should probably behave differently for ints

@@ -8,13 +8,10 @@ import (
 )
 
 var errQueryPatternNotSupported = errors.New("query pattern not supported")
+var errFunctionNotImplemented = errors.New("function not implemented")
 
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
-// the same tree of operations - we could detect what functions/methods need to be called at parse time
-// we could save these functions within the expression - as long as they have the same signature (we're trying
-// to adehere to func(...Chunk) (Chunk, error))
-// Also, we can construct some of these beforehand - like the generated sin/cos/acos/... functions
-//  - we know about these function calls at parse time, so just assign function calls there
+// the same tree of operations
 func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chunk, error) {
 	switch expr.etype {
 	case exprIdentifier:
@@ -39,6 +36,9 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 	// case exprLiteralNull:
 	// 	return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0), nil
 	case exprFunCall:
+		if expr.evaler == nil {
+			return nil, fmt.Errorf("%w: %s", errFunctionNotImplemented, expr.value)
+		}
 		// ARCH: abstract out this `children` construction and use it elsewhere (in exprEquality etc.)
 		children := make([]column.Chunk, 0, len(expr.children))
 		for _, ch := range expr.children {
@@ -48,30 +48,8 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 			}
 			children = append(children, child)
 		}
-		switch expr.value {
-		case "nullif":
-			return column.EvalNullIf(children...)
-		case "round":
-			return column.EvalRound(children...)
-		case "sin":
-			return column.EvalSin(children...)
-		case "cos":
-			return column.EvalCos(children...)
-		case "tan":
-			return column.EvalTan(children...)
-		case "exp":
-			return column.EvalExp(children...)
-		case "exp2":
-			return column.EvalExp2(children...)
-		case "log":
-			return column.EvalLog(children...)
-		case "log2":
-			return column.EvalLog2(children...)
-		case "log10":
-			return column.EvalLog10(children...)
-		default:
-			return nil, fmt.Errorf("function %v not supported", expr.value)
-		}
+		return expr.evaler(children...)
+	// ARCH: these could all be generalised as FunCalls
 	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,
 		exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprAnd, exprOr:
 		c1, err := Evaluate(expr.children[0], columnData)
