@@ -2,6 +2,8 @@ package column
 
 import (
 	"fmt"
+
+	"github.com/kokes/smda/src/bitmap"
 )
 
 // FuncAgg maps aggregating function names to their implementations
@@ -55,7 +57,7 @@ func NewAggMin(n int, dtype Dtype) Aggregator {
 	case DtypeFloat:
 		agg.minFloat = make([]float64, n)
 	default:
-		panic(fmt.Sprintf("type %v not supported", dtype))
+		panic(fmt.Sprintf("type %v not supported", dtype)) // TODO (ARCH): perhaps return (Aggregator, error)
 	}
 	return agg
 }
@@ -100,11 +102,21 @@ func (agg *AggMin) AddChunk(buckets []uint64, data Chunk) error {
 	return nil
 }
 func (agg *AggMin) Resolve() (Chunk, error) {
-
+	var bm *bitmap.Bitmap
+	for j, el := range agg.counts {
+		if el == 0 {
+			if bm == nil {
+				bm = bitmap.NewBitmap(len(agg.counts))
+			}
+			bm.Set(j, true)
+		}
+	}
 	switch agg.dtype {
 	case DtypeInt:
-		// newcolumnints(agg.minInt, bm)
+		return newChunkIntsFromSlice(agg.minInt, bm), nil
+	case DtypeFloat:
+		return newChunkFloatsFromSlice(agg.minFloat, bm), nil
+	default:
+		return nil, fmt.Errorf("%w: cannot run Resolve on %v", errTypeNotSupported, agg.dtype)
 	}
-	panic("resolve not finished")
-	return nil, nil
 }

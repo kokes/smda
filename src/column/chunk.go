@@ -277,8 +277,22 @@ func newChunkBools() *ChunkBools {
 
 func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	return &ChunkBools{
-		data:   bitmap.NewBitmapFromBits(data, length), // this copies
+		data:   bitmap.NewBitmapFromBits(data, length),
 		length: uint32(length),
+	}
+}
+func newChunkIntsFromSlice(data []int64, nulls *bitmap.Bitmap) *ChunkInts {
+	return &ChunkInts{
+		length:      uint32(len(data)),
+		data:        data,
+		nullability: nulls,
+	}
+}
+func newChunkFloatsFromSlice(data []float64, nulls *bitmap.Bitmap) *ChunkFloats {
+	return &ChunkFloats{
+		length:      uint32(len(data)),
+		data:        data,
+		nullability: nulls,
 	}
 }
 

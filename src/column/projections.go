@@ -20,9 +20,6 @@ var errProjectionNotSupported = errors.New("projection not supported")
 
 // when this gets too long, split it up into projections_string, projections_date etc.
 
-// ARCH: clear unused bits, which we may have altered in compFn? (only relevant for cap%64 != 0)
-// we might also have to data ^= ~nullability, so that we clear all the bits that are masked by being nulls
-// OPTIM: this copies, but in some (most?) cases, we create new bitmaps, so there's no need to copy here
 func boolChunkFromParts(data []uint64, length int, null1, null2 *bitmap.Bitmap) *ChunkBools {
 	cdata := newChunkBoolsFromBits(data, length)
 	nulls := bitmap.Or(null1, null2)

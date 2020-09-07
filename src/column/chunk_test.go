@@ -153,8 +153,8 @@ func TestBoolColumnFromBits(t *testing.T) {
 		data[length-1] = 38484
 		c2 := bc.data.Count()
 
-		if c1 != c2 {
-			t.Error("modifying the underlying slice after passing it to newChunkBoolsFromBits should not change the chunk")
+		if c1 == c2 {
+			t.Error("newChunkBoolsFromBits should not copy")
 		}
 	}
 }
