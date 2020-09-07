@@ -26,9 +26,6 @@ var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	"log2":   numFunc(math.Log2),
 	"log10":  numFunc(math.Log10),
 	// TODO: these are just placeholders for parser tests to pass
-	// some of these will be in FuncAgg, once we start with that
-	"count":    nil,
-	"sum":      nil,
 	"coalesce": nil,
 }
 
@@ -82,6 +79,7 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 			ctr := ct.Clone().(*ChunkFloats)
 			for j, el := range ctr.data {
 				// TODO: nanify (nan -> set null)
+				// though math.Log(0) -> -Inf, set that to NaN as well?
 				ctr.data[j] = fnc(el)
 			}
 			return ctr, nil

@@ -66,21 +66,16 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 	return retval, nil
 }
 
-// TODO: this ignores q.Select
 // doesn't seem to be NULL-aware
-// also, downstream .Hash methods do not take column order into consideration (XOR)\
-// Once we migrate this to take all of this into account, we should perhaps return `hashes`
-// and feed that into our aggregators? Or perhaps return `groupIds`, which would be a []int
-// identifying individual groups found - may be easier to work with than hashes (+ return the number
-// or unique rows, so that we can preallocate things)
-func aggregate(db *database.Database, ds *database.Dataset, exprs []*expr.Expression) ([]column.Chunk, error) {
+// also, downstream .Hash methods do not take column order into consideration (XOR)
+func aggregate(db *database.Database, ds *database.Dataset, exprs []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
 	if len(exprs) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
 	}
 
-	// ARCH: theoretically, we don't have to create nrc just now, just allocate it
-	// and if it's nil when appending to it, we'll assign it a new value
-	nrc := make([]column.Chunk, 0, len(exprs))
+	// TODO: incorporate projections (projs)
+
+	nrc := make([]column.Chunk, 0, len(projs))
 	for _, expression := range exprs {
 		schema, err := expression.ReturnType(ds.Schema)
 		if err != nil {
@@ -163,7 +158,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 	}
 
 	if q.Aggregate != nil {
-		columns, err := aggregate(db, ds, q.Aggregate)
+		columns, err := aggregate(db, ds, q.Aggregate, q.Select)
 		if err != nil {
 			return nil, err
 		}

@@ -99,10 +99,11 @@ func (etype exprType) String() string {
 // isSimpleton (or something along those lines) - if this projection is just a column or a literal?
 //  - we might need a new typedColumn - columnLit{string,int,float,bool}?
 type Expression struct {
-	etype    exprType
-	children []*Expression
-	value    string
-	evaler   func(...column.Chunk) (column.Chunk, error)
+	etype      exprType
+	children   []*Expression
+	value      string
+	evaler     func(...column.Chunk) (column.Chunk, error)
+	aggregator func(int, column.Dtype) column.Aggregator
 }
 
 func (expr *Expression) String() string {
@@ -312,8 +313,19 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 		}, nil
 	case *ast.CallExpr:
 		funName := node.Fun.(*ast.Ident).Name
-		fnc, ok := column.FuncProj[funName]
-		if !ok {
+		ret := &Expression{
+			etype: exprFunCall,
+			value: funName,
+		}
+		fncp, okp := column.FuncProj[funName]
+		if okp {
+			ret.evaler = fncp
+		}
+		fncg, okg := column.FuncAgg[funName]
+		if okg {
+			ret.aggregator = fncg
+		}
+		if !(okp || okg) {
 			return nil, fmt.Errorf("%w: %s", errFunctionDoesNotExist, funName)
 		}
 		var children []*Expression
@@ -324,12 +336,8 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			}
 			children = append(children, newc)
 		}
-		return &Expression{
-			etype:    exprFunCall,
-			value:    funName,
-			children: children,
-			evaler:   fnc,
-		}, nil
+		ret.children = children
+		return ret, nil
 	case *ast.ParenExpr:
 		// I think we can just take what's in it and treat it as a node - since our evaluation/encapsulation
 		// treats it as a paren expression anyway, right?

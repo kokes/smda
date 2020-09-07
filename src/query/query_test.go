@@ -206,7 +206,8 @@ func TestBasicAggregation(t *testing.T) {
 			}
 			aggexpr = append(aggexpr, parsed)
 		}
-		nrc, err := aggregate(db, ds, aggexpr)
+		// TODO: consider a different select expression
+		nrc, err := aggregate(db, ds, aggexpr, aggexpr)
 		if err != nil {
 			t.Fatal(err)
 		}
