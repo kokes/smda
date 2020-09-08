@@ -159,6 +159,8 @@ func TestBoolColumnFromBits(t *testing.T) {
 	}
 }
 
+// TODO: test other constructors (newChunkFloatsFromSlice etc.)
+
 func TestInvalidInts(t *testing.T) {
 	tt := []string{"1.", ".1", "1e3"}
 

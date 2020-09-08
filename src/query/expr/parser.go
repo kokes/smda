@@ -91,19 +91,25 @@ func (etype exprType) String() string {
 	}
 }
 
-// isValid(tableSchema) - does it make sense to have this projection like this?
-//   - tableSchema = []columnSchema
-//   - checks that type are okay and everything
-// ReturnType dtype - though we'll have to pass in a schema
-// ColumnsUsed []string
-// isSimpleton (or something along those lines) - if this projection is just a column or a literal?
-//  - we might need a new typedColumn - columnLit{string,int,float,bool}?
 type Expression struct {
 	etype      exprType
 	children   []*Expression
 	value      string
 	evaler     func(...column.Chunk) (column.Chunk, error)
 	aggregator func(int, column.Dtype) column.Aggregator
+}
+
+func AggExpr(expr *Expression) *Expression {
+	if expr.aggregator != nil {
+		return expr
+	}
+	for _, ch := range expr.children {
+		ach := AggExpr(ch)
+		if ach != nil {
+			return ach
+		}
+	}
+	return nil
 }
 
 func (expr *Expression) String() string {

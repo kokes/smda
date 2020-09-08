@@ -148,33 +148,48 @@ func TestLimitsInQueries(t *testing.T) {
 	}
 }
 
+func stringsToExprs(raw []string) ([]*expr.Expression, error) {
+	ret := make([]*expr.Expression, 0, len(raw))
+	for _, el := range raw {
+		parsed, err := expr.ParseStringExpr(el)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, parsed)
+	}
+	return ret, nil
+}
+
 // TODO: not testing nulls here
 func TestBasicAggregation(t *testing.T) {
 	tests := []struct {
 		input   string
 		aggexpr []string
+		projs   []string
 		output  string
 	}{
-		{"foo\na\nb\nc", []string{"foo"}, "foo\na\nb\nc"},
-		{"foo\na\na\na", []string{"foo"}, "foo\na"},
-		{"foo,bar\na,b\nb,a", []string{"foo"}, "foo\na\nb"},
-		{"foo,bar\na,b\nb,a", []string{"bar"}, "bar\nb\na"},
-		{"foo,bar\na,b\nc,d", []string{"foo", "bar"}, "foo,bar\na,b\nc,d"},
-		{"foo,bar\na,b\nd,a", []string{"foo", "bar"}, "foo,bar\na,b\nd,a"},
-		{"foo,bar\na,b\na,b", []string{"foo", "bar"}, "foo,bar\na,b"},
-		{"foo,bar\n1,2\n2,3", []string{"foo"}, "foo\n1\n2"},
-		{"foo,bar\nt,f\nt,f", []string{"foo"}, "foo\ntrue"},
-		{"foo,bar\n1,t\n2,f", []string{"foo"}, "foo,bar\n1,true\n2,false"},
+		{"foo\na\nb\nc", []string{"foo"}, nil, "foo\na\nb\nc"},
+		{"foo\na\na\na", []string{"foo"}, nil, "foo\na"},
+		{"foo,bar\na,b\nb,a", []string{"foo"}, nil, "foo\na\nb"},
+		{"foo,bar\na,b\nb,a", []string{"bar"}, nil, "bar\nb\na"},
+		{"foo,bar\na,b\nc,d", []string{"foo", "bar"}, nil, "foo,bar\na,b\nc,d"},
+		{"foo,bar\na,b\nd,a", []string{"foo", "bar"}, nil, "foo,bar\na,b\nd,a"},
+		{"foo,bar\na,b\na,b", []string{"foo", "bar"}, nil, "foo,bar\na,b"},
+		{"foo,bar\n1,2\n2,3", []string{"foo"}, nil, "foo\n1\n2"},
+		{"foo,bar\nt,f\nt,f", []string{"foo"}, nil, "foo\ntrue"},
+		{"foo,bar\n1,t\n2,f", []string{"foo"}, nil, "foo,bar\n1,true\n2,false"},
 		// {"foo,bar\na,b\nb,a", []string{"foo", "bar"}, "foo,bar\na,b\nb,a"}, // TODO: enable once we add order-preserving hashing
 		// nulls in aggregation:
-		{"foo,bar\n,1\n0,2", []string{"foo"}, "foo,bar\n,1\n0,2"},
-		{"foo,bar\n1,1\n,2", []string{"foo"}, "foo,bar\n1,1\n,2"},
-		{"foo,bar\n,1\n.3,2", []string{"foo"}, "foo,bar\n,1\n.3,2"},
-		{"foo,bar\n,1\nt,2", []string{"foo"}, "foo,bar\n,1\nt,2"},
+		{"foo,bar\n,1\n0,2", []string{"foo"}, nil, "foo,bar\n,1\n0,2"},
+		{"foo,bar\n1,1\n,2", []string{"foo"}, nil, "foo,bar\n1,1\n,2"},
+		{"foo,bar\n,1\n.3,2", []string{"foo"}, nil, "foo,bar\n,1\n.3,2"},
+		{"foo,bar\n,1\nt,2", []string{"foo"}, nil, "foo,bar\n,1\nt,2"},
 		// basic expression aggregation
-		{"foo,bar\n,1\nt,2", []string{"bar=1"}, "bar=1\nt\nf"},
-		{"foo,bar\n,1\nt,2", []string{"bar > 0"}, "bar>0\nt"},
+		{"foo,bar\n,1\nt,2", []string{"bar=1"}, nil, "bar=1\nt\nf"},
+		{"foo,bar\n,1\nt,2", []string{"bar > 0"}, nil, "bar>0\nt"},
 		// TODO: nullable strings tests
+
+		{"foo,bar\n1,12\n13,2\n1,3\n", []string{"foo"}, []string{"foo", "10*min(bar)"}, "foo,min(bar)\n1,30\n13,20"},
 	}
 
 	for testNo, test := range tests {
@@ -198,16 +213,17 @@ func TestBasicAggregation(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		aggexpr := make([]*expr.Expression, 0, len(test.aggexpr))
-		for _, el := range test.aggexpr {
-			parsed, err := expr.ParseStringExpr(el)
-			if err != nil {
-				t.Fatal(err)
-			}
-			aggexpr = append(aggexpr, parsed)
+		aggexpr, err := stringsToExprs(test.aggexpr)
+		if err != nil {
+			t.Error(err)
+			continue
 		}
-		// TODO: consider a different select expression
-		nrc, err := aggregate(db, ds, aggexpr, aggexpr)
+		projexpr, nil := stringsToExprs(test.projs)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		nrc, err := aggregate(db, ds, aggexpr, projexpr)
 		if err != nil {
 			t.Fatal(err)
 		}

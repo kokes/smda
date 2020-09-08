@@ -68,15 +68,21 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 
 // doesn't seem to be NULL-aware
 // also, downstream .Hash methods do not take column order into consideration (XOR)
-func aggregate(db *database.Database, ds *database.Dataset, exprs []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
-	if len(exprs) == 0 {
+func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
+	if len(groupbys) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
 	}
 
 	// TODO: incorporate projections (projs)
+	// for _, g := range projs {
+	// 	aggexpr := expr.AggExpr(g)
+	// 	if aggexpr != nil {
+	// 		log.Fatal(aggexpr)
+	// 	}
+	// }
 
 	nrc := make([]column.Chunk, 0, len(projs))
-	for _, expression := range exprs {
+	for _, expression := range groupbys {
 		schema, err := expression.ReturnType(ds.Schema)
 		if err != nil {
 			return nil, err
@@ -84,16 +90,16 @@ func aggregate(db *database.Database, ds *database.Dataset, exprs []*expr.Expres
 		nrc = append(nrc, column.NewChunkFromSchema(schema))
 	}
 
-	columnNames := expr.ColumnsUsed(exprs...)
+	columnNames := expr.ColumnsUsed(groupbys...)
 	groups := make(map[uint64]int)
-	rcs := make([]column.Chunk, len(exprs))
+	rcs := make([]column.Chunk, len(groupbys))
 
 	for _, stripeID := range ds.Stripes {
 		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripeID, columnNames)
 		if err != nil {
 			return nil, err
 		}
-		for j, expression := range exprs {
+		for j, expression := range groupbys {
 			rc, err := expr.Evaluate(expression, colmap(columnNames, columnData))
 			if err != nil {
 				return nil, err
