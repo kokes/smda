@@ -99,17 +99,19 @@ type Expression struct {
 	aggregator func(int, column.Dtype) column.Aggregator
 }
 
-func AggExpr(expr *Expression) *Expression {
+// TODO: there cannot be nested aggexprs, test for that
+func AggExpr(expr *Expression) []*Expression {
+	var ret []*Expression
 	if expr.aggregator != nil {
-		return expr
+		ret = append(ret, expr)
 	}
 	for _, ch := range expr.children {
 		ach := AggExpr(ch)
 		if ach != nil {
-			return ach
+			ret = append(ret, ach...)
 		}
 	}
-	return nil
+	return ret
 }
 
 func (expr *Expression) String() string {

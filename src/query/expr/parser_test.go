@@ -142,6 +142,41 @@ func TestParsingContents(t *testing.T) {
 	}
 }
 
+func stringifySlice(exprs []*Expression) []string {
+	var ret []string
+	for _, expr := range exprs {
+		ret = append(ret, expr.String())
+	}
+	return ret
+}
+
+func TestAggExpr(t *testing.T) {
+	tests := []struct {
+		raw      string
+		expected []string
+	}{
+		{"1", nil},
+		{"1 + nullif(foo) - bar", nil},
+		{"min(a)", []string{"min(a)"}},
+		{"min(a) + min(b)", []string{"min(a)", "min(b)"}},
+		{"4*min(a) + 3-min(b)", []string{"min(a)", "min(b)"}},
+		{"2*nullif(min(a) + 3*min(b))", []string{"min(a)", "min(b)"}},
+		{"min(a)*min(b)*min(c)", []string{"min(a)", "min(b)", "min(c)"}},
+	}
+	for _, test := range tests {
+		expr, err := ParseStringExpr(test.raw)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		res := AggExpr(expr)
+		ress := stringifySlice(res)
+		if !reflect.DeepEqual(ress, test.expected) {
+			t.Errorf("expected %v to have %v as aggregating expressions, got %v instead", test.raw, test.expected, ress)
+		}
+	}
+}
+
 // func (expr *Expression) UnmarshalJSON(data []byte) error {
 // expr.stringer
 // MarshalJSON

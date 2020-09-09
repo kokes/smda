@@ -73,34 +73,33 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
 	}
 
-	// TODO: incorporate projections (projs)
-	// for _, g := range projs {
-	// 	aggexpr := expr.AggExpr(g)
-	// 	if aggexpr != nil {
-	// 		log.Fatal(aggexpr)
-	// 	}
-	// }
-
-	nrc := make([]column.Chunk, 0, len(projs))
-	for _, expression := range groupbys {
-		schema, err := expression.ReturnType(ds.Schema)
-		if err != nil {
-			return nil, err
+	// these are subexpressions from our projections
+	// e.g. 2*sum(foo+bar) turns into sum(foo+bar)
+	// we need the aggregating expressions isolated, so that we can
+	// feed them individual chunks
+	var aggexprs []*expr.Expression
+	for _, g := range projs {
+		aggexpr := expr.AggExpr(g)
+		if aggexpr != nil {
+			aggexprs = append(aggexprs, aggexpr...)
 		}
-		nrc = append(nrc, column.NewChunkFromSchema(schema))
 	}
 
 	columnNames := expr.ColumnsUsed(groupbys...)
+	columnNames = append(columnNames, expr.ColumnsUsed(projs...)...)
 	groups := make(map[uint64]int)
-	rcs := make([]column.Chunk, len(groupbys))
-
+	nrc := make([]column.Chunk, len(groupbys)) // this will eventually be len(projs)
 	for _, stripeID := range ds.Stripes {
+		rcs := make([]column.Chunk, len(groupbys))
 		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripeID, columnNames)
 		if err != nil {
 			return nil, err
 		}
+		columnMap := colmap(columnNames, columnData) // consider changing ReadColumnsFromStripeByNames to return this map
+
+		// 1) evaluate all the aggregation expressions (those expressions that determine groups, e.g. `country`)
 		for j, expression := range groupbys {
-			rc, err := expr.Evaluate(expression, colmap(columnNames, columnData))
+			rc, err := expr.Evaluate(expression, columnMap)
 			if err != nil {
 				return nil, err
 			}
@@ -124,12 +123,22 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 
 		// we have identified new rows in our stripe, add it to our existing columns
 		for j, rc := range rcs {
+			if nrc[j] == nil {
+				nrc[j] = rc.Prune(bm)
+				continue
+			}
 			if err := nrc[j].Append(rc.Prune(bm)); err != nil {
 				return nil, err
 			}
 		}
-		// also add some meta slice of "group ID" and return it or incorporate it in the []column.Chunk
+
+		// 2) update our aggregating expressions (e.g. `sum(a)`)
+		// for j, aggexpr := range aggexprs {
+		// 	// aggexpr.evaler.update(	evalaggexpr.children[0])	)
+		// 	_, _ = j, aggexpr
+		// }
 	}
+	// 3) resolve aggregating expressions
 
 	return nrc, nil
 }
