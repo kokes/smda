@@ -143,7 +143,10 @@ func TestParsingContents(t *testing.T) {
 }
 
 func stringifySlice(exprs []*Expression) []string {
-	var ret []string
+	if len(exprs) == 0 {
+		return nil
+	}
+	ret := make([]string, 0, len(exprs))
 	for _, expr := range exprs {
 		ret = append(ret, expr.String())
 	}

@@ -37,7 +37,7 @@ func TestQueryingEmptyDatasets(t *testing.T) {
 }
 
 func selectExpr(cols []string) []*expr.Expression {
-	var ret []*expr.Expression
+	ret := make([]*expr.Expression, 0, len(cols))
 	for _, col := range cols {
 		colExpr, err := expr.ParseStringExpr(col)
 		if err != nil {

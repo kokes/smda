@@ -348,7 +348,7 @@ func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripeID UID, column
 // ReadColumnsFromStripeByNames repeatedly calls ReadColumnFromStripeByName, so it's just a helper method
 // OPTIM: here we could use a stripe reader (or a ReadColumsFromStripe([]idx))
 func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripeID UID, columns []string) ([]column.Chunk, error) {
-	var cols []column.Chunk
+	cols := make([]column.Chunk, 0, len(columns))
 	for _, column := range columns {
 		idx, _, err := ds.Schema.LocateColumn(column)
 		if err != nil {
@@ -470,7 +470,7 @@ func (db *Database) LoadDatasetFromMap(data map[string][]string) (*Dataset, erro
 	if len(data) == 0 {
 		return nil, errNoMapData
 	}
-	var columns []string
+	columns := make([]string, 0, len(data))
 	for key := range data {
 		columns = append(columns, key)
 	}

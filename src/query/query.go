@@ -45,7 +45,7 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 	if rettype.Dtype != column.DtypeBool {
 		return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", filterExpr, rettype.Dtype)
 	}
-	var retval []*bitmap.Bitmap
+	retval := make([]*bitmap.Bitmap, 0, len(ds.Stripes))
 	colnames := filterExpr.ColumnsUsed()
 	for _, stripe := range ds.Stripes {
 		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
