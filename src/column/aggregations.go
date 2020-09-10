@@ -2,6 +2,7 @@ package column
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/kokes/smda/src/bitmap"
 )
@@ -9,22 +10,23 @@ import (
 // FuncAgg maps aggregating function names to their implementations
 // inspiration: pg docs (included all but xml and json)
 // https://www.postgresql.org/docs/12/functions-aggregate.html
-var FuncAgg = map[string]func(int, Dtype) Aggregator{
-	"array_agg": nil,
-	"avg":       nil,
-	"bit_and":   nil, "bit_or": nil, // useful?
-	"bool_and":   nil,
-	"bool_or":    nil,
-	"count":      nil, // * or Expression
-	"every":      nil,
-	"min":        NewAggMin,
-	"max":        nil,
-	"sum":        nil,
-	"string_agg": nil, // the only aggregator with a parameter
+var blankConstructor = func() Aggregator { return nil }
+var FuncAgg = map[string]func() Aggregator{
+	"array_agg": blankConstructor,
+	"avg":       blankConstructor,
+	"bit_and":   blankConstructor, "bit_or": blankConstructor, // useful?
+	"bool_and":   blankConstructor,
+	"bool_or":    blankConstructor,
+	"count":      blankConstructor, // * or Expression
+	"every":      blankConstructor,
+	"min":        func() Aggregator { return &AggMin{} },
+	"max":        blankConstructor,
+	"sum":        blankConstructor,
+	"string_agg": blankConstructor, // the only aggregator with a parameter
 }
 
 type Aggregator interface {
-	AddChunk(buckets []uint64, data Chunk) error
+	AddChunk(buckets []uint64, ndistinct int, data Chunk) error
 	Resolve() (Chunk, error)
 }
 
@@ -48,22 +50,42 @@ type AggMin struct {
 	counts []int
 }
 
-func NewAggMin(n int, dtype Dtype) Aggregator {
-	counts := make([]int, n)
-	agg := &AggMin{dtype: dtype, counts: counts}
-	switch dtype {
-	case DtypeInt:
-		agg.minInt = make([]int64, n)
-	case DtypeFloat:
-		agg.minFloat = make([]float64, n)
-	default:
-		panic(fmt.Sprintf("type %v not supported", dtype)) // TODO (ARCH): perhaps return (Aggregator, error)
+func (agg *AggMin) AddChunk(buckets []uint64, ndistinct int, data Chunk) error {
+	// TODO: since we don't have a constructor any more, we need to make sure min{Int,Float} and counts are
+	// both big enough for our number of buckets
+	if agg.dtype == DtypeInvalid {
+		agg.dtype = data.Dtype()
 	}
-	return agg
-}
 
-func (agg *AggMin) AddChunk(buckets []uint64, data Chunk) error {
-	switch agg.dtype {
+	// if agg.dtype != data.Dtype() {
+	// 	err...
+	// }
+
+	// TODO: we need to test this on multiple stripes (and one that introduces
+	// many new distinct values in new stripes)
+	if len(agg.counts) < ndistinct {
+		agg.counts = append(agg.counts, make([]int, ndistinct-len(agg.counts))...)
+		switch agg.dtype {
+		case DtypeInt:
+			// ARCH: these snippets can be abstracted away as `ensure(slice, length, sentinel)`
+			//       as they'll be helpful in `max` and other agg functions
+			currentLength := len(agg.minInt)
+			agg.minInt = append(agg.minInt, make([]int64, ndistinct-currentLength)...)
+			for j := currentLength; j < ndistinct; j++ {
+				agg.minInt[j] = math.MaxInt64
+			}
+		case DtypeFloat:
+			currentLength := len(agg.minFloat)
+			agg.minFloat = append(agg.minFloat, make([]float64, ndistinct-currentLength)...)
+			for j := currentLength; j < ndistinct; j++ {
+				agg.minFloat[j] = math.MaxFloat64
+			}
+		default:
+			return errTypeNotSupported
+		}
+	}
+
+	switch data.Dtype() {
 	case DtypeInt:
 		rc := data.(*ChunkInts)
 		for j, val := range rc.data {
@@ -97,10 +119,11 @@ func (agg *AggMin) AddChunk(buckets []uint64, data Chunk) error {
 			}
 		}
 	default:
-		return fmt.Errorf("%w: cannot run AddChunk on %v", errTypeNotSupported, agg.dtype)
+		return fmt.Errorf("%w: cannot run AddChunk on %v", errTypeNotSupported, data.Dtype())
 	}
 	return nil
 }
+
 func (agg *AggMin) Resolve() (Chunk, error) {
 	var bm *bitmap.Bitmap
 	for j, el := range agg.counts {

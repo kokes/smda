@@ -96,7 +96,7 @@ type Expression struct {
 	children   []*Expression
 	value      string
 	evaler     func(...column.Chunk) (column.Chunk, error)
-	aggregator func(int, column.Dtype) column.Aggregator
+	aggregator column.Aggregator
 }
 
 // TODO: there cannot be nested aggexprs, test for that
@@ -331,7 +331,7 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 		}
 		fncg, okg := column.FuncAgg[funName]
 		if okg {
-			ret.aggregator = fncg
+			ret.aggregator = fncg()
 		}
 		if !(okp || okg) {
 			return nil, fmt.Errorf("%w: %s", errFunctionDoesNotExist, funName)

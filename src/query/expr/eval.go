@@ -83,3 +83,16 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 		return nil, fmt.Errorf("expression %v not supported: %w", expr, errQueryPatternNotSupported)
 	}
 }
+
+func UpdateAggregator(expr *Expression, buckets []uint64, ndistinct int, columnData map[string]column.Chunk) error {
+	// if expr.aggregator == nil {err}
+	// if len(expr.children) != 1 {err}// what about count()?
+
+	// e.g. sum(1+foo) needs `1+foo` evaluated first, then we feed the resulting
+	// chunk to the sum aggregator
+	child, err := Evaluate(expr.children[0], columnData)
+	if err != nil {
+		return err
+	}
+	return expr.aggregator.AddChunk(buckets, ndistinct, child)
+}

@@ -86,8 +86,9 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 	}
 
 	columnNames := expr.ColumnsUsed(groupbys...)
+	// TODO: there will be duplicates here
 	columnNames = append(columnNames, expr.ColumnsUsed(projs...)...)
-	groups := make(map[uint64]int)
+	groups := make(map[uint64]uint64)
 	nrc := make([]column.Chunk, len(groupbys)) // this will eventually be len(projs)
 	for _, stripeID := range ds.Stripes {
 		rcs := make([]column.Chunk, len(groupbys))
@@ -108,14 +109,14 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 
 		// TODO: we don't have a stripe length property - should we?
 		ln := rcs[0].Len()
-		hashes := make([]uint64, ln) // preserves unique rows (their hashes)
+		hashes := make([]uint64, ln) // preserves unique rows (their hashes); OPTIM: preallocate some place
 		bm := bitmap.NewBitmap(ln)   // denotes which rows are the unique ones
 		for _, rc := range rcs {
 			rc.Hash(hashes)
 		}
 		for row, hash := range hashes {
 			if _, ok := groups[hash]; !ok {
-				groups[hash] = len(groups)
+				groups[hash] = uint64(len(groups))
 				// it's a new value, set our bitmap, so that we can prune it later
 				bm.Set(row, true)
 			}
@@ -133,10 +134,16 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		}
 
 		// 2) update our aggregating expressions (e.g. `sum(a)`)
-		// for j, aggexpr := range aggexprs {
-		// 	// aggexpr.evaler.update(	evalaggexpr.children[0])	)
-		// 	_, _ = j, aggexpr
-		// }
+		// we no longer need the `hashes` for this stripe, so we'll repurpose it
+		// to get information on groups (buckets)
+		for j, el := range hashes {
+			hashes[j] = groups[el]
+		}
+		for _, aggexpr := range aggexprs {
+			if err := expr.UpdateAggregator(aggexpr, hashes, len(groups), columnMap); err != nil {
+				return nil, err
+			}
+		}
 	}
 	// 3) resolve aggregating expressions
 
