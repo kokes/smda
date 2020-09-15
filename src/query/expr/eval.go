@@ -13,6 +13,10 @@ var errFunctionNotImplemented = errors.New("function not implemented")
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
 // the same tree of operations
 func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chunk, error) {
+	// TODO: test this via UpdateAggregator
+	if expr.aggregator != nil {
+		return expr.aggregator.Resolve()
+	}
 	switch expr.etype {
 	case exprIdentifier:
 		col, ok := columnData[expr.value]

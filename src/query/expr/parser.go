@@ -137,6 +137,7 @@ func (expr *Expression) String() string {
 
 		return fmt.Sprintf("%s(%s)", expr.value, strings.Join(args, ", "))
 	default:
+		// TODO: panic? (We use .String() for comparison of expressions)
 		return "unsupported expression"
 	}
 }

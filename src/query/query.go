@@ -66,28 +66,42 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 	return retval, nil
 }
 
-// doesn't seem to be NULL-aware
-// also, downstream .Hash methods do not take column order into consideration (XOR)
+// downstream .Hash methods do not take column order into consideration (XOR)
 func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
 	if len(groupbys) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
 	}
 
-	// these are subexpressions from our projections
-	// e.g. 2*sum(foo+bar) turns into sum(foo+bar)
-	// we need the aggregating expressions isolated, so that we can
-	// feed them individual chunks
+	// we need to validate all projections - they either need to be in the groupby clause
+	// or be aggregating (e.g. sum(ints) -> int)
+	// we'll also collect all the aggregating expressions, so that we can feed them individual chunks
 	var aggexprs []*expr.Expression
-	for _, g := range projs {
-		aggexpr := expr.AggExpr(g)
+	for _, proj := range projs {
+		aggexpr := expr.AggExpr(proj)
 		if aggexpr != nil {
 			aggexprs = append(aggexprs, aggexpr...)
+			continue
+		}
+		// ARCH/OPTIM: there are a few issues here:
+		// 1) we don't cache the string values anywhere, so this is potentially expensive
+		// 2) we walk the slice instead of building a map once (essentially the same point)
+		// 3) we use .String() instead of .value - but will .value work if a projection
+		//    is `a+b` and the groupby expression is `A + B`? (test all this)
+		ps := proj.String()
+		found := false
+		for _, gr := range groupbys {
+			if gr.String() == ps {
+				found = true
+				break
+			}
+		}
+		if !found {
+			// TODO: isolate this into a custom error and test it
+			return nil, fmt.Errorf("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo)), got %v", proj)
 		}
 	}
 
-	columnNames := expr.ColumnsUsed(groupbys...)
-	// TODO: there will be duplicates here
-	columnNames = append(columnNames, expr.ColumnsUsed(projs...)...)
+	columnNames := expr.ColumnsUsed(append(groupbys, projs...)...)
 	groups := make(map[uint64]uint64)
 	nrc := make([]column.Chunk, len(groupbys)) // this will eventually be len(projs)
 	for _, stripeID := range ds.Stripes {
