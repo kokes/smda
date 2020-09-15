@@ -66,6 +66,21 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 	return retval, nil
 }
 
+// ARCH/OPTIM: there are a few issues here:
+// 1) we don't cache the string values anywhere, so this is potentially expensive
+// 2) we walk the slice instead of building a map once (essentially the same point)
+// 3) we use .String() instead of .value - but will .value work if a projection
+//    is `a+b` and the groupby expression is `A + B`? (test all this)
+func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
+	ns := needle.String()
+	for j, ex := range haystack {
+		if ex.String() == ns {
+			return j
+		}
+	}
+	return -1
+}
+
 // downstream .Hash methods do not take column order into consideration (XOR)
 func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
 	if len(groupbys) == 0 {
@@ -82,20 +97,8 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 			aggexprs = append(aggexprs, aggexpr...)
 			continue
 		}
-		// ARCH/OPTIM: there are a few issues here:
-		// 1) we don't cache the string values anywhere, so this is potentially expensive
-		// 2) we walk the slice instead of building a map once (essentially the same point)
-		// 3) we use .String() instead of .value - but will .value work if a projection
-		//    is `a+b` and the groupby expression is `A + B`? (test all this)
-		ps := proj.String()
-		found := false
-		for _, gr := range groupbys {
-			if gr.String() == ps {
-				found = true
-				break
-			}
-		}
-		if !found {
+		pos := lookupExpr(proj, groupbys)
+		if pos == -1 {
 			// TODO: isolate this into a custom error and test it
 			return nil, fmt.Errorf("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo)), got %v", proj)
 		}
@@ -103,7 +106,8 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 
 	columnNames := expr.ColumnsUsed(append(groupbys, projs...)...)
 	groups := make(map[uint64]uint64)
-	nrc := make([]column.Chunk, len(groupbys)) // this will eventually be len(projs)
+	// ARCH: `nrc` and `rcs` are not very descriptive
+	nrc := make([]column.Chunk, len(groupbys))
 	for _, stripeID := range ds.Stripes {
 		rcs := make([]column.Chunk, len(groupbys))
 		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripeID, columnNames)
@@ -160,8 +164,28 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		}
 	}
 	// 3) resolve aggregating expressions
+	ret := make([]column.Chunk, len(projs))
+	for j, gr := range groupbys {
+		// OPTIM: we did this once already
+		pos := lookupExpr(gr, projs)
+		if pos == -1 {
+			continue
+		}
+		ret[pos] = nrc[j]
+	}
+	for j, proj := range projs {
+		if ret[j] != nil {
+			// this is an aggregating expression, skip it
+			continue
+		}
+		agg, err := expr.Evaluate(proj, nil) // we can pass in a nil map, because agg exprs get evaluated first
+		if err != nil {
+			return nil, err
+		}
+		ret[j] = agg
+	}
 
-	return nrc, nil
+	return ret, nil
 }
 
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
@@ -198,9 +222,8 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		if err != nil {
 			return nil, err
 		}
-		// no projections yet
 		res.Columns = make([]string, 0, len(columns))
-		for _, col := range q.Aggregate {
+		for _, col := range q.Select {
 			res.Columns = append(res.Columns, col.String())
 		}
 		res.Data = columns

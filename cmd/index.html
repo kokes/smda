@@ -146,10 +146,10 @@
             await this.loadDatasets();
             const columns = this.datasets[datasetID].schema.map(x=>x.name)
             const body = {
-                select: columns,
+                select: ['strings', 'bools', 'min(ints)', 'min(ints_null)'],
                 limit: 25,
                 dataset: datasetID,
-                // aggregate: ['strings', 'bools'],
+                aggregate: ['strings', 'bools'],
                 // filter: 'floats != floats_null',
                 // filter: 'strings = strings_null',
             }
