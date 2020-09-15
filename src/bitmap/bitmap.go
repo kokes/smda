@@ -127,10 +127,7 @@ func (bm *Bitmap) Ensure(n int) {
 	if n > bm.cap {
 		bm.cap = n
 	}
-	nvals := n / 64
-	if n%64 != 0 {
-		nvals++
-	}
+	nvals := (n + 63) / 64
 	nvals -= len(bm.data)
 	bm.data = append(bm.data, make([]uint64, nvals)...)
 }
@@ -161,13 +158,12 @@ func NewBitmapFromBits(data []uint64, length int) *Bitmap {
 }
 
 // Set sets nth bit to `val` - true (1) or false (0)
-// OPTIM: cost is 84, can be almost inlined
 func (bm *Bitmap) Set(n int, val bool) {
 	bm.Ensure(n + 1)
 	if val {
 		bm.data[n/64] |= uint64(1 << (n % 64))
 	} else {
-		bm.data[n/64] &= ^uint64(1 << (n % 64))
+		bm.data[n/64] &^= uint64(1 << (n % 64))
 	}
 }
 
