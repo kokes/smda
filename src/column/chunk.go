@@ -292,6 +292,16 @@ func newChunkBools() *ChunkBools {
 	}
 }
 
+func newChunkLiteralBools(value bool, length int) *ChunkBools {
+	bm := bitmap.NewBitmap(1)
+	bm.Set(0, value)
+	return &ChunkBools{
+		isLiteral: true,
+		data:      bm,
+		length:    uint32(length),
+	}
+}
+
 func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	return &ChunkBools{
 		data:   bitmap.NewBitmapFromBits(data, length),

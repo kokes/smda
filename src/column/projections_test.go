@@ -82,8 +82,8 @@ func TestComparisons(t *testing.T) {
 		{DtypeString, EvalGt, 3, "lit:ahoy", "ahey,boo,a", "t,f,t"},
 		{DtypeString, EvalLte, 3, "ahey,boo,a", "lit:ahoy", "t,f,t"},
 		// all literals
-		{DtypeInt, EvalEq, 3, "lit:1", "lit:2", "f,f,f"},
-		{DtypeFloat, EvalEq, 3, "lit:1", "lit:2", "f,f,f"},
+		{DtypeInt, EvalEq, 3, "lit:1", "lit:2", "lit:f"},
+		{DtypeFloat, EvalEq, 3, "lit:1", "lit:2", "lit:f"},
 	}
 	litPrefix := "lit:"
 	for _, test := range tests {

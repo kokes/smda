@@ -28,6 +28,16 @@ func boolChunkFromParts(data []uint64, length int, null1, null2 *bitmap.Bitmap) 
 	}
 	return cdata
 }
+
+func boolChunkLiteralFromParts(val bool, length int, null1, null2 *bitmap.Bitmap) *ChunkBools {
+	ch := newChunkLiteralBools(val, length)
+	nulls := bitmap.Or(null1, null2)
+	if nulls != nil {
+		ch.nullability = nulls
+	}
+	return ch
+}
+
 func intChunkFromParts(data []int64, null1, null2 *bitmap.Bitmap) *ChunkInts {
 	nulls := bitmap.Or(null1, null2)
 	return newChunkIntsFromSlice(data, nulls)
@@ -44,37 +54,30 @@ func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, 
 	if c2.Len() > nvals {
 		nvals = c2.Len()
 	}
-	bm := bitmap.NewBitmap(nvals)
-	switch {
-	case c1.isLiteral && c2.isLiteral:
+	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.nthValue(0), c2.nthValue(0))
-		if val {
-			bm.Invert()
+		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+	}
+
+	bm := bitmap.NewBitmap(nvals)
+	eval := func(j int) bool { return compFn(c1.nthValue(j), c2.nthValue(j)) }
+	if c1.isLiteral {
+		val := c1.nthValue(0)
+		eval = func(j int) bool { return compFn(val, c2.nthValue(j)) }
+	}
+	if c2.isLiteral {
+		val := c2.nthValue(0)
+		eval = func(j int) bool { return compFn(c1.nthValue(j), val) }
+	}
+	for j := 0; j < nvals; j++ {
+		if eval(j) {
+			bm.Set(j, true)
 		}
-	// TODO/ARCH: we can fold this case and default into one default
-	// just make the default a new `eval` closure
-	// remove the switch as this will be catered by a single if for the literals case (just like in the algebraics section)
-	case c1.isLiteral || c2.isLiteral:
-		var eval func(j int) bool
-		if c1.isLiteral {
-			val := c1.nthValue(0)
-			eval = func(j int) bool { return compFn(val, c2.nthValue(j)) }
-		}
-		if c2.isLiteral {
-			val := c2.nthValue(0)
-			eval = func(j int) bool { return compFn(c1.nthValue(j), val) }
-		}
-		for j := 0; j < nvals; j++ {
-			if eval(j) {
-				bm.Set(j, true)
-			}
-		}
-	default:
-		for j := 0; j < nvals; j++ {
-			if compFn(c1.nthValue(j), c2.nthValue(j)) {
-				bm.Set(j, true)
-			}
+	}
+	for j := 0; j < nvals; j++ {
+		if eval(j) {
+			bm.Set(j, true)
 		}
 	}
 
@@ -94,35 +97,26 @@ func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) boo
 	if c2.Len() > nvals {
 		nvals = c2.Len()
 	}
-	bm := bitmap.NewBitmap(nvals)
 
-	switch {
-	case c1.isLiteral && c2.isLiteral:
+	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
-		if val {
-			bm.Invert()
-		}
-	case c1.isLiteral || c2.isLiteral:
-		var eval func(j int) bool
-		if c1.isLiteral {
-			val := c1.data[0]
-			eval = func(j int) bool { return compFn(val, c2.data[j]) }
-		}
-		if c2.isLiteral {
-			val := c2.data[0]
-			eval = func(j int) bool { return compFn(c1.data[j], val) }
-		}
-		for j := 0; j < nvals; j++ {
-			if eval(j) {
-				bm.Set(j, true)
-			}
-		}
-	default:
-		for j, el := range c1.data {
-			if compFn(el, c2.data[j]) {
-				bm.Set(j, true)
-			}
+		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+	}
+
+	bm := bitmap.NewBitmap(nvals)
+	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	if c1.isLiteral {
+		val := c1.data[0]
+		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+	}
+	if c2.isLiteral {
+		val := c2.data[0]
+		eval = func(j int) bool { return compFn(c1.data[j], val) }
+	}
+	for j := 0; j < nvals; j++ {
+		if eval(j) {
+			bm.Set(j, true)
 		}
 	}
 	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
@@ -138,34 +132,28 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 	}
 	bm := bitmap.NewBitmap(nvals)
 
-	switch {
-	case c1.isLiteral && c2.isLiteral:
+	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
-		if val {
-			bm.Invert()
+		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+
+	}
+
+	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	if c1.isLiteral {
+		val := c1.data[0]
+		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+	}
+	if c2.isLiteral {
+		val := c2.data[0]
+		eval = func(j int) bool { return compFn(c1.data[j], val) }
+	}
+
+	for j := 0; j < nvals; j++ {
+		if eval(j) {
+			bm.Set(j, true)
 		}
-	case c1.isLiteral || c2.isLiteral:
-		var eval func(j int) bool
-		if c1.isLiteral {
-			val := c1.data[0]
-			eval = func(j int) bool { return compFn(val, c2.data[j]) }
-		}
-		if c2.isLiteral {
-			val := c2.data[0]
-			eval = func(j int) bool { return compFn(c1.data[j], val) }
-		}
-		for j := 0; j < nvals; j++ {
-			if eval(j) {
-				bm.Set(j, true)
-			}
-		}
-	default:
-		for j, el := range c1.data {
-			if compFn(el, c2.data[j]) {
-				bm.Set(j, true)
-			}
-		}
+
 	}
 	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
 }
@@ -182,8 +170,7 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 	}
 	res := make([]uint64, (nvals+63)/64)
 
-	switch {
-	case c1.isLiteral && c2.isLiteral:
+	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		panic("not implemented yet") // TODO
 		// idea: compFn the thing, extract that one relevant bit and then set all values in res
@@ -195,32 +182,27 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 		// 		res[j] = ALL_ONES
 		// 	}
 		// }
-	case c1.isLiteral || c2.isLiteral:
-		var eval func(j int) uint64
-		if c1.isLiteral {
-			mask := ALL_ZEROS
-			if c1.data.Get(0) {
-				mask = ALL_ONES
-			}
-			data := c2.data.Data()
-			eval = func(j int) uint64 { return compFn(mask, data[j]) }
+	}
+
+	c1d := c1.data.Data()
+	c2d := c2.data.Data()
+	eval := func(j int) uint64 { return compFn(c1d[j], c2d[j]) }
+	if c1.isLiteral {
+		mask := ALL_ZEROS
+		if c1.data.Get(0) {
+			mask = ALL_ONES
 		}
-		if c2.isLiteral {
-			mask := ALL_ZEROS
-			if c2.data.Get(0) {
-				mask = ALL_ONES
-			}
-			data := c1.data.Data()
-			eval = func(j int) uint64 { return compFn(data[j], mask) }
+		eval = func(j int) uint64 { return compFn(mask, c2d[j]) }
+	}
+	if c2.isLiteral {
+		mask := ALL_ZEROS
+		if c2.data.Get(0) {
+			mask = ALL_ONES
 		}
-		for j := 0; j < len(res); j++ {
-			res[j] = eval(j)
-		}
-	default:
-		c2d := c2.data.Data()
-		for j, el := range c1.data.Data() {
-			res[j] = compFn(el, c2d[j])
-		}
+		eval = func(j int) uint64 { return compFn(c1d[j], mask) }
+	}
+	for j := 0; j < len(res); j++ {
+		res[j] = eval(j)
 	}
 
 	// we may have flipped some bits that are not relevant (beyond the bitmap's cap)
