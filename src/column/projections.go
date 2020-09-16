@@ -158,6 +158,78 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
 }
 
+// ARCH: this is, again, identical to the previous factory functions
+func compFactoryIntsFloats(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, float64) bool) (*ChunkBools, error) {
+	nvals := c1.Len()
+	// if one column is a literal, it won't have the right length set
+	// TODO: remove this once we implement stripe lengths
+	if c2.Len() > nvals {
+		nvals = c2.Len()
+	}
+	bm := bitmap.NewBitmap(nvals)
+
+	if c1.isLiteral && c2.isLiteral {
+		// OPTIM: this should be a part of constant folding and should never get to this point
+		val := compFn(c1.data[0], c2.data[0])
+		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+
+	}
+
+	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	if c1.isLiteral {
+		val := c1.data[0]
+		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+	}
+	if c2.isLiteral {
+		val := c2.data[0]
+		eval = func(j int) bool { return compFn(c1.data[j], val) }
+	}
+
+	for j := 0; j < nvals; j++ {
+		if eval(j) {
+			bm.Set(j, true)
+		}
+
+	}
+	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+}
+
+// ARCH: this is, again, identical to the previous factory functions
+func compFactoryFloatsInts(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64, int64) bool) (*ChunkBools, error) {
+	nvals := c1.Len()
+	// if one column is a literal, it won't have the right length set
+	// TODO: remove this once we implement stripe lengths
+	if c2.Len() > nvals {
+		nvals = c2.Len()
+	}
+	bm := bitmap.NewBitmap(nvals)
+
+	if c1.isLiteral && c2.isLiteral {
+		// OPTIM: this should be a part of constant folding and should never get to this point
+		val := compFn(c1.data[0], c2.data[0])
+		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+
+	}
+
+	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	if c1.isLiteral {
+		val := c1.data[0]
+		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+	}
+	if c2.isLiteral {
+		val := c2.data[0]
+		eval = func(j int) bool { return compFn(c1.data[j], val) }
+	}
+
+	for j := 0; j < nvals; j++ {
+		if eval(j) {
+			bm.Set(j, true)
+		}
+
+	}
+	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+}
+
 const ALL_ZEROS = uint64(0)
 const ALL_ONES = uint64(1<<64 - 1)
 
@@ -217,31 +289,43 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 }
 
 type compFuncs struct {
-	ints    func(int64, int64) bool
-	floats  func(float64, float64) bool
-	strings func(string, string) bool
-	bools   func(uint64, uint64) uint64
+	ints     func(int64, int64) bool
+	floats   func(float64, float64) bool
+	intfloat func(int64, float64) bool
+	floatint func(float64, int64) bool
+	strings  func(string, string) bool
+	bools    func(uint64, uint64) uint64
 }
 
 // OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
 func compEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
-	if c1.Dtype() != c2.Dtype() {
-		// this includes int == float!
-		// sort dtypes when implementing this (see the note above)
-		return nil, fmt.Errorf("comparison expression not supported for unequal types: %w", errProjectionNotSupported)
+	if c1.Dtype() == c2.Dtype() {
+		switch c1.Dtype() {
+		case DtypeString:
+			return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings), cf.strings)
+		case DtypeInt:
+			return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts), cf.ints)
+		case DtypeFloat:
+			return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
+		case DtypeBool:
+			return compFactoryBools(c1.(*ChunkBools), c2.(*ChunkBools), cf.bools)
+		default:
+			return nil, fmt.Errorf("comparison expression not supported for types %s and %s: %w", c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
+		}
 	}
 
-	switch c1.Dtype() {
-	case DtypeString:
-		return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings), cf.strings)
-	case DtypeInt:
-		return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts), cf.ints)
-	case DtypeFloat:
-		return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
-	case DtypeBool:
-		return compFactoryBools(c1.(*ChunkBools), c2.(*ChunkBools), cf.bools)
+	type dtypes struct{ a, b Dtype }
+	c1d := c1.Dtype()
+	c2d := c2.Dtype()
+	cs := dtypes{c1d, c2d}
+	switch cs {
+	case dtypes{DtypeInt, DtypeFloat}:
+		return compFactoryIntsFloats(c1.(*ChunkInts), c2.(*ChunkFloats), cf.intfloat)
+	case dtypes{DtypeFloat, DtypeInt}:
+		return compFactoryFloatsInts(c1.(*ChunkFloats), c2.(*ChunkInts), cf.floatint)
 	default:
-		return nil, fmt.Errorf("comparison expression not supported for types %s and %s: %w", c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
+		return nil, fmt.Errorf("comparison expression not supported for types %v and %v: %w", c1d, c2d, errProjectionNotSupported)
+
 	}
 }
 
@@ -262,40 +346,48 @@ func EvalOr(c1 Chunk, c2 Chunk) (Chunk, error) {
 // EvalEq compares values from two different chunks
 func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return compEval(c1, c2, compFuncs{
-		ints:    func(a, b int64) bool { return a == b },
-		floats:  func(a, b float64) bool { return a == b },
-		strings: func(a, b string) bool { return a == b },
-		bools:   func(a, b uint64) uint64 { return a ^ (^b) },
+		ints:     func(a, b int64) bool { return a == b },
+		floats:   func(a, b float64) bool { return a == b },
+		intfloat: func(a int64, b float64) bool { return float64(a) == b },
+		floatint: func(a float64, b int64) bool { return a == float64(b) },
+		strings:  func(a, b string) bool { return a == b },
+		bools:    func(a, b uint64) uint64 { return a ^ (^b) },
 	})
 }
 
 // EvalNeq compares values from two different chunks for inequality
 func EvalNeq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return compEval(c1, c2, compFuncs{
-		ints:    func(a, b int64) bool { return a != b },
-		floats:  func(a, b float64) bool { return a != b },
-		strings: func(a, b string) bool { return a != b },
-		bools:   func(a, b uint64) uint64 { return a ^ b },
+		ints:     func(a, b int64) bool { return a != b },
+		floats:   func(a, b float64) bool { return a != b },
+		intfloat: func(a int64, b float64) bool { return float64(a) != b },
+		floatint: func(a float64, b int64) bool { return a != float64(b) },
+		strings:  func(a, b string) bool { return a != b },
+		bools:    func(a, b uint64) uint64 { return a ^ b },
 	})
 }
 
 // EvalGt checks if values in c1 are greater than in c2
 func EvalGt(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return compEval(c1, c2, compFuncs{
-		ints:    func(a, b int64) bool { return a > b },
-		floats:  func(a, b float64) bool { return a > b },
-		strings: func(a, b string) bool { return a > b },
-		bools:   func(a, b uint64) uint64 { return a & (^b) },
+		ints:     func(a, b int64) bool { return a > b },
+		floats:   func(a, b float64) bool { return a > b },
+		intfloat: func(a int64, b float64) bool { return float64(a) > b },
+		floatint: func(a float64, b int64) bool { return a > float64(b) },
+		strings:  func(a, b string) bool { return a > b },
+		bools:    func(a, b uint64) uint64 { return a & (^b) },
 	})
 }
 
 // EvalGte checks if values in c1 are greater than or equal to those in c2
 func EvalGte(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return compEval(c1, c2, compFuncs{
-		ints:    func(a, b int64) bool { return a >= b },
-		floats:  func(a, b float64) bool { return a >= b },
-		strings: func(a, b string) bool { return a >= b },
-		bools:   func(a, b uint64) uint64 { return (a & (^b)) | (a ^ (^b)) },
+		ints:     func(a, b int64) bool { return a >= b },
+		floats:   func(a, b float64) bool { return a >= b },
+		intfloat: func(a int64, b float64) bool { return float64(a) >= b },
+		floatint: func(a float64, b int64) bool { return a >= float64(b) },
+		strings:  func(a, b string) bool { return a >= b },
+		bools:    func(a, b uint64) uint64 { return (a & (^b)) | (a ^ (^b)) },
 	})
 }
 
