@@ -11,7 +11,8 @@ var errQueryPatternNotSupported = errors.New("query pattern not supported")
 var errFunctionNotImplemented = errors.New("function not implemented")
 
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
-// the same tree of operations
+// the same tree of operations - this applies not just here, but in projections.go as well - e.g. we know that
+// if we have `intA - intB`, we'll run a function for ints - we don't need to decide that for each stripe
 func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chunk, error) {
 	// TODO: test this via UpdateAggregator
 	if expr.aggregator != nil {
@@ -81,6 +82,14 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 			return column.EvalGt(c1, c2)
 		case exprGreaterThanEqual:
 			return column.EvalGte(c1, c2)
+		case exprAddition:
+			return column.EvalAdd(c1, c2)
+		case exprSubtraction:
+			return column.EvalSubtract(c1, c2)
+		case exprDivision:
+			return column.EvalDivide(c1, c2)
+		case exprMultiplication:
+			return column.EvalMultiply(c1, c2)
 		}
 		fallthrough
 	default:

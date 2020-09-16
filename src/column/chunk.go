@@ -263,9 +263,26 @@ func newChunkInts() *ChunkInts {
 		data: make([]int64, 0, defaultChunkCap),
 	}
 }
+
+func newChunkLiteralInts(value int64, length int) *ChunkInts {
+	return &ChunkInts{
+		isLiteral: true,
+		data:      []int64{value},
+		length:    uint32(length),
+	}
+}
+
 func newChunkFloats() *ChunkFloats {
 	return &ChunkFloats{
 		data: make([]float64, 0, defaultChunkCap),
+	}
+}
+
+func newChunkLiteralFloats(value float64, length int) *ChunkFloats {
+	return &ChunkFloats{
+		isLiteral: true,
+		data:      []float64{value},
+		length:    uint32(length),
 	}
 }
 
@@ -1311,6 +1328,7 @@ func (rc *ChunkInts) MarshalJSON() ([]byte, error) {
 }
 
 // MarshalJSON converts a chunk into its JSON representation
+// TODO: carefully consider the case when a non-masked value is a NaN or an Infty
 func (rc *ChunkFloats) MarshalJSON() ([]byte, error) {
 	// OPTIM: we could construct this JSON value using a byte buffer, avoiding []float64, reflection,
 	// serialisation and other overhead. But I guess it's not a bottleneck at this point.
