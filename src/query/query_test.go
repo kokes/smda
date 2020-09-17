@@ -179,7 +179,16 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\n1,2\n2,3", []string{"foo"}, []string{"foo"}, "foo\n1\n2"},
 		{"foo,bar\nt,f\nt,f", []string{"foo"}, []string{"foo"}, "foo\ntrue"},
 		{"foo,bar\n1,t\n2,f", []string{"foo"}, []string{"foo"}, "foo,bar\n1,true\n2,false"},
-		// {"foo,bar\na,b\nb,a", []string{"foo", "bar"}, "foo,bar\na,b\nb,a"}, // TODO: enable once we add order-preserving hashing
+		// order preserving hashing
+		{"foo,bar\na,b\nb,a", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\na,b\nb,a"},
+		{"foo,bar\n1,3\n3,1", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\n1,3\n3,1"},
+		{"foo,bar\n1.2,3\n3,1.2", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\n1.2,3\n3,1.2"},
+		{"foo,bar\nt,f\nf,t", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\nt,f\nf,t"},
+		// order preserving, with nulls
+		{"foo,bar\nt,\nt,", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\nt,"},
+		{"foo,bar\n1,2\n,3\n,3\n,2", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\n1,2\n,3\n,2"},
+		{"foo,bar\n1.2,2\n,3.1\n,3.1\n,2", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\n1.2,2\n,3.1\n,2"},
+		// {"foo,bar\nt,1\n,1\nt,1", []string{"foo"}, []string{"foo"}, "foo\nt\n"}, // we're hitting go's encoding/csv again
 		// nulls in aggregation:
 		{"foo,bar\n,1\n0,2", []string{"foo"}, []string{"foo"}, "foo,bar\n,1\n0,2"},
 		{"foo,bar\n1,1\n,2", []string{"foo"}, []string{"foo"}, "foo,bar\n1,1\n,2"},

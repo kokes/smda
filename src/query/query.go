@@ -81,7 +81,6 @@ func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
 	return -1
 }
 
-// downstream .Hash methods do not take column order into consideration (XOR)
 func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
 	if len(groupbys) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
@@ -129,8 +128,8 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		ln := rcs[0].Len()
 		hashes := make([]uint64, ln) // preserves unique rows (their hashes); OPTIM: preallocate some place
 		bm := bitmap.NewBitmap(ln)   // denotes which rows are the unique ones
-		for _, rc := range rcs {
-			rc.Hash(hashes)
+		for j, rc := range rcs {
+			rc.Hash(j, hashes)
 		}
 		for row, hash := range hashes {
 			if _, ok := groups[hash]; !ok {

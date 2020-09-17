@@ -554,8 +554,8 @@ func TestHashing(t *testing.T) {
 		}
 		hashes1 := make([]uint64, len(test.data))
 		hashes2 := make([]uint64, len(test.data))
-		rc.Hash(hashes1)
-		rc.Hash(hashes2)
+		rc.Hash(0, hashes1)
+		rc.Hash(0, hashes2)
 
 		if !reflect.DeepEqual(hashes1, hashes2) {
 			t.Errorf("hashing twice did not result in the same slice: %v vs. %v", hashes1, hashes2)
@@ -605,8 +605,8 @@ func TestNewLiterals(t *testing.T) {
 			}
 			h1 := make([]uint64, test.length)
 			h2 := make([]uint64, test.length)
-			chunk.Hash(h1)
-			chunk.Hash(h2)
+			chunk.Hash(0, h1)
+			chunk.Hash(0, h2)
 			if !reflect.DeepEqual(h1, h2) {
 				t.Errorf("hashing %v twice should result in the same slice, got %v and %v instead", test.val, h1, h2)
 			}
@@ -663,7 +663,7 @@ func BenchmarkHashingInts(b *testing.B) {
 	b.ResetTimer()
 
 	for j := 0; j < b.N; j++ {
-		col.Hash(hashes)
+		col.Hash(0, hashes)
 	}
 	b.SetBytes(int64(8 * n))
 }
@@ -678,7 +678,7 @@ func BenchmarkHashingFloats(b *testing.B) {
 
 	hashes := make([]uint64, col.Len())
 	for j := 0; j < b.N; j++ {
-		col.Hash(hashes)
+		col.Hash(0, hashes)
 	}
 	b.SetBytes(int64(8 * n))
 }

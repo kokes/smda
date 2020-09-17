@@ -28,7 +28,7 @@ type Chunk interface {
 	// we could potentially add "dropnulls" and then prune would become nullify.dropnulls
 	Nullify(*bitmap.Bitmap)
 	Append(Chunk) error
-	Hash([]uint64)
+	Hash(int, []uint64)
 	Len() int
 	Dtype() Dtype
 	Clone() Chunk
@@ -413,8 +413,19 @@ const hashNull = uint64(0xe96766e0d6221951)
 const hashBoolTrue = uint64(0x5a320fa8dfcfe3a7)
 const hashBoolFalse = uint64(0x1549571b97ff2995)
 
+// Since XOR is commutative, we can't group (a, b, c) by hashing
+// each separately and xoring, because that will hash to the same
+// value as (c, b, a). So we'll multiply each hash by a large odd
+// number that's deterministic for its position.
+// ARCH: is this the best we can do?
+func positionMultiplier(position int) uint64 {
+	mul := uint64(2*position + 17)
+	return mul * mul * mul * mul * mul * mul * mul * mul // math.pow is for floats only :shrug:
+}
+
 // Hash hashes this chunk's values into a provded container
-func (rc *ChunkBools) Hash(hashes []uint64) {
+func (rc *ChunkBools) Hash(position int, hashes []uint64) {
+	mul := positionMultiplier(position)
 	// TODO: we may have to revisit the idea that literal chunks cannot be nullable (review all the uses of isLiteral in this package)
 	if rc.isLiteral {
 		hashVal := hashBoolFalse
@@ -422,7 +433,7 @@ func (rc *ChunkBools) Hash(hashes []uint64) {
 			hashVal = hashBoolTrue
 		}
 		for j := range hashes {
-			hashes[j] ^= hashVal
+			hashes[j] ^= hashVal * mul
 		}
 		return
 	}
@@ -434,25 +445,26 @@ func (rc *ChunkBools) Hash(hashes []uint64) {
 		// 	fmt.Printf("%x, %v\n", val, bits.OnesCount64(val))
 		// }
 		if rc.nullability != nil && rc.nullability.Get(j) {
-			hashes[j] ^= hashNull
+			hashes[j] ^= hashNull * mul
 			continue
 		}
 		if rc.data.Get(j) {
-			hashes[j] ^= hashBoolTrue
+			hashes[j] ^= hashBoolTrue * mul
 		} else {
-			hashes[j] ^= hashBoolFalse
+			hashes[j] ^= hashBoolFalse * mul
 		}
 	}
 }
 
 // Hash hashes this chunk's values into a provded container
-func (rc *ChunkFloats) Hash(hashes []uint64) {
+func (rc *ChunkFloats) Hash(position int, hashes []uint64) {
+	mul := positionMultiplier(position)
 	var buf [8]byte
 	hasher := fnv.New64()
 	if rc.isLiteral {
 		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(rc.data[0]))
 		hasher.Write(buf[:])
-		sum := hasher.Sum64()
+		sum := hasher.Sum64() * mul
 
 		for j := range hashes {
 			hashes[j] ^= sum
@@ -461,12 +473,12 @@ func (rc *ChunkFloats) Hash(hashes []uint64) {
 	}
 	for j, el := range rc.data {
 		if rc.nullability != nil && rc.nullability.Get(j) {
-			hashes[j] ^= hashNull
+			hashes[j] ^= hashNull * mul
 			continue
 		}
 		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(el))
 		hasher.Write(buf[:])
-		hashes[j] ^= hasher.Sum64()
+		hashes[j] ^= hasher.Sum64() * mul
 		hasher.Reset()
 	}
 }
@@ -479,14 +491,15 @@ func (rc *ChunkFloats) Hash(hashes []uint64) {
 // also, check this https://github.com/segmentio/fasthash/ (via https://segment.com/blog/allocation-efficiency-in-high-performance-go-services/)
 // they reimplement fnv using stack allocation only
 //   - we tested it and got a 90% speedup (no allocs, shorter code) - so let's consider it, it's in the fasthash branch
-func (rc *ChunkInts) Hash(hashes []uint64) {
+func (rc *ChunkInts) Hash(position int, hashes []uint64) {
+	mul := positionMultiplier(position)
 	var buf [8]byte
 	hasher := fnv.New64()
 	// ARCH: literal chunks don't have nullability support... should we check for that?
 	if rc.isLiteral {
 		binary.LittleEndian.PutUint64(buf[:], uint64(rc.data[0]))
 		hasher.Write(buf[:])
-		sum := hasher.Sum64()
+		sum := hasher.Sum64() * mul
 
 		for j := range hashes {
 			hashes[j] ^= sum
@@ -498,33 +511,32 @@ func (rc *ChunkInts) Hash(hashes []uint64) {
 		// just once and have two separate loops - see if it helps - it may bloat the code too much (and avoid inlining,
 		// but that's probably a lost cause already)
 		if rc.nullability != nil && rc.nullability.Get(j) {
-			hashes[j] ^= hashNull
+			hashes[j] ^= hashNull * mul
 			continue
 		}
 		binary.LittleEndian.PutUint64(buf[:], uint64(el)) // int64 always maps to a uint64 value (negatives underflow)
 		hasher.Write(buf[:])
-		// XOR is pretty bad here, but it'll do for now
-		// since it's commutative, we'll need something to preserve order - something like
-		// an odd multiplier (as a new argument)
-		hashes[j] ^= hasher.Sum64()
+		hashes[j] ^= hasher.Sum64() * mul
 		hasher.Reset()
 	}
 }
 
 // Hash hashes this chunk's values into a provded container
-func (rc *ChunkNulls) Hash(hashes []uint64) {
+func (rc *ChunkNulls) Hash(position int, hashes []uint64) {
+	mul := positionMultiplier(position)
 	for j := range hashes {
-		hashes[j] ^= hashNull
+		hashes[j] ^= hashNull * mul
 	}
 }
 
 // Hash hashes this chunk's values into a provded container
-func (rc *ChunkStrings) Hash(hashes []uint64) {
+func (rc *ChunkStrings) Hash(position int, hashes []uint64) {
+	mul := positionMultiplier(position)
 	hasher := fnv.New64()
 	if rc.isLiteral {
 		offsetStart, offsetEnd := rc.offsets[0], rc.offsets[1]
 		hasher.Write(rc.data[offsetStart:offsetEnd])
-		sum := hasher.Sum64()
+		sum := hasher.Sum64() * mul
 
 		for j := range hashes {
 			hashes[j] ^= sum
@@ -534,13 +546,13 @@ func (rc *ChunkStrings) Hash(hashes []uint64) {
 
 	for j := 0; j < rc.Len(); j++ {
 		if rc.nullability != nil && rc.nullability.Get(j) {
-			hashes[j] ^= hashNull
+			hashes[j] ^= hashNull * mul
 			continue
 		}
 		offsetStart := rc.offsets[j]
 		offsetEnd := rc.offsets[j+1]
 		hasher.Write(rc.data[offsetStart:offsetEnd])
-		hashes[j] ^= hasher.Sum64()
+		hashes[j] ^= hasher.Sum64() * mul
 		hasher.Reset()
 	}
 }
