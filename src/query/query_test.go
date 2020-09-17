@@ -179,7 +179,7 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\n1,2\n2,3", []string{"foo"}, []string{"foo"}, "foo\n1\n2"},
 		{"foo,bar\nt,f\nt,f", []string{"foo"}, []string{"foo"}, "foo\ntrue"},
 		{"foo,bar\n1,t\n2,f", []string{"foo"}, []string{"foo"}, "foo,bar\n1,true\n2,false"},
-		// {"foo,bar\na,b\nb,a", []string{"foo", "bar"}, "foo,bar\na,b\nb,a"}, // TODO: enable once we add order-preserving hashing
+		{"foo,bar\na,b\nb,a", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\na,b\nb,a"}, // TODO: enable once we add order-preserving hashing
 		// nulls in aggregation:
 		{"foo,bar\n,1\n0,2", []string{"foo"}, []string{"foo"}, "foo,bar\n,1\n0,2"},
 		{"foo,bar\n1,1\n,2", []string{"foo"}, []string{"foo"}, "foo,bar\n1,1\n,2"},

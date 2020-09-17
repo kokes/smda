@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"hash/fnv"
 	"io"
 	"math"
@@ -485,11 +486,9 @@ func (rc *ChunkInts) Hash(hashes []uint64) {
 	// ARCH: literal chunks don't have nullability support... should we check for that?
 	if rc.isLiteral {
 		binary.LittleEndian.PutUint64(buf[:], uint64(rc.data[0]))
-		hasher.Write(buf[:])
-		sum := hasher.Sum64()
 
 		for j := range hashes {
-			hashes[j] ^= sum
+			hashes[j] = updatedHash(hasher, buf[:], hashes[j], buf[0:])
 		}
 		return
 	}
@@ -498,16 +497,11 @@ func (rc *ChunkInts) Hash(hashes []uint64) {
 		// just once and have two separate loops - see if it helps - it may bloat the code too much (and avoid inlining,
 		// but that's probably a lost cause already)
 		if rc.nullability != nil && rc.nullability.Get(j) {
-			hashes[j] ^= hashNull
+			hashes[j] = updatedHashUint(hasher, buf[:], hashes[j], hashNull)
 			continue
 		}
 		binary.LittleEndian.PutUint64(buf[:], uint64(el)) // int64 always maps to a uint64 value (negatives underflow)
-		hasher.Write(buf[:])
-		// XOR is pretty bad here, but it'll do for now
-		// since it's commutative, we'll need something to preserve order - something like
-		// an odd multiplier (as a new argument)
-		hashes[j] ^= hasher.Sum64()
-		hasher.Reset()
+		hashes[j] = updatedHash(hasher, buf[:], hashes[j], buf[0:])
 	}
 }
 
@@ -518,30 +512,44 @@ func (rc *ChunkNulls) Hash(hashes []uint64) {
 	}
 }
 
+func updatedHash(hasher hash.Hash64, buffer []byte, currentSum uint64, newValue []byte) uint64 {
+	binary.LittleEndian.PutUint64(buffer, currentSum)
+	hasher.Write(buffer)
+	hasher.Write(newValue)
+
+	sum := hasher.Sum64()
+	hasher.Reset()
+	return sum
+}
+
+func updatedHashUint(hasher hash.Hash64, buffer []byte, currentSum uint64, newValue uint64) uint64 {
+	num := make([]byte, 8)
+	binary.LittleEndian.PutUint64(num, newValue)
+	return updatedHash(hasher, buffer, currentSum, num)
+}
+
 // Hash hashes this chunk's values into a provded container
 func (rc *ChunkStrings) Hash(hashes []uint64) {
+	var buf [8]byte
 	hasher := fnv.New64()
 	if rc.isLiteral {
 		offsetStart, offsetEnd := rc.offsets[0], rc.offsets[1]
-		hasher.Write(rc.data[offsetStart:offsetEnd])
-		sum := hasher.Sum64()
+		litVal := rc.data[offsetStart:offsetEnd]
 
 		for j := range hashes {
-			hashes[j] ^= sum
+			hashes[j] = updatedHash(hasher, buf[:], hashes[j], litVal)
 		}
 		return
 	}
 
 	for j := 0; j < rc.Len(); j++ {
 		if rc.nullability != nil && rc.nullability.Get(j) {
-			hashes[j] ^= hashNull
+			hashes[j] = updatedHashUint(hasher, buf[:], hashes[j], hashNull)
 			continue
 		}
 		offsetStart := rc.offsets[j]
 		offsetEnd := rc.offsets[j+1]
-		hasher.Write(rc.data[offsetStart:offsetEnd])
-		hashes[j] ^= hasher.Sum64()
-		hasher.Reset()
+		hashes[j] = updatedHash(hasher, buf[:], hashes[j], rc.data[offsetStart:offsetEnd])
 	}
 }
 
