@@ -30,6 +30,47 @@ type Aggregator interface {
 	Resolve() (Chunk, error)
 }
 
+// ARCH/TODO: abstract this out using generics
+func ensureLengthInts(data []int64, length int, sentinel int64) {
+	currentLength := len(data)
+	if length >= currentLength {
+		return
+	}
+	data = append(data, make([]int64, length-currentLength)...)
+	if sentinel == 0 {
+		return
+	}
+	for j := currentLength; j < length; j++ {
+		data[j] = sentinel
+	}
+}
+func ensureLengthFloats(data []float64, length int, sentinel float64) {
+	currentLength := len(data)
+	if length >= currentLength {
+		return
+	}
+	data = append(data, make([]float64, length-currentLength)...)
+	if sentinel == 0 {
+		return
+	}
+	for j := currentLength; j < length; j++ {
+		data[j] = sentinel
+	}
+}
+
+func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
+	var bm *bitmap.Bitmap
+	for j, el := range counts {
+		if el == 0 {
+			if bm == nil {
+				bm = bitmap.NewBitmap(len(counts))
+			}
+			bm.Set(j, true)
+		}
+	}
+	return bm
+}
+
 // Let's have one constructor that we'll call at parse time?
 // NewAggregator(funcname, size) -> Aggregator, save it in Expression.Aggfunc
 
@@ -47,7 +88,7 @@ type AggMin struct {
 	minFloat []float64
 	// TODO: ... strings? bools?
 	// ARCH: would a bitmap be sufficient?
-	counts []int
+	counts []int64
 }
 
 func (agg *AggMin) AddChunk(buckets []uint64, ndistinct int, data Chunk) error {
@@ -63,26 +104,14 @@ func (agg *AggMin) AddChunk(buckets []uint64, ndistinct int, data Chunk) error {
 
 	// TODO: we need to test this on multiple stripes (and one that introduces
 	// many new distinct values in new stripes)
-	if len(agg.counts) < ndistinct {
-		agg.counts = append(agg.counts, make([]int, ndistinct-len(agg.counts))...)
-		switch agg.dtype {
-		case DtypeInt:
-			// ARCH: these snippets can be abstracted away as `ensure(slice, length, sentinel)`
-			//       as they'll be helpful in `max` and other agg functions
-			currentLength := len(agg.minInt)
-			agg.minInt = append(agg.minInt, make([]int64, ndistinct-currentLength)...)
-			for j := currentLength; j < ndistinct; j++ {
-				agg.minInt[j] = math.MaxInt64
-			}
-		case DtypeFloat:
-			currentLength := len(agg.minFloat)
-			agg.minFloat = append(agg.minFloat, make([]float64, ndistinct-currentLength)...)
-			for j := currentLength; j < ndistinct; j++ {
-				agg.minFloat[j] = math.MaxFloat64
-			}
-		default:
-			return errTypeNotSupported
-		}
+	ensureLengthInts(agg.counts, ndistinct, 0)
+	switch agg.dtype {
+	case DtypeInt:
+		ensureLengthInts(agg.minInt, ndistinct, math.MaxInt64)
+	case DtypeFloat:
+		ensureLengthFloats(agg.minFloat, ndistinct, math.MaxFloat64)
+	default:
+		return errTypeNotSupported
 	}
 
 	switch data.Dtype() {
@@ -125,15 +154,7 @@ func (agg *AggMin) AddChunk(buckets []uint64, ndistinct int, data Chunk) error {
 }
 
 func (agg *AggMin) Resolve() (Chunk, error) {
-	var bm *bitmap.Bitmap
-	for j, el := range agg.counts {
-		if el == 0 {
-			if bm == nil {
-				bm = bitmap.NewBitmap(len(agg.counts))
-			}
-			bm.Set(j, true)
-		}
-	}
+	bm := bitmapFromCounts(agg.counts)
 	switch agg.dtype {
 	case DtypeInt:
 		return newChunkIntsFromSlice(agg.minInt, bm), nil
