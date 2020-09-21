@@ -12,13 +12,14 @@ import (
 // https://www.postgresql.org/docs/12/functions-aggregate.html
 var blankConstructor = func() Aggregator { return nil }
 var FuncAgg = map[string]func() Aggregator{
-	"array_agg": blankConstructor,
-	"avg":       blankConstructor,
-	"bit_and":   blankConstructor, "bit_or": blankConstructor, // useful?
+	// won't support:
+	// "array_agg": blankConstructor, // don't have an array type
+	// "every":      blankConstructor, // alias for bit_and
+	// "bit_and": blankConstructor, "bit_or": blankConstructor, // probably not terribly useful
+	"avg":        blankConstructor,
 	"bool_and":   blankConstructor,
 	"bool_or":    blankConstructor,
 	"count":      blankConstructor, // * or Expression
-	"every":      blankConstructor,
 	"min":        func() Aggregator { return &AggMin{} },
 	"max":        blankConstructor,
 	"sum":        blankConstructor,
@@ -31,33 +32,37 @@ type Aggregator interface {
 }
 
 // ARCH/TODO: abstract this out using generics
-func ensureLengthInts(data []int64, length int, sentinel int64) {
+func ensureLengthInts(data []int64, length int, sentinel int64) []int64 {
 	currentLength := len(data)
-	if length >= currentLength {
-		return
+	if currentLength >= length {
+		return data
 	}
 	data = append(data, make([]int64, length-currentLength)...)
 	if sentinel == 0 {
-		return
+		return data
 	}
 	for j := currentLength; j < length; j++ {
 		data[j] = sentinel
 	}
+	return data
 }
-func ensureLengthFloats(data []float64, length int, sentinel float64) {
+func ensureLengthFloats(data []float64, length int, sentinel float64) []float64 {
 	currentLength := len(data)
-	if length >= currentLength {
-		return
+	if currentLength >= length {
+		return data
 	}
 	data = append(data, make([]float64, length-currentLength)...)
 	if sentinel == 0 {
-		return
+		return data
 	}
 	for j := currentLength; j < length; j++ {
 		data[j] = sentinel
 	}
+	return data
 }
 
+// used to convert a counts slice (how many rows are there for a given bucket) to a nullability
+// bitmap - so a NULL (1) for each zero value
 func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
 	var bm *bitmap.Bitmap
 	for j, el := range counts {
@@ -71,15 +76,6 @@ func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
 	return bm
 }
 
-// Let's have one constructor that we'll call at parse time?
-// NewAggregator(funcname, size) -> Aggregator, save it in Expression.Aggfunc
-
-// Where to resolve types? In return_types.go, or shall we have one more
-// method that will accept input dtypes and report the return type? (we could
-// use that for normal functions as well, but we don't have individual go types there)
-
-// It's important to return NULL for empty buckets (apart from COUNT, that returns zero)
-
 // ARCH: this will work nicely when we get generics - one for ints,
 // one for floats, though we'll need to be careful about INT_MAX and FLOAT_MAX
 type AggMin struct {
@@ -87,13 +83,12 @@ type AggMin struct {
 	minInt   []int64
 	minFloat []float64
 	// TODO: ... strings? bools?
-	// ARCH: would a bitmap be sufficient?
+	// ARCH: could have used a bitmap instead, but this helps us in other ways (debugging, mostly)
 	counts []int64
 }
 
 func (agg *AggMin) AddChunk(buckets []uint64, ndistinct int, data Chunk) error {
-	// TODO: since we don't have a constructor any more, we need to make sure min{Int,Float} and counts are
-	// both big enough for our number of buckets
+	// TODO: since we don't have a constructor any more, we need to initialise agg.dtype somehow
 	if agg.dtype == DtypeInvalid {
 		agg.dtype = data.Dtype()
 	}
@@ -104,12 +99,12 @@ func (agg *AggMin) AddChunk(buckets []uint64, ndistinct int, data Chunk) error {
 
 	// TODO: we need to test this on multiple stripes (and one that introduces
 	// many new distinct values in new stripes)
-	ensureLengthInts(agg.counts, ndistinct, 0)
+	agg.counts = ensureLengthInts(agg.counts, ndistinct, 0)
 	switch agg.dtype {
 	case DtypeInt:
-		ensureLengthInts(agg.minInt, ndistinct, math.MaxInt64)
+		agg.minInt = ensureLengthInts(agg.minInt, ndistinct, math.MaxInt64)
 	case DtypeFloat:
-		ensureLengthFloats(agg.minFloat, ndistinct, math.MaxFloat64)
+		agg.minFloat = ensureLengthFloats(agg.minFloat, ndistinct, math.MaxFloat64)
 	default:
 		return errTypeNotSupported
 	}
