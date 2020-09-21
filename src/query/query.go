@@ -102,6 +102,11 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 			return nil, fmt.Errorf("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo)), got %v", proj)
 		}
 	}
+	for _, aggexpr := range aggexprs {
+		if err := aggexpr.InitAggregator(ds.Schema); err != nil {
+			return nil, err
+		}
+	}
 
 	columnNames := expr.ColumnsUsed(append(groupbys, projs...)...)
 	groups := make(map[uint64]uint64)

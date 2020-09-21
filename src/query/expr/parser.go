@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/kokes/smda/src/column"
+	"github.com/kokes/smda/src/database"
 )
 
 var errFunctionDoesNotExist = errors.New("function does not exist")
@@ -92,17 +93,35 @@ func (etype exprType) String() string {
 }
 
 type Expression struct {
-	etype      exprType
-	children   []*Expression
-	value      string
-	evaler     func(...column.Chunk) (column.Chunk, error)
-	aggregator column.Aggregator
+	etype             exprType
+	children          []*Expression
+	value             string
+	evaler            func(...column.Chunk) (column.Chunk, error)
+	aggregator        *column.AggState
+	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
+}
+
+func (expr *Expression) InitAggregator(schema database.TableSchema) error {
+	var rtypes []column.Dtype
+	for _, ch := range expr.children {
+		rtype, err := ch.ReturnType(schema)
+		if err != nil {
+			return err
+		}
+		rtypes = append(rtypes, rtype.Dtype)
+	}
+	aggregator, err := expr.aggregatorFactory(rtypes...)
+	if err != nil {
+		return err
+	}
+	expr.aggregator = aggregator
+	return nil
 }
 
 // TODO: there cannot be nested aggexprs, test for that
 func AggExpr(expr *Expression) []*Expression {
 	var ret []*Expression
-	if expr.aggregator != nil {
+	if expr.etype == exprFunCall && expr.evaler == nil {
 		ret = append(ret, expr)
 	}
 	for _, ch := range expr.children {
@@ -326,17 +345,7 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			etype: exprFunCall,
 			value: funName,
 		}
-		fncp, okp := column.FuncProj[funName]
-		if okp {
-			ret.evaler = fncp
-		}
-		fncg, okg := column.FuncAgg[funName]
-		if okg {
-			ret.aggregator = fncg()
-		}
-		if !(okp || okg) {
-			return nil, fmt.Errorf("%w: %s", errFunctionDoesNotExist, funName)
-		}
+
 		var children []*Expression
 		for _, arg := range node.Args {
 			newc, err := convertAstExprToOwnExpr(arg)
@@ -346,6 +355,21 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			children = append(children, newc)
 		}
 		ret.children = children
+
+		fncp, ok := column.FuncProj[funName]
+		if ok {
+			ret.evaler = fncp
+			return ret, nil
+		}
+		// if it's not a projection, it must be an aggregator
+		// TODO/ARCH: cannot initialise the aggregator here, because we don't know
+		// the types that go in (and we're already using static dispatch here)
+		aggfac, err := column.NewAggregator(funName)
+		if err != nil {
+			return nil, err
+		}
+		ret.aggregatorFactory = aggfac
+
 		return ret, nil
 	case *ast.ParenExpr:
 		// I think we can just take what's in it and treat it as a node - since our evaluation/encapsulation

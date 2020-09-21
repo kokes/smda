@@ -202,6 +202,7 @@ func TestBasicAggregation(t *testing.T) {
 		// TODO: nullable strings tests
 
 		{"foo,bar\n1,12\n13,2\n1,3\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,3\n13,2"},
+		{"foo,bar\n1,12.3\n13,2\n1,3.3\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,3.3\n13,2"},
 	}
 
 	for testNo, test := range tests {

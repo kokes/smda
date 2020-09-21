@@ -10,25 +10,93 @@ import (
 // FuncAgg maps aggregating function names to their implementations
 // inspiration: pg docs (included all but xml and json)
 // https://www.postgresql.org/docs/12/functions-aggregate.html
-var blankConstructor = func() Aggregator { return nil }
-var FuncAgg = map[string]func() Aggregator{
-	// won't support:
-	// "array_agg": blankConstructor, // don't have an array type
-	// "every":      blankConstructor, // alias for bit_and
-	// "bit_and": blankConstructor, "bit_or": blankConstructor, // probably not terribly useful
-	"avg":        blankConstructor,
-	"bool_and":   blankConstructor,
-	"bool_or":    blankConstructor,
-	"count":      blankConstructor, // * or Expression
-	"min":        func() Aggregator { return &AggMin{} },
-	"max":        blankConstructor,
-	"sum":        blankConstructor,
-	"string_agg": blankConstructor, // the only aggregator with a parameter
+// var blankConstructor = func() *AggState { return nil }
+// TODO: change this into a map[string]struct{} and in the parser, call just NewAggregator
+// var FuncAgg = map[string]func() *AggState{
+// 	// won't support:
+// 	// "array_agg": blankConstructor, // don't have an array type
+// 	// "every":      blankConstructor, // alias for bit_and
+// 	// "bit_and": blankConstructor, "bit_or": blankConstructor, // probably not terribly useful
+// 	// will support:
+// 	"avg":        blankConstructor,
+// 	"bool_and":   blankConstructor,
+// 	"bool_or":    blankConstructor,
+// 	"count":      blankConstructor, // * or Expression
+// 	"min":        blankConstructor,
+// 	"max":        blankConstructor,
+// 	"sum":        blankConstructor,
+// 	"string_agg": blankConstructor, // the only aggregator with a parameter
+// }
+
+type AggState struct {
+	dtype  Dtype
+	ints   []int64
+	floats []float64
+	// TODO: ... strings? bools?
+	counts   []int64
+	AddChunk func(buckets []uint64, ndistinct int, data Chunk)
+	Resolve  func() (Chunk, error)
 }
 
-type Aggregator interface {
-	AddChunk(buckets []uint64, ndistinct int, data Chunk) error
-	Resolve() (Chunk, error)
+// ARCH: function string -> uint8 const?
+// dtypes are types of inputs - rename?
+// TODO: check for function existence
+// OPTIM: the switch(function) could be hoisted outside the closure (would work as a function existence validator)
+func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
+	return func(dtypes ...Dtype) (*AggState, error) {
+		// TODO: check dtypes length?
+		state := &AggState{}
+		updaters := updateFuncs{}
+		sents := sentinels{}
+		resolvers := resolveFuncs{}
+		switch function {
+		case "min":
+			state.dtype = dtypes[0]
+			sents = sentinels{ints: math.MaxInt64, floats: math.MaxFloat64}
+			updaters.ints = func(agg *AggState, val int64, pos uint64) {
+				agg.counts[pos]++
+				currval := agg.ints[pos]
+				if val < currval {
+					agg.ints[pos] = val
+				}
+			}
+			updaters.floats = func(agg *AggState, val float64, pos uint64) {
+				agg.counts[pos]++
+				minval := agg.floats[pos]
+				if val < minval {
+					agg.floats[pos] = val
+				}
+			}
+			resolvers = resolveFuncs{
+				ints: func(agg *AggState) func() (Chunk, error) {
+					return func() (Chunk, error) {
+						bm := bitmapFromCounts(agg.counts)
+						return newChunkIntsFromSlice(agg.ints, bm), nil
+					}
+				},
+				floats: func(agg *AggState) func() (Chunk, error) {
+					return func() (Chunk, error) {
+						bm := bitmapFromCounts(agg.counts)
+						return newChunkFloatsFromSlice(agg.floats, bm), nil
+					}
+				},
+			}
+		default:
+			// TODO: custom error?
+			return nil, fmt.Errorf("aggregation not supported: %v", function)
+		}
+		adder, err := adderFactory(state, updaters, sents)
+		if err != nil {
+			return nil, err
+		}
+		state.AddChunk = adder
+		resolver, err := resolverFactory(state, resolvers)
+		if err != nil {
+			return nil, err
+		}
+		state.Resolve = resolver
+		return state, nil
+	}, nil
 }
 
 // ARCH/TODO: abstract this out using generics
@@ -76,86 +144,63 @@ func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
 	return bm
 }
 
-// ARCH: this will work nicely when we get generics - one for ints,
-// one for floats, though we'll need to be careful about INT_MAX and FLOAT_MAX
-type AggMin struct {
-	dtype    Dtype
-	minInt   []int64
-	minFloat []float64
-	// TODO: ... strings? bools?
-	// ARCH: could have used a bitmap instead, but this helps us in other ways (debugging, mostly)
-	counts []int64
+type updateFuncs struct {
+	ints   func(state *AggState, value int64, position uint64)
+	floats func(state *AggState, value float64, position uint64)
+}
+type sentinels struct {
+	ints   int64
+	floats float64
 }
 
-func (agg *AggMin) AddChunk(buckets []uint64, ndistinct int, data Chunk) error {
-	// TODO: since we don't have a constructor any more, we need to initialise agg.dtype somehow
-	if agg.dtype == DtypeInvalid {
-		agg.dtype = data.Dtype()
-	}
-
-	// if agg.dtype != data.Dtype() {
-	// 	err...
-	// }
-
-	// TODO: we need to test this on multiple stripes (and one that introduces
-	// many new distinct values in new stripes)
-	agg.counts = ensureLengthInts(agg.counts, ndistinct, 0)
+func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint64, int, Chunk), error) {
 	switch agg.dtype {
 	case DtypeInt:
-		agg.minInt = ensureLengthInts(agg.minInt, ndistinct, math.MaxInt64)
-	case DtypeFloat:
-		agg.minFloat = ensureLengthFloats(agg.minFloat, ndistinct, math.MaxFloat64)
-	default:
-		return errTypeNotSupported
-	}
+		return func(buckets []uint64, ndistinct int, data Chunk) {
+			agg.counts = ensureLengthInts(agg.counts, ndistinct, 0)
+			agg.ints = ensureLengthInts(agg.ints, ndistinct, sents.ints)
 
-	switch data.Dtype() {
-	case DtypeInt:
-		rc := data.(*ChunkInts)
-		for j, val := range rc.data {
-			// OPTIM: we could construct a new loop without this check for rc.nullability == nil,
-			// so we'd save a lot of ifs at the cost of a lot of code duplication (also, branch prediction
-			// is pretty good these days)
-			if rc.nullability != nil && rc.nullability.Get(j) {
-				continue
+			rc := data.(*ChunkInts)
+			for j, val := range rc.data {
+				if rc.nullability != nil && rc.nullability.Get(j) {
+					continue
+				}
+				pos := buckets[j]
+				upd.ints(agg, val, pos)
 			}
-			pos := buckets[j]
-			agg.counts[pos]++
-			minval := agg.minInt[pos]
-			if val < minval {
-				agg.minInt[pos] = val
-			}
-		}
+		}, nil
 	case DtypeFloat:
-		rc := data.(*ChunkFloats)
-		for j, val := range rc.data {
-			// OPTIM: we could construct a new loop without this check for rc.nullability == nil,
-			// so we'd save a lot of ifs at the cost of a lot of code duplication (also, branch prediction
-			// is pretty good these days)
-			if rc.nullability != nil && rc.nullability.Get(j) {
-				continue
+		return func(buckets []uint64, ndistinct int, data Chunk) {
+			agg.counts = ensureLengthInts(agg.counts, ndistinct, 0)
+			agg.floats = ensureLengthFloats(agg.floats, ndistinct, sents.floats)
+
+			rc := data.(*ChunkFloats)
+			for j, val := range rc.data {
+				if rc.nullability != nil && rc.nullability.Get(j) {
+					continue
+				}
+				pos := buckets[j]
+				upd.floats(agg, val, pos)
 			}
-			pos := buckets[j]
-			agg.counts[pos]++
-			minval := agg.minFloat[pos]
-			if val < minval {
-				agg.minFloat[pos] = val
-			}
-		}
+		}, nil
 	default:
-		return fmt.Errorf("%w: cannot run AddChunk on %v", errTypeNotSupported, data.Dtype())
+		return nil, fmt.Errorf("adder factory not supported for %v", agg.dtype)
 	}
-	return nil
 }
 
-func (agg *AggMin) Resolve() (Chunk, error) {
-	bm := bitmapFromCounts(agg.counts)
+type resolveFuncs struct {
+	ints   func(state *AggState) func() (Chunk, error)
+	floats func(state *AggState) func() (Chunk, error)
+}
+
+// TODO/ARCH: we don't test that the individual resolvers exist - may panic at runtime
+func resolverFactory(agg *AggState, resfuncs resolveFuncs) (func() (Chunk, error), error) {
 	switch agg.dtype {
 	case DtypeInt:
-		return newChunkIntsFromSlice(agg.minInt, bm), nil
+		return resfuncs.ints(agg), nil
 	case DtypeFloat:
-		return newChunkFloatsFromSlice(agg.minFloat, bm), nil
+		return resfuncs.floats(agg), nil
 	default:
-		return nil, fmt.Errorf("%w: cannot run Resolve on %v", errTypeNotSupported, agg.dtype)
+		return nil, fmt.Errorf("resolver for type %v not supported", agg.dtype)
 	}
 }

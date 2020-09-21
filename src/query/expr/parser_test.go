@@ -135,7 +135,8 @@ func TestParsingContents(t *testing.T) {
 			continue
 		}
 		// we skip equality tests for nil cases (essentially placeholders, perhaps too complex)
-		parsed.evaler = nil // we need to reset the assigned function as these are not comparable
+		// we need to reset the assigned functions as these are not comparable
+		parsed.evaler, parsed.aggregatorFactory = nil, nil
 		if test.expExpr != nil && !reflect.DeepEqual(parsed, test.expExpr) {
 			t.Errorf("expecting %s to parse into %s, got %s instead", test.raw, test.expExpr, parsed)
 		}
