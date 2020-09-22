@@ -103,9 +103,14 @@ func UpdateAggregator(expr *Expression, buckets []uint64, ndistinct int, columnD
 
 	// e.g. sum(1+foo) needs `1+foo` evaluated first, then we feed the resulting
 	// chunk to the sum aggregator
-	child, err := Evaluate(expr.children[0], columnData)
-	if err != nil {
-		return err
+	var child column.Chunk
+	var err error
+	// in case we have e.g. `count()`, we cannot evaluate its children as there are none
+	if len(expr.children) > 0 {
+		child, err = Evaluate(expr.children[0], columnData)
+		if err != nil {
+			return err
+		}
 	}
 	expr.aggregator.AddChunk(buckets, ndistinct, child) // TODO: check we didn't end up returning an error!!!
 	return nil

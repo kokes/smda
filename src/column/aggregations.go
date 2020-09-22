@@ -54,6 +54,7 @@ type sentinels struct {
 
 // given our state, how do we generate chunks?
 type resolveFuncs struct {
+	any    func(state *AggState) func() (Chunk, error)
 	ints   func(state *AggState) func() (Chunk, error)
 	floats func(state *AggState) func() (Chunk, error)
 }
@@ -87,6 +88,22 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 		sents := sentinels{}
 		resolvers := resolveFuncs{}
 		switch function {
+		case "count":
+			if len(dtypes) == 0 {
+				state.dtype = DtypeInt // count() will count integers
+			} else {
+				state.dtype = dtypes[0] // count(expr) will accept type(expr)
+			}
+			sents = sentinels{} // zeroes are fine
+			// TODO: updaters are needed for count(expr), but for count() we're fine
+			// but maybe, maybe all we need is if upd.ints != nil { upd.ints(...) } in our adderFactory
+			resolvers = resolveFuncs{
+				any: func(agg *AggState) func() (Chunk, error) {
+					return func() (Chunk, error) {
+						return newChunkIntsFromSlice(agg.counts, nil), nil
+					}
+				},
+			}
 		case "min":
 			state.dtype = dtypes[0]
 			sents = sentinels{ints: math.MaxInt64, floats: math.Inf(1)}
@@ -125,6 +142,39 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 				agg.floats[pos] += val
 			}
 			resolvers = genericResolvers
+		case "avg":
+			state.dtype = dtypes[0]
+			sents = sentinels{} // zeroes are fine
+			// OPTIM/ARCH: this is not the best way to average out, see specialised algorithms
+			updaters.ints = func(agg *AggState, val int64, pos uint64) {
+				agg.ints[pos] += val
+			}
+			updaters.floats = func(agg *AggState, val float64, pos uint64) {
+				agg.floats[pos] += val
+			}
+			// so far it's the same as sums, so we might share the codebase somehow (fallthrough and overwrite resolvers?)
+			resolvers = resolveFuncs{
+				ints: func(agg *AggState) func() (Chunk, error) {
+					return func() (Chunk, error) {
+						bm := bitmapFromCounts(agg.counts)
+						avgs := make([]float64, len(agg.ints))
+						for j, el := range agg.ints {
+							avgs[j] = float64(el) / float64(agg.counts[j]) // el/0 will yield a +-inf, but that's fine
+						}
+						return newChunkFloatsFromSlice(avgs, bm), nil
+					}
+				},
+				floats: func(agg *AggState) func() (Chunk, error) {
+					return func() (Chunk, error) {
+						bm := bitmapFromCounts(agg.counts)
+						// we can overwrite our float sums in place, we no longer need them
+						for j, el := range agg.floats {
+							agg.floats[j] = el / float64(agg.counts[j])
+						}
+						return newChunkFloatsFromSlice(agg.floats, bm), nil
+					}
+				},
+			}
 		default:
 			// TODO: custom error?
 			return nil, fmt.Errorf("aggregation not supported: %v", function)
@@ -214,6 +264,14 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 			agg.counts = ensureLengthInts(agg.counts, ndistinct, 0)
 			agg.ints = ensureLengthInts(agg.ints, ndistinct, sents.ints)
 
+			// this can happen if there are no children - so just update the counters
+			// this is here specifically for `count()`
+			if data == nil {
+				for _, pos := range buckets {
+					agg.counts[pos]++
+				}
+				return
+			}
 			rc := data.(*ChunkInts)
 			for j, val := range rc.data {
 				if rc.nullability != nil && rc.nullability.Get(j) {
@@ -246,6 +304,9 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 
 // TODO/ARCH: we don't test that the individual resolvers exist - may panic at runtime
 func resolverFactory(agg *AggState, resfuncs resolveFuncs) (func() (Chunk, error), error) {
+	if resfuncs.any != nil {
+		return resfuncs.any(agg), nil
+	}
 	switch agg.dtype {
 	case DtypeInt:
 		return resfuncs.ints(agg), nil

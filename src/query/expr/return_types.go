@@ -208,6 +208,9 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 	case "min", "max", "sum":
 		schema.Dtype = argTypes[0].Dtype
 		schema.Nullable = argTypes[0].Nullable
+	case "avg":
+		schema.Dtype = column.DtypeFloat // average of integers will be a float
+		schema.Nullable = argTypes[0].Nullable
 	case "sin", "cos", "tan", "exp", "exp2", "log", "log2", "log10":
 		schema.Dtype = column.DtypeFloat
 		schema.Nullable = true
