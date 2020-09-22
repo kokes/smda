@@ -21,7 +21,7 @@ import (
 // 	"avg":        blankConstructor,
 // 	"bool_and":   blankConstructor,
 // 	"bool_or":    blankConstructor,
-// 	"count":      blankConstructor, // * or Expression
+// 	"count":      blankConstructor, // * or Expression, maybe add countDistinct as a separate function?
 // 	"min":        blankConstructor,
 // 	"max":        blankConstructor,
 // 	"sum":        blankConstructor,
@@ -38,6 +38,43 @@ type AggState struct {
 	Resolve  func() (Chunk, error)
 }
 
+// how will we update the state given a value
+type updateFuncs struct {
+	ints   func(state *AggState, value int64, position uint64)
+	floats func(state *AggState, value float64, position uint64)
+}
+
+// what state defaults should be filled in (e.g. for min() it's math.MAX)
+// ARCH: should perhaps be called `defaults` or something, because these
+// are not really sentinels
+type sentinels struct {
+	ints   int64
+	floats float64
+}
+
+// given our state, how do we generate chunks?
+type resolveFuncs struct {
+	ints   func(state *AggState) func() (Chunk, error)
+	floats func(state *AggState) func() (Chunk, error)
+}
+
+// these resolvers don't do much, they just take our state and make it into Chunks
+// and so are not suitable for e.g. avg(), where some finaliser work needs to be done
+var genericResolvers = resolveFuncs{
+	ints: func(agg *AggState) func() (Chunk, error) {
+		return func() (Chunk, error) {
+			bm := bitmapFromCounts(agg.counts)
+			return newChunkIntsFromSlice(agg.ints, bm), nil
+		}
+	},
+	floats: func(agg *AggState) func() (Chunk, error) {
+		return func() (Chunk, error) {
+			bm := bitmapFromCounts(agg.counts)
+			return newChunkFloatsFromSlice(agg.floats, bm), nil
+		}
+	},
+}
+
 // ARCH: function string -> uint8 const?
 // dtypes are types of inputs - rename?
 // TODO: check for function existence
@@ -52,35 +89,42 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 		switch function {
 		case "min":
 			state.dtype = dtypes[0]
-			sents = sentinels{ints: math.MaxInt64, floats: math.MaxFloat64}
+			sents = sentinels{ints: math.MaxInt64, floats: math.Inf(1)}
 			updaters.ints = func(agg *AggState, val int64, pos uint64) {
-				agg.counts[pos]++
-				currval := agg.ints[pos]
-				if val < currval {
+				if val < agg.ints[pos] {
 					agg.ints[pos] = val
 				}
 			}
 			updaters.floats = func(agg *AggState, val float64, pos uint64) {
-				agg.counts[pos]++
-				minval := agg.floats[pos]
-				if val < minval {
+				if val < agg.floats[pos] {
 					agg.floats[pos] = val
 				}
 			}
-			resolvers = resolveFuncs{
-				ints: func(agg *AggState) func() (Chunk, error) {
-					return func() (Chunk, error) {
-						bm := bitmapFromCounts(agg.counts)
-						return newChunkIntsFromSlice(agg.ints, bm), nil
-					}
-				},
-				floats: func(agg *AggState) func() (Chunk, error) {
-					return func() (Chunk, error) {
-						bm := bitmapFromCounts(agg.counts)
-						return newChunkFloatsFromSlice(agg.floats, bm), nil
-					}
-				},
+			resolvers = genericResolvers
+		case "max":
+			state.dtype = dtypes[0]
+			sents = sentinels{ints: math.MinInt64, floats: math.Inf(-1)}
+			updaters.ints = func(agg *AggState, val int64, pos uint64) {
+				if val > agg.ints[pos] {
+					agg.ints[pos] = val
+				}
 			}
+			updaters.floats = func(agg *AggState, val float64, pos uint64) {
+				if val > agg.floats[pos] {
+					agg.floats[pos] = val
+				}
+			}
+			resolvers = genericResolvers
+		case "sum":
+			state.dtype = dtypes[0]
+			sents = sentinels{} // zeroes are fine
+			updaters.ints = func(agg *AggState, val int64, pos uint64) {
+				agg.ints[pos] += val
+			}
+			updaters.floats = func(agg *AggState, val float64, pos uint64) {
+				agg.floats[pos] += val
+			}
+			resolvers = genericResolvers
 		default:
 			// TODO: custom error?
 			return nil, fmt.Errorf("aggregation not supported: %v", function)
@@ -144,15 +188,6 @@ func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
 	return bm
 }
 
-type updateFuncs struct {
-	ints   func(state *AggState, value int64, position uint64)
-	floats func(state *AggState, value float64, position uint64)
-}
-type sentinels struct {
-	ints   int64
-	floats float64
-}
-
 func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint64, int, Chunk), error) {
 	switch agg.dtype {
 	case DtypeInt:
@@ -166,6 +201,7 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 					continue
 				}
 				pos := buckets[j]
+				agg.counts[pos]++
 				upd.ints(agg, val, pos)
 			}
 		}, nil
@@ -180,17 +216,13 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 					continue
 				}
 				pos := buckets[j]
+				agg.counts[pos]++
 				upd.floats(agg, val, pos)
 			}
 		}, nil
 	default:
 		return nil, fmt.Errorf("adder factory not supported for %v", agg.dtype)
 	}
-}
-
-type resolveFuncs struct {
-	ints   func(state *AggState) func() (Chunk, error)
-	floats func(state *AggState) func() (Chunk, error)
 }
 
 // TODO/ARCH: we don't test that the individual resolvers exist - may panic at runtime

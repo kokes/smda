@@ -204,8 +204,10 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 	switch funName {
 	case "count":
 		schema.Dtype = column.DtypeInt
-		schema.Nullable = false // can we get somehow get empty groups and thus nulls in counts?
-
+		schema.Nullable = false
+	case "min", "max", "sum":
+		schema.Dtype = argTypes[0].Dtype
+		schema.Nullable = argTypes[0].Nullable
 	case "sin", "cos", "tan", "exp", "exp2", "log", "log2", "log10":
 		schema.Dtype = column.DtypeFloat
 		schema.Nullable = true

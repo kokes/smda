@@ -221,6 +221,8 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		}
 	}
 
+	// TODO: we never call ReturnTypes in this branch, so we don't know
+	// the schema of our projections (only implicitly through the Chunks themselves)
 	if q.Aggregate != nil {
 		columns, err := aggregate(db, ds, q.Aggregate, q.Select)
 		if err != nil {
