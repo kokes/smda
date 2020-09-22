@@ -279,6 +279,8 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 
 	// we may have flipped some bits that are not relevant (beyond the bitmap's cap)
 	// so we have to reset them
+	// ARCH: technically we don't have to, there's no contract regarding masked bits
+	//       and inaccessible bits
 	if nvals%64 != 0 {
 		rem := nvals % 64
 		mask := uint64(1<<rem - 1)

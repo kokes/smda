@@ -148,10 +148,10 @@ func NewBitmapFromBools(data []bool) *Bitmap {
 	return bm
 }
 
-// NewBitmapFromBits leverages a pre-existing bitmap (usually from a file or a reader) and copies
-// it into a new bitmap
+// NewBitmapFromBits leverages a pre-existing bitmap (usually from a file or a reader) and moves
+// it into a new bitmap (does NOT copy)
 func NewBitmapFromBits(data []uint64, length int) *Bitmap {
-	bm := NewBitmap(0)
+	bm := &Bitmap{}
 	bm.cap = length
 	bm.data = data
 	return bm
