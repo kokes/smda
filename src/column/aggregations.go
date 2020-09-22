@@ -144,6 +144,25 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 }
 
 // ARCH/TODO: abstract this out using generics
+// will probably look something like this:
+// type extendable interface {
+// 	type int, int64, float64, bool, string
+// }
+// func ensureLength[T extendable](data []T, length int, sentinel T) []T {
+// 	currentLength := len(data)
+// 	if currentLength >= length {
+// 		return data
+// 	}
+// 	data = append(data, make([]T, length-currentLength)...)
+// 	// probably cannot express default value checks in generics?
+// 	//if sentinel == 0 {
+// 	//	return data
+// 	//}
+// 	for j := currentLength; j < length; j++ {
+// 		data[j] = sentinel
+// 	}
+// 	return data
+// }
 func ensureLengthInts(data []int64, length int, sentinel int64) []int64 {
 	currentLength := len(data)
 	if currentLength >= length {
