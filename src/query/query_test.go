@@ -210,6 +210,9 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\n1,5\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "avg(bar)"}, "foo,avg(bar)\n1,7.5\n13,2"},
 		{"foo,bar\n1,5\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count()"}, "foo,avg(bar)\n1,2\n13,1"},
 		{"foo,bar\n1,\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count()"}, "foo,avg(bar)\n1,2\n13,1"},
+		{"foo,bar\n1,12\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,avg(bar)\n1,2\n13,1"},
+		// count() doesn't return nulls in values
+		{"foo,bar\n1,\n13,2\n1,10\n3,\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,avg(bar)\n1,1\n13,1\n3,0"},
 	}
 
 	for testNo, test := range tests {

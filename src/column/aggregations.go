@@ -7,27 +7,6 @@ import (
 	"github.com/kokes/smda/src/bitmap"
 )
 
-// FuncAgg maps aggregating function names to their implementations
-// inspiration: pg docs (included all but xml and json)
-// https://www.postgresql.org/docs/12/functions-aggregate.html
-// var blankConstructor = func() *AggState { return nil }
-// TODO: change this into a map[string]struct{} and in the parser, call just NewAggregator
-// var FuncAgg = map[string]func() *AggState{
-// 	// won't support:
-// 	// "array_agg": blankConstructor, // don't have an array type
-// 	// "every":      blankConstructor, // alias for bit_and
-// 	// "bit_and": blankConstructor, "bit_or": blankConstructor, // probably not terribly useful
-// 	// will support:
-// 	"avg":        blankConstructor,
-// 	"bool_and":   blankConstructor,
-// 	"bool_or":    blankConstructor,
-// 	"count":      blankConstructor, // * or Expression, maybe add countDistinct as a separate function?
-// 	"min":        blankConstructor,
-// 	"max":        blankConstructor,
-// 	"sum":        blankConstructor,
-// 	"string_agg": blankConstructor, // the only aggregator with a parameter
-// }
-
 type AggState struct {
 	dtype  Dtype
 	ints   []int64
@@ -76,13 +55,20 @@ var genericResolvers = resolveFuncs{
 	},
 }
 
+// NewAggregator implements a constructor for various aggregating functions.
+// We got inspired by Postgres' functions https://www.postgresql.org/docs/12/functions-aggregate.html
+//   - not implemented: xml/json functions (don't have the data types), array_agg (no arrays),
+//					    every (just an alias), bit_and/bit_or (doesn't seem useful for us)
+//   - implemented: min, max, sum, avg, count
+//   - planned: bool_and, bool_or, string_agg
+//   - thinking: countDistinct, sketch-based approxCountDistinct
 // ARCH: function string -> uint8 const?
 // dtypes are types of inputs - rename?
 // TODO: check for function existence
 // OPTIM: the switch(function) could be hoisted outside the closure (would work as a function existence validator)
 func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 	return func(dtypes ...Dtype) (*AggState, error) {
-		// TODO: check dtypes length?
+		// TODO: check dtypes length? (though that should have been done in return_types already)
 		state := &AggState{}
 		updaters := updateFuncs{}
 		sents := sentinels{}
@@ -95,8 +81,6 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 				state.dtype = dtypes[0] // count(expr) will accept type(expr)
 			}
 			sents = sentinels{} // zeroes are fine
-			// TODO: updaters are needed for count(expr), but for count() we're fine
-			// but maybe, maybe all we need is if upd.ints != nil { upd.ints(...) } in our adderFactory
 			resolvers = resolveFuncs{
 				any: func(agg *AggState) func() (Chunk, error) {
 					return func() (Chunk, error) {
@@ -279,7 +263,11 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 				}
 				pos := buckets[j]
 				agg.counts[pos]++
-				upd.ints(agg, val, pos)
+				// we don't always have updaters (e.g. for counters)
+				// OPTIM: can we hoist this outside the loop?
+				if upd.ints != nil {
+					upd.ints(agg, val, pos)
+				}
 			}
 		}, nil
 	case DtypeFloat:
@@ -294,7 +282,9 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 				}
 				pos := buckets[j]
 				agg.counts[pos]++
-				upd.floats(agg, val, pos)
+				if upd.floats != nil {
+					upd.floats(agg, val, pos)
+				}
 			}
 		}, nil
 	default:
