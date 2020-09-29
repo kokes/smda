@@ -104,7 +104,7 @@ func TestReadingFromStripes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	col, err := db.ReadColumnFromStripe(ds, ds.Stripes[0], 0)
+	col, err := db.ReadColumnFromStripe(ds, ds.Stripes[0].Id, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestReadingFromStripes(t *testing.T) {
 		t.Errorf("expecting the length to be %v, got %v", 2, cols.Len())
 	}
 
-	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0], 1)
+	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0].Id, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestReadingFromStripes(t *testing.T) {
 	// 	t.Errorf("expecting the second column to be nullable")
 	// }
 
-	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0], 2)
+	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0].Id, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,8 +174,8 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 			for j := 0; j < b.N; j++ {
 				for cn := 0; cn < 3; cn++ {
 					crows := 0
-					for _, stripeID := range ds.Stripes {
-						col, err := db.ReadColumnFromStripe(ds, stripeID, cn)
+					for _, stripe := range ds.Stripes {
+						col, err := db.ReadColumnFromStripe(ds, stripe.Id, cn)
 						if err != nil {
 							b.Fatal(err)
 						}
@@ -359,7 +359,7 @@ func TestChecksumValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	// this should work fine
-	stripeID := ds.Stripes[0]
+	stripeID := ds.Stripes[0].Id
 	readStripes := func() error {
 		for colNum := 0; colNum < 3; colNum++ {
 			_, err := db.ReadColumnFromStripe(ds, stripeID, colNum)
@@ -417,7 +417,7 @@ func TestInvalidOffsets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	path := db.stripePath(ds, ds.Stripes[0])
+	path := db.stripePath(ds, ds.Stripes[0].Id)
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -441,7 +441,7 @@ func TestInvalidOffsets(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if _, err := db.ReadColumnFromStripe(ds, ds.Stripes[0], 0); err != errInvalidOffsetData {
+		if _, err := db.ReadColumnFromStripe(ds, ds.Stripes[0].Id, 0); err != errInvalidOffsetData {
 			t.Errorf("expecting offsets %v to trigger errInvalidOffsetData, but got %v instead", test, err)
 		}
 	}

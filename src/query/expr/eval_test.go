@@ -49,8 +49,7 @@ func TestBasicEval(t *testing.T) {
 		{"str_foo != 'f'", column.DtypeBool, []string{"f", "t", "t"}},
 
 		// all literals
-		// doesn't work yet, because we don't have stripe length info in our expression evaluator
-		// {"(foo123 > 0) && (2 >= 1)", column.DtypeBool, []string{"t", "t", "t"}},
+		{"(foo123 > 0) && (2 >= 1)", column.DtypeBool, []string{"t", "t", "t"}},
 
 		// functions
 		{"nullif(foo123, 5)", column.DtypeInt, []string{"1", "2", "3"}},
@@ -98,7 +97,7 @@ func TestBasicEval(t *testing.T) {
 	}
 	coldata := make(map[string]column.Chunk)
 	for _, cln := range ds.Schema {
-		column, err := db.ReadColumnFromStripeByName(ds, ds.Stripes[0], cln.Name)
+		column, err := db.ReadColumnFromStripeByName(ds, ds.Stripes[0].Id, cln.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,7 +110,8 @@ func TestBasicEval(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		res, err := Evaluate(expr, coldata)
+		// ARCH: we don't have chunk length explicitly, so we're just setting it to the length of our expected output
+		res, err := Evaluate(expr, len(test.outputData), coldata)
 		if err != nil {
 			t.Error(err)
 			continue

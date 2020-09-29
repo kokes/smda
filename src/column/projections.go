@@ -49,11 +49,6 @@ func floatChunkFromParts(data []float64, null1, null2 *bitmap.Bitmap) *ChunkFloa
 
 func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, string) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.nthValue(0), c2.nthValue(0))
@@ -92,11 +87,6 @@ func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, 
 // Maybe try this once we have tests and benchmarks in place
 func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 
 	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
@@ -125,11 +115,6 @@ func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) boo
 // ARCH: this function is identical to compFactoryInts, so it's probably the first to make use of generics
 func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, float64) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 	bm := bitmap.NewBitmap(nvals)
 
 	if c1.isLiteral && c2.isLiteral {
@@ -161,11 +146,6 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 // ARCH: this is, again, identical to the previous factory functions
 func compFactoryIntsFloats(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, float64) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 	bm := bitmap.NewBitmap(nvals)
 
 	if c1.isLiteral && c2.isLiteral {
@@ -197,11 +177,6 @@ func compFactoryIntsFloats(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, fl
 // ARCH: this is, again, identical to the previous factory functions
 func compFactoryFloatsInts(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64, int64) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 	bm := bitmap.NewBitmap(nvals)
 
 	if c1.isLiteral && c2.isLiteral {
@@ -235,11 +210,6 @@ const ALL_ONES = uint64(1<<64 - 1)
 
 func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64) uint64) (*ChunkBools, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 	res := make([]uint64, (nvals+63)/64)
 
 	if c1.isLiteral && c2.isLiteral {
@@ -416,11 +386,6 @@ type algebraFuncs struct {
 
 func algebraFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) int64) (*ChunkInts, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 
 	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
@@ -447,11 +412,6 @@ func algebraFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) 
 // ARCH: this is identical to `algebraFactoryFloats` apart from the compFn signature in the argument
 func algebraFactoryIntsf(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) float64) (*ChunkFloats, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 
 	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
@@ -477,11 +437,6 @@ func algebraFactoryIntsf(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64)
 
 func algebraFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, float64) float64) (*ChunkFloats, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 
 	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
@@ -508,11 +463,6 @@ func algebraFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64,
 // ARCH: this is identical to `algebraFactoryFloats` apart from the compFn signature in the argument
 func algebraFactoryIntFloat(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, float64) float64) (*ChunkFloats, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 
 	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
@@ -539,11 +489,6 @@ func algebraFactoryIntFloat(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, f
 // ARCH: this is identical to `algebraFactoryFloats` apart from the compFn signature in the argument
 func algebraFactoryFloatInt(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64, int64) float64) (*ChunkFloats, error) {
 	nvals := c1.Len()
-	// if one column is a literal, it won't have the right length set
-	// TODO: remove this once we implement stripe lengths
-	if c2.Len() > nvals {
-		nvals = c2.Len()
-	}
 
 	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point

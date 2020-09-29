@@ -147,12 +147,20 @@ func (uid *UID) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Stripe only contains metadata about a given stripe, it has to be loaded
+// separately to obtain actual data
+// ARCH: add offsets loaded from manifests?
+type Stripe struct {
+	Id     UID
+	Length int
+}
+
 // Dataset contains metadata for a given dataset, which at this point means a table
 type Dataset struct {
 	ID      UID         `json:"id"`
 	Name    string      `json:"name"`
 	Schema  TableSchema `json:"schema"`
-	Stripes []UID       `json:"-"`
+	Stripes []Stripe    `json:"-"`
 }
 
 // TableSchema is a collection of column schemas
@@ -220,8 +228,8 @@ func (db *Database) removeDataset(ds *Dataset) error {
 		}
 	}
 
-	for _, stripeID := range ds.Stripes {
-		if err := os.Remove(db.stripePath(ds, stripeID)); err != nil {
+	for _, stripe := range ds.Stripes {
+		if err := os.Remove(db.stripePath(ds, stripe.Id)); err != nil {
 			return err
 		}
 	}

@@ -13,7 +13,7 @@ var errFunctionNotImplemented = errors.New("function not implemented")
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
 // the same tree of operations - this applies not just here, but in projections.go as well - e.g. we know that
 // if we have `intA - intB`, we'll run a function for ints - we don't need to decide that for each stripe
-func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chunk, error) {
+func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Chunk) (column.Chunk, error) {
 	// TODO: test this via UpdateAggregator
 	if expr.aggregator != nil {
 		return expr.aggregator.Resolve()
@@ -27,16 +27,16 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 			return nil, fmt.Errorf("column %v not found", expr.value)
 		}
 		return col, nil
-	// TODO: there's no way of knowing the length now in any of the literal cases
-	// we'll need to pass in stripe length into Evaluate to deal with these cases
+	// since these literals don't interact with any "dense" column chunks, we need
+	// to pass in their lengths
 	case exprLiteralBool:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0)
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, chunkLength)
 	case exprLiteralFloat:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeFloat, 0)
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeFloat, chunkLength)
 	case exprLiteralInt:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeInt, 0)
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeInt, chunkLength)
 	case exprLiteralString:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeString, 0)
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeString, chunkLength)
 	// null is not a literal type yet
 	// case exprLiteralNull:
 	// 	return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0)
@@ -47,7 +47,7 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 		// ARCH: abstract out this `children` construction and use it elsewhere (in exprEquality etc.)
 		children := make([]column.Chunk, 0, len(expr.children))
 		for _, ch := range expr.children {
-			child, err := Evaluate(ch, columnData)
+			child, err := Evaluate(ch, chunkLength, columnData)
 			if err != nil {
 				return nil, err
 			}
@@ -57,11 +57,11 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 	// ARCH: these could all be generalised as FunCalls
 	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,
 		exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprAnd, exprOr:
-		c1, err := Evaluate(expr.children[0], columnData)
+		c1, err := Evaluate(expr.children[0], chunkLength, columnData)
 		if err != nil {
 			return nil, err
 		}
-		c2, err := Evaluate(expr.children[1], columnData)
+		c2, err := Evaluate(expr.children[1], chunkLength, columnData)
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +107,7 @@ func UpdateAggregator(expr *Expression, buckets []uint64, ndistinct int, columnD
 	var err error
 	// in case we have e.g. `count()`, we cannot evaluate its children as there are none
 	if len(expr.children) > 0 {
-		child, err = Evaluate(expr.children[0], columnData)
+		child, err = Evaluate(expr.children[0], len(buckets), columnData)
 		if err != nil {
 			return err
 		}

@@ -138,8 +138,8 @@ func TestRemovingDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, stripeID := range ds.Stripes {
-		path := db.stripePath(ds, stripeID)
+	for _, stripe := range ds.Stripes {
+		path := db.stripePath(ds, stripe.Id)
 		_, err := os.Stat(path)
 		if err != nil {
 			t.Fatal(err)

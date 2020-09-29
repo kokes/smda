@@ -48,11 +48,11 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 	retval := make([]*bitmap.Bitmap, 0, len(ds.Stripes))
 	colnames := filterExpr.ColumnsUsed()
 	for _, stripe := range ds.Stripes {
-		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
+		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe.Id, colnames)
 		if err != nil {
 			return nil, err
 		}
-		fvals, err := expr.Evaluate(filterExpr, colmap(colnames, columns))
+		fvals, err := expr.Evaluate(filterExpr, stripe.Length, colmap(colnames, columns))
 		if err != nil {
 			return nil, err
 		}
@@ -112,9 +112,9 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 	groups := make(map[uint64]uint64)
 	// ARCH: `nrc` and `rcs` are not very descriptive
 	nrc := make([]column.Chunk, len(groupbys))
-	for _, stripeID := range ds.Stripes {
+	for _, stripe := range ds.Stripes {
 		rcs := make([]column.Chunk, len(groupbys))
-		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripeID, columnNames)
+		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripe.Id, columnNames)
 		if err != nil {
 			return nil, err
 		}
@@ -122,17 +122,15 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 
 		// 1) evaluate all the aggregation expressions (those expressions that determine groups, e.g. `country`)
 		for j, expression := range groupbys {
-			rc, err := expr.Evaluate(expression, columnMap)
+			rc, err := expr.Evaluate(expression, stripe.Length, columnMap)
 			if err != nil {
 				return nil, err
 			}
 			rcs[j] = rc
 		}
 
-		// TODO: we don't have a stripe length property - should we?
-		ln := rcs[0].Len()
-		hashes := make([]uint64, ln) // preserves unique rows (their hashes); OPTIM: preallocate some place
-		bm := bitmap.NewBitmap(ln)   // denotes which rows are the unique ones
+		hashes := make([]uint64, stripe.Length) // preserves unique rows (their hashes); OPTIM: preallocate some place
+		bm := bitmap.NewBitmap(stripe.Length)   // denotes which rows are the unique ones
 		for j, rc := range rcs {
 			rc.Hash(j, hashes)
 		}
@@ -182,7 +180,10 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 			// this is an aggregating expression, skip it
 			continue
 		}
-		agg, err := expr.Evaluate(proj, nil) // we can pass in a nil map, because agg exprs get evaluated first
+		// we can pass in a nil map, because agg exprs get evaluated first
+		// we can also pass in negative length, because it doesn't matter for resolvers
+		// ARCH: but should we get the chunk length and pass it in, for good measure?
+		agg, err := expr.Evaluate(proj, -1, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -254,7 +255,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		}
 		limit = *q.Limit
 	}
-	for stripeIndex, stripeID := range ds.Stripes {
+	for stripeIndex, stripe := range ds.Stripes {
 		// if no relevant data in this stripe, skip it
 		if bms != nil {
 			filteredLen := bms[stripeIndex].Count()
@@ -269,12 +270,12 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		var bmnf *bitmap.Bitmap // bitmap for non-filtered data - I really dislike the way this is handled (TODO)
 		for j, colExpr := range q.Select {
 			colnames := colExpr.ColumnsUsed() // OPTIM: calculated for each stripe, can be cached
-			columns, err := db.ReadColumnsFromStripeByNames(ds, stripeID, colnames)
+			columns, err := db.ReadColumnsFromStripeByNames(ds, stripe.Id, colnames)
 			if err != nil {
 				return nil, err
 			}
 
-			col, err := expr.Evaluate(colExpr, colmap(colnames, columns))
+			col, err := expr.Evaluate(colExpr, stripe.Length, colmap(colnames, columns))
 			if err != nil {
 				return nil, err
 			}

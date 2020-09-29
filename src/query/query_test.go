@@ -111,8 +111,7 @@ func TestLimitsInQueries(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	// TODO: edit this once we get chunk/stripe lengths
-	if qr.Data[0].Len() != len(firstColRaw) {
+	if ds.Stripes[0].Length != len(firstColRaw) {
 		t.Errorf("omitting a limit should result in getting all the data, got only %d rows", qr.Data[0].Len())
 	}
 
@@ -266,7 +265,7 @@ func TestBasicAggregation(t *testing.T) {
 			//        2) create a helper method which tests for equality of two datasets (== schema, == each column
 			//           in each stripe, ignore stripeIDs)
 			// also, to test this, we need to initialise the db with MaxRowsPerStripe to a very low number to force creation of multiple stripes
-			expcol, err := db.ReadColumnFromStripe(dso, dso.Stripes[0], j)
+			expcol, err := db.ReadColumnFromStripe(dso, dso.Stripes[0].Id, j)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -336,7 +335,7 @@ func TestBasicFiltering(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		expectedCols, err := db.ReadColumnsFromStripeByNames(expected, expected.Stripes[0], test.columns)
+		expectedCols, err := db.ReadColumnsFromStripeByNames(expected, expected.Stripes[0].Id, test.columns)
 		if err != nil {
 			t.Error(err)
 			continue

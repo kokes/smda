@@ -122,14 +122,14 @@ func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
 	return &rawLoader{settings: settings, cr: cr}, nil
 }
 
-type dataStripe struct {
-	id      UID
-	columns []column.Chunk // pointers instead?
+type stripeData struct {
+	meta    Stripe
+	columns []column.Chunk
 }
 
-func newDataStripe() *dataStripe {
-	return &dataStripe{
-		id: newUID(OtypeStripe),
+func newDataStripe() *stripeData {
+	return &stripeData{
+		meta: Stripe{Id: newUID(OtypeStripe)},
 	}
 }
 
@@ -138,7 +138,7 @@ func newDataStripe() *dataStripe {
 // and [offsets] is an array of uint32 offsets of individual columns (start + end, so ncolumns + 1 uints)
 // since we know how many columns are in this file (from the dataset metadata), we first
 // need to read that many bytes off the end of the file and then offset to whichever column we want
-func (ds *dataStripe) writeToWriter(w io.Writer) error {
+func (ds *stripeData) writeToWriter(w io.Writer) error {
 	totalOffset := uint32(0)
 	offsets := make([]uint32, 0, len(ds.columns))
 	for _, column := range ds.columns {
@@ -182,12 +182,12 @@ func (ds *dataStripe) writeToWriter(w io.Writer) error {
 	return nil
 }
 
-func (db *Database) writeStripeToFile(ds *Dataset, stripe *dataStripe) error {
+func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData) error {
 	if err := os.MkdirAll(db.DatasetPath(ds), os.ModePerm); err != nil {
 		return err
 	}
 
-	f, err := os.Create(db.stripePath(ds, stripe.id))
+	f, err := os.Create(db.stripePath(ds, stripe.meta.Id))
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func (rl *rawLoader) yieldRow() ([]string, error) {
 
 // ReadIntoStripe reads data from a source file and saves them into a stripe
 // maybe these two arguments can be embedded into rl.settings?
-func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
+func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*stripeData, error) {
 	ds := newDataStripe()
 	// if no schema is set, read the header and set it yourself (to be all non-nullable strings)
 	if rl.settings.schema == nil {
@@ -239,7 +239,6 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 
 	// now let's finally load some data
 	var bytesLoaded int
-	var rowsLoaded int
 	for {
 		row, err := rl.yieldRow()
 		if err != nil {
@@ -254,9 +253,9 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 				return nil, fmt.Errorf("failed to populate column %v: %w", rl.settings.schema[j].Name, err)
 			}
 		}
-		rowsLoaded++
+		ds.meta.Length++
 
-		if rowsLoaded >= maxRows || bytesLoaded >= maxBytes {
+		if ds.meta.Length >= maxRows || bytesLoaded >= maxBytes {
 			break
 		}
 	}
@@ -267,6 +266,7 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) 
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
 // OPTIM: this does not buffer any reads... but it only reads things thrice, so it shouldn't matter, right?
+// TODO/ARCH: all of these methods should accept stripes, not stripeID!
 func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (column.Chunk, error) {
 	f, err := os.Open(db.stripePath(ds, stripeID))
 	if err != nil {
@@ -396,13 +396,17 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 		return nil, err
 	}
 
-	stripes := make([]UID, 0)
+	stripes := make([]Stripe, 0)
 	for {
 		ds, loadingErr := rl.ReadIntoStripe(db.Config.MaxRowsPerStripe, db.Config.MaxBytesPerStripe)
 		if loadingErr != nil && loadingErr != io.EOF {
 			return nil, loadingErr
 		}
-		stripes = append(stripes, ds.id)
+		// ARCH: this could possibly happen
+		if ds.meta.Length == 0 {
+			return nil, errors.New("no data loaded")
+		}
+		stripes = append(stripes, ds.meta)
 
 		if err := db.writeStripeToFile(dataset, ds); err != nil {
 			return nil, err
