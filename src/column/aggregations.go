@@ -24,12 +24,14 @@ type updateFuncs struct {
 	strings func(state *AggState, value string, position uint64)
 }
 
+type resolveFunc func(state *AggState) func() (Chunk, error)
+
 // given our state, how do we generate chunks?
 type resolveFuncs struct {
-	any     func(state *AggState) func() (Chunk, error)
-	ints    func(state *AggState) func() (Chunk, error)
-	floats  func(state *AggState) func() (Chunk, error)
-	strings func(state *AggState) func() (Chunk, error)
+	any     resolveFunc
+	ints    resolveFunc
+	floats  resolveFunc
+	strings resolveFunc
 }
 
 // these resolvers don't do much, they just take our state and make it into Chunks
@@ -288,19 +290,24 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 	}
 }
 
-// TODO/ARCH: we don't test that the individual resolvers exist - may panic at runtime
 func resolverFactory(agg *AggState, resfuncs resolveFuncs) (func() (Chunk, error), error) {
+	// the `any` func has precedence over any concrete resolvers
 	if resfuncs.any != nil {
 		return resfuncs.any(agg), nil
 	}
+	var rfunc resolveFunc
 	switch agg.dtype {
 	case DtypeInt:
-		return resfuncs.ints(agg), nil
+		rfunc = resfuncs.ints
 	case DtypeFloat:
-		return resfuncs.floats(agg), nil
+		rfunc = resfuncs.floats
 	case DtypeString:
-		return resfuncs.strings(agg), nil
-	default:
+		rfunc = resfuncs.strings
+	}
+	// we hit this branch if either the type is not in the switch (there's no way we can
+	// resolve this type), OR if the function in the struct is nil (undefined)
+	if rfunc == nil {
 		return nil, fmt.Errorf("resolver for type %v not supported", agg.dtype)
 	}
+	return rfunc(agg), nil
 }
