@@ -2,7 +2,6 @@ package column
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/kokes/smda/src/bitmap"
 )
@@ -23,17 +22,6 @@ type updateFuncs struct {
 	ints    func(state *AggState, value int64, position uint64)
 	floats  func(state *AggState, value float64, position uint64)
 	strings func(state *AggState, value string, position uint64)
-}
-
-// what state defaults should be filled in (e.g. for min() it's math.MAX)
-// ARCH: should perhaps be called `defaults` or something, because these
-// are not really sentinels
-// TODO: we won't need these in the end - we'll just use counts to determine if
-// something is a sentinel (i.e. if count == 0 then set the value no matter what)
-type sentinels struct {
-	ints    int64
-	floats  float64
-	strings string
 }
 
 // given our state, how do we generate chunks?
@@ -83,7 +71,6 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 		// TODO: check dtypes length? (though that should have been done in return_types already)
 		state := &AggState{}
 		updaters := updateFuncs{}
-		sents := sentinels{}
 		resolvers := resolveFuncs{}
 		switch function {
 		case "count":
@@ -92,7 +79,6 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			} else {
 				state.dtype = dtypes[0] // count(expr) will accept type(expr)
 			}
-			sents = sentinels{} // zeroes are fine
 			resolvers = resolveFuncs{
 				any: func(agg *AggState) func() (Chunk, error) {
 					return func() (Chunk, error) {
@@ -102,14 +88,13 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			}
 		case "min":
 			state.dtype = dtypes[0]
-			sents = sentinels{ints: math.MaxInt64, floats: math.Inf(1)}
 			updaters.ints = func(agg *AggState, val int64, pos uint64) {
-				if val < agg.ints[pos] {
+				if agg.counts[pos] == 0 || val < agg.ints[pos] {
 					agg.ints[pos] = val
 				}
 			}
 			updaters.floats = func(agg *AggState, val float64, pos uint64) {
-				if val < agg.floats[pos] {
+				if agg.counts[pos] == 0 || val < agg.floats[pos] {
 					agg.floats[pos] = val
 				}
 			}
@@ -121,21 +106,19 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			resolvers = genericResolvers
 		case "max":
 			state.dtype = dtypes[0]
-			sents = sentinels{ints: math.MinInt64, floats: math.Inf(-1)}
 			updaters.ints = func(agg *AggState, val int64, pos uint64) {
-				if val > agg.ints[pos] {
+				if agg.counts[pos] == 0 || val > agg.ints[pos] {
 					agg.ints[pos] = val
 				}
 			}
 			updaters.floats = func(agg *AggState, val float64, pos uint64) {
-				if val > agg.floats[pos] {
+				if agg.counts[pos] == 0 || val > agg.floats[pos] {
 					agg.floats[pos] = val
 				}
 			}
 			resolvers = genericResolvers
 		case "sum":
 			state.dtype = dtypes[0]
-			sents = sentinels{} // zeroes are fine
 			updaters.ints = func(agg *AggState, val int64, pos uint64) {
 				agg.ints[pos] += val
 			}
@@ -145,7 +128,6 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			resolvers = genericResolvers
 		case "avg":
 			state.dtype = dtypes[0]
-			sents = sentinels{} // zeroes are fine
 			// OPTIM/ARCH: this is not the best way to average out, see specialised algorithms
 			updaters.ints = func(agg *AggState, val int64, pos uint64) {
 				agg.ints[pos] += val
@@ -180,7 +162,7 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			// TODO: custom error?
 			return nil, fmt.Errorf("aggregation not supported: %v", function)
 		}
-		adder, err := adderFactory(state, updaters, sents)
+		adder, err := adderFactory(state, updaters)
 		if err != nil {
 			return nil, err
 		}
@@ -195,66 +177,29 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 }
 
 // ARCH/TODO: abstract this out using generics
-// will probably look something like this:
-// type extendable interface {
-// 	type int, int64, float64, bool, string
-// }
-// func ensureLength[T extendable](data []T, length int, sentinel T) []T {
-// 	currentLength := len(data)
-// 	if currentLength >= length {
-// 		return data
-// 	}
-// 	data = append(data, make([]T, length-currentLength)...)
-// 	// probably cannot express default value checks in generics?
-// 	//if sentinel == 0 {
-// 	//	return data
-// 	//}
-// 	for j := currentLength; j < length; j++ {
-// 		data[j] = sentinel
-// 	}
-// 	return data
-// }
-func ensureLengthInts(data []int64, length int, sentinel int64) []int64 {
+func ensureLengthInts(data []int64, length int) []int64 {
 	currentLength := len(data)
 	if currentLength >= length {
 		return data
 	}
 	data = append(data, make([]int64, length-currentLength)...)
-	if sentinel == 0 {
-		return data
-	}
-	for j := currentLength; j < length; j++ {
-		data[j] = sentinel
-	}
 	return data
 }
-func ensureLengthFloats(data []float64, length int, sentinel float64) []float64 {
+func ensureLengthFloats(data []float64, length int) []float64 {
 	currentLength := len(data)
 	if currentLength >= length {
 		return data
 	}
 	data = append(data, make([]float64, length-currentLength)...)
-	if sentinel == 0 {
-		return data
-	}
-	for j := currentLength; j < length; j++ {
-		data[j] = sentinel
-	}
 	return data
 }
 
-func ensurelengthStrings(data []string, length int, sentinel string) []string {
+func ensurelengthStrings(data []string, length int) []string {
 	currentLength := len(data)
 	if currentLength >= length {
 		return data
 	}
 	data = append(data, make([]string, length-currentLength)...)
-	if sentinel == "" {
-		return data
-	}
-	for j := currentLength; j < length; j++ {
-		data[j] = sentinel
-	}
 	return data
 }
 
@@ -274,12 +219,12 @@ func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
 }
 
 // OPTIM/ARCH: this might be abstracted away thanks to generics (though... we don't have nthvalue for all chunk types)
-func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint64, int, Chunk), error) {
+func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), error) {
 	switch agg.dtype {
 	case DtypeInt:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
-			agg.counts = ensureLengthInts(agg.counts, ndistinct, 0)
-			agg.ints = ensureLengthInts(agg.ints, ndistinct, sents.ints)
+			agg.counts = ensureLengthInts(agg.counts, ndistinct)
+			agg.ints = ensureLengthInts(agg.ints, ndistinct)
 
 			// this can happen if there are no children - so just update the counters
 			// this is here specifically for `count()`
@@ -305,8 +250,8 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 		}, nil
 	case DtypeFloat:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
-			agg.counts = ensureLengthInts(agg.counts, ndistinct, 0)
-			agg.floats = ensureLengthFloats(agg.floats, ndistinct, sents.floats)
+			agg.counts = ensureLengthInts(agg.counts, ndistinct)
+			agg.floats = ensureLengthFloats(agg.floats, ndistinct)
 
 			rc := data.(*ChunkFloats)
 			for j, val := range rc.data {
@@ -322,8 +267,8 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 		}, nil
 	case DtypeString:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
-			agg.counts = ensureLengthInts(agg.counts, ndistinct, 0)
-			agg.strings = ensurelengthStrings(agg.strings, ndistinct, sents.strings)
+			agg.counts = ensureLengthInts(agg.counts, ndistinct)
+			agg.strings = ensurelengthStrings(agg.strings, ndistinct)
 
 			rc := data.(*ChunkStrings)
 			for j := 0; j < rc.Len(); j++ {
