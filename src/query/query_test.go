@@ -201,18 +201,23 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\n,1\nt,2", []string{"bar > 0"}, []string{"bar > 0"}, "bar>0\nt"},
 		// TODO: nullable strings tests
 
-		// TODO: test aggregation in the presence of nulls (both as values and as groups)
-		// also test other dtypes (min/max of strings or bools should work)
+		// TODO: test other dtypes (min/max of strings should work)
 		{"foo,bar\n1,12\n13,2\n1,3\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,3\n13,2"},
 		{"foo,bar\n1,12.3\n13,2\n1,3.3\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,3.3\n13,2"},
 		{"foo,bar\n1,12.3\n13,2\n1,3.3\n", []string{"foo"}, []string{"foo", "max(bar)"}, "foo,min(bar)\n1,12.3\n13,2"},
+		{"foo,bar\n1,foo\n13,bar\n13,baz\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,foo\n13,bar"},
 		{"foo,bar\n1,12.3\n13,2\n1,3.5\n", []string{"foo"}, []string{"foo", "sum(bar)"}, "foo,sum(bar)\n1,15.8\n13,2"},
 		{"foo,bar\n1,5\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "avg(bar)"}, "foo,avg(bar)\n1,7.5\n13,2"},
-		{"foo,bar\n1,5\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count()"}, "foo,avg(bar)\n1,2\n13,1"},
-		{"foo,bar\n1,\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count()"}, "foo,avg(bar)\n1,2\n13,1"},
-		{"foo,bar\n1,12\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,avg(bar)\n1,2\n13,1"},
+		{"foo,bar\n1,5\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count()"}, "foo,count(bar)\n1,2\n13,1"},
+		{"foo,bar\n1,\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count()"}, "foo,count(bar)\n1,2\n13,1"},
+		{"foo,bar\n1,12\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,count(bar)\n1,2\n13,1"},
 		// count() doesn't return nulls in values
-		{"foo,bar\n1,\n13,2\n1,10\n3,\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,avg(bar)\n1,1\n13,1\n3,0"},
+		{"foo,bar\n1,\n13,2\n1,10\n3,\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,count(bar)\n1,1\n13,1\n3,0"},
+		// null handling (keys and values)
+		{"foo,bar\n,12\n13,2\n1,3\n1,2\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n,12\n13,2\n1,2"},
+		{"foo,bar\n1,\n13,2\n1,\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,\n13,2"},
+		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,count(bar)\n1,1\n,1\n"},
+		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", []string{"foo"}, []string{"foo", "count()"}, "foo,count()\n1,2\n,3\n"},
 	}
 
 	for testNo, test := range tests {

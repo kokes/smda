@@ -322,6 +322,14 @@ func newChunkFloatsFromSlice(data []float64, nulls *bitmap.Bitmap) *ChunkFloats 
 		nullability: nulls,
 	}
 }
+func newChunkStringsFromSlice(data []string, nulls *bitmap.Bitmap) *ChunkStrings {
+	rc := newChunkStrings()
+	if err := rc.AddValues(data); err != nil {
+		panic(err)
+	}
+	rc.nullability = nulls
+	return rc
+}
 
 // Truths returns only true values in this boolean column's bitmap - remove those
 // that are null - we use this for filtering, when we're interested in non-null

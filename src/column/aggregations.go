@@ -8,9 +8,10 @@ import (
 )
 
 type AggState struct {
-	dtype  Dtype
-	ints   []int64
-	floats []float64
+	dtype   Dtype
+	ints    []int64
+	floats  []float64
+	strings []string
 	// TODO: ... strings? bools?
 	counts   []int64
 	AddChunk func(buckets []uint64, ndistinct int, data Chunk)
@@ -19,23 +20,28 @@ type AggState struct {
 
 // how will we update the state given a value
 type updateFuncs struct {
-	ints   func(state *AggState, value int64, position uint64)
-	floats func(state *AggState, value float64, position uint64)
+	ints    func(state *AggState, value int64, position uint64)
+	floats  func(state *AggState, value float64, position uint64)
+	strings func(state *AggState, value string, position uint64)
 }
 
 // what state defaults should be filled in (e.g. for min() it's math.MAX)
 // ARCH: should perhaps be called `defaults` or something, because these
 // are not really sentinels
+// TODO: we won't need these in the end - we'll just use counts to determine if
+// something is a sentinel (i.e. if count == 0 then set the value no matter what)
 type sentinels struct {
-	ints   int64
-	floats float64
+	ints    int64
+	floats  float64
+	strings string
 }
 
 // given our state, how do we generate chunks?
 type resolveFuncs struct {
-	any    func(state *AggState) func() (Chunk, error)
-	ints   func(state *AggState) func() (Chunk, error)
-	floats func(state *AggState) func() (Chunk, error)
+	any     func(state *AggState) func() (Chunk, error)
+	ints    func(state *AggState) func() (Chunk, error)
+	floats  func(state *AggState) func() (Chunk, error)
+	strings func(state *AggState) func() (Chunk, error)
 }
 
 // these resolvers don't do much, they just take our state and make it into Chunks
@@ -51,6 +57,12 @@ var genericResolvers = resolveFuncs{
 		return func() (Chunk, error) {
 			bm := bitmapFromCounts(agg.counts)
 			return newChunkFloatsFromSlice(agg.floats, bm), nil
+		}
+	},
+	strings: func(agg *AggState) func() (Chunk, error) {
+		return func() (Chunk, error) {
+			bm := bitmapFromCounts(agg.counts)
+			return newChunkStringsFromSlice(agg.strings, bm), nil
 		}
 	},
 }
@@ -99,6 +111,11 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			updaters.floats = func(agg *AggState, val float64, pos uint64) {
 				if val < agg.floats[pos] {
 					agg.floats[pos] = val
+				}
+			}
+			updaters.strings = func(agg *AggState, val string, pos uint64) {
+				if agg.counts[pos] == 0 || val < agg.strings[pos] {
+					agg.strings[pos] = val
 				}
 			}
 			resolvers = genericResolvers
@@ -226,6 +243,21 @@ func ensureLengthFloats(data []float64, length int, sentinel float64) []float64 
 	return data
 }
 
+func ensurelengthStrings(data []string, length int, sentinel string) []string {
+	currentLength := len(data)
+	if currentLength >= length {
+		return data
+	}
+	data = append(data, make([]string, length-currentLength)...)
+	if sentinel == "" {
+		return data
+	}
+	for j := currentLength; j < length; j++ {
+		data[j] = sentinel
+	}
+	return data
+}
+
 // used to convert a counts slice (how many rows are there for a given bucket) to a nullability
 // bitmap - so a NULL (1) for each zero value
 func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
@@ -241,6 +273,7 @@ func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
 	return bm
 }
 
+// OPTIM/ARCH: this might be abstracted away thanks to generics (though... we don't have nthvalue for all chunk types)
 func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint64, int, Chunk), error) {
 	switch agg.dtype {
 	case DtypeInt:
@@ -262,12 +295,12 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 					continue
 				}
 				pos := buckets[j]
-				agg.counts[pos]++
 				// we don't always have updaters (e.g. for counters)
 				// OPTIM: can we hoist this outside the loop?
 				if upd.ints != nil {
 					upd.ints(agg, val, pos)
 				}
+				agg.counts[pos]++
 			}
 		}, nil
 	case DtypeFloat:
@@ -281,10 +314,28 @@ func adderFactory(agg *AggState, upd updateFuncs, sents sentinels) (func([]uint6
 					continue
 				}
 				pos := buckets[j]
-				agg.counts[pos]++
 				if upd.floats != nil {
 					upd.floats(agg, val, pos)
 				}
+				agg.counts[pos]++
+			}
+		}, nil
+	case DtypeString:
+		return func(buckets []uint64, ndistinct int, data Chunk) {
+			agg.counts = ensureLengthInts(agg.counts, ndistinct, 0)
+			agg.strings = ensurelengthStrings(agg.strings, ndistinct, sents.strings)
+
+			rc := data.(*ChunkStrings)
+			for j := 0; j < rc.Len(); j++ {
+				if rc.nullability != nil && rc.nullability.Get(j) {
+					continue
+				}
+				val := rc.nthValue(j)
+				pos := buckets[j]
+				if upd.strings != nil {
+					upd.strings(agg, val, pos)
+				}
+				agg.counts[pos]++
 			}
 		}, nil
 	default:
@@ -302,6 +353,8 @@ func resolverFactory(agg *AggState, resfuncs resolveFuncs) (func() (Chunk, error
 		return resfuncs.ints(agg), nil
 	case DtypeFloat:
 		return resfuncs.floats(agg), nil
+	case DtypeString:
+		return resfuncs.strings(agg), nil
 	default:
 		return nil, fmt.Errorf("resolver for type %v not supported", agg.dtype)
 	}
