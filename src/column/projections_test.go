@@ -103,8 +103,12 @@ func TestComparisons(t *testing.T) {
 	for _, test := range tests {
 		// TODO: abstract out all of this into a chunks function helper (it's used elsewhere as well)
 		c1, c2, expected := NewChunkFromSchema(Schema{Dtype: test.dtype1}), NewChunkFromSchema(Schema{Dtype: test.dtype2}), NewChunkFromSchema(Schema{Dtype: DtypeBool})
+		var err error
 		if strings.HasPrefix(test.c1, litPrefix) {
-			c1 = NewChunkLiteralAuto(strings.TrimPrefix(test.c1, litPrefix), test.nrows)
+			c1, err = NewChunkLiteralAuto(strings.TrimPrefix(test.c1, litPrefix), test.nrows)
+			if err != nil {
+				t.Fatal(err)
+			}
 		} else {
 			if err := c1.AddValues(strings.Split(test.c1, ",")); err != nil {
 				t.Error(err)
@@ -112,7 +116,10 @@ func TestComparisons(t *testing.T) {
 			}
 		}
 		if strings.HasPrefix(test.c2, litPrefix) {
-			c2 = NewChunkLiteralAuto(strings.TrimPrefix(test.c2, litPrefix), test.nrows)
+			c2, err = NewChunkLiteralAuto(strings.TrimPrefix(test.c2, litPrefix), test.nrows)
+			if err != nil {
+				t.Fatal(err)
+			}
 		} else {
 			if err := c2.AddValues(strings.Split(test.c2, ",")); err != nil {
 				t.Error(err)
@@ -121,7 +128,10 @@ func TestComparisons(t *testing.T) {
 		}
 
 		if strings.HasPrefix(test.expected, litPrefix) {
-			expected = NewChunkLiteralAuto(strings.TrimPrefix(test.expected, litPrefix), test.nrows)
+			expected, err = NewChunkLiteralAuto(strings.TrimPrefix(test.expected, litPrefix), test.nrows)
+			if err != nil {
+				t.Fatal(err)
+			}
 		} else {
 			if err := expected.AddValues(strings.Split(test.expected, ",")); err != nil {
 				t.Error(err)
@@ -197,8 +207,12 @@ func TestAlgebraicExpressions(t *testing.T) {
 	litPrefix := "lit:" // TODO: replace all this with said helper
 	for _, test := range tests {
 		c1, c2, expected := NewChunkFromSchema(Schema{Dtype: test.dt1}), NewChunkFromSchema(Schema{Dtype: test.dt2}), NewChunkFromSchema(Schema{Dtype: test.dte})
+		var err error
 		if strings.HasPrefix(test.c1, litPrefix) {
-			c1 = NewChunkLiteralAuto(strings.TrimPrefix(test.c1, litPrefix), test.nrows)
+			c1, err = NewChunkLiteralAuto(strings.TrimPrefix(test.c1, litPrefix), test.nrows)
+			if err != nil {
+				t.Fatal(err)
+			}
 		} else {
 			if err := c1.AddValues(strings.Split(test.c1, ",")); err != nil {
 				t.Error(err)
@@ -206,7 +220,10 @@ func TestAlgebraicExpressions(t *testing.T) {
 			}
 		}
 		if strings.HasPrefix(test.c2, litPrefix) {
-			c2 = NewChunkLiteralAuto(strings.TrimPrefix(test.c2, litPrefix), test.nrows)
+			c2, err = NewChunkLiteralAuto(strings.TrimPrefix(test.c2, litPrefix), test.nrows)
+			if err != nil {
+				t.Fatal(err)
+			}
 		} else {
 			if err := c2.AddValues(strings.Split(test.c2, ",")); err != nil {
 				t.Error(err)
@@ -215,7 +232,10 @@ func TestAlgebraicExpressions(t *testing.T) {
 		}
 
 		if strings.HasPrefix(test.expected, litPrefix) {
-			expected = NewChunkLiteralAuto(strings.TrimPrefix(test.expected, litPrefix), test.nrows)
+			expected, err = NewChunkLiteralAuto(strings.TrimPrefix(test.expected, litPrefix), test.nrows)
+			if err != nil {
+				t.Fatal(err)
+			}
 		} else {
 			if err := expected.AddValues(strings.Split(test.expected, ",")); err != nil {
 				t.Error(err)

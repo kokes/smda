@@ -17,6 +17,7 @@ import (
 var errAppendTypeMismatch = errors.New("cannot append chunks of differing types")
 var errNoAddToLiterals = errors.New("literal chunks are not meant to be added values to")
 var errLiteralsCannotBeSerialised = errors.New("cannot serialise literal columns")
+var errInvalidTypedLiteral = errors.New("invalid data supplied to a literal constructor")
 
 // Chunk defines a part of a column - constant type, stored contiguously
 type Chunk interface {
@@ -149,33 +150,33 @@ func NewChunkFromSchema(schema Schema) Chunk {
 	}
 }
 
-func NewChunkLiteralTyped(s string, dtype Dtype, length int) Chunk {
+func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
 	switch dtype {
 	case DtypeInt:
 		val, err := parseInt(s)
 		if err != nil {
-			panic(fmt.Sprintf("detected an int, but cannot parse it: %s", s))
+			return nil, fmt.Errorf("%w: invalid typed literal: %v", errInvalidTypedLiteral, s)
 		}
 		return &ChunkInts{
 			isLiteral: true,
 			data:      []int64{val},
 			length:    uint32(length),
-		}
+		}, nil
 	case DtypeFloat:
 		val, err := parseFloat(s)
 		if err != nil {
-			panic(fmt.Sprintf("detected a float, but cannot parse it: %s", s))
+			return nil, fmt.Errorf("%w: invalid typed literal: %v", errInvalidTypedLiteral, s)
 		}
 		return &ChunkFloats{
 			isLiteral: true,
 			data:      []float64{val},
 			length:    uint32(length),
-		}
+		}, nil
 	case DtypeBool:
 		bm := bitmap.NewBitmap(1)
 		val, err := parseBool(s)
 		if err != nil {
-			panic(fmt.Sprintf("detected a bool, but cannot parse it: %s", s))
+			return nil, fmt.Errorf("%w: invalid typed literal: %v", errInvalidTypedLiteral, s)
 		}
 		if val {
 			bm.Set(0, true)
@@ -184,25 +185,24 @@ func NewChunkLiteralTyped(s string, dtype Dtype, length int) Chunk {
 			isLiteral: true,
 			data:      bm,
 			length:    uint32(length),
-		}
+		}, nil
 	case DtypeString:
 		return &ChunkStrings{
 			isLiteral: true,
 			data:      []byte(s),
 			offsets:   []uint32{0, uint32(len(s))},
 			length:    uint32(length),
-		}
+		}, nil
 	default:
-		panic(fmt.Sprintf("no support for literal chunks of type %v", dtype))
+		return nil, fmt.Errorf("%w: invalid typed literal: unsupported type %v", errInvalidTypedLiteral, dtype)
 	}
 }
 
 // NewChunkLiteral creates a chunk that only contains a single value in the whole chunk
 // it's useful in e.g. 'foo > 1', where can convert the '1' to a whole chunk
-// TODO: consider returning (Chunk, error) to avoid all those panics
 // OPTIM: we're using single-value slices, should we perhaps have a value specific for each literal
 // to avoid working with slices (stack allocation etc.)
-func NewChunkLiteralAuto(s string, length int) Chunk {
+func NewChunkLiteralAuto(s string, length int) (Chunk, error) {
 	dtype := guessType(s)
 
 	return NewChunkLiteralTyped(s, dtype, length)

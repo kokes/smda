@@ -582,8 +582,14 @@ func TestNewLiterals(t *testing.T) {
 		{"foo", 5, DtypeString, "[\"foo\",\"foo\",\"foo\",\"foo\",\"foo\"]"},
 	}
 	for _, test := range tests {
-		chunkAuto := NewChunkLiteralAuto(test.val, test.length)
-		chunkTyped := NewChunkLiteralTyped(test.val, test.dtype, test.length)
+		chunkAuto, err := NewChunkLiteralAuto(test.val, test.length)
+		if err != nil {
+			t.Fatal(err)
+		}
+		chunkTyped, err := NewChunkLiteralTyped(test.val, test.dtype, test.length)
+		if err != nil {
+			t.Fatal(err)
+		}
 		for _, chunk := range []Chunk{chunkAuto, chunkTyped} {
 			if chunk.Dtype() != test.dtype {
 				t.Errorf("expecting literal '%s' to have dtype of %s, got %s instead", test.val, test.dtype, chunk.Dtype())

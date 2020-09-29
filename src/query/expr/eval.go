@@ -30,16 +30,16 @@ func Evaluate(expr *Expression, columnData map[string]column.Chunk) (column.Chun
 	// TODO: there's no way of knowing the length now in any of the literal cases
 	// we'll need to pass in stripe length into Evaluate to deal with these cases
 	case exprLiteralBool:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0), nil
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0)
 	case exprLiteralFloat:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeFloat, 0), nil
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeFloat, 0)
 	case exprLiteralInt:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeInt, 0), nil
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeInt, 0)
 	case exprLiteralString:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeString, 0), nil
+		return column.NewChunkLiteralTyped(expr.value, column.DtypeString, 0)
 	// null is not a literal type yet
 	// case exprLiteralNull:
-	// 	return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0), nil
+	// 	return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0)
 	case exprFunCall:
 		if expr.evaler == nil {
 			return nil, fmt.Errorf("%w: %s", errFunctionNotImplemented, expr.value)
