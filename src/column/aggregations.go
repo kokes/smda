@@ -139,22 +139,22 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			resolvers = resolveFuncs{
 				ints: func(agg *AggState) func() (Chunk, error) {
 					return func() (Chunk, error) {
-						bm := bitmapFromCounts(agg.counts)
-						avgs := make([]float64, len(agg.ints))
+						// we can't use agg.ints as we'll return floats
+						// if we reuse agg.floats, we can then use a generic resolver
+						agg.floats = ensureLengthFloats(agg.floats, len(agg.ints))
 						for j, el := range agg.ints {
-							avgs[j] = float64(el) / float64(agg.counts[j]) // el/0 will yield a +-inf, but that's fine
+							agg.floats[j] = float64(el) / float64(agg.counts[j]) // el/0 will yield a +-inf, but that's fine
 						}
-						return newChunkFloatsFromSlice(avgs, bm), nil
+						return genericResolvers.floats(agg)()
 					}
 				},
 				floats: func(agg *AggState) func() (Chunk, error) {
 					return func() (Chunk, error) {
-						bm := bitmapFromCounts(agg.counts)
 						// we can overwrite our float sums in place, we no longer need them
 						for j, el := range agg.floats {
 							agg.floats[j] = el / float64(agg.counts[j])
 						}
-						return newChunkFloatsFromSlice(agg.floats, bm), nil
+						return genericResolvers.floats(agg)()
 					}
 				},
 			}
