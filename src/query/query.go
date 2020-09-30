@@ -48,7 +48,7 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 	retval := make([]*bitmap.Bitmap, 0, len(ds.Stripes))
 	colnames := filterExpr.ColumnsUsed()
 	for _, stripe := range ds.Stripes {
-		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe.Id, colnames)
+		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +114,7 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 	nrc := make([]column.Chunk, len(groupbys))
 	for _, stripe := range ds.Stripes {
 		rcs := make([]column.Chunk, len(groupbys))
-		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripe.Id, columnNames)
+		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripe, columnNames)
 		if err != nil {
 			return nil, err
 		}
@@ -270,7 +270,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		var bmnf *bitmap.Bitmap // bitmap for non-filtered data - I really dislike the way this is handled (TODO)
 		for j, colExpr := range q.Select {
 			colnames := colExpr.ColumnsUsed() // OPTIM: calculated for each stripe, can be cached
-			columns, err := db.ReadColumnsFromStripeByNames(ds, stripe.Id, colnames)
+			columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
 			if err != nil {
 				return nil, err
 			}

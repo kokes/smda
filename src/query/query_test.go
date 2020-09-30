@@ -265,7 +265,7 @@ func TestBasicAggregation(t *testing.T) {
 			//        2) create a helper method which tests for equality of two datasets (== schema, == each column
 			//           in each stripe, ignore stripeIDs)
 			// also, to test this, we need to initialise the db with MaxRowsPerStripe to a very low number to force creation of multiple stripes
-			expcol, err := db.ReadColumnFromStripe(dso, dso.Stripes[0].Id, j)
+			expcol, err := db.ReadColumnFromStripe(dso, dso.Stripes[0], j)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -335,7 +335,7 @@ func TestBasicFiltering(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		expectedCols, err := db.ReadColumnsFromStripeByNames(expected, expected.Stripes[0].Id, test.columns)
+		expectedCols, err := db.ReadColumnsFromStripeByNames(expected, expected.Stripes[0], test.columns)
 		if err != nil {
 			t.Error(err)
 			continue

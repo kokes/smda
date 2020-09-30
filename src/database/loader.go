@@ -187,7 +187,7 @@ func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData) error {
 		return err
 	}
 
-	f, err := os.Create(db.stripePath(ds, stripe.meta.Id))
+	f, err := os.Create(db.stripePath(ds, stripe.meta))
 	if err != nil {
 		return err
 	}
@@ -266,9 +266,8 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*stripeData, error) 
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
 // OPTIM: this does not buffer any reads... but it only reads things thrice, so it shouldn't matter, right?
-// TODO/ARCH: all of these methods should accept stripes, not stripeID!
-func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn int) (column.Chunk, error) {
-	f, err := os.Open(db.stripePath(ds, stripeID))
+func (db *Database) ReadColumnFromStripe(ds *Dataset, stripe Stripe, nthColumn int) (column.Chunk, error) {
+	f, err := os.Open(db.stripePath(ds, stripe))
 	if err != nil {
 		return nil, err
 	}
@@ -337,24 +336,24 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripeID UID, nthColumn in
 
 // ReadColumnFromStripeByName reads a column by its name rather than position (that's
 // what ReadColumnFromStripe is for)
-func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripeID UID, column string) (column.Chunk, error) {
+func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripe Stripe, column string) (column.Chunk, error) {
 	idx, _, err := ds.Schema.LocateColumn(column)
 	if err != nil {
 		return nil, err
 	}
-	return db.ReadColumnFromStripe(ds, stripeID, idx)
+	return db.ReadColumnFromStripe(ds, stripe, idx)
 }
 
 // ReadColumnsFromStripeByNames repeatedly calls ReadColumnFromStripeByName, so it's just a helper method
 // OPTIM: here we could use a stripe reader (or a ReadColumsFromStripe([]idx))
-func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripeID UID, columns []string) ([]column.Chunk, error) {
+func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) ([]column.Chunk, error) {
 	cols := make([]column.Chunk, 0, len(columns))
 	for _, column := range columns {
 		idx, _, err := ds.Schema.LocateColumn(column)
 		if err != nil {
 			return nil, err
 		}
-		col, err := db.ReadColumnFromStripe(ds, stripeID, idx)
+		col, err := db.ReadColumnFromStripe(ds, stripe, idx)
 		if err != nil {
 			return nil, err
 		}

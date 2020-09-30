@@ -190,8 +190,8 @@ func (db *Database) DatasetPath(ds *Dataset) string {
 	return filepath.Join(db.Config.WorkingDirectory, ds.ID.String())
 }
 
-func (db *Database) stripePath(ds *Dataset, stripeID UID) string {
-	return filepath.Join(db.DatasetPath(ds), stripeID.String())
+func (db *Database) stripePath(ds *Dataset, stripe Stripe) string {
+	return filepath.Join(db.DatasetPath(ds), stripe.Id.String())
 }
 
 // GetDataset retrieves a dataset based on its UID
@@ -229,7 +229,7 @@ func (db *Database) removeDataset(ds *Dataset) error {
 	}
 
 	for _, stripe := range ds.Stripes {
-		if err := os.Remove(db.stripePath(ds, stripe.Id)); err != nil {
+		if err := os.Remove(db.stripePath(ds, stripe)); err != nil {
 			return err
 		}
 	}

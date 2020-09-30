@@ -97,7 +97,7 @@ func TestBasicEval(t *testing.T) {
 	}
 	coldata := make(map[string]column.Chunk)
 	for _, cln := range ds.Schema {
-		column, err := db.ReadColumnFromStripeByName(ds, ds.Stripes[0].Id, cln.Name)
+		column, err := db.ReadColumnFromStripeByName(ds, ds.Stripes[0], cln.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
