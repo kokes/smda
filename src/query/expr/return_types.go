@@ -44,6 +44,8 @@ func dedupeSortedStrings(s []string) []string {
 func (expr *Expression) ColumnsUsed() []string {
 	var cols []string
 
+	// TODO: what about a) quoted identifiers and b) case insensitivity in normal identifiers?
+	//       the problem is we don't have the schema passed in here
 	if expr.etype == exprIdentifier {
 		cols = append(cols, expr.value)
 	}

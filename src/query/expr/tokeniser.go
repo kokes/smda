@@ -168,6 +168,9 @@ func (ts *tokenScanner) Scan() (tok, error) {
 	case ',':
 		ts.position++
 		return tok{tokenComma, nil}, nil
+	// TODO: && and || are NOT proper tokenAnd and tokenOr - this needs changing
+	// to AND and OR (both case insensitive)
+	// These should be changed to tokenBinAnd and tokenBinOr (and implemented) - also the stringer needs fixing
 	case '&':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("&&")) {

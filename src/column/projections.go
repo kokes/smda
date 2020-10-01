@@ -7,8 +7,6 @@ import (
 	"github.com/kokes/smda/src/bitmap"
 )
 
-// TODO: rename to comparisons.go?
-
 var errProjectionNotSupported = errors.New("projection not supported")
 
 // one thing that might help us with all the implementations of functions with 2+ arguments:
