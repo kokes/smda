@@ -20,8 +20,10 @@ func TestBasicEval(t *testing.T) {
 		{"foo123 >= bar134", column.DtypeBool, []string{"t", "f", "f"}},
 		{"foo123 < bar134", column.DtypeBool, []string{"f", "t", "t"}},
 		{"foo123 <= bar134", column.DtypeBool, []string{"t", "t", "t"}},
-		{"bool_tff || bool_ftf", column.DtypeBool, []string{"t", "t", "f"}},
-		{"bool_tff && bool_ftf", column.DtypeBool, []string{"f", "f", "f"}},
+		{"bool_tff OR bool_ftf", column.DtypeBool, []string{"t", "t", "f"}},
+		{"bool_tff or bool_ftf", column.DtypeBool, []string{"t", "t", "f"}},
+		{"bool_tff AND bool_ftf", column.DtypeBool, []string{"f", "f", "f"}},
+		{"bool_tff and bool_ftf", column.DtypeBool, []string{"f", "f", "f"}},
 
 		// literals
 		{"foo123 > 1", column.DtypeBool, []string{"f", "t", "t"}},
@@ -49,7 +51,7 @@ func TestBasicEval(t *testing.T) {
 		{"str_foo != 'f'", column.DtypeBool, []string{"f", "t", "t"}},
 
 		// all literals
-		{"(foo123 > 0) && (2 >= 1)", column.DtypeBool, []string{"t", "t", "t"}},
+		{"(foo123 > 0) AND (2 >= 1)", column.DtypeBool, []string{"t", "t", "t"}},
 
 		// functions
 		{"nullif(foo123, 5)", column.DtypeInt, []string{"1", "2", "3"}},

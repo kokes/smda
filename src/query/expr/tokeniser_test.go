@@ -160,7 +160,8 @@ func TestTokenisationErrors(t *testing.T) {
 		{"\"fooba$", errInvalidIdentifier},
 		{"\"\"", errInvalidIdentifier},
 		{"123 !! 456", errUnknownToken},
-		// {"foo && bar", errUnknownToken},
+		{"foo && bar", errInvalidIdentifier}, // again, not the right error
+		{"foo || bar", errInvalidIdentifier},
 		{"2 == 3", errUnknownToken}, // we disallow == as an equality test, we use SQL's '='
 		{"'some text\nother text'", errInvalidString},
 		// we don't consider nbsp as whitespace (the error isn't the best, but at least it errs)

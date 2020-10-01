@@ -94,7 +94,7 @@ func TestParsingContents(t *testing.T) {
 		}}},
 		{"-2", &Expression{etype: exprLiteralInt, value: "-2"}},
 		{"-2.4", &Expression{etype: exprLiteralFloat, value: "-2.4"}}, // unary expressions
-		{"foo = 2 && 3 = bar", &Expression{etype: exprAnd, children: []*Expression{
+		{"foo = 2 AND 3 = bar", &Expression{etype: exprAnd, children: []*Expression{
 			{etype: exprEquality, children: []*Expression{
 				{etype: exprIdentifier, value: "foo"},
 				{etype: exprLiteralInt, value: "2"},
@@ -104,7 +104,7 @@ func TestParsingContents(t *testing.T) {
 				{etype: exprIdentifier, value: "bar"},
 			}},
 		}}},
-		{"foo > 3 || -2 <= bar", &Expression{etype: exprOr, children: []*Expression{
+		{"foo > 3 OR -2 <= bar", &Expression{etype: exprOr, children: []*Expression{
 			{etype: exprGreaterThan, children: []*Expression{
 				{etype: exprIdentifier, value: "foo"},
 				{etype: exprLiteralInt, value: "3"},

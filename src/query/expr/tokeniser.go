@@ -168,25 +168,6 @@ func (ts *tokenScanner) Scan() (tok, error) {
 	case ',':
 		ts.position++
 		return tok{tokenComma, nil}, nil
-	// TODO: && and || are NOT proper tokenAnd and tokenOr - this needs changing
-	// to AND and OR (both case insensitive)
-	// These should be changed to tokenBinAnd and tokenBinOr (and implemented) - also the stringer needs fixing
-	case '&':
-		next := ts.peek(2)
-		if bytes.Equal(next, []byte("&&")) {
-			ts.position += 2
-			return tok{tokenAnd, nil}, nil
-		}
-		ts.position++
-		return tok{}, errUnknownToken
-	case '|':
-		next := ts.peek(2)
-		if bytes.Equal(next, []byte("||")) {
-			ts.position += 2
-			return tok{tokenOr, nil}, nil
-		}
-		ts.position++
-		return tok{}, errUnknownToken
 	case '+':
 		ts.position++
 		return tok{tokenAdd, nil}, nil
@@ -258,7 +239,21 @@ func (ts *tokenScanner) Scan() (tok, error) {
 	case '\'': // string literal
 		return ts.consumeStringLiteral()
 	default:
-		return ts.consumeIdentifier()
+		// doesn't have to be an identifier, could be a keyword
+		// at this point we only care about and/or, because we need to convert them
+		// before we remove this SQL compatibility layer (we use Go's ast/parser, so we
+		// can't just use AND and OR as operators)
+		ident, err := ts.consumeIdentifier()
+		if err != nil {
+			return tok{}, err
+		}
+		if bytes.Equal(ident.value, []byte("and")) || bytes.Equal(ident.value, []byte("AND")) {
+			return tok{ttype: tokenAnd}, nil
+		}
+		if bytes.Equal(ident.value, []byte("or")) || bytes.Equal(ident.value, []byte("OR")) {
+			return tok{ttype: tokenOr}, nil
+		}
+		return ident, nil
 	}
 }
 
