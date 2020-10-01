@@ -14,7 +14,7 @@ var errChildrenNotTwo = errors.New("expecting an expression to have two children
 var errTypeMismatch = errors.New("expecting compatible types")
 
 // should this be in the database package?
-func compatibleTypes(t1, t2 column.Dtype) bool {
+func comparableTypes(t1, t2 column.Dtype) bool {
 	if t1 == t2 {
 		return true
 	}
@@ -63,80 +63,66 @@ func ColumnsUsed(exprs ...*Expression) []string {
 	return dedupeSortedStrings(cols)
 }
 
-func (expr *Expression) IsValid(ts database.TableSchema) error {
-	switch expr.etype {
-	case exprIdentifier:
-		// TODO: test value?
-		if expr.children != nil {
-			return errChildrenNotNil
-		}
-	case exprLiteralInt, exprLiteralFloat, exprLiteralString, exprLiteralBool, exprLiteralNull:
-		// TODO: test value
-		if expr.children != nil {
-			return errChildrenNotNil
-		}
-	case exprEquality, exprNequality, exprGreaterThan, exprGreaterThanEqual, exprLessThan, exprLessThanEqual,
-		exprAddition, exprSubtraction, exprDivision, exprMultiplication, exprAnd, exprOr:
-		if len(expr.children) != 2 {
-			return errChildrenNotTwo
-		}
-		t1, err := expr.children[0].ReturnType(ts)
-		if err != nil {
-			return err
-		}
-		t2, err := expr.children[1].ReturnType(ts)
-		if err != nil {
-			return err
-		}
-		if expr.etype == exprAnd || expr.etype == exprOr {
-			if !(t1.Dtype == column.DtypeBool && t2.Dtype == column.DtypeBool) {
-				return fmt.Errorf("AND/OR clauses require both sides to be booleans: %w", errTypeMismatch)
-			}
-			return nil
-		} else {
-			// TODO: this might be an issue for e.g. colDate = '2020-02-22' - where we'd like to implicitly convert the literal
-			//       to a date, so we may need to extend this to avoid explicit casting
-			if !compatibleTypes(t1.Dtype, t2.Dtype) {
-				return errTypeMismatch
-			}
-		}
-	case exprFunCall:
-		// TODO: check the function exists?
-		// also check its arguments (e.g. nullif needs exactly two)
-		// TODO (ARCH): it would be best if ReturnType and IsValid were merged, I guess
-	default:
-		return fmt.Errorf("unsupported expression type for validity checks: %v", expr.etype)
-	}
-	return nil
-}
-
 // TODO: will we define the name? As some sort of a composite of the actions taken?
 // does this even need to return errors? If we always call IsValid outside of this, then this will
 // always return a type - one issue with the current implementation is that isvalid gets called recursively
 // once at the top and then for all the children again (because we call ReturnType on the children)
 func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, error) {
 	schema := column.Schema{}
-	if err := expr.IsValid(ts); err != nil {
-		return schema, err
-	}
-	switch expr.etype {
-	case exprLiteralInt:
-		schema.Dtype = column.DtypeInt
-		schema.Nullable = false
-	case exprLiteralFloat:
-		schema.Dtype = column.DtypeFloat
-		schema.Nullable = false
-	case exprLiteralBool:
-		schema.Dtype = column.DtypeBool
-		schema.Nullable = false
-	case exprLiteralString:
-		schema.Dtype = column.DtypeString
-		schema.Nullable = false
-	case exprLiteralNull:
-		schema.Dtype = column.DtypeNull
+	switch {
+	case expr.IsLiteral():
 		schema.Nullable = false // ARCH: still no consensus whether null columns are nullable
-
-	case exprFunCall:
+		switch expr.etype {
+		case exprLiteralInt:
+			schema.Dtype = column.DtypeInt
+		case exprLiteralFloat:
+			schema.Dtype = column.DtypeFloat
+		case exprLiteralBool:
+			schema.Dtype = column.DtypeBool
+		case exprLiteralString:
+			schema.Dtype = column.DtypeString
+		case exprLiteralNull:
+			schema.Dtype = column.DtypeNull
+		default:
+			return schema, fmt.Errorf("literal %v not supported", expr)
+		}
+	case expr.IsOperator():
+		t1, err := expr.children[0].ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		t2, err := expr.children[1].ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		switch {
+		case expr.IsOperatorBoolean():
+			if !(t1.Dtype == column.DtypeBool && t2.Dtype == column.DtypeBool) {
+				return schema, fmt.Errorf("AND/OR clauses require both sides to be booleans: %w", errTypeMismatch)
+			}
+			schema.Dtype = column.DtypeBool
+			schema.Nullable = t1.Nullable || t2.Nullable
+		case expr.IsOperatorComparison():
+			if !comparableTypes(t1.Dtype, t2.Dtype) {
+				return schema, errTypeMismatch
+			}
+			schema.Dtype = column.DtypeBool
+			schema.Nullable = t1.Nullable || t2.Nullable
+		case expr.IsOperatorMath():
+			if !comparableTypes(t1.Dtype, t2.Dtype) {
+				return schema, errTypeMismatch
+			}
+			schema.Dtype = t1.Dtype
+			// for mixed use cases, always resolve it as a float (1 - 2.0 = -1.0)
+			// also division can never result in an integer
+			if t1.Dtype != t2.Dtype || expr.etype == exprDivision {
+				schema.Dtype = column.DtypeFloat
+			}
+			schema.Nullable = t1.Nullable || t2.Nullable
+		default:
+			return schema, fmt.Errorf("operator type %v not supported", expr.etype)
+		}
+	case expr.etype == exprFunCall:
 		var argTypes []column.Schema
 		for _, child := range expr.children {
 			ctype, err := child.ReturnType(ts)
@@ -150,7 +136,8 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 			return schema, err
 		}
 		schema = fschema
-	case exprIdentifier:
+	case expr.IsIdentifier():
+		// TODO: what about the quoted identifier vs. unquoted (case sensitivity)
 		_, col, err := ts.LocateColumn(expr.value)
 		if err != nil {
 			return schema, err
@@ -160,35 +147,8 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 			Dtype:    col.Dtype,
 			Nullable: col.Nullable,
 		}
-
-	case exprEquality, exprNequality, exprGreaterThan, exprGreaterThanEqual, exprLessThan, exprLessThanEqual, exprAnd, exprOr:
-		schema.Dtype = column.DtypeBool
-		c1, err := expr.children[0].ReturnType(ts)
-		if err != nil {
-			return schema, err
-		}
-		c2, err := expr.children[1].ReturnType(ts)
-		if err != nil {
-			return schema, err
-		}
-		schema.Nullable = c1.Nullable || c2.Nullable
-	case exprAddition, exprSubtraction, exprDivision, exprMultiplication:
-		c1, err := expr.children[0].ReturnType(ts)
-		if err != nil {
-			return schema, err
-		}
-		c2, err := expr.children[1].ReturnType(ts)
-		if err != nil {
-			return schema, err
-		}
-		schema.Dtype = column.DtypeFloat
-		// int operations (apart from division) will result back in ints
-		if expr.etype != exprDivision && (c1.Dtype == column.DtypeInt && c2.Dtype == column.DtypeInt) {
-			schema.Dtype = column.DtypeInt
-		}
-		schema.Nullable = c1.Nullable || c2.Nullable
 	default:
-		return schema, fmt.Errorf("return types not implemented for: %v", expr.etype)
+		return schema, fmt.Errorf("expression %v cannot be resolved", expr)
 	}
 	return schema, nil
 }
@@ -196,7 +156,6 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 // now, all function return types are centralised here, but it should probably be embedded in individual functions'
 // definitions - we'll need to have some structs in place (for state management in aggregating funcs), so those
 // could have methods like `ReturnType(args)` and `IsValid(args)`, `IsAggregating` etc.
-// note that a call to IsValid MUST precede this
 // also, should we make multiplication, inequality etc. just functions like nullif or coalesce? That would allow us
 // to fold all the functionality of eval() into a (recursive) function call
 func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema, error) {

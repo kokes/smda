@@ -336,6 +336,7 @@ func newChunkStringsFromSlice(data []string, nulls *bitmap.Bitmap) *ChunkStrings
 // true values (to select given rows)
 func (rc *ChunkBools) Truths() *bitmap.Bitmap {
 	if rc.isLiteral {
+		// this could be implemented by hydrating the chunk (-> isLiteral = false)
 		panic("truths method not available for literal bool chunks")
 	}
 	bm := rc.data.Clone()
@@ -869,6 +870,7 @@ func (rc *ChunkNulls) Append(tc Chunk) error {
 // Prune filter this chunk and only preserves values for which the bitmap is set
 func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 	if rc.isLiteral {
+		// TODO: pruning could be implemented by hydrating this chunk (disabling isLiteral)
 		panic("pruning not supported in literal chunks")
 	}
 	nc := newChunkStrings()

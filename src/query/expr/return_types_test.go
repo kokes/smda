@@ -10,51 +10,52 @@ import (
 )
 
 // TODO: test case insensitivity of keywords (just function names at this point) - it's not implemented yet
-func TestIsValid(t *testing.T) {
-	schema := database.TableSchema([]column.Schema{
-		{Name: "my_int_column", Dtype: column.DtypeInt},
-		{Name: "my_float_column", Dtype: column.DtypeFloat},
-	})
-	exprs := []string{
-		"1 = 1", "1 != 1", "1 = 1.2", "1 > 0",
-		"1 > my_int_column", "1.3 <= my_int_column",
-		"(my_int_column > 3) = true", "(my_int_column > 3) = false",
-	}
+// TODO: convert all the IsValid tests to ReturnType tests
+// func TestIsValid(t *testing.T) {
+// 	schema := database.TableSchema([]column.Schema{
+// 		{Name: "my_int_column", Dtype: column.DtypeInt},
+// 		{Name: "my_float_column", Dtype: column.DtypeFloat},
+// 	})
+// 	exprs := []string{
+// 		"1 = 1", "1 != 1", "1 = 1.2", "1 > 0",
+// 		"1 > my_int_column", "1.3 <= my_int_column",
+// 		"(my_int_column > 3) = true", "(my_int_column > 3) = false",
+// 	}
 
-	for _, raw := range exprs {
-		expr, err := ParseStringExpr(raw)
-		if err != nil {
-			t.Errorf("cannot parse %v, got %v", raw, err)
-			continue
-		}
-		if err := expr.IsValid(schema); err != nil {
-			t.Errorf("expecting %v to be a valid expression, got: %v", raw, err)
-		}
-	}
-}
+// 	for _, raw := range exprs {
+// 		expr, err := ParseStringExpr(raw)
+// 		if err != nil {
+// 			t.Errorf("cannot parse %v, got %v", raw, err)
+// 			continue
+// 		}
+// 		if err := expr.IsValid(schema); err != nil {
+// 			t.Errorf("expecting %v to be a valid expression, got: %v", raw, err)
+// 		}
+// 	}
+// }
 
-func TestIsValidNot(t *testing.T) {
-	schema := database.TableSchema([]column.Schema{
-		{Name: "my_int_column", Dtype: column.DtypeInt},
-		{Name: "my_float_column", Dtype: column.DtypeFloat},
-	})
-	exprs := []string{
-		"1 = 'bus'", "1 > 'foo'",
-		"'bar' = my_int_column",
-		// non-existing functions
-	}
+// func TestIsValidNot(t *testing.T) {
+// 	schema := database.TableSchema([]column.Schema{
+// 		{Name: "my_int_column", Dtype: column.DtypeInt},
+// 		{Name: "my_float_column", Dtype: column.DtypeFloat},
+// 	})
+// 	exprs := []string{
+// 		"1 = 'bus'", "1 > 'foo'",
+// 		"'bar' = my_int_column",
+// 		// non-existing functions
+// 	}
 
-	for _, raw := range exprs {
-		expr, err := ParseStringExpr(raw)
-		if err != nil {
-			t.Errorf("cannot parse %v, got %v", raw, err)
-			continue
-		}
-		if expr.IsValid(schema) == nil {
-			t.Errorf("expecting %v to be an invalid expression", raw)
-		}
-	}
-}
+// 	for _, raw := range exprs {
+// 		expr, err := ParseStringExpr(raw)
+// 		if err != nil {
+// 			t.Errorf("cannot parse %v, got %v", raw, err)
+// 			continue
+// 		}
+// 		if expr.IsValid(schema) == nil {
+// 			t.Errorf("expecting %v to be an invalid expression", raw)
+// 		}
+// 	}
+// }
 
 func TestStringDedup(t *testing.T) {
 	tests := []struct {

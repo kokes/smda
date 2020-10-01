@@ -42,7 +42,28 @@ const (
 	exprFunCall
 )
 
-// ARCH: is this used anywhere?
+// TODO: test all these Is...
+func (expr *Expression) IsIdentifier() bool {
+	return expr.etype == exprIdentifier || expr.etype == exprIdentifierQuoted
+}
+func (expr *Expression) IsOperatorBoolean() bool {
+	return expr.etype == exprAnd || expr.etype == exprOr
+}
+func (expr *Expression) IsOperatorMath() bool {
+	return expr.etype >= exprAddition && expr.etype <= exprDivision
+}
+func (expr *Expression) IsOperatorComparison() bool {
+	return expr.etype >= exprEquality && expr.etype <= exprGreaterThanEqual
+}
+
+func (expr *Expression) IsOperator() bool {
+	return expr.IsOperatorBoolean() || expr.IsOperatorMath() || expr.IsOperatorComparison()
+}
+func (expr *Expression) IsLiteral() bool {
+	return expr.etype >= exprLiteralInt && expr.etype <= exprLiteralNull
+}
+
+// ARCH: is this used anywhere? (partially in the Expression stringer)
 func (etype exprType) String() string {
 	switch etype {
 	case exprInvalid:
@@ -156,8 +177,8 @@ func (expr *Expression) String() string {
 
 		return fmt.Sprintf("%s(%s)", expr.value, strings.Join(args, ", "))
 	default:
-		// TODO: panic? (We use .String() for comparison of expressions)
-		return "unsupported expression"
+		// we need to panic, because we use this stringer for expression comparison
+		panic(fmt.Sprintf("unsupported expression type: %v", expr.etype))
 	}
 }
 
