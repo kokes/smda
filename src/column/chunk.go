@@ -35,6 +35,31 @@ type Chunk interface {
 	Clone() Chunk
 }
 
+// ARCH/TODO: consider date(time)s. We'll have to think about AddValue and whether we want to autodetect them
+//  		  as that can be very expensive and it's not usually done
+// type date uint32
+// // we could reserve 5 bits at the end for hour, so that datetime can
+// // be datehour + microseconds in an hour (log2(1000*1000*60*60) < 32)
+
+// func NewDate(year, month, day int) date {
+// 	// OPTIM: if we initialise this as an int and then shift natively
+// 	// and only convert upon return, will we gain anything?
+// 	// TODO: validation?
+// 	var myDate uint32
+// 	myDate |= uint32(year << 10)
+// 	myDate |= uint32(month << 5) // can be four bits
+// 	myDate |= uint32(day)
+// 	return date(myDate)
+// }
+
+// func (d date) Year() int  { return int(d >> 10) }
+// func (d date) Month() int { return int(d >> 5 & (1<<5 - 1)) }
+// func (d date) Day() int   { return int(d & (1<<5 - 1)) }
+
+// func (d date) String() string {
+// 	return fmt.Sprintf("%04d-%02d-%02d", d.Year(), d.Month(), d.Day())
+// }
+
 // ChunksEqual compares two chunks, even if they contain []float64 data
 // consider making this lenient enough to compare only the relevant bits in ChunkBools
 func ChunksEqual(c1 Chunk, c2 Chunk) bool {

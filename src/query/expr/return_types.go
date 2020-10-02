@@ -160,19 +160,27 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 // could have methods like `ReturnType(args)` and `IsValid(args)`, `IsAggregating` etc.
 // also, should we make multiplication, inequality etc. just functions like nullif or coalesce? That would allow us
 // to fold all the functionality of eval() into a (recursive) function call
+// TODO: make sure that these return types are honoured in aggregators' resolvers
 func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema, error) {
 	schema := column.Schema{}
 	switch funName {
 	case "count":
 		schema.Dtype = column.DtypeInt
 		schema.Nullable = false
-	case "min", "max", "sum":
+	case "min", "max":
 		schema.Dtype = argTypes[0].Dtype
+		schema.Nullable = argTypes[0].Nullable
+	case "sum":
+		schema.Dtype = argTypes[0].Dtype
+		// ARCH: we can't do sum(bool), because a boolean aggregator can't have internal state in ints yet
+		// if argTypes[0].Dtype == column.DtypeBool {
+		// 	schema.Dtype = column.DtypeInt
+		// }
 		schema.Nullable = argTypes[0].Nullable
 	case "avg":
 		schema.Dtype = column.DtypeFloat // average of integers will be a float
 		schema.Nullable = argTypes[0].Nullable
-	case "sin", "cos", "tan", "exp", "exp2", "log", "log2", "log10":
+	case "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "sqrt", "exp", "exp2", "log", "log2", "log10":
 		schema.Dtype = column.DtypeFloat
 		schema.Nullable = true
 	case "round":

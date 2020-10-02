@@ -204,6 +204,10 @@ type Result struct {
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
 // the former should result in a 4xx, the latter in a 5xx
 func Run(db *database.Database, q Query) (*Result, error) {
+	// TODO: custom error + explicit test for this
+	// if len(q.Select) == 0 {
+	// 	return nil, errors.New("did not specify any columns to be retrieved")
+	// }
 	res := &Result{
 		Columns: make([]string, 0),
 		Data:    make([]column.Chunk, 0),

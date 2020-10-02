@@ -20,11 +20,19 @@ var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	"sin":    numFunc(math.Sin),
 	"cos":    numFunc(math.Cos),
 	"tan":    numFunc(math.Tan),
+	"asin":   numFunc(math.Asin),
+	"acos":   numFunc(math.Acos),
+	"atan":   numFunc(math.Atan),
+	"sinh":   numFunc(math.Sinh),
+	"cosh":   numFunc(math.Cosh),
+	"tanh":   numFunc(math.Tanh),
+	"sqrt":   numFunc(math.Sqrt),
 	"exp":    numFunc(math.Exp),
 	"exp2":   numFunc(math.Exp2),
 	"log":    numFunc(math.Log),
 	"log2":   numFunc(math.Log2),
 	"log10":  numFunc(math.Log10),
+	// TODO: log with arbitrary base
 	// TODO: these are just placeholders for parser tests to pass
 	"coalesce": nil,
 }

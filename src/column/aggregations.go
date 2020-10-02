@@ -7,10 +7,10 @@ import (
 )
 
 type AggState struct {
-	dtype   Dtype
-	ints    []int64
-	floats  []float64
-	strings []string
+	inputType Dtype
+	ints      []int64
+	floats    []float64
+	strings   []string
 	// TODO: ... strings? bools?
 	counts   []int64
 	AddChunk func(buckets []uint64, ndistinct int, data Chunk)
@@ -77,9 +77,9 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 		switch function {
 		case "count":
 			if len(dtypes) == 0 {
-				state.dtype = DtypeInt // count() will count integers
+				state.inputType = DtypeInt // count() will count integers
 			} else {
-				state.dtype = dtypes[0] // count(expr) will accept type(expr)
+				state.inputType = dtypes[0] // count(expr) will accept type(expr)
 			}
 			resolvers = resolveFuncs{
 				any: func(agg *AggState) func() (Chunk, error) {
@@ -89,7 +89,7 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 				},
 			}
 		case "min":
-			state.dtype = dtypes[0]
+			state.inputType = dtypes[0]
 			updaters.ints = func(agg *AggState, val int64, pos uint64) {
 				if agg.counts[pos] == 0 || val < agg.ints[pos] {
 					agg.ints[pos] = val
@@ -107,7 +107,7 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			}
 			resolvers = genericResolvers
 		case "max":
-			state.dtype = dtypes[0]
+			state.inputType = dtypes[0]
 			updaters.ints = func(agg *AggState, val int64, pos uint64) {
 				if agg.counts[pos] == 0 || val > agg.ints[pos] {
 					agg.ints[pos] = val
@@ -120,7 +120,7 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			}
 			resolvers = genericResolvers
 		case "sum":
-			state.dtype = dtypes[0]
+			state.inputType = dtypes[0]
 			updaters.ints = func(agg *AggState, val int64, pos uint64) {
 				agg.ints[pos] += val
 			}
@@ -129,7 +129,7 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			}
 			resolvers = genericResolvers
 		case "avg":
-			state.dtype = dtypes[0]
+			state.inputType = dtypes[0]
 			// OPTIM/ARCH: this is not the best way to average out, see specialised algorithms
 			updaters.ints = func(agg *AggState, val int64, pos uint64) {
 				agg.ints[pos] += val
@@ -222,7 +222,7 @@ func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
 
 // OPTIM/ARCH: this might be abstracted away thanks to generics (though... we don't have nthvalue for all chunk types)
 func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), error) {
-	switch agg.dtype {
+	switch agg.inputType {
 	case DtypeInt:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
@@ -286,7 +286,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 			}
 		}, nil
 	default:
-		return nil, fmt.Errorf("adder factory not supported for %v", agg.dtype)
+		return nil, fmt.Errorf("adder factory not supported for %v", agg.inputType)
 	}
 }
 
@@ -296,7 +296,7 @@ func resolverFactory(agg *AggState, resfuncs resolveFuncs) (func() (Chunk, error
 		return resfuncs.any(agg), nil
 	}
 	var rfunc resolveFunc
-	switch agg.dtype {
+	switch agg.inputType {
 	case DtypeInt:
 		rfunc = resfuncs.ints
 	case DtypeFloat:
@@ -307,7 +307,7 @@ func resolverFactory(agg *AggState, resfuncs resolveFuncs) (func() (Chunk, error
 	// we hit this branch if either the type is not in the switch (there's no way we can
 	// resolve this type), OR if the function in the struct is nil (undefined)
 	if rfunc == nil {
-		return nil, fmt.Errorf("resolver for type %v not supported", agg.dtype)
+		return nil, fmt.Errorf("resolver for type %v not supported", agg.inputType)
 	}
 	return rfunc(agg), nil
 }

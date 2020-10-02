@@ -40,6 +40,8 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 	// null is not a literal type yet
 	// case exprLiteralNull:
 	// 	return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0)
+	// OPTIM/TODO: we could optimise shallow function calls - e.g. `log(foo) > 1` doesn't need
+	// `log(foo)` as a newly allocated chunk, we can compute that on the fly
 	case exprFunCall:
 		if expr.evaler == nil {
 			return nil, fmt.Errorf("%w: %s", errFunctionNotImplemented, expr.value)
