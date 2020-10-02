@@ -60,6 +60,10 @@ func TestBasicEval(t *testing.T) {
 		// test nullifs with nulls, with literals, with other types
 
 		{"round(float123, 2)", column.DtypeFloat, []string{"1", "2", "3"}},
+		{"round(foo123, 0)", column.DtypeFloat, []string{"1", "2", "3"}},
+		{"round(float123)", column.DtypeFloat, []string{"1", "2", "3"}},
+		{"round(foo123)", column.DtypeFloat, []string{"1", "2", "3"}},
+		{"round(foo123, 2)", column.DtypeFloat, []string{"1", "2", "3"}},
 		// {"round(2.234, 2)", column.DtypeFloat, []string{"2.23"}}, // don't have a way of testing literals just yet
 		{"round(float1p452p13p0, 1)", column.DtypeFloat, []string{"1.5", "2.1", "3.0"}},
 		// don't have a good way to specify floats precisely (though check out log(float123)), so let's just test approx values
@@ -68,7 +72,9 @@ func TestBasicEval(t *testing.T) {
 		{"exp2(float123)", column.DtypeFloat, []string{"2", "4", "8"}},
 		{"exp2(floatneg123)", column.DtypeFloat, []string{"0.5", "0.25", "0.125"}},
 		{"log(float123)", column.DtypeFloat, []string{"0", "0.6931471805599453", "1.0986122886681096"}},
+		{"log(foo123)", column.DtypeFloat, []string{"0", "0.6931471805599453", "1.0986122886681096"}},
 		{"log2(float123)", column.DtypeFloat, []string{"0", "1", "1.5849625007211563"}},
+		{"log2(foo123)", column.DtypeFloat, []string{"0", "1", "1.5849625007211563"}},
 		{"log10(float123)", column.DtypeFloat, []string{"0", "0.3010299956639812", "0.4771212547196624"}},
 		// test negatives in floats (-> nulls, not nans) [not implemented yet]
 		// {"log(floatneg123)", column.DtypeFloat, []string{"", "", ""}},
