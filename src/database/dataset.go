@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 var errPathNotEmpty = errors.New("path not empty")
 var errDatasetNotFound = errors.New("dataset not found")
+var errColumnNotFound = errors.New("column not found in schema")
 
 // Database is the main struct that contains it all - notably the datasets' metadata and the webserver
 // Having the webserver here makes it convenient for testing - we can spawn new servers at a moment's notice
@@ -169,15 +171,30 @@ type TableSchema []column.Schema
 // LocateColumn returns a column within a schema - its position and definition; error is
 // triggered if this column is not found or the schema is nil
 func (schema *TableSchema) LocateColumn(s string) (int, column.Schema, error) {
-	if schema == nil {
-		return 0, column.Schema{}, errors.New("empty schema cannot contain requested column")
-	}
-	for j, col := range []column.Schema(*schema) {
-		if col.Name == s {
-			return j, col, nil
+	if schema != nil {
+		for j, col := range []column.Schema(*schema) {
+			if col.Name == s {
+				return j, col, nil
+			}
 		}
 	}
-	return 0, column.Schema{}, fmt.Errorf("column %v not found in schema", s)
+	return 0, column.Schema{}, fmt.Errorf("%w: %v", errColumnNotFound, s)
+}
+
+// LocateColumnCaseInsensitive works just like LocateColumn, but it ignores casing
+// ARCH: we could have used strings.EqualFold, but a) we have one static input (s), so we can
+//       amortise the case lowering, b) the extra correctness in EqualFold is irrelevant here,
+//		 because of our column naming restrictions
+func (schema *TableSchema) LocateColumnCaseInsensitive(s string) (int, column.Schema, error) {
+	s = strings.ToLower(s)
+	if schema != nil {
+		for j, col := range []column.Schema(*schema) {
+			if strings.ToLower(col.Name) == s {
+				return j, col, nil
+			}
+		}
+	}
+	return 0, column.Schema{}, fmt.Errorf("%w: %v", errColumnNotFound, s)
 }
 
 // NewDataset creates a new empty dataset

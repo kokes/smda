@@ -117,11 +117,16 @@ func TestReturnTypes(t *testing.T) {
 	schema := database.TableSchema([]column.Schema{
 		{Name: "my_int_column", Dtype: column.DtypeInt},
 		{Name: "my_float_column", Dtype: column.DtypeFloat},
+		{Name: "my_Float_column", Dtype: column.DtypeInt}, // this is intentionally incorrect
 	})
 	testCases := []struct {
 		rawExpr    string
 		returnType column.Schema
 	}{
+		// case sensitivity
+		{"my_float_column - 3", column.Schema{Dtype: column.DtypeFloat}},
+		{"2*my_Float_column - 3", column.Schema{Dtype: column.DtypeFloat}},   // not quoted
+		{"2*\"my_Float_column\" - 3", column.Schema{Dtype: column.DtypeInt}}, // quoted
 		// literals
 		{"1", column.Schema{Dtype: column.DtypeInt}},
 		{"1.23", column.Schema{Dtype: column.DtypeFloat}},

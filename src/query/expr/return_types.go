@@ -139,8 +139,15 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 		}
 		schema = fschema
 	case expr.IsIdentifier():
-		// TODO: what about the quoted identifier vs. unquoted (case sensitivity)
-		_, col, err := ts.LocateColumn(expr.value)
+		var (
+			col column.Schema
+			err error
+		)
+		if expr.etype == exprIdentifierQuoted {
+			_, col, err = ts.LocateColumn(expr.value)
+		} else {
+			_, col, err = ts.LocateColumnCaseInsensitive(expr.value)
+		}
 		if err != nil {
 			return schema, err
 		}
