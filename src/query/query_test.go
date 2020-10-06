@@ -278,6 +278,51 @@ func TestBasicAggregation(t *testing.T) {
 	}
 }
 
+func TestAggregationProjectionErrors(t *testing.T) {
+	tests := []struct {
+		input   string
+		aggexpr []string
+		projs   []string
+	}{
+		{"foo,bar,baz\n1,2,3\n", []string{"foo", "bar"}, []string{"foo*2", "bar"}},
+		{"foo,bar,baz\n1,2,3\n", []string{"foo"}, []string{"bar"}},
+		{"foo,bar,baz\n1,2,3\n", []string{"nullif(foo, 2)"}, []string{"foo"}},
+		// {"foo,bar,baz\n1,2,3\n", []string{"2*foo"}, []string{"2*FOO"}}, // enable this once we get case insensitivity merged
+	}
+
+	for _, test := range tests {
+		db, err := database.NewDatabase(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := db.Drop(); err != nil {
+				panic(err)
+			}
+		}()
+
+		ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.input))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		aggexpr, err := stringsToExprs(test.aggexpr)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		projexpr, nil := stringsToExprs(test.projs)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		_, err = aggregate(db, ds, aggexpr, projexpr)
+		if !errors.Is(err, errInvalidProjectionInAggregation) {
+			t.Errorf("expecting projection %v and aggregation %v to result in errInvalidProjectionInAggregation, got %v instead", test.projs, test.aggexpr, err)
+		}
+	}
+}
+
 func TestBasicFiltering(t *testing.T) {
 	tests := []struct {
 		input            string

@@ -11,6 +11,7 @@ import (
 )
 
 var errInvalidLimitValue = errors.New("invalid limit value")
+var errInvalidProjectionInAggregation = errors.New("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo))")
 
 // Query describes what we want to retrieve from a given dataset
 // There are basically four places you need to edit (and test!) in order to extend this:
@@ -98,8 +99,7 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		}
 		pos := lookupExpr(proj, groupbys)
 		if pos == -1 {
-			// TODO: isolate this into a custom error and test it
-			return nil, fmt.Errorf("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo)), got %v", proj)
+			return nil, fmt.Errorf("%w: %v", errInvalidProjectionInAggregation, proj)
 		}
 	}
 	for _, aggexpr := range aggexprs {
