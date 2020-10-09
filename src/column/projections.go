@@ -103,6 +103,7 @@ func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) boo
 		eval = func(j int) bool { return compFn(c1.data[j], val) }
 	}
 	for j := 0; j < nvals; j++ {
+		// OPTIM: cannot inline re-assigned closure variable at src/column/projections.go:99:8: eval = func literal
 		if eval(j) {
 			bm.Set(j, true)
 		}
@@ -208,21 +209,13 @@ const ALL_ONES = uint64(1<<64 - 1)
 
 func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64) uint64) (*ChunkBools, error) {
 	nvals := c1.Len()
-	res := make([]uint64, (nvals+63)/64)
 
 	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		panic("not implemented yet") // TODO
-		// idea: compFn the thing, extract that one relevant bit and then set all values in res
-		// to either all zeroes or all ones
-		// but first get some test cases for it (be careful about all the other bits in val)
-		// val := compFn(c1.data.Data()[0], c2.data.Data()[0])
-		// if val & 1 > 0 {
-		// 	for j := 0; j < len(res); j++ {
-		// 		res[j] = ALL_ONES
-		// 	}
-		// }
+		val := compFn(c1.data.Data()[0], c2.data.Data()[0])
+		return newChunkLiteralBools(val&1 > 0, nvals), nil
 	}
+	res := make([]uint64, (nvals+63)/64)
 
 	c1d := c1.data.Data()
 	c2d := c2.data.Data()

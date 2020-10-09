@@ -5,38 +5,76 @@ import (
 	"testing"
 )
 
+func prepColumns(nrows int, dtype1, dtype2, dtype3 Dtype, rawData1, rawData2, rawData3 string) (Chunk, Chunk, Chunk, error) {
+	litPrefix := "lit:"
+	c1, c2, expected := NewChunkFromSchema(Schema{Dtype: dtype1}), NewChunkFromSchema(Schema{Dtype: dtype2}), NewChunkFromSchema(Schema{Dtype: dtype3})
+	var err error
+	if strings.HasPrefix(rawData1, litPrefix) {
+		c1, err = NewChunkLiteralAuto(strings.TrimPrefix(rawData1, litPrefix), nrows)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	} else {
+		if err := c1.AddValues(strings.Split(rawData1, ",")); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	if strings.HasPrefix(rawData2, litPrefix) {
+		c2, err = NewChunkLiteralAuto(strings.TrimPrefix(rawData2, litPrefix), nrows)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	} else {
+		if err := c2.AddValues(strings.Split(rawData2, ",")); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	if strings.HasPrefix(rawData3, litPrefix) {
+		expected, err = NewChunkLiteralAuto(strings.TrimPrefix(rawData3, litPrefix), nrows)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	} else {
+		if err := expected.AddValues(strings.Split(rawData3, ",")); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	return c1, c2, expected, nil
+}
+
 func TestAndOr(t *testing.T) {
 	tests := []struct {
 		fnc              func(Chunk, Chunk) (Chunk, error)
+		nrows            int
 		c1, c2, expected string
 	}{
-		{EvalAnd, "t", "t", "t"},
-		{EvalAnd, "t", "f", "f"},
-		{EvalAnd, "f", "t", "f"},
-		{EvalAnd, "f", "f", "f"},
-		{EvalAnd, "f,f,f,t", "f,f,f,t", "f,f,f,t"},
-		{EvalAnd, "t,t,t,t", "t,t,t,t", "t,t,t,t"},
-		{EvalAnd, "t,f,f,t", "t,t,f,t", "t,f,f,t"},
-		{EvalOr, "t", "t", "t"},
-		{EvalOr, "t", "f", "t"},
-		{EvalOr, "f", "t", "t"},
-		{EvalOr, "f", "f", "f"},
-		{EvalOr, "f,f,f,t", "f,f,f,t", "f,f,f,t"},
-		{EvalOr, "t,t,t,t", "t,t,t,t", "t,t,t,t"},
-		{EvalOr, "t,f,f,t", "t,t,f,t", "t,t,f,t"},
+		{EvalAnd, 3, "t", "t", "t"},
+		{EvalAnd, 3, "t", "f", "f"},
+		{EvalAnd, 3, "f", "t", "f"},
+		{EvalAnd, 3, "f", "f", "f"},
+		{EvalAnd, 4, "f,f,f,t", "f,f,f,t", "f,f,f,t"},
+		{EvalAnd, 4, "t,t,t,t", "t,t,t,t", "t,t,t,t"},
+		{EvalAnd, 4, "t,f,f,t", "t,t,f,t", "t,f,f,t"},
+		{EvalOr, 3, "t", "t", "t"},
+		{EvalOr, 3, "t", "f", "t"},
+		{EvalOr, 3, "f", "t", "t"},
+		{EvalOr, 3, "f", "f", "f"},
+		{EvalOr, 4, "f,f,f,t", "f,f,f,t", "f,f,f,t"},
+		{EvalOr, 4, "t,t,t,t", "t,t,t,t", "t,t,t,t"},
+		{EvalOr, 4, "t,f,f,t", "t,t,f,t", "t,t,f,t"},
+
+		// literals
+		{EvalAnd, 3, "lit:t", "t,f,t", "t,f,t"},
+		{EvalOr, 3, "lit:t", "t,f,t", "t,t,t"},
+		{EvalOr, 3, "lit:t", "lit:f", "lit:t"},
+		{EvalOr, 3, "lit:f", "lit:f", "lit:f"},
+		{EvalAnd, 3, "lit:f", "lit:t", "lit:f"},
+		{EvalAnd, 3, "lit:t", "lit:t", "lit:t"},
 	}
-	// TODO: not testing literals (may need that helper we mention below)
 	for _, test := range tests {
-		c1, c2, expected := newChunkBools(), newChunkBools(), newChunkBools()
-		if err := c1.AddValues(strings.Split(test.c1, ",")); err != nil {
-			t.Error(err)
-			continue
-		}
-		if err := c2.AddValues(strings.Split(test.c2, ",")); err != nil {
-			t.Error(err)
-			continue
-		}
-		if err := expected.AddValues(strings.Split(test.expected, ",")); err != nil {
+		c1, c2, expected, err := prepColumns(test.nrows, DtypeBool, DtypeBool, DtypeBool, test.c1, test.c2, test.expected)
+		if err != nil {
 			t.Error(err)
 			continue
 		}
@@ -51,7 +89,6 @@ func TestAndOr(t *testing.T) {
 		}
 	}
 }
-
 func TestComparisons(t *testing.T) {
 	tests := []struct {
 		dtype1, dtype2   Dtype
@@ -99,44 +136,11 @@ func TestComparisons(t *testing.T) {
 		{DtypeInt, DtypeFloat, EvalNeq, 3, "1,2,3", "1.2,2.0,3", "t,f,f"},
 		{DtypeFloat, DtypeInt, EvalNeq, 3, "1.2,2.0,3", "1,2,3", "t,f,f"},
 	}
-	litPrefix := "lit:"
 	for _, test := range tests {
-		// TODO: abstract out all of this into a chunks function helper (it's used elsewhere as well)
-		c1, c2, expected := NewChunkFromSchema(Schema{Dtype: test.dtype1}), NewChunkFromSchema(Schema{Dtype: test.dtype2}), NewChunkFromSchema(Schema{Dtype: DtypeBool})
-		var err error
-		if strings.HasPrefix(test.c1, litPrefix) {
-			c1, err = NewChunkLiteralAuto(strings.TrimPrefix(test.c1, litPrefix), test.nrows)
-			if err != nil {
-				t.Fatal(err)
-			}
-		} else {
-			if err := c1.AddValues(strings.Split(test.c1, ",")); err != nil {
-				t.Error(err)
-				continue
-			}
-		}
-		if strings.HasPrefix(test.c2, litPrefix) {
-			c2, err = NewChunkLiteralAuto(strings.TrimPrefix(test.c2, litPrefix), test.nrows)
-			if err != nil {
-				t.Fatal(err)
-			}
-		} else {
-			if err := c2.AddValues(strings.Split(test.c2, ",")); err != nil {
-				t.Error(err)
-				continue
-			}
-		}
-
-		if strings.HasPrefix(test.expected, litPrefix) {
-			expected, err = NewChunkLiteralAuto(strings.TrimPrefix(test.expected, litPrefix), test.nrows)
-			if err != nil {
-				t.Fatal(err)
-			}
-		} else {
-			if err := expected.AddValues(strings.Split(test.expected, ",")); err != nil {
-				t.Error(err)
-				continue
-			}
+		c1, c2, expected, err := prepColumns(test.nrows, test.dtype1, test.dtype2, DtypeBool, test.c1, test.c2, test.expected)
+		if err != nil {
+			t.Error(err)
+			continue
 		}
 
 		res, err := test.fnc(c1, c2)
@@ -204,43 +208,11 @@ func TestAlgebraicExpressions(t *testing.T) {
 		{EvalMultiply, 3, DtypeFloat, DtypeInt, DtypeFloat, "4,5.5,6.2", "lit:34", "136,187,210.8"},
 		{EvalMultiply, 3, DtypeFloat, DtypeFloat, DtypeFloat, "lit:35", "lit:33.5", "lit:1172.5"},
 	}
-	litPrefix := "lit:" // TODO: replace all this with said helper
 	for _, test := range tests {
-		c1, c2, expected := NewChunkFromSchema(Schema{Dtype: test.dt1}), NewChunkFromSchema(Schema{Dtype: test.dt2}), NewChunkFromSchema(Schema{Dtype: test.dte})
-		var err error
-		if strings.HasPrefix(test.c1, litPrefix) {
-			c1, err = NewChunkLiteralAuto(strings.TrimPrefix(test.c1, litPrefix), test.nrows)
-			if err != nil {
-				t.Fatal(err)
-			}
-		} else {
-			if err := c1.AddValues(strings.Split(test.c1, ",")); err != nil {
-				t.Error(err)
-				continue
-			}
-		}
-		if strings.HasPrefix(test.c2, litPrefix) {
-			c2, err = NewChunkLiteralAuto(strings.TrimPrefix(test.c2, litPrefix), test.nrows)
-			if err != nil {
-				t.Fatal(err)
-			}
-		} else {
-			if err := c2.AddValues(strings.Split(test.c2, ",")); err != nil {
-				t.Error(err)
-				continue
-			}
-		}
-
-		if strings.HasPrefix(test.expected, litPrefix) {
-			expected, err = NewChunkLiteralAuto(strings.TrimPrefix(test.expected, litPrefix), test.nrows)
-			if err != nil {
-				t.Fatal(err)
-			}
-		} else {
-			if err := expected.AddValues(strings.Split(test.expected, ",")); err != nil {
-				t.Error(err)
-				continue
-			}
+		c1, c2, expected, err := prepColumns(test.nrows, test.dt1, test.dt2, test.dte, test.c1, test.c2, test.expected)
+		if err != nil {
+			t.Error(err)
+			continue
 		}
 
 		res, err := test.fnc(c1, c2)
@@ -253,5 +225,3 @@ func TestAlgebraicExpressions(t *testing.T) {
 		}
 	}
 }
-
-// TODO: eval{add,subtract,divide,multiply}
