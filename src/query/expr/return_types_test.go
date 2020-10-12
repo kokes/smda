@@ -10,52 +10,6 @@ import (
 )
 
 // TODO: test case insensitivity of keywords (just function names at this point) - it's not implemented yet
-// TODO: convert all the IsValid tests to ReturnType tests
-// func TestIsValid(t *testing.T) {
-// 	schema := database.TableSchema([]column.Schema{
-// 		{Name: "my_int_column", Dtype: column.DtypeInt},
-// 		{Name: "my_float_column", Dtype: column.DtypeFloat},
-// 	})
-// 	exprs := []string{
-// 		"1 = 1", "1 != 1", "1 = 1.2", "1 > 0",
-// 		"1 > my_int_column", "1.3 <= my_int_column",
-// 		"(my_int_column > 3) = true", "(my_int_column > 3) = false",
-// 	}
-
-// 	for _, raw := range exprs {
-// 		expr, err := ParseStringExpr(raw)
-// 		if err != nil {
-// 			t.Errorf("cannot parse %v, got %v", raw, err)
-// 			continue
-// 		}
-// 		if err := expr.IsValid(schema); err != nil {
-// 			t.Errorf("expecting %v to be a valid expression, got: %v", raw, err)
-// 		}
-// 	}
-// }
-
-// func TestIsValidNot(t *testing.T) {
-// 	schema := database.TableSchema([]column.Schema{
-// 		{Name: "my_int_column", Dtype: column.DtypeInt},
-// 		{Name: "my_float_column", Dtype: column.DtypeFloat},
-// 	})
-// 	exprs := []string{
-// 		"1 = 'bus'", "1 > 'foo'",
-// 		"'bar' = my_int_column",
-// 		// non-existing functions
-// 	}
-
-// 	for _, raw := range exprs {
-// 		expr, err := ParseStringExpr(raw)
-// 		if err != nil {
-// 			t.Errorf("cannot parse %v, got %v", raw, err)
-// 			continue
-// 		}
-// 		if expr.IsValid(schema) == nil {
-// 			t.Errorf("expecting %v to be an invalid expression", raw)
-// 		}
-// 	}
-// }
 
 func TestStringDedup(t *testing.T) {
 	tests := []struct {
@@ -113,6 +67,88 @@ func TestColumnsUsed(t *testing.T) {
 	}
 }
 
+func TestColumnsUsedVarargs(t *testing.T) {
+	tests := []struct {
+		rawExprs []string
+		colsUsed []string
+	}{
+		{[]string{"1=1", "3>1"}, nil},
+		{[]string{"1=1", "3>foo"}, []string{"foo"}},
+		{[]string{"zoo > 3", "3>foo"}, []string{"foo", "zoo"}},
+		{[]string{"2*foo > bar-bak"}, []string{"bak", "bar", "foo"}},
+		{[]string{"(2*foo > bar-bak) = true"}, []string{"bak", "bar", "foo"}},
+		{[]string{"1=bak", "3>foo", "bar"}, []string{"bak", "bar", "foo"}},
+		{[]string{"a > 2*a -b", "3=a", "b < a*4"}, []string{"a", "b"}}, // dupes
+		{[]string{"coalesce(a, c, b)"}, []string{"a", "b", "c"}},       // we return columns sorted
+	}
+
+	for _, test := range tests {
+		var exprs []*Expression
+		for _, rawExpr := range test.rawExprs {
+			expr, err := ParseStringExpr(rawExpr)
+			if err != nil {
+				t.Errorf("cannot parse %v, got %v", rawExpr, err)
+				continue
+			}
+			exprs = append(exprs, expr)
+		}
+		used := ColumnsUsed(exprs...)
+		if !reflect.DeepEqual(used, test.colsUsed) {
+			t.Errorf("expecting %v to use %v, but got %v instead", test.rawExprs, test.colsUsed, used)
+		}
+	}
+}
+
+func TestValidity(t *testing.T) {
+	schema := database.TableSchema([]column.Schema{
+		{Name: "my_int_column", Dtype: column.DtypeInt},
+		{Name: "my_float_column", Dtype: column.DtypeFloat},
+	})
+	exprs := []string{
+		"1 = 1", "1 != 1", "1 = 1.2", "1 > 0",
+		"1 > my_int_column", "1.3 <= my_int_column",
+		"(my_int_column > 3) = true", "(my_int_column > 3) = false",
+	}
+
+	for _, raw := range exprs {
+		expr, err := ParseStringExpr(raw)
+		if err != nil {
+			t.Errorf("cannot parse %v, got %v", raw, err)
+			continue
+		}
+		if _, err := expr.ReturnType(schema); err != nil {
+			t.Errorf("expecting %v to be a valid expression, got: %v", raw, err)
+		}
+	}
+}
+
+func TestValiditySadPaths(t *testing.T) {
+	schema := database.TableSchema([]column.Schema{
+		{Name: "my_int_column", Dtype: column.DtypeInt},
+		{Name: "my_float_column", Dtype: column.DtypeFloat},
+		{Name: "my_bool_column", Dtype: column.DtypeBool},
+	})
+	exprs := []string{
+		"1 = 'bus'", "1 > 'foo'",
+		"'bar' = my_int_column",
+		"my_int_column > 3 AND my_float_column",
+		"my_bool_column + my_float_column",
+		// non-existing functions
+		"foobar(my_int_column)",
+	}
+
+	for _, raw := range exprs {
+		expr, err := ParseStringExpr(raw)
+		if err != nil {
+			t.Errorf("cannot parse %v, got %v", raw, err)
+			continue
+		}
+		if _, err := expr.ReturnType(schema); err == nil {
+			t.Errorf("expecting %v to be an invalid expression", raw)
+		}
+	}
+}
+
 func TestReturnTypes(t *testing.T) {
 	schema := database.TableSchema([]column.Schema{
 		{Name: "my_int_column", Dtype: column.DtypeInt},
@@ -155,11 +191,36 @@ func TestReturnTypes(t *testing.T) {
 		{"4 / my_int_column", column.Schema{Dtype: column.DtypeFloat}},
 		{"my_float_column / my_int_column", column.Schema{Dtype: column.DtypeFloat}},
 
+		// and/or
+		{"my_float_column > 3 AND my_int_column = 4", column.Schema{Dtype: column.DtypeBool}},
+		{"my_float_column > 3 OR my_int_column = 4", column.Schema{Dtype: column.DtypeBool}},
+
 		// function calls
 		{"count()", column.Schema{Dtype: column.DtypeInt}},
 		{"count(my_int_column)", column.Schema{Dtype: column.DtypeInt}},
 		{"nullif(my_int_column, 12)", column.Schema{Dtype: column.DtypeInt, Nullable: true}},
 		{"nullif(my_float_column, 12)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}},
+		{"14*min(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}},
+		{"14*max(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}},
+		{"14*min(my_int_column)", column.Schema{Dtype: column.DtypeInt, Nullable: false}},
+		{"14*max(my_int_column)", column.Schema{Dtype: column.DtypeInt, Nullable: false}},
+		{"sum(my_int_column)", column.Schema{Dtype: column.DtypeInt, Nullable: false}},
+		{"sum(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}},
+		{"avg(my_int_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}},
+		{"avg(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}},
+		{"round(my_int_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}},
+		{"round(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}},
+		{"round(my_int_column, 3)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}},
+		{"round(my_float_column, 4)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}},
+
+		// trigonometric functions always return a nullable column (though sin/cos/exp don't have to)
+		{"sin(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}},
+		{"cos(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}},
+		{"exp(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}},
+		{"sin(my_int_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}},
+		{"cos(my_int_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}},
+		{"exp(my_int_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}},
+
 		// {"NULLIF(my_float_column, 12)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}}, // once we implement case folding...
 
 		// "ahoy", "foo / bar", "2 * foo", "2+3*4", "count(foobar)", "bak = 'my literal'",
@@ -186,5 +247,3 @@ func TestReturnTypes(t *testing.T) {
 
 	}
 }
-
-// ColumnsUsed (as a function accepting varargs)
