@@ -8,12 +8,16 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"github.com/kokes/smda/src/bitmap"
 )
 
 var errTypeNotSupported = errors.New("type not supported in this function")
 var errNotImplemented = errors.New("not implemented yet")
 
 // TODO: this will be hard to cover properly, so let's make sure we test everything explicitly
+// ARCH: we're not treating literals any differently, but since they share the same backing store
+//       as non-literals, we're okay... is that okay?
 var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	"nullif": EvalNullIf,
 	"round":  EvalRound, // TODO: ceil, floor
@@ -95,16 +99,27 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 			}
 			ctr := rc.(*ChunkFloats)
 			for j, el := range ctr.data {
-				ctr.data[j] = fnc(el)
+				val := fnc(el)
+				if math.IsNaN(val) || math.IsInf(val, 0) {
+					if ctr.nullability == nil {
+						ctr.nullability = bitmap.NewBitmap(ctr.Len())
+					}
+					ctr.nullability.Set(j, true)
+				}
+				ctr.data[j] = val
 			}
 			return ctr, nil
 		case *ChunkFloats:
 			ctr := ct.Clone().(*ChunkFloats)
 			for j, el := range ctr.data {
-				// TODO: nanify (nan -> set null)
-				// though math.Log(0) -> -Inf, set that to NaN as well?
-				// reflect this in the case above as well (dtypeint)
-				ctr.data[j] = fnc(el)
+				val := fnc(el)
+				if math.IsNaN(val) || math.IsInf(val, 0) {
+					if ctr.nullability == nil {
+						ctr.nullability = bitmap.NewBitmap(ctr.Len())
+					}
+					ctr.nullability.Set(j, true)
+				}
+				ctr.data[j] = val
 			}
 			return ctr, nil
 		default:
