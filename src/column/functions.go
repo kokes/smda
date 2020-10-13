@@ -19,26 +19,39 @@ var errNotImplemented = errors.New("not implemented yet")
 // ARCH: we're not treating literals any differently, but since they share the same backing store
 //       as non-literals, we're okay... is that okay?
 var FuncProj = map[string]func(...Chunk) (Chunk, error){
-	"nullif": EvalNullIf,
-	"round":  EvalRound, // TODO: ceil, floor
-	"sin":    numFunc(math.Sin),
-	"cos":    numFunc(math.Cos),
-	"tan":    numFunc(math.Tan),
-	"asin":   numFunc(math.Asin),
-	"acos":   numFunc(math.Acos),
-	"atan":   numFunc(math.Atan),
-	"sinh":   numFunc(math.Sinh),
-	"cosh":   numFunc(math.Cosh),
-	"tanh":   numFunc(math.Tanh),
-	"sqrt":   numFunc(math.Sqrt),
-	"exp":    numFunc(math.Exp),
-	"exp2":   numFunc(math.Exp2),
-	"log":    numFunc(math.Log),
-	"log2":   numFunc(math.Log2),
-	"log10":  numFunc(math.Log10),
+	"nullif":   EvalNullIf,
+	"coalesce": EvalCoalesce,
+	"round":    EvalRound, // TODO: ceil, floor
+	"sin":      numFunc(math.Sin),
+	"cos":      numFunc(math.Cos),
+	"tan":      numFunc(math.Tan),
+	"asin":     numFunc(math.Asin),
+	"acos":     numFunc(math.Acos),
+	"atan":     numFunc(math.Atan),
+	"sinh":     numFunc(math.Sinh),
+	"cosh":     numFunc(math.Cosh),
+	"tanh":     numFunc(math.Tanh),
+	"sqrt":     numFunc(math.Sqrt),
+	"exp":      numFunc(math.Exp),
+	"exp2":     numFunc(math.Exp2),
+	"log":      numFunc(math.Log),
+	"log2":     numFunc(math.Log2),
+	"log10":    numFunc(math.Log10),
 	// TODO: log with arbitrary base
-	// TODO: these are just placeholders for parser tests to pass
-	"coalesce": nil,
+}
+
+func EvalCoalesce(cs ...Chunk) (Chunk, error) {
+	if len(cs) == 0 {
+		// ARCH: this should have been taken care of in return_types
+		return nil, errors.New("coalesce needs at least one argument")
+	}
+	if len(cs) == 1 {
+		return cs[0], nil
+	}
+	// OPTIM: if cs[0].IsNullable == false, exit with it (we don't have that method though)
+	panic("TODO: not implemented yet")
+	// how will we know the schema of this result? should we incorporate the return_type flow here?
+	// I guess we can't do that since that would introduce a circular dependency
 }
 
 // var EvalAbs = numFunc(math.Abs) // this should probably behave differently for ints

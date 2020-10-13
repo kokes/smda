@@ -198,11 +198,13 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 	case "nullif":
 		schema.Dtype = argTypes[0].Dtype // TODO: add nullif() to tests to ensure that we catch it before this and don't panic
 		schema.Nullable = true           // even if the nullif condition is never met, I think it's fair to set it as nullable
-	// case "coalesce":
-	// we'll need to figure out how to deal with the whole number-like type compatibility (e.g. if there's at least
-	// one float, it's a float - but that will change in the future if we add decimals)
-	// same issue in multiplication and other operations
-	// trying something with compatibleTypes()
+	case "coalesce":
+		// we'll need to figure out how to deal with the whole number-like type compatibility (e.g. if there's at least
+		// one float, it's a float - but that will change in the future if we add decimals)
+		// same issue in multiplication and other operations
+		// trying something with compatibleTypes()
+		schema.Dtype = argTypes[0].Dtype // TODO: will break for [int, float]
+		schema.Nullable = true           // if at least one column is a literal, we can deduce this to be false
 	default:
 		return schema, fmt.Errorf("unsupported function: %v", funName)
 	}

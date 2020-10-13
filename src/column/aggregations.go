@@ -11,10 +11,9 @@ type AggState struct {
 	ints      []int64
 	floats    []float64
 	strings   []string
-	// TODO: ... strings? bools?
-	counts   []int64
-	AddChunk func(buckets []uint64, ndistinct int, data Chunk)
-	Resolve  func() (Chunk, error)
+	counts    []int64
+	AddChunk  func(buckets []uint64, ndistinct int, data Chunk)
+	Resolve   func() (Chunk, error)
 }
 
 // how will we update the state given a value
@@ -70,7 +69,6 @@ var genericResolvers = resolveFuncs{
 // OPTIM: the switch(function) could be hoisted outside the closure (would work as a function existence validator)
 func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 	return func(dtypes ...Dtype) (*AggState, error) {
-		// TODO: check dtypes length? (though that should have been done in return_types already)
 		state := &AggState{}
 		updaters := updateFuncs{}
 		resolvers := resolveFuncs{}
