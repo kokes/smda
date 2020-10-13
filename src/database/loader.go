@@ -401,6 +401,11 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 		if loadingErr != nil && loadingErr != io.EOF {
 			return nil, loadingErr
 		}
+		// we started reading this stripe just as we were at the end of a file - so we only get an EOF
+		// and no data
+		if loadingErr == io.EOF && ds.meta.Length == 0 {
+			break
+		}
 		// ARCH: this could possibly happen
 		if ds.meta.Length == 0 {
 			return nil, errors.New("no data loaded")

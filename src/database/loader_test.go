@@ -154,11 +154,11 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 		bName := strconv.Itoa(nrows)
 		b.Run(bName, func(b *testing.B) {
 			buf := new(bytes.Buffer)
-			if _, err := buf.Write([]byte(header)); err != nil {
+			if _, err := buf.WriteString(header); err != nil {
 				b.Fatal(err)
 			}
 			for j := 0; j < nrows; j++ {
-				if _, err := buf.Write([]byte(row)); err != nil {
+				if _, err := buf.WriteString(row); err != nil {
 					b.Fatal(err)
 				}
 			}
