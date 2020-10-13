@@ -2,7 +2,6 @@ package expr
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -13,8 +12,6 @@ import (
 	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
 )
-
-var errFunctionDoesNotExist = errors.New("function does not exist")
 
 type exprType uint8
 

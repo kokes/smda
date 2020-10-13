@@ -13,7 +13,6 @@ import (
 )
 
 var errTypeNotSupported = errors.New("type not supported in this function")
-var errNotImplemented = errors.New("not implemented yet")
 
 // TODO: this will be hard to cover properly, so let's make sure we test everything explicitly
 // ARCH: we're not treating literals any differently, but since they share the same backing store

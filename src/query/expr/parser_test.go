@@ -138,7 +138,12 @@ func TestParsingContents(t *testing.T) {
 		}
 		// we skip equality tests for nil cases (essentially placeholders, perhaps too complex)
 		// we need to reset the assigned functions as these are not comparable
+		// ARCH: we should really either a) recursively remove these functions, b) create a custom
+		// function for comparing expressions (like we have with chunks [ChunksEqual])
 		parsed.evaler, parsed.aggregatorFactory = nil, nil
+		for _, ch := range parsed.children {
+			ch.evaler, ch.aggregatorFactory = nil, nil
+		}
 		if test.expExpr != nil && !reflect.DeepEqual(parsed, test.expExpr) {
 			t.Errorf("expecting %s to parse into %s, got %s instead", test.raw, test.expExpr, parsed)
 		}

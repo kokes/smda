@@ -9,8 +9,6 @@ import (
 	"github.com/kokes/smda/src/database"
 )
 
-var errChildrenNotNil = errors.New("expecting an expression to have nil children nodes")
-var errChildrenNotTwo = errors.New("expecting an expression to have two children")
 var errTypeMismatch = errors.New("expecting compatible types")
 
 // should this be in the database package?
