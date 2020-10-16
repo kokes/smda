@@ -35,6 +35,13 @@ func TestStringDedup(t *testing.T) {
 	}
 }
 
+func dummySchema(cols ...string) (schema database.TableSchema) {
+	for _, col := range cols {
+		schema = append(schema, column.Schema{Name: col})
+	}
+	return
+}
+
 func TestColumnsUsed(t *testing.T) {
 	tests := []struct {
 		rawExpr  string
@@ -54,13 +61,14 @@ func TestColumnsUsed(t *testing.T) {
 		{"b * a / b", []string{"a", "b"}},
 	}
 
+	schema := dummySchema("foo", "bar", "bak", "a", "b", "c", "d")
 	for _, test := range tests {
 		expr, err := ParseStringExpr(test.rawExpr)
 		if err != nil {
 			t.Errorf("cannot parse %v, got %v", test.rawExpr, err)
 			continue
 		}
-		used := expr.ColumnsUsed()
+		used := expr.ColumnsUsed(schema)
 		if !reflect.DeepEqual(used, test.colsUsed) {
 			t.Errorf("expecting %v to use %v, but got %v instead", test.rawExpr, test.colsUsed, used)
 		}
@@ -82,6 +90,7 @@ func TestColumnsUsedVarargs(t *testing.T) {
 		{[]string{"coalesce(a, c, b)"}, []string{"a", "b", "c"}},       // we return columns sorted
 	}
 
+	schema := dummySchema("foo", "zoo", "bar", "bak", "a", "b", "c")
 	for _, test := range tests {
 		var exprs []*Expression
 		for _, rawExpr := range test.rawExprs {
@@ -92,7 +101,7 @@ func TestColumnsUsedVarargs(t *testing.T) {
 			}
 			exprs = append(exprs, expr)
 		}
-		used := ColumnsUsed(exprs...)
+		used := ColumnsUsed(schema, exprs...)
 		if !reflect.DeepEqual(used, test.colsUsed) {
 			t.Errorf("expecting %v to use %v, but got %v instead", test.rawExprs, test.colsUsed, used)
 		}

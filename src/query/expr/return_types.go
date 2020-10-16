@@ -39,25 +39,34 @@ func dedupeSortedStrings(s []string) []string {
 	return s[:currPos]
 }
 
-func (expr *Expression) ColumnsUsed() []string {
-	var cols []string
+// ARCH: this panics when a given column is not in the schema, but since we already validated
+// this schema during the ReturnType call, we should be fine. It's still a bit worrying that
+// we might panic though.
+func (expr *Expression) ColumnsUsed(schema database.TableSchema) (cols []string) {
+	if expr.IsIdentifier() {
+		var lookup func(string) (int, column.Schema, error)
+		lookup = schema.LocateColumnCaseInsensitive
+		if expr.etype == exprIdentifierQuoted {
+			lookup = schema.LocateColumn
+		}
 
-	// TODO: what about a) quoted identifiers and b) case insensitivity in normal identifiers?
-	//       the problem is we don't have the schema passed in here
-	if expr.etype == exprIdentifier {
-		cols = append(cols, expr.value)
+		_, col, err := lookup(expr.value)
+		if err != nil {
+			panic(err)
+		}
+		cols = append(cols, col.Name)
 	}
 	for _, ch := range expr.children {
-		cols = append(cols, ch.ColumnsUsed()...)
+		cols = append(cols, ch.ColumnsUsed(schema)...)
 	}
 	sort.Strings(cols)
 	return dedupeSortedStrings(cols) // so that e.g. a*b - a will yield [a, b]
 }
 
-func ColumnsUsed(exprs ...*Expression) []string {
+func ColumnsUsed(schema database.TableSchema, exprs ...*Expression) []string {
 	var cols []string
 	for _, expr := range exprs {
-		cols = append(cols, expr.ColumnsUsed()...)
+		cols = append(cols, expr.ColumnsUsed(schema)...)
 	}
 	sort.Strings(cols)
 	return dedupeSortedStrings(cols)
