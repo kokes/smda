@@ -108,8 +108,6 @@ func TestComparisons(t *testing.T) {
 		{DtypeInt, DtypeInt, EvalNeq, 3, "1,2,3", "3,3,3", "t,t,f"},
 		{DtypeFloat, DtypeFloat, EvalNeq, 3, "1,2.0,3.1", "3,2,3", "t,f,t"},
 
-		// TODO: test inequalities
-
 		// literals
 		{DtypeInt, DtypeInt, EvalEq, 3, "lit:1", "3,1,2", "f,t,f"},
 		{DtypeInt, DtypeInt, EvalEq, 3, "3,1,2", "lit:1", "f,t,f"},
@@ -125,13 +123,15 @@ func TestComparisons(t *testing.T) {
 		{DtypeInt, DtypeInt, EvalEq, 3, "lit:1", "lit:2", "lit:f"},
 		{DtypeFloat, DtypeFloat, EvalEq, 3, "lit:1", "lit:2", "lit:f"},
 
-		// TODO: test unequal types
 		{DtypeInt, DtypeFloat, EvalEq, 3, "1,2,3", "1.2,2.0,3", "f,t,t"},
 		{DtypeFloat, DtypeInt, EvalEq, 3, "1.2,2.0,3", "1,2,3", "f,t,t"},
 		{DtypeFloat, DtypeInt, EvalEq, 3, "lit:2", "1,2,3", "f,t,f"},
 		{DtypeFloat, DtypeInt, EvalEq, 3, "1,2,3", "lit:2", "f,t,f"},
 		{DtypeFloat, DtypeInt, EvalEq, 3, "lit:3.4", "lit:3", "lit:f"},
 		{DtypeFloat, DtypeInt, EvalEq, 3, "lit:3", "lit:3", "lit:t"},
+		{DtypeInt, DtypeFloat, EvalEq, 3, "lit:2", "1,2,3", "f,t,f"},
+		{DtypeInt, DtypeFloat, EvalEq, 3, "lit:3", "lit:3.4", "lit:f"},
+		{DtypeInt, DtypeFloat, EvalEq, 3, "lit:3", "lit:3", "lit:t"},
 
 		{DtypeInt, DtypeFloat, EvalNeq, 3, "1,2,3", "1.2,2.0,3", "t,f,f"},
 		{DtypeFloat, DtypeInt, EvalNeq, 3, "1.2,2.0,3", "1,2,3", "t,f,f"},

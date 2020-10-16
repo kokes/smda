@@ -200,11 +200,11 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\n,1\nt,2", []string{"bar > 0"}, []string{"bar > 0"}, "bar>0\nt"},
 		// TODO: nullable strings tests
 
-		// TODO: test other dtypes (min/max of strings should work)
 		{"foo,bar\n1,12\n13,2\n1,3\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,3\n13,2"},
 		{"foo,bar\n1,12.3\n13,2\n1,3.3\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,3.3\n13,2"},
 		{"foo,bar\n1,12.3\n13,2\n1,3.3\n", []string{"foo"}, []string{"foo", "max(bar)"}, "foo,min(bar)\n1,12.3\n13,2"},
 		{"foo,bar\n1,foo\n13,bar\n13,baz\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,foo\n13,bar"},
+		{"foo,bar\n1,foo\n13,bar\n13,baz\n", []string{"foo"}, []string{"foo", "max(bar)"}, "foo,max(bar)\n1,foo\n13,baz"},
 		{"foo,bar\n1,12.3\n13,2\n1,3.5\n", []string{"foo"}, []string{"foo", "sum(bar)"}, "foo,sum(bar)\n1,15.8\n13,2"},
 		{"foo,bar\n1,5\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "avg(bar)"}, "foo,avg(bar)\n1,7.5\n13,2"},
 		{"foo,bar\n1,5\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count()"}, "foo,count(bar)\n1,2\n13,1"},

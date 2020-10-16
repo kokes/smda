@@ -199,7 +199,7 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 		schema.Nullable = true
 	case "round":
 		// TODO: check the number of params
-		// disallow anything but literals in the second argument
+		// disallow anything but literals in the second argument - though that's really for the parser to handle
 		schema.Dtype = column.DtypeFloat
 		schema.Nullable = argTypes[0].Nullable
 	case "nullif":

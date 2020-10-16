@@ -114,6 +114,6 @@ func UpdateAggregator(expr *Expression, buckets []uint64, ndistinct int, columnD
 			return err
 		}
 	}
-	expr.aggregator.AddChunk(buckets, ndistinct, child) // TODO: check we didn't end up returning an error!!!
+	expr.aggregator.AddChunk(buckets, ndistinct, child)
 	return nil
 }

@@ -116,6 +116,11 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 					agg.floats[pos] = val
 				}
 			}
+			updaters.strings = func(agg *AggState, val string, pos uint64) {
+				if agg.counts[pos] == 0 || val > agg.strings[pos] {
+					agg.strings[pos] = val
+				}
+			}
 			resolvers = genericResolvers
 		case "sum":
 			state.inputType = dtypes[0]
