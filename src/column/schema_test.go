@@ -19,6 +19,8 @@ func TestDtypeStringer(t *testing.T) {
 		{DtypeNull, "null"},
 		{DtypeInt, "int"},
 		{DtypeFloat, "float"},
+		{DtypeBool, "bool"},
+		{DtypeDate, "date"},
 	}
 
 	for _, testCase := range tests {
@@ -37,7 +39,7 @@ func TestDtypeStringer(t *testing.T) {
 }
 
 func TestDtypeJSONRoundtrip(t *testing.T) {
-	for _, dt := range []Dtype{DtypeInvalid, DtypeNull, DtypeInt, DtypeFloat, DtypeBool, DtypeString} {
+	for _, dt := range []Dtype{DtypeInvalid, DtypeNull, DtypeInt, DtypeFloat, DtypeBool, DtypeDate, DtypeString} {
 		bt, err := json.Marshal(dt)
 		if err != nil {
 			t.Error(err)
@@ -126,6 +128,22 @@ func TestBasicTypeInference(t *testing.T) {
 			DtypeFloat,
 			false,
 		},
+		{
+			[]string{"2020-02-22", "1987-12-31", "3000-01-12"},
+			DtypeDate,
+			false,
+		},
+		{
+			[]string{"2020-02-22", "", "3000-01-12"},
+			DtypeDate,
+			true,
+		},
+		// TODO: once we validate values within dates, add something like this
+		// {
+		// 	[]string{"2020-13-22", "2000-99-99", "2000-01-64"},
+		// 	DtypeDate,
+		// 	false,
+		// },
 		{
 			[]string{},
 			DtypeInvalid,
@@ -286,6 +304,7 @@ func TestBasicTypeGuessing(t *testing.T) {
 		{"-0", DtypeInt},
 		{"true", DtypeBool},
 		{"false", DtypeBool},
+		{"2020-02-22", DtypeDate},
 		{"foo", DtypeString},
 		{"", DtypeString}, // we don't do null inference in guessType
 	}
@@ -377,6 +396,24 @@ func BenchmarkIntDetection(b *testing.B) {
 	nbytes := 0
 	for j := 0; j < n; j++ {
 		val := strconv.Itoa(j)
+		nbytes += len(val)
+		strvals = append(strvals, val)
+	}
+	b.ResetTimer()
+	for j := 0; j < b.N; j++ {
+		for _, el := range strvals {
+			guessType(el)
+		}
+	}
+	b.SetBytes(int64(nbytes))
+}
+
+func BenchmarkDateDetection(b *testing.B) {
+	n := 1000
+	strvals := make([]string, 0, n)
+	nbytes := 0
+	for j := 0; j < n; j++ {
+		val := fmt.Sprintf("%04d-%02d-%02d", rand.Intn(2020), 1+rand.Intn(12), 1+rand.Intn(30))
 		nbytes += len(val)
 		strvals = append(strvals, val)
 	}

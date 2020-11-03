@@ -72,10 +72,6 @@ func ColumnsUsed(schema database.TableSchema, exprs ...*Expression) []string {
 	return dedupeSortedStrings(cols)
 }
 
-// TODO: will we define the name? As some sort of a composite of the actions taken?
-// does this even need to return errors? If we always call IsValid outside of this, then this will
-// always return a type - one issue with the current implementation is that isvalid gets called recursively
-// once at the top and then for all the children again (because we call ReturnType on the children)
 func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, error) {
 	schema := column.Schema{}
 	switch {

@@ -6,6 +6,8 @@ import (
 	"strconv"
 )
 
+var errNotaDate = errors.New("not a date")
+
 // Dtype denotes the data type of a given object (e.g. int or string)
 type Dtype uint8
 
@@ -17,12 +19,13 @@ const (
 	DtypeInt
 	DtypeFloat
 	DtypeBool
+	DtypeDate
 	// more to be added
 	DtypeMax
 )
 
 func (dt Dtype) String() string {
-	return []string{"invalid", "null", "string", "int", "float", "bool"}[dt]
+	return []string{"invalid", "null", "string", "int", "float", "bool", "date"}[dt]
 }
 
 // MarshalJSON returns the JSON representation of a dtype (stringified + json string)
@@ -53,6 +56,8 @@ func (dt *Dtype) UnmarshalJSON(data []byte) error {
 		*dt = DtypeFloat
 	case "bool":
 		*dt = DtypeBool
+	case "date":
+		*dt = DtypeDate
 	default:
 		return fmt.Errorf("unexpected type: %v", sdata)
 	}
@@ -141,6 +146,9 @@ func guessType(s string) Dtype {
 		}
 		if _, err := parseFloat(s); err == nil {
 			return DtypeFloat
+		}
+		if _, err := parseDate(s); err == nil {
+			return DtypeDate
 		}
 	}
 
