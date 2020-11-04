@@ -12,6 +12,7 @@ type AggState struct {
 	ints      []int64
 	floats    []float64
 	strings   []string
+	dates     []date
 	counts    []int64
 	AddChunk  func(buckets []uint64, ndistinct int, data Chunk)
 	Resolve   func() (Chunk, error)
@@ -21,6 +22,7 @@ type AggState struct {
 type updateFuncs struct {
 	ints    func(state *AggState, value int64, position uint64)
 	floats  func(state *AggState, value float64, position uint64)
+	dates   func(state *AggState, value date, position uint64)
 	strings func(state *AggState, value string, position uint64)
 }
 
@@ -31,6 +33,7 @@ type resolveFuncs struct {
 	any     resolveFunc
 	ints    resolveFunc
 	floats  resolveFunc
+	dates   resolveFunc
 	strings resolveFunc
 }
 
@@ -47,6 +50,12 @@ var genericResolvers = resolveFuncs{
 		return func() (Chunk, error) {
 			bm := bitmapFromCounts(agg.counts)
 			return newChunkFloatsFromSlice(agg.floats, bm), nil
+		}
+	},
+	dates: func(agg *AggState) func() (Chunk, error) {
+		return func() (Chunk, error) {
+			bm := bitmapFromCounts(agg.counts)
+			return newChunkDatesFromSlice(agg.dates, bm), nil
 		}
 	},
 	strings: func(agg *AggState) func() (Chunk, error) {
@@ -99,6 +108,11 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 					agg.floats[pos] = val
 				}
 			}
+			updaters.dates = func(agg *AggState, val date, pos uint64) {
+				if agg.counts[pos] == 0 || DatesLessThan(val, agg.dates[pos]) {
+					agg.dates[pos] = val
+				}
+			}
 			updaters.strings = func(agg *AggState, val string, pos uint64) {
 				if agg.counts[pos] == 0 || val < agg.strings[pos] {
 					agg.strings[pos] = val
@@ -115,6 +129,11 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			updaters.floats = func(agg *AggState, val float64, pos uint64) {
 				if agg.counts[pos] == 0 || val > agg.floats[pos] {
 					agg.floats[pos] = val
+				}
+			}
+			updaters.dates = func(agg *AggState, val date, pos uint64) {
+				if agg.counts[pos] == 0 || DatesGreaterThan(val, agg.dates[pos]) {
+					agg.dates[pos] = val
 				}
 			}
 			updaters.strings = func(agg *AggState, val string, pos uint64) {
@@ -199,6 +218,14 @@ func ensureLengthFloats(data []float64, length int) []float64 {
 	data = append(data, make([]float64, length-currentLength)...)
 	return data
 }
+func ensureLengthDates(data []date, length int) []date {
+	currentLength := len(data)
+	if currentLength >= length {
+		return data
+	}
+	data = append(data, make([]date, length-currentLength)...)
+	return data
+}
 
 func ensurelengthStrings(data []string, length int) []string {
 	currentLength := len(data)
@@ -271,6 +298,23 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 				agg.counts[pos]++
 			}
 		}, nil
+	case DtypeDate:
+		return func(buckets []uint64, ndistinct int, data Chunk) {
+			agg.counts = ensureLengthInts(agg.counts, ndistinct)
+			agg.dates = ensureLengthDates(agg.dates, ndistinct)
+
+			rc := data.(*ChunkDates)
+			for j, val := range rc.data {
+				if rc.nullability != nil && rc.nullability.Get(j) {
+					continue
+				}
+				pos := buckets[j]
+				if upd.floats != nil {
+					upd.dates(agg, val, pos)
+				}
+				agg.counts[pos]++
+			}
+		}, nil
 	case DtypeString:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
@@ -305,6 +349,8 @@ func resolverFactory(agg *AggState, resfuncs resolveFuncs) (func() (Chunk, error
 		rfunc = resfuncs.ints
 	case DtypeFloat:
 		rfunc = resfuncs.floats
+	case DtypeDate:
+		rfunc = resfuncs.dates
 	case DtypeString:
 		rfunc = resfuncs.strings
 	}
