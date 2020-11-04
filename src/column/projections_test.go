@@ -135,6 +135,7 @@ func TestComparisons(t *testing.T) {
 
 		{DtypeInt, DtypeFloat, EvalNeq, 3, "1,2,3", "1.2,2.0,3", "t,f,f"},
 		{DtypeFloat, DtypeInt, EvalNeq, 3, "1.2,2.0,3", "1,2,3", "t,f,f"},
+		// TODO(next): test dates
 	}
 	for _, test := range tests {
 		c1, c2, expected, err := prepColumns(test.nrows, test.dtype1, test.dtype2, DtypeBool, test.c1, test.c2, test.expected)

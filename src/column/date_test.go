@@ -28,3 +28,16 @@ func TestBasicDates(t *testing.T) {
 		}
 	}
 }
+
+// func newDate(year, month, day int) date {
+// func (d date) Year() int  { return int(d >> 10) }
+// func (d date) Month() int { return int(d >> 5 & (1<<5 - 1)) }
+// func (d date) Day() int   { return int(d & (1<<5 - 1)) }
+// func (d date) String() string {
+// func parseDate(s string) (date, error) {
+// func DatesEqual(a, b date) bool {
+// func DatesNotEqual(a, b date) bool {
+// func DatesLessThan(a, b date) bool {
+// func DatesLessThanEqual(a, b date) bool {
+// func DatesGreaterThan(a, b date) bool {
+// func DatesGreaterThanEqual(a, b date) bool {

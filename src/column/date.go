@@ -52,3 +52,22 @@ func parseDate(s string) (date, error) {
 
 	return newDate(int(year), int(month), int(day)), nil
 }
+
+func DatesEqual(a, b date) bool {
+	return a == b
+}
+func DatesNotEqual(a, b date) bool {
+	return !DatesEqual(a, b)
+}
+func DatesGreaterThan(a, b date) bool {
+	return a > b
+}
+func DatesGreaterThanEqual(a, b date) bool {
+	return a >= b
+}
+func DatesLessThan(a, b date) bool {
+	return DatesGreaterThan(b, a)
+}
+func DatesLessThanEqual(a, b date) bool {
+	return DatesGreaterThanEqual(b, a)
+}

@@ -213,7 +213,7 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 	if c1.isLiteral && c2.isLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data.Data()[0], c2.data.Data()[0])
-		return newChunkLiteralBools(val&1 > 0, nvals), nil
+		return newChunkLiteralBools(val&1 > 0, nvals), nil // TODO: should this be `boolChunkLiteralFromParts`?
 	}
 	res := make([]uint64, (nvals+63)/64)
 
@@ -251,6 +251,34 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 	return boolChunkFromParts(res, nvals, c1.nullability, c2.nullability), nil
 }
 
+func compFactoryDates(c1 *ChunkDates, c2 *ChunkDates, compFn func(date, date) bool) (*ChunkBools, error) {
+	nvals := c1.Len()
+
+	if c1.isLiteral && c2.isLiteral {
+		// OPTIM: this should be a part of constant folding and should never get to this point
+		val := compFn(c1.data[0], c2.data[0])
+		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+	}
+
+	bm := bitmap.NewBitmap(nvals)
+	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	if c1.isLiteral {
+		val := c1.data[0]
+		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+	}
+	if c2.isLiteral {
+		val := c2.data[0]
+		eval = func(j int) bool { return compFn(c1.data[j], val) }
+	}
+	for j := 0; j < nvals; j++ {
+		// OPTIM: cannot inline re-assigned closure variable at src/column/projections.go:99:8: eval = func literal
+		if eval(j) {
+			bm.Set(j, true)
+		}
+	}
+	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+}
+
 type compFuncs struct {
 	ints     func(int64, int64) bool
 	floats   func(float64, float64) bool
@@ -258,6 +286,7 @@ type compFuncs struct {
 	floatint func(float64, int64) bool
 	strings  func(string, string) bool
 	bools    func(uint64, uint64) uint64
+	dates    func(date, date) bool
 }
 
 // OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
@@ -272,6 +301,8 @@ func compEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
 			return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
 		case DtypeBool:
 			return compFactoryBools(c1.(*ChunkBools), c2.(*ChunkBools), cf.bools)
+		case DtypeDate:
+			return compFactoryDates(c1.(*ChunkDates), c2.(*ChunkDates), cf.dates)
 		default:
 			return nil, fmt.Errorf("comparison expression not supported for types %s and %s: %w", c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
 		}
@@ -315,6 +346,7 @@ func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 		floatint: func(a float64, b int64) bool { return a == float64(b) },
 		strings:  func(a, b string) bool { return a == b },
 		bools:    func(a, b uint64) uint64 { return a ^ (^b) },
+		dates:    DatesEqual,
 	})
 }
 
@@ -327,6 +359,7 @@ func EvalNeq(c1 Chunk, c2 Chunk) (Chunk, error) {
 		floatint: func(a float64, b int64) bool { return a != float64(b) },
 		strings:  func(a, b string) bool { return a != b },
 		bools:    func(a, b uint64) uint64 { return a ^ b },
+		dates:    DatesNotEqual,
 	})
 }
 
@@ -339,6 +372,7 @@ func EvalGt(c1 Chunk, c2 Chunk) (Chunk, error) {
 		floatint: func(a float64, b int64) bool { return a > float64(b) },
 		strings:  func(a, b string) bool { return a > b },
 		bools:    func(a, b uint64) uint64 { return a & (^b) },
+		dates:    DatesGreaterThan,
 	})
 }
 
@@ -351,6 +385,7 @@ func EvalGte(c1 Chunk, c2 Chunk) (Chunk, error) {
 		floatint: func(a float64, b int64) bool { return a >= float64(b) },
 		strings:  func(a, b string) bool { return a >= b },
 		bools:    func(a, b uint64) uint64 { return (a & (^b)) | (a ^ (^b)) },
+		dates:    DatesGreaterThanEqual,
 	})
 }
 
