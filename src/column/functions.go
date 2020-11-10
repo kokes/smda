@@ -139,3 +139,26 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 		}
 	}
 }
+
+// date_part/date_trunc (tho trunc returns a timestamp we don't support yet)
+// century
+// day
+// decade
+// dow
+// doy
+// epoch
+// hour
+// isodow
+// isoyear
+// microseconds
+// millennium
+// milliseconds
+// minute
+// month
+// quarter
+// second
+// timezone
+// timezone_hour
+// timezone_minute
+// week
+// year
