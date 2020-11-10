@@ -262,7 +262,7 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		{Schema{"", DtypeBool, false}, []string{"t", "f", "t"}},
 		{Schema{"", DtypeBool, true}, []string{"t", "", "f"}},
 	}
-	for _, test := range tests {
+	for j, test := range tests {
 		col := NewChunkFromSchema(test.schema)
 		if err := col.AddValues(test.vals); err != nil {
 			t.Error(err)
@@ -277,7 +277,8 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		}
 
 		if !ChunksEqual(col, col2) {
-			t.Errorf("expecting %v, got %v", col, col2)
+			// TODO(next): all error calls in _test.go should be %+v (perhaps even aligned - \n\t)
+			t.Errorf("%v: expecting %+v, got %+v", j+1, col, col2)
 		}
 	}
 }

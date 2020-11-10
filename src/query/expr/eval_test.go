@@ -130,7 +130,7 @@ func TestBasicEval(t *testing.T) {
 			continue
 		}
 		if !column.ChunksEqual(res, expected) {
-			t.Errorf("expected expression %v to result in %v, got %v instead", test.expr, expected, res)
+			t.Errorf("expected expression %+v to result in\n\t%+v, got\n\t%+v instead", test.expr, expected, res)
 		}
 	}
 }
