@@ -22,6 +22,7 @@ var errInvalidTypedLiteral = errors.New("invalid data supplied to a literal cons
 // Chunk defines a part of a column - constant type, stored contiguously
 type Chunk interface {
 	baseChunker
+	Dtype() Dtype
 	AddValue(string) error
 	AddValues([]string) error // consider merging AddValues and AddValue (using varargs)
 	MarshalBinary() ([]byte, error)
@@ -34,22 +35,17 @@ type Chunk interface {
 
 type baseChunker interface {
 	Len() int
-	Dtype() Dtype
 	Nullify(*bitmap.Bitmap)
 }
 
 type baseChunk struct {
 	length      uint32
 	isLiteral   bool
-	dtype       Dtype
 	nullability *bitmap.Bitmap
 }
 
 func (bc baseChunk) Len() int {
 	return int(bc.length)
-}
-func (bc baseChunk) Dtype() Dtype {
-	return bc.dtype
 }
 
 // ARCH: Nullify does NOT switch the data values to be nulls/empty as well
@@ -200,7 +196,6 @@ func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
 	bc := baseChunk{
 		isLiteral: true,
 		length:    uint32(length),
-		dtype:     dtype,
 	}
 	switch dtype {
 	case DtypeInt:
@@ -308,22 +303,19 @@ func newChunkStrings() *ChunkStrings {
 	offsets := make([]uint32, 1, defaultChunkCap)
 	offsets[0] = 0
 	return &ChunkStrings{
-		baseChunk: baseChunk{dtype: DtypeString},
-		data:      make([]byte, 0, defaultChunkCap),
-		offsets:   offsets,
+		data:    make([]byte, 0, defaultChunkCap),
+		offsets: offsets,
 	}
 }
 func newChunkInts() *ChunkInts {
 	return &ChunkInts{
-		baseChunk: baseChunk{dtype: DtypeInt},
-		data:      make([]int64, 0, defaultChunkCap),
+		data: make([]int64, 0, defaultChunkCap),
 	}
 }
 
 func newChunkLiteralInts(value int64, length int) *ChunkInts {
 	return &ChunkInts{
 		baseChunk: baseChunk{
-			dtype:     DtypeInt,
 			isLiteral: true,
 			length:    uint32(length),
 		},
@@ -333,15 +325,13 @@ func newChunkLiteralInts(value int64, length int) *ChunkInts {
 
 func newChunkFloats() *ChunkFloats {
 	return &ChunkFloats{
-		baseChunk: baseChunk{dtype: DtypeFloat},
-		data:      make([]float64, 0, defaultChunkCap),
+		data: make([]float64, 0, defaultChunkCap),
 	}
 }
 
 func newChunkLiteralFloats(value float64, length int) *ChunkFloats {
 	return &ChunkFloats{
 		baseChunk: baseChunk{
-			dtype:     DtypeFloat,
 			isLiteral: true,
 			length:    uint32(length),
 		},
@@ -351,8 +341,7 @@ func newChunkLiteralFloats(value float64, length int) *ChunkFloats {
 
 func newChunkBools() *ChunkBools {
 	return &ChunkBools{
-		baseChunk: baseChunk{dtype: DtypeBool},
-		data:      bitmap.NewBitmap(0),
+		data: bitmap.NewBitmap(0),
 	}
 }
 
@@ -361,7 +350,6 @@ func newChunkLiteralBools(value bool, length int) *ChunkBools {
 	bm.Set(0, value)
 	return &ChunkBools{
 		baseChunk: baseChunk{
-			dtype:     DtypeBool,
 			isLiteral: true,
 			length:    uint32(length),
 		},
@@ -371,15 +359,13 @@ func newChunkLiteralBools(value bool, length int) *ChunkBools {
 
 func newChunkDates() *ChunkDates {
 	return &ChunkDates{
-		baseChunk: baseChunk{dtype: DtypeDate},
-		data:      make([]date, 0, defaultChunkCap),
+		data: make([]date, 0, defaultChunkCap),
 	}
 }
 
 func newChunkLiteralDates(value date, length int) *ChunkDates {
 	return &ChunkDates{
 		baseChunk: baseChunk{
-			dtype:     DtypeDate,
 			isLiteral: true,
 			length:    uint32(length),
 		},
@@ -389,7 +375,7 @@ func newChunkLiteralDates(value date, length int) *ChunkDates {
 
 func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	return &ChunkBools{
-		baseChunk: baseChunk{dtype: DtypeBool, length: uint32(length)},
+		baseChunk: baseChunk{length: uint32(length)},
 		data:      bitmap.NewBitmapFromBits(data, length),
 	}
 }
@@ -397,19 +383,19 @@ func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 // the next few functions could use some generics
 func newChunkIntsFromSlice(data []int64, nulls *bitmap.Bitmap) *ChunkInts {
 	return &ChunkInts{
-		baseChunk: baseChunk{dtype: DtypeInt, length: uint32(len(data)), nullability: nulls},
+		baseChunk: baseChunk{length: uint32(len(data)), nullability: nulls},
 		data:      data,
 	}
 }
 func newChunkFloatsFromSlice(data []float64, nulls *bitmap.Bitmap) *ChunkFloats {
 	return &ChunkFloats{
-		baseChunk: baseChunk{dtype: DtypeFloat, length: uint32(len(data)), nullability: nulls},
+		baseChunk: baseChunk{length: uint32(len(data)), nullability: nulls},
 		data:      data,
 	}
 }
 func newChunkDatesFromSlice(data []date, nulls *bitmap.Bitmap) *ChunkDates {
 	return &ChunkDates{
-		baseChunk: baseChunk{dtype: DtypeDate, length: uint32(len(data)), nullability: nulls},
+		baseChunk: baseChunk{length: uint32(len(data)), nullability: nulls},
 		data:      data,
 	}
 }
@@ -441,7 +427,37 @@ func (rc *ChunkBools) Truths() *bitmap.Bitmap {
 }
 
 func newChunkNulls() *ChunkNulls {
-	return &ChunkNulls{baseChunk: baseChunk{dtype: DtypeNull}}
+	return &ChunkNulls{}
+}
+
+// Dtype returns the type of this chunk
+func (rc *ChunkBools) Dtype() Dtype {
+	return DtypeBool
+}
+
+// Dtype returns the type of this chunk
+func (rc *ChunkFloats) Dtype() Dtype {
+	return DtypeFloat
+}
+
+// Dtype returns the type of this chunk
+func (rc *ChunkInts) Dtype() Dtype {
+	return DtypeInt
+}
+
+// Dtype returns the type of this chunk
+func (rc *ChunkNulls) Dtype() Dtype {
+	return DtypeNull
+}
+
+// Dtype returns the type of this chunk
+func (rc *ChunkStrings) Dtype() Dtype {
+	return DtypeString
+}
+
+// Dtype returns the type of this chunk
+func (rc *ChunkDates) Dtype() Dtype {
+	return DtypeDate
 }
 
 // TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
@@ -1279,7 +1295,6 @@ func deserializeChunkStrings(r io.Reader) (*ChunkStrings, error) {
 	}
 	return &ChunkStrings{
 		baseChunk: baseChunk{
-			dtype:       DtypeString,
 			nullability: bm,
 			length:      lenOffsets - 1,
 		},
@@ -1303,7 +1318,6 @@ func deserializeChunkInts(r io.Reader) (*ChunkInts, error) {
 	}
 	return &ChunkInts{
 		baseChunk: baseChunk{
-			dtype:       DtypeInt,
 			nullability: bitmap,
 			length:      nelements,
 		},
@@ -1325,7 +1339,7 @@ func deserializeChunkFloats(r io.Reader) (*ChunkFloats, error) {
 		return nil, err
 	}
 	return &ChunkFloats{
-		baseChunk: baseChunk{dtype: DtypeFloat, nullability: bitmap, length: nelements},
+		baseChunk: baseChunk{nullability: bitmap, length: nelements},
 		data:      data,
 	}, nil
 }
@@ -1351,7 +1365,7 @@ func deserializeChunkBools(r io.Reader) (*ChunkBools, error) {
 		data = bitmap.NewBitmap(0)
 	}
 	return &ChunkBools{
-		baseChunk: baseChunk{dtype: DtypeBool, nullability: bm, length: nelements},
+		baseChunk: baseChunk{nullability: bm, length: nelements},
 		data:      data,
 	}, nil
 }
@@ -1371,7 +1385,7 @@ func deserializeChunkDates(r io.Reader) (*ChunkDates, error) {
 		return nil, err
 	}
 	return &ChunkDates{
-		baseChunk: baseChunk{dtype: DtypeDate, nullability: bitmap, length: nelements},
+		baseChunk: baseChunk{nullability: bitmap, length: nelements},
 		data:      data,
 	}, nil
 }
@@ -1382,7 +1396,7 @@ func deserializeChunkNulls(r io.Reader) (*ChunkNulls, error) {
 		return nil, err
 	}
 	return &ChunkNulls{
-		baseChunk: baseChunk{dtype: DtypeNull, length: length},
+		baseChunk: baseChunk{length: length},
 	}, nil
 }
 
@@ -1688,7 +1702,7 @@ func (rc *ChunkBools) Clone() Chunk {
 		data = rc.data.Clone()
 	}
 	return &ChunkBools{
-		baseChunk: baseChunk{dtype: DtypeBool, isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
+		baseChunk: baseChunk{isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
 		data:      data,
 	}
 }
@@ -1702,7 +1716,7 @@ func (rc *ChunkFloats) Clone() Chunk {
 	data := append(rc.data[:0:0], rc.data...)
 
 	return &ChunkFloats{
-		baseChunk: baseChunk{dtype: DtypeFloat, isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
+		baseChunk: baseChunk{isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
 		data:      data,
 	}
 }
@@ -1716,7 +1730,7 @@ func (rc *ChunkInts) Clone() Chunk {
 	data := append(rc.data[:0:0], rc.data...)
 
 	return &ChunkInts{
-		baseChunk: baseChunk{dtype: DtypeInt, isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
+		baseChunk: baseChunk{isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
 		data:      data,
 	}
 }
@@ -1730,13 +1744,13 @@ func (rc *ChunkDates) Clone() Chunk {
 	data := append(rc.data[:0:0], rc.data...)
 
 	return &ChunkDates{
-		baseChunk: baseChunk{dtype: DtypeDate, isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
+		baseChunk: baseChunk{isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
 		data:      data,
 	}
 }
 
 func (rc *ChunkNulls) Clone() Chunk {
-	return &ChunkNulls{baseChunk: baseChunk{dtype: DtypeNull, length: rc.length}}
+	return &ChunkNulls{baseChunk: baseChunk{length: rc.length}}
 }
 
 func (rc *ChunkStrings) Clone() Chunk {
@@ -1748,7 +1762,7 @@ func (rc *ChunkStrings) Clone() Chunk {
 	data := append(rc.data[:0:0], rc.data...)
 
 	return &ChunkStrings{
-		baseChunk: baseChunk{dtype: DtypeString, isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
+		baseChunk: baseChunk{isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
 		data:      data,
 		offsets:   offsets,
 	}
