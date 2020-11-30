@@ -151,18 +151,20 @@ func (uid *UID) UnmarshalJSON(data []byte) error {
 
 // Stripe only contains metadata about a given stripe, it has to be loaded
 // separately to obtain actual data
-// ARCH: add offsets loaded from manifests?
+// ARCH: save offsets to manifest files?
 type Stripe struct {
-	Id     UID
-	Length int
+	Id      UID
+	Length  int
+	Offsets []uint32
 }
 
 // Dataset contains metadata for a given dataset, which at this point means a table
 type Dataset struct {
-	ID      UID         `json:"id"`
-	Name    string      `json:"name"`
-	Schema  TableSchema `json:"schema"`
-	Stripes []Stripe    `json:"-"`
+	ID     UID         `json:"id"`
+	Name   string      `json:"name"`
+	Schema TableSchema `json:"schema"`
+	// ARCH: we may need to expose this once we introduce manifest files
+	Stripes []Stripe `json:"-"`
 }
 
 // TableSchema is a collection of column schemas

@@ -3,7 +3,6 @@ package database
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/binary"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -399,53 +398,54 @@ func TestChecksumValidation(t *testing.T) {
 	}
 }
 
-func TestInvalidOffsets(t *testing.T) {
-	db, err := NewDatabase(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := db.Drop(); err != nil {
-			panic(err)
-		}
-	}()
+// ARCH/TODO: reuse when we start using manifest files
+// func TestInvalidOffsets(t *testing.T) {
+// 	db, err := NewDatabase(nil)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	defer func() {
+// 		if err := db.Drop(); err != nil {
+// 			panic(err)
+// 		}
+// 	}()
 
-	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
+// 	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
-	ds, err := db.LoadDatasetFromReaderAuto(buf)
-	if err != nil {
-		t.Fatal(err)
-	}
+// 	ds, err := db.LoadDatasetFromReaderAuto(buf)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	path := db.stripePath(ds, ds.Stripes[0])
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	testSlice := make([]byte, len(data))
+// 	path := db.stripePath(ds, ds.Stripes[0])
+// 	data, err := ioutil.ReadFile(path)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	testSlice := make([]byte, len(data))
 
-	tests := [][]uint32{
-		{1, 2, 3},   // not enough space for even a checksum
-		{1, 0, 120}, // lower offset than the previous (sort of covered by the space criterion as well)
-	}
+// 	tests := [][]uint32{
+// 		{1, 2, 3},   // not enough space for even a checksum
+// 		{1, 0, 120}, // lower offset than the previous (sort of covered by the space criterion as well)
+// 	}
 
-	for _, test := range tests {
-		copy(testSlice, data) // a clean slate
-		bf := new(bytes.Buffer)
-		if err := binary.Write(bf, binary.LittleEndian, test); err != nil {
-			t.Fatal(err)
-		}
-		offsets := bf.Bytes()
-		copy(testSlice[len(testSlice)-len(offsets)-4:], offsets) // hard coded position of offsets, may change (the four is for headerLen)
-		if err := ioutil.WriteFile(path, testSlice, os.ModePerm); err != nil {
-			t.Fatal(err)
-		}
+// 	for _, test := range tests {
+// 		copy(testSlice, data) // a clean slate
+// 		bf := new(bytes.Buffer)
+// 		if err := binary.Write(bf, binary.LittleEndian, test); err != nil {
+// 			t.Fatal(err)
+// 		}
+// 		offsets := bf.Bytes()
+// 		copy(testSlice[len(testSlice)-len(offsets)-4:], offsets) // hard coded position of offsets, may change (the four is for headerLen)
+// 		if err := ioutil.WriteFile(path, testSlice, os.ModePerm); err != nil {
+// 			t.Fatal(err)
+// 		}
 
-		if _, err := db.ReadColumnFromStripe(ds, ds.Stripes[0], 0); err != errInvalidOffsetData {
-			t.Errorf("expecting offsets %v to trigger errInvalidOffsetData, but got %v instead", test, err)
-		}
-	}
-}
+// 		if _, err := db.ReadColumnFromStripe(ds, ds.Stripes[0], 0); err != errInvalidOffsetData {
+// 			t.Errorf("expecting offsets %v to trigger errInvalidOffsetData, but got %v instead", test, err)
+// 		}
+// 	}
+// }
 
 func TestHeaderValidation(t *testing.T) {
 	tests := []struct {

@@ -17,9 +17,10 @@ import (
 	"github.com/kokes/smda/src/column"
 )
 
-const (
-	stripeOnDiskFormatVersion = 1
-)
+// ARCH: reintroduce versioning once we create manifest files
+// const (
+// 	stripeOnDiskFormatVersion = 1
+// )
 
 var errIncorrectChecksum = errors.New("could not validate data on disk: incorrect checksum")
 var errIncompatibleOnDiskFormat = errors.New("cannot open data stripes with a version different from the one supported")
@@ -133,53 +134,36 @@ func newDataStripe() *stripeData {
 	}
 }
 
-// the layout is: [column][column][column][offsets]
-// where [column] is a byte-representation of a column (or its chunk, if there are multiple stripes)
-// and [offsets] is an array of uint32 offsets of individual columns (start + end, so ncolumns + 1 uints)
-// since we know how many columns are in this file (from the dataset metadata), we first
-// need to read that many bytes off the end of the file and then offset to whichever column we want
-func (ds *stripeData) writeToWriter(w io.Writer) error {
+// pack data into a file and return their offsets, which will be stored in a manifest file
+// at this point they are stored in memory
+func (ds *stripeData) writeToWriter(w io.Writer) (offsets []uint32, err error) {
 	totalOffset := uint32(0)
-	offsets := make([]uint32, 0, len(ds.columns))
+	offsets = make([]uint32, 0, 1+len(ds.columns))
+	offsets = append(offsets, 0)
 	for _, column := range ds.columns {
 		// OPTIM: we used to write column data directly into the underlying writer, but we introduced
 		// a method that returns a slice, so that we can checksum it - this increased our allocations, so
 		// we may want to reconsider this and perhaps checksum on the fly, feed in a bytes buffer or something
 		b, err := column.MarshalBinary()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		checksum := crc32.ChecksumIEEE(b)
 		if err := binary.Write(w, binary.LittleEndian, checksum); err != nil {
-			return err
+			return nil, err
 		}
 		n, err := w.Write(b)
 		if n != len(b) {
-			return fmt.Errorf("failed to serialise a column, expecting to write %v bytes, wrote %b", len(b), n)
+			return nil, fmt.Errorf("failed to serialise a column, expecting to write %v bytes, wrote %b", len(b), n)
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		totalOffset += uint32(len(b)) + 4 // byte slice length + checksum
 		offsets = append(offsets, totalOffset)
 	}
 
-	header := new(bytes.Buffer)
-	version := uint16(stripeOnDiskFormatVersion)
-	if err := binary.Write(header, binary.LittleEndian, version); err != nil {
-		return err
-	}
-	if err := binary.Write(header, binary.LittleEndian, offsets); err != nil {
-		return err
-	}
-	headerLength := uint32(header.Len())
-	if err := binary.Write(header, binary.LittleEndian, headerLength); err != nil {
-		return err
-	}
-	if _, err := io.Copy(w, header); err != nil {
-		return err
-	}
-	return nil
+	return offsets, nil
 }
 
 func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData) error {
@@ -195,7 +179,14 @@ func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData) error {
 	bw := bufio.NewWriter(f)
 	defer bw.Flush()
 
-	return stripe.writeToWriter(bw)
+	offsets, err := stripe.writeToWriter(bw)
+	if err != nil {
+		return err
+	}
+	// ARCH: we're "injecting" offsets into a passed-in stripeData pointer,
+	// should we return this instead and let the caller work with it?
+	stripe.meta.Offsets = offsets
+	return nil
 }
 
 func (rl *rawLoader) yieldRow() ([]string, error) {
@@ -273,46 +264,7 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripe Stripe, nthColumn i
 	}
 	defer f.Close()
 
-	if _, err := f.Seek(-4, os.SEEK_END); err != nil {
-		return nil, err
-	}
-	var headerSize uint32
-	if err := binary.Read(f, binary.LittleEndian, &headerSize); err != nil {
-		return nil, err
-	}
-	expHeaderLen := uint32(2 + 4*len(ds.Schema)) // 2 bytes for version and a uint32 for each offset
-	if headerSize != expHeaderLen {
-		return nil, fmt.Errorf("expecting the header to be %d bytes, got %d instead", expHeaderLen, headerSize)
-	}
-	if _, err := f.Seek(-4-int64(headerSize), os.SEEK_END); err != nil {
-		return nil, err
-	}
-
-	header := make([]byte, headerSize)
-	if _, err := io.ReadFull(f, header); err != nil {
-		return nil, err
-	}
-	version := binary.LittleEndian.Uint16(header[:2])
-	if version != stripeOnDiskFormatVersion {
-		return nil, errIncompatibleOnDiskFormat
-	}
-
-	ncolumns := len(ds.Schema)
-	offsets := make([]uint32, 0, ncolumns)
-	offsets = append(offsets, 0)
-
-	// OPTIM: technically, we don't need to load all the offsets (unless we want to cache them)
-	for j := 0; j < ncolumns; j++ {
-		newOffset := binary.LittleEndian.Uint32(header[2+j*4 : 2+(j+1)*4])
-		offsets = append(offsets, newOffset)
-	}
-	offsetStart, offsetEnd := offsets[nthColumn], offsets[nthColumn+1]
-	// a non-complete guard against bit rot and other nasties
-	// only allow sequential offsets and only offer 4 gigs per column chunk
-	// it should also have at least four bytes
-	if offsetEnd < offsetStart || offsetEnd-offsetStart < 4 {
-		return nil, errInvalidOffsetData
-	}
+	offsetStart, offsetEnd := stripe.Offsets[nthColumn], stripe.Offsets[nthColumn+1]
 
 	buf := make([]byte, offsetEnd-offsetStart)
 	n, err := f.ReadAt(buf, int64(offsetStart))
@@ -410,11 +362,12 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 		if ds.meta.Length == 0 {
 			return nil, errors.New("no data loaded")
 		}
-		stripes = append(stripes, ds.meta)
 
 		if err := db.writeStripeToFile(dataset, ds); err != nil {
 			return nil, err
 		}
+
+		stripes = append(stripes, ds.meta)
 
 		if loadingErr == io.EOF {
 			break
