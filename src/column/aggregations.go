@@ -6,7 +6,6 @@ import (
 	"github.com/kokes/smda/src/bitmap"
 )
 
-// TODO(next): dates
 type AggState struct {
 	inputType Dtype
 	ints      []int64
