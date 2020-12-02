@@ -313,7 +313,7 @@ func TestAggregationProjectionErrors(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		projexpr, nil := stringsToExprs(test.projs)
+		projexpr, err := stringsToExprs(test.projs)
 		if err != nil {
 			t.Error(err)
 			continue
