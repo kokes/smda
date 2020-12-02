@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"reflect"
@@ -57,7 +58,7 @@ func TestBasicStringColumn(t *testing.T) {
 			}
 		}
 
-		_, err := nc.MarshalBinary()
+		_, err := nc.WriteTo(ioutil.Discard)
 		if err != nil {
 			t.Error(err)
 			return
@@ -81,7 +82,7 @@ func TestBasicIntColumn(t *testing.T) {
 			t.Error(err)
 		}
 
-		_, err := nc.MarshalBinary()
+		_, err := nc.WriteTo(ioutil.Discard)
 		if err != nil {
 			t.Error(err)
 			return
@@ -111,7 +112,7 @@ func TestBasicFloatColumn(t *testing.T) {
 			t.Error(err)
 		}
 
-		_, err := nc.MarshalBinary()
+		_, err := nc.WriteTo(ioutil.Discard)
 		if err != nil {
 			t.Error(err)
 			return
@@ -133,7 +134,7 @@ func TestBasicBoolColumn(t *testing.T) {
 			t.Error(err)
 		}
 
-		_, err := nc.MarshalBinary()
+		_, err := nc.WriteTo(ioutil.Discard)
 		if err != nil {
 			t.Error(err)
 			return
@@ -267,11 +268,12 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		if err := col.AddValues(test.vals); err != nil {
 			t.Error(err)
 		}
-		b, err := col.MarshalBinary()
+		buf := new(bytes.Buffer)
+		_, err := col.WriteTo(buf)
 		if err != nil {
 			t.Fatal(err)
 		}
-		col2, err := Deserialize(bytes.NewReader(b), test.schema.Dtype)
+		col2, err := Deserialize(buf, test.schema.Dtype)
 		if err != nil {
 			t.Fatal(err)
 		}

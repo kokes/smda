@@ -140,27 +140,28 @@ func (ds *stripeData) writeToWriter(w io.Writer) (offsets []uint32, err error) {
 	totalOffset := uint32(0)
 	offsets = make([]uint32, 0, 1+len(ds.columns))
 	offsets = append(offsets, 0)
+	buf := new(bytes.Buffer)
 	for _, column := range ds.columns {
-		// OPTIM: we used to write column data directly into the underlying writer, but we introduced
-		// a method that returns a slice, so that we can checksum it - this increased our allocations, so
-		// we may want to reconsider this and perhaps checksum on the fly, feed in a bytes buffer or something
-		b, err := column.MarshalBinary()
+		// OPTIM: we used to marshal into byte slices, so that we could checksum our data,
+		// which can be done by writing to intermediate io.Writers instead, as shown here,
+		// but we'd like to eliminate the buffer entirely and write into the underlying writer,
+		// perhaps using io.MultiWriter, but that would mean placing the checksum AFTER the column
+		// THOUGH PERHAPS we could just eliminate the checksum entirely and put it in our manifest file
+		// will that help us with reads though? We will still have to load the whole chunk to checksum it
+		n, err := column.WriteTo(buf)
 		if err != nil {
 			return nil, err
 		}
-		checksum := crc32.ChecksumIEEE(b)
+		checksum := crc32.ChecksumIEEE(buf.Bytes())
 		if err := binary.Write(w, binary.LittleEndian, checksum); err != nil {
 			return nil, err
 		}
-		n, err := w.Write(b)
-		if n != len(b) {
-			return nil, fmt.Errorf("failed to serialise a column, expecting to write %v bytes, wrote %b", len(b), n)
-		}
-		if err != nil {
+		if _, err := io.Copy(w, buf); err != nil {
 			return nil, err
 		}
-		totalOffset += uint32(len(b)) + 4 // byte slice length + checksum
+		totalOffset += uint32(n) + 4 // byte slice length + checksum
 		offsets = append(offsets, totalOffset)
+		buf.Reset()
 	}
 
 	return offsets, nil
@@ -266,6 +267,8 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripe Stripe, nthColumn i
 
 	offsetStart, offsetEnd := stripe.Offsets[nthColumn], stripe.Offsets[nthColumn+1]
 
+	// OPTIM: once we start loading multiple columns in a loop, read into byte buffers here,
+	// so that we can reuse them (f.Seek && buffer.Grow && io.CopyN)
 	buf := make([]byte, offsetEnd-offsetStart)
 	n, err := f.ReadAt(buf, int64(offsetStart))
 	if err != nil {

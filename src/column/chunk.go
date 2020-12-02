@@ -1,7 +1,6 @@
 package column
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -25,7 +24,7 @@ type Chunk interface {
 	Dtype() Dtype
 	AddValue(string) error
 	AddValues([]string) error // consider merging AddValues and AddValue (using varargs)
-	MarshalBinary() ([]byte, error)
+	WriteTo(io.Writer) (int64, error)
 	MarshalJSON() ([]byte, error)
 	Prune(*bitmap.Bitmap) Chunk
 	Append(Chunk) error
@@ -1400,118 +1399,113 @@ func deserializeChunkNulls(r io.Reader) (*ChunkNulls, error) {
 	}, nil
 }
 
-// MarshalBinary converts a chunk into its binary representation
-func (rc *ChunkStrings) MarshalBinary() ([]byte, error) {
+// WriteTo converts a chunk into its binary representation
+func (rc *ChunkStrings) WriteTo(w io.Writer) (int64, error) {
 	if rc.isLiteral {
-		return nil, errLiteralsCannotBeSerialised
+		return 0, errLiteralsCannotBeSerialised
 	}
-	w := new(bytes.Buffer)
-	_, err := bitmap.Serialize(w, rc.nullability)
+	nb, err := bitmap.Serialize(w, rc.nullability)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.offsets))); err != nil {
-		return nil, err
+		return 0, err
 	}
 	// OPTIM: find the largest offset (the last one) and if it's less than 1<<16, use a smaller uint etc.
 	if err := binary.Write(w, binary.LittleEndian, rc.offsets); err != nil {
-		return nil, err
+		return 0, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return nil, err
+		return 0, err
 	}
 	bdata, err := w.Write(rc.data)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if bdata != len(rc.data) {
-		return nil, errors.New("not enough data written")
+		return 0, errors.New("not enough data written")
 	}
-	return w.Bytes(), err
+	return int64(nb + 4 + len(rc.offsets)*4 + 4 + len(rc.data)), err
 }
 
-// MarshalBinary converts a chunk into its binary representation
-func (rc *ChunkInts) MarshalBinary() ([]byte, error) {
+// WriteTo converts a chunk into its binary representation
+func (rc *ChunkInts) WriteTo(w io.Writer) (int64, error) {
 	if rc.isLiteral {
-		return nil, errLiteralsCannotBeSerialised
+		return 0, errLiteralsCannotBeSerialised
 	}
-	w := new(bytes.Buffer)
-	_, err := bitmap.Serialize(w, rc.nullability)
+	nb, err := bitmap.Serialize(w, rc.nullability)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return nil, err
+		return 0, err
 	}
 	// OPTIM: find the largest int and possibly use a smaller container than int64
 	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return w.Bytes(), err
+	return int64(nb + 4 + 8*len(rc.data)), err
 }
 
-// MarshalBinary converts a chunk into its binary representation
-func (rc *ChunkFloats) MarshalBinary() ([]byte, error) {
+// WriteTo converts a chunk into its binary representation
+func (rc *ChunkFloats) WriteTo(w io.Writer) (int64, error) {
 	if rc.isLiteral {
-		return nil, errLiteralsCannotBeSerialised
+		return 0, errLiteralsCannotBeSerialised
 	}
-	w := new(bytes.Buffer)
-	_, err := bitmap.Serialize(w, rc.nullability)
+	nb, err := bitmap.Serialize(w, rc.nullability)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return nil, err
+		return 0, err
 	}
 	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return w.Bytes(), err
+	return int64(nb + 4 + 8*len(rc.data)), err
 }
 
-// MarshalBinary converts a chunk into its binary representation
-func (rc *ChunkBools) MarshalBinary() ([]byte, error) {
+// WriteTo converts a chunk into its binary representation
+func (rc *ChunkBools) WriteTo(w io.Writer) (int64, error) {
 	if rc.isLiteral {
-		return nil, errLiteralsCannotBeSerialised
+		return 0, errLiteralsCannotBeSerialised
 	}
-	w := new(bytes.Buffer)
-	_, err := bitmap.Serialize(w, rc.nullability)
+	nb, err := bitmap.Serialize(w, rc.nullability)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	// the data bitmap doesn't have a "length", just a capacity (64 aligned), so we
 	// need to explicitly write the length of this column chunk
 	if err := binary.Write(w, binary.LittleEndian, rc.length); err != nil {
-		return nil, err
+		return 0, err
 	}
-	_, err = bitmap.Serialize(w, rc.data)
+	nbd, err := bitmap.Serialize(w, rc.data)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	return w.Bytes(), nil
+	return int64(nb + 4 + nbd), nil
 }
 
-// MarshalBinary converts a chunk into its binary representation
-func (rc *ChunkDates) MarshalBinary() ([]byte, error) {
+// WriteTo converts a chunk into its binary representation
+func (rc *ChunkDates) WriteTo(w io.Writer) (int64, error) {
 	if rc.isLiteral {
-		return nil, errLiteralsCannotBeSerialised
+		return 0, errLiteralsCannotBeSerialised
 	}
-	w := new(bytes.Buffer)
-	_, err := bitmap.Serialize(w, rc.nullability)
+	nb, err := bitmap.Serialize(w, rc.nullability)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return nil, err
+		return 0, err
 	}
 	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return w.Bytes(), err
+	// ARCH: save the 4 as a const? DATE_BYTE_SIZE?
+	return int64(nb + 4 + 4*len(rc.data)), err
 }
 
-// MarshalBinary converts a chunk into its binary representation
-func (rc *ChunkNulls) MarshalBinary() ([]byte, error) {
-	w := new(bytes.Buffer)
+// WriteTo converts a chunk into its binary representation
+func (rc *ChunkNulls) WriteTo(w io.Writer) (int64, error) {
 	length := rc.length
 	if err := binary.Write(w, binary.LittleEndian, length); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return w.Bytes(), nil
+	return int64(4), nil
 }
 
 // MarshalJSON converts a chunk into its JSON representation
