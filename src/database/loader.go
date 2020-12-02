@@ -241,6 +241,9 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*stripeData, error) 
 		}
 		for j, val := range row {
 			bytesLoaded += len(val)
+			// OPTIM: here's where all the strconv byte/string copies begin
+			// or it really began in yieldRow
+			// https://github.com/golang/go/issues/42429
 			if err := ds.columns[j].AddValue(val); err != nil {
 				return nil, fmt.Errorf("failed to populate column %v: %w", rl.settings.schema[j].Name, err)
 			}
@@ -269,6 +272,7 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripe Stripe, nthColumn i
 
 	// OPTIM: once we start loading multiple columns in a loop, read into byte buffers here,
 	// so that we can reuse them (f.Seek && buffer.Grow && io.CopyN)
+	// I tried this before and it did lead to a regression, so I'm not sure what's wrong here
 	buf := make([]byte, offsetEnd-offsetStart)
 	n, err := f.ReadAt(buf, int64(offsetStart))
 	if err != nil {
@@ -301,6 +305,8 @@ func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripe Stripe, colum
 
 // ReadColumnsFromStripeByNames repeatedly calls ReadColumnFromStripeByName, so it's just a helper method
 // OPTIM: here we could use a stripe reader (or a ReadColumsFromStripe([]idx))
+// OPTIM: we could find out if the columns are contiguous and just read them in one go
+//        what if they are not ordered in the right way?
 func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) ([]column.Chunk, error) {
 	cols := make([]column.Chunk, 0, len(columns))
 	for _, column := range columns {
