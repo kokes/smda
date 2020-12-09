@@ -6,7 +6,9 @@ import (
 	"strconv"
 )
 
+// TODO: never used apart from returning them
 var errNotaDate = errors.New("not a date")
+var errNotaDatetime = errors.New("not a datetime")
 
 // Dtype denotes the data type of a given object (e.g. int or string)
 type Dtype uint8

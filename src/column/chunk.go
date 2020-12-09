@@ -1495,8 +1495,7 @@ func (rc *ChunkDates) WriteTo(w io.Writer) (int64, error) {
 		return 0, err
 	}
 	err = binary.Write(w, binary.LittleEndian, rc.data)
-	// ARCH: save the 4 as a const? DATE_BYTE_SIZE?
-	return int64(nb + 4 + 4*len(rc.data)), err
+	return int64(nb + 4 + DATE_BYTE_SIZE*len(rc.data)), err
 }
 
 // WriteTo converts a chunk into its binary representation
