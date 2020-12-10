@@ -5,11 +5,6 @@ import (
 	"strconv"
 )
 
-// ARCH/TODO: consider date(time)s. We'll have to think about AddValue and whether we want to autodetect them
-//  		  as that can be very expensive and it's not usually done
-// we could reserve 5 bits at the end for hour, so that datetime can
-// be datehour + microsecond in an hour (log2(1000*1000*60*60) < 32)
-
 const DATE_BYTE_SIZE = 4
 const DATETIME_BYTE_SIZE = 8
 
