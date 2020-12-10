@@ -67,6 +67,53 @@ func TestBasicDatetimes(t *testing.T) {
 	}
 }
 
+func BenchmarkDateParsing(b *testing.B) {
+	data := []string{"2020-01-01", "2020-12-12", "1950-04-30"}
+	var nbytes int64
+	for _, s := range data {
+		nbytes += int64(len(s))
+	}
+
+	b.ResetTimer()
+	b.SetBytes(nbytes)
+	for j := 0; j < b.N; j++ {
+		for _, s := range data {
+			if _, err := parseDate(s); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
+
+func BenchmarkDatetimeParsing(b *testing.B) {
+	tests := []struct {
+		name string
+		data []string
+	}{
+		{"seconds", []string{"2020-02-20 12:34:56", "1902-05-30 12:22:06", "1900-01-01 00:00:00"}},
+		{"milis", []string{"2020-02-20 12:34:56.000", "1902-05-30 12:22:06.123", "1900-01-01 00:00:00.999"}},
+		{"micros", []string{"2020-02-20 12:34:56.000000", "1902-05-30 12:22:06.000123", "1900-01-01 00:00:00.999123"}},
+	}
+	for _, test := range tests {
+		b.Run(test.name, func(b *testing.B) {
+			var nbytes int64
+			for _, s := range test.data {
+				nbytes += int64(len(s))
+			}
+
+			b.ResetTimer()
+			b.SetBytes(nbytes)
+			for j := 0; j < b.N; j++ {
+				for _, s := range test.data {
+					if _, err := parseDatetime(s); err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+		})
+	}
+}
+
 // func newDate(year, month, day int) date {
 // func (d date) Year() int  { return int(d >> 10) }
 // func (d date) Month() int { return int(d >> 5 & (1<<5 - 1)) }
