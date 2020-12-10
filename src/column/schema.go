@@ -22,12 +22,13 @@ const (
 	DtypeFloat
 	DtypeBool
 	DtypeDate
+	DtypeDatetime
 	// more to be added
 	DtypeMax
 )
 
 func (dt Dtype) String() string {
-	return []string{"invalid", "null", "string", "int", "float", "bool", "date"}[dt]
+	return []string{"invalid", "null", "string", "int", "float", "bool", "date", "datetime"}[dt]
 }
 
 // MarshalJSON returns the JSON representation of a dtype (stringified + json string)
@@ -60,6 +61,8 @@ func (dt *Dtype) UnmarshalJSON(data []byte) error {
 		*dt = DtypeBool
 	case "date":
 		*dt = DtypeDate
+    case "datetime":
+        *dt = DtypeDatetime
 	default:
 		return fmt.Errorf("unexpected type: %v", sdata)
 	}
@@ -151,6 +154,9 @@ func guessType(s string) Dtype {
 		}
 		if _, err := parseDate(s); err == nil {
 			return DtypeDate
+		}
+		if _, err := parseDatetime(s); err == nil {
+			return DtypeDatetime
 		}
 	}
 

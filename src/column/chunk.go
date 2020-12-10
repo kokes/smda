@@ -143,6 +143,26 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 			}
 		}
 		return true
+	case *ChunkDatetimes:
+		c2t := c2.(*ChunkDatetimes)
+		if c1t.nullability == nil && c2t.nullability == nil {
+			return reflect.DeepEqual(c1t, c2t)
+		}
+		if c1t.isLiteral != c2t.isLiteral {
+			return false
+		}
+		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
+			return false
+		}
+		for j := 0; j < c1t.Len(); j++ {
+			if c1t.nullability.Get(j) {
+				continue
+			}
+			if c1t.data[j] != c2t.data[j] {
+				return false
+			}
+		}
+		return true
 	case *ChunkDates:
 		c2t := c2.(*ChunkDates)
 		if c1t.nullability == nil && c2t.nullability == nil {
@@ -184,6 +204,8 @@ func NewChunkFromSchema(schema Schema) Chunk {
 		return newChunkBools()
 	case DtypeDate:
 		return newChunkDates()
+	case DtypeDatetime:
+		return newChunkDatetimes()
 	case DtypeNull:
 		return newChunkNulls()
 	default:
@@ -243,6 +265,15 @@ func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
 			baseChunk: bc,
 			data:      []date{val},
 		}, nil
+	case DtypeDatetime:
+		val, err := parseDatetime(s)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid typed literal: %v", errInvalidTypedLiteral, s)
+		}
+		return &ChunkDatetimes{
+			baseChunk: bc,
+			data:      []datetime{val},
+		}, nil
 	default:
 		return nil, fmt.Errorf("%w: invalid typed literal: unsupported type %v", errInvalidTypedLiteral, dtype)
 	}
@@ -287,6 +318,10 @@ type ChunkBools struct {
 type ChunkDates struct {
 	baseChunk
 	data []date
+}
+type ChunkDatetimes struct {
+	baseChunk
+	data []datetime
 }
 
 // ChunkNulls defines a backing struct for a chunk of null values
@@ -359,6 +394,11 @@ func newChunkLiteralBools(value bool, length int) *ChunkBools {
 func newChunkDates() *ChunkDates {
 	return &ChunkDates{
 		data: make([]date, 0, defaultChunkCap),
+	}
+}
+func newChunkDatetimes() *ChunkDatetimes {
+	return &ChunkDatetimes{
+		data: make([]datetime, 0, defaultChunkCap),
 	}
 }
 
@@ -457,6 +497,11 @@ func (rc *ChunkStrings) Dtype() Dtype {
 // Dtype returns the type of this chunk
 func (rc *ChunkDates) Dtype() Dtype {
 	return DtypeDate
+}
+
+// Dtype returns the type of this chunk
+func (rc *ChunkDatetimes) Dtype() Dtype {
+	return DtypeDatetime
 }
 
 // TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
@@ -612,7 +657,34 @@ func (rc *ChunkDates) Hash(position int, hashes []uint64) {
 			hashes[j] ^= hashNull * mul
 			continue
 		}
-		binary.LittleEndian.PutUint64(buf[:], uint64(el)) // int64 always maps to a uint64 value (negatives underflow)
+		binary.LittleEndian.PutUint64(buf[:], uint64(el))
+		hasher.Write(buf[:])
+		hashes[j] ^= hasher.Sum64() * mul
+		hasher.Reset()
+	}
+}
+
+func (rc *ChunkDatetimes) Hash(position int, hashes []uint64) {
+	mul := positionMultiplier(position)
+	var buf [8]byte
+	hasher := fnv.New64()
+	// ARCH: literal chunks don't have nullability support... should we check for that?
+	if rc.isLiteral {
+		binary.LittleEndian.PutUint64(buf[:], uint64(rc.data[0]))
+		hasher.Write(buf[:])
+		sum := hasher.Sum64() * mul
+
+		for j := range hashes {
+			hashes[j] ^= sum
+		}
+		return
+	}
+	for j, el := range rc.data {
+		if rc.nullability != nil && rc.nullability.Get(j) {
+			hashes[j] ^= hashNull * mul
+			continue
+		}
+		binary.LittleEndian.PutUint64(buf[:], uint64(el))
 		hasher.Write(buf[:])
 		hashes[j] ^= hasher.Sum64() * mul
 		hasher.Reset()
@@ -783,6 +855,31 @@ func (rc *ChunkDates) AddValue(s string) error {
 	}
 	return nil
 }
+func (rc *ChunkDatetimes) AddValue(s string) error {
+	if rc.isLiteral {
+		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
+	}
+	if isNull(s) {
+		if rc.nullability == nil {
+			rc.nullability = bitmap.NewBitmap(rc.Len() + 1)
+		}
+		rc.nullability.Set(rc.Len(), true)
+		rc.data = append(rc.data, 0) // this value is not meant to be read
+		rc.length++
+		return nil
+	}
+
+	val, err := parseDatetime(s)
+	if err != nil {
+		return err
+	}
+	rc.data = append(rc.data, val)
+	rc.length++
+	if rc.nullability != nil {
+		rc.nullability.Ensure(int(rc.length))
+	}
+	return nil
+}
 
 // AddValue takes in a string representation of a value and converts it into
 // a value suited for this chunk
@@ -835,6 +932,19 @@ func (rc *ChunkInts) AddValues(vals []string) error {
 
 // AddValues is a helper method, it just calls AddValue repeatedly
 func (rc *ChunkDates) AddValues(vals []string) error {
+	if rc.isLiteral {
+		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
+	}
+	for _, el := range vals {
+		if err := rc.AddValue(el); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AddValues is a helper method, it just calls AddValue repeatedly
+func (rc *ChunkDatetimes) AddValues(vals []string) error {
 	if rc.isLiteral {
 		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
 	}
@@ -982,6 +1092,31 @@ func (rc *ChunkDates) Append(tc Chunk) error {
 		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
 	}
 	nrc, ok := tc.(*ChunkDates)
+	if !ok {
+		return errAppendTypeMismatch
+	}
+	if rc.nullability == nil && nrc.nullability != nil {
+		rc.nullability = bitmap.NewBitmap(rc.Len())
+	}
+	if nrc.nullability == nil && rc.nullability != nil {
+		nrc.nullability = bitmap.NewBitmap(nrc.Len())
+	}
+	if rc.nullability != nil {
+		rc.nullability.Append(nrc.nullability)
+	}
+
+	rc.data = append(rc.data, nrc.data...)
+	rc.length += nrc.length
+
+	return nil
+}
+
+// Append adds a chunk of the same type at the end of this one (in place update)
+func (rc *ChunkDatetimes) Append(tc Chunk) error {
+	if rc.isLiteral {
+		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
+	}
+	nrc, ok := tc.(*ChunkDatetimes)
 	if !ok {
 		return errAppendTypeMismatch
 	}
@@ -1228,6 +1363,47 @@ func (rc *ChunkDates) Prune(bm *bitmap.Bitmap) Chunk {
 }
 
 // Prune filter this chunk and only preserves values for which the bitmap is set
+func (rc *ChunkDatetimes) Prune(bm *bitmap.Bitmap) Chunk {
+	if rc.isLiteral {
+		panic("pruning not supported in literal chunks")
+	}
+	nc := newChunkDatetimes()
+	if bm == nil {
+		return nc
+	}
+	if bm.Cap() != rc.Len() {
+		panic("pruning bitmap does not align with the dataset")
+	}
+
+	if bm.Count() == rc.Len() {
+		return rc
+	}
+
+	index := 0
+	for j := 0; j < rc.Len(); j++ {
+		if !bm.Get(j) {
+			continue
+		}
+		nc.data = append(nc.data, rc.data[j])
+		if rc.nullability != nil && rc.nullability.Get(j) {
+			if nc.nullability == nil {
+				nc.nullability = bitmap.NewBitmap(index)
+			}
+			nc.nullability.Set(index, true)
+		}
+		nc.length++
+		index++
+	}
+
+	// make sure the nullability vector aligns with the data
+	if nc.nullability != nil {
+		nc.nullability.Ensure(nc.Len())
+	}
+
+	return nc
+}
+
+// Prune filter this chunk and only preserves values for which the bitmap is set
 func (rc *ChunkNulls) Prune(bm *bitmap.Bitmap) Chunk {
 	nc := newChunkNulls()
 	if bm == nil {
@@ -1262,6 +1438,8 @@ func Deserialize(r io.Reader, Dtype Dtype) (Chunk, error) {
 		return deserializeChunkFloats(r)
 	case DtypeBool:
 		return deserializeChunkBools(r)
+	case DtypeDatetime:
+		return deserializeChunkDatetimes(r)
 	case DtypeDate:
 		return deserializeChunkDates(r)
 	case DtypeNull:
@@ -1389,6 +1567,26 @@ func deserializeChunkDates(r io.Reader) (*ChunkDates, error) {
 	}, nil
 }
 
+// TODO: test roundtrips
+func deserializeChunkDatetimes(r io.Reader) (*ChunkDatetimes, error) {
+	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
+	if err != nil {
+		return nil, err
+	}
+	var nelements uint32
+	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
+		return nil, err
+	}
+	data := make([]datetime, nelements)
+	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
+		return nil, err
+	}
+	return &ChunkDatetimes{
+		baseChunk: baseChunk{nullability: bitmap, length: nelements},
+		data:      data,
+	}, nil
+}
+
 func deserializeChunkNulls(r io.Reader) (*ChunkNulls, error) {
 	var length uint32
 	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
@@ -1496,6 +1694,22 @@ func (rc *ChunkDates) WriteTo(w io.Writer) (int64, error) {
 	}
 	err = binary.Write(w, binary.LittleEndian, rc.data)
 	return int64(nb + 4 + DATE_BYTE_SIZE*len(rc.data)), err
+}
+
+// WriteTo converts a chunk into its binary representation
+func (rc *ChunkDatetimes) WriteTo(w io.Writer) (int64, error) {
+	if rc.isLiteral {
+		return 0, errLiteralsCannotBeSerialised
+	}
+	nb, err := bitmap.Serialize(w, rc.nullability)
+	if err != nil {
+		return 0, err
+	}
+	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
+		return 0, err
+	}
+	err = binary.Write(w, binary.LittleEndian, rc.data)
+	return int64(nb + 4 + DATETIME_BYTE_SIZE*len(rc.data)), err
 }
 
 // WriteTo converts a chunk into its binary representation
@@ -1678,6 +1892,33 @@ func (rc *ChunkDates) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(dt)
 }
+func (rc *ChunkDatetimes) MarshalJSON() ([]byte, error) {
+	if rc.isLiteral {
+		dt := make([]string, 0, rc.length)
+		sval := rc.data[0].String()
+		for j := 0; j < int(rc.length); j++ {
+			dt = append(dt, sval)
+		}
+		return json.Marshal(dt)
+	}
+	if !(rc.nullability != nil && rc.nullability.Count() > 0) {
+		return json.Marshal(rc.data)
+	}
+
+	dt := make([]*string, 0, rc.length)
+	var sval string
+	for j := range rc.data {
+		sval = rc.data[j].String()
+		dt = append(dt, &sval)
+	}
+
+	for j := 0; j < int(rc.length); j++ {
+		if rc.nullability.Get(j) {
+			dt[j] = nil
+		}
+	}
+	return json.Marshal(dt)
+}
 
 // MarshalJSON converts a chunk into its JSON representation
 func (rc *ChunkNulls) MarshalJSON() ([]byte, error) {
@@ -1737,6 +1978,20 @@ func (rc *ChunkDates) Clone() Chunk {
 	data := append(rc.data[:0:0], rc.data...)
 
 	return &ChunkDates{
+		baseChunk: baseChunk{isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
+		data:      data,
+	}
+}
+
+func (rc *ChunkDatetimes) Clone() Chunk {
+	var nulls *bitmap.Bitmap
+	if rc.nullability != nil {
+		nulls = rc.nullability.Clone()
+	}
+
+	data := append(rc.data[:0:0], rc.data...)
+
+	return &ChunkDatetimes{
 		baseChunk: baseChunk{isLiteral: rc.isLiteral, nullability: nulls, length: rc.length},
 		data:      data,
 	}

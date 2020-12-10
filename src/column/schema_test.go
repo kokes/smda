@@ -21,6 +21,7 @@ func TestDtypeStringer(t *testing.T) {
 		{DtypeFloat, "float"},
 		{DtypeBool, "bool"},
 		{DtypeDate, "date"},
+		{DtypeDatetime, "datetime"},
 	}
 
 	for _, testCase := range tests {
@@ -137,6 +138,26 @@ func TestBasicTypeInference(t *testing.T) {
 			[]string{"2020-02-22", "", "3000-01-12"},
 			DtypeDate,
 			true,
+		},
+		{
+			[]string{"2020-02-22 12:34:56", "1987-12-31 01:02:03", "3000-01-12 00:00:00"},
+			DtypeDatetime,
+			false,
+		},
+		{
+			[]string{"2020-02-22 12:34:56", "", "3000-01-12 00:00:00"},
+			DtypeDatetime,
+			true,
+		},
+		{
+			[]string{"2020-02-22T12:34:56", "3000-01-12 00:00:00"},
+			DtypeDatetime,
+			false,
+		},
+		{
+			[]string{"2020-02-22 12:34:56", "1987-12-31 01:02:03.123", "3000-01-12 00:00:00.123456"},
+			DtypeDatetime,
+			false,
 		},
 		// TODO: once we validate values within dates, add something like this
 		// {
