@@ -82,6 +82,9 @@ func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
 	return -1
 }
 
+// OPTIM: here are some rough calculations from running timers in the stripe loop (the only expensive part)
+// loading data from disk: 133ms, hashing: 55ms, prune bitmaps prep: 23ms, updating aggregators: 28ms
+// everything else is way faster
 func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
 	if len(groupbys) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
@@ -128,7 +131,6 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 			}
 			rcs[j] = rc
 		}
-
 		hashes := make([]uint64, stripe.Length) // preserves unique rows (their hashes); OPTIM: preallocate some place
 		bm := bitmap.NewBitmap(stripe.Length)   // denotes which rows are the unique ones
 		for j, rc := range rcs {
