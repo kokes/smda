@@ -325,8 +325,23 @@ func (ts *tokenScanner) consumeIdentifier() (tok, error) {
 		// TODO: quoted identifier should allow for more characters - basically anything
 		// but a newline of a quote - unless preceded by a quote - should be fair game
 		// So maybe split this out into consumeQuotedIdentifier?
+		// ARCH: will we allow (escaped) quotes in names of identifiers? (Let's not...)
 		ttoken.ttype = tokenIdentifierQuoted
 		ts.position++
+		quotepos := bytes.IndexByte(ts.code[ts.position:], '"')
+		nlinepos := bytes.IndexByte(ts.code[ts.position:], '\n')
+		if quotepos == -1 {
+			return tok{}, fmt.Errorf("%w: no matching quote in quoted identifier", errInvalidIdentifier)
+		}
+		if quotepos == 0 {
+			return tok{}, fmt.Errorf("%w: identifiers cannot be empty", errInvalidIdentifier)
+		}
+		if nlinepos > -1 && nlinepos < quotepos {
+			return tok{}, fmt.Errorf("%w: newline in quoted identifier", errInvalidIdentifier)
+		}
+		ttoken.value = ts.code[ts.position : ts.position+quotepos]
+		ts.position += quotepos + 1
+		return ttoken, nil
 	}
 
 	identChars := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")
@@ -338,12 +353,6 @@ func (ts *tokenScanner) consumeIdentifier() (tok, error) {
 		// a good way to check would be to see if the first char is one of those a-zA-Z_0-9 and if not, fallthrough to invalididentifier
 		ts.position++
 		return tok{}, errInvalidIdentifier
-	}
-	if ttoken.ttype == tokenIdentifierQuoted {
-		if ts.peekOne() != '"' {
-			return tok{}, errInvalidIdentifier
-		}
-		ts.position++
 	}
 
 	return ttoken, nil

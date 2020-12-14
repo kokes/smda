@@ -156,6 +156,8 @@ func TestTokenisationErrors(t *testing.T) {
 		// {"123.3.3 * 345", errInvalidFloat},
 		{"123 / 3453123121241241231231231231231", errInvalidInteger},
 		{"ahoy'", errInvalidString},
+		{"\"hello world", errInvalidIdentifier},
+		{"\"hello\nworld\"", errInvalidIdentifier},
 		{"fooba$", errInvalidIdentifier},
 		{"\"fooba$", errInvalidIdentifier},
 		{"\"\"", errInvalidIdentifier},

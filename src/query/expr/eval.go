@@ -19,7 +19,8 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		return expr.aggregator.Resolve()
 	}
 	switch expr.etype {
-	case exprIdentifier:
+	// TODO: we don't care about case sensitivity at this point
+	case exprIdentifier, exprIdentifierQuoted:
 		col, ok := columnData[expr.value]
 		if !ok {
 			// we validated the expression, so this should not happen?
@@ -95,7 +96,7 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		}
 		fallthrough
 	default:
-		return nil, fmt.Errorf("expression %v not supported: %w", expr, errQueryPatternNotSupported)
+		return nil, fmt.Errorf("expression %v (%v) not supported: %w", expr, expr.etype, errQueryPatternNotSupported)
 	}
 }
 

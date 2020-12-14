@@ -180,11 +180,11 @@ func (expr *Expression) String() string {
 }
 
 func (expr *Expression) UnmarshalJSON(data []byte) error {
-	if len(data) < 2 || !(data[0] == '"' && data[len(data)-1] == '"') {
-		return fmt.Errorf("failed to unmarshal into an Expression, did not receive a quoted string: %s", data)
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
 	}
-	sdata := string(data[1 : len(data)-1])
-	ex, err := ParseStringExpr(sdata)
+	ex, err := ParseStringExpr(raw)
 	if ex != nil {
 		*expr = *ex
 	}

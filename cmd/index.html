@@ -259,10 +259,11 @@
             await this.loadDatasets();
             const columns = this.datasets[datasetID].schema.map(x=>x.name)
             const body = {
-                select: ['strings', 'bools', 'min(ints)', 'min(ints_null)'],
+                // always submit it as quoted, though TODO: are there quotes in the individual names? can there be?
+                select: columns.map(x => `"${x}"`),
                 limit: 25,
                 dataset: datasetID,
-                aggregate: ['strings', 'bools'],
+                // aggregate: ['strings', 'bools'],
                 // filter: 'floats != floats_null',
                 // filter: 'strings = strings_null',
             }

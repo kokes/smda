@@ -235,6 +235,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		}
 		res.Columns = make([]string, 0, len(columns))
 		for _, col := range q.Select {
+			// TODO: quoted identifiers get stringified with their quotes, so it looks weird in the UI
 			res.Columns = append(res.Columns, col.String())
 		}
 		res.Data = columns

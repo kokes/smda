@@ -88,6 +88,8 @@ func parseInt(s string) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
+// OPTIM: for some reason, this allocates... but not on its own, only when combined with other detectors
+// in guessType. I couldn't quite figure out why.
 func parseFloat(s string) (float64, error) {
 	return strconv.ParseFloat(s, 64)
 }

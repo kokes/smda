@@ -12,6 +12,11 @@ func TestParsingContents(t *testing.T) {
 	}{
 		{"ahoy", &Expression{etype: exprIdentifier, value: "ahoy"}},
 		{"\"ahoy\"", &Expression{etype: exprIdentifierQuoted, value: "ahoy"}},
+		{"\"hello world\"", &Expression{etype: exprIdentifierQuoted, value: "hello world"}},
+		{"\"hello world\"*2", &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprIdentifierQuoted, value: "hello world"},
+			{etype: exprLiteralInt, value: "2"},
+		}}},
 		{"1 < foo < 3", nil},
 		{"bar < foo < bak", nil},
 		{"2 * \"ahoy\"", &Expression{etype: exprMultiplication, children: []*Expression{
@@ -134,6 +139,7 @@ func TestParsingContents(t *testing.T) {
 		parsed, err := ParseStringExpr(test.raw)
 		if err != nil {
 			t.Errorf("expression %v failed: %w", test.raw, err)
+			t.Fail()
 			continue
 		}
 		// we skip equality tests for nil cases (essentially placeholders, perhaps too complex)
