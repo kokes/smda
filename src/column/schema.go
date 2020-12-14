@@ -61,8 +61,8 @@ func (dt *Dtype) UnmarshalJSON(data []byte) error {
 		*dt = DtypeBool
 	case "date":
 		*dt = DtypeDate
-    case "datetime":
-        *dt = DtypeDatetime
+	case "datetime":
+		*dt = DtypeDatetime
 	default:
 		return fmt.Errorf("unexpected type: %v", sdata)
 	}

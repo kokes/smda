@@ -446,3 +446,21 @@ func BenchmarkDateDetection(b *testing.B) {
 	}
 	b.SetBytes(int64(nbytes))
 }
+
+func BenchmarkDatetimeDetection(b *testing.B) {
+	n := 1000
+	strvals := make([]string, 0, n)
+	nbytes := 0
+	for j := 0; j < n; j++ {
+		val := fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d.%06d", rand.Intn(2020), 1+rand.Intn(12), 1+rand.Intn(30), rand.Intn(24), rand.Intn(60), rand.Intn(60), rand.Intn(1000000))
+		nbytes += len(val)
+		strvals = append(strvals, val)
+	}
+	b.ResetTimer()
+	for j := 0; j < b.N; j++ {
+		for _, el := range strvals {
+			guessType(el)
+		}
+	}
+	b.SetBytes(int64(nbytes))
+}

@@ -45,7 +45,6 @@ func InferTypes(path string, settings *loadSettings) (TableSchema, error) {
 		for j, val := range row {
 			tgs[j].AddValue(val)
 		}
-
 	}
 	ret := make(TableSchema, len(tgs))
 	for j, tg := range tgs {
