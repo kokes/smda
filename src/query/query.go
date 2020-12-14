@@ -85,6 +85,12 @@ func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
 // OPTIM: here are some rough calculations from running timers in the stripe loop (the only expensive part)
 // loading data from disk: 133ms, hashing: 55ms, prune bitmaps prep: 23ms, updating aggregators: 28ms
 // everything else is way faster
+// TODO(next): pass in `bms` and handle filters here. Not sure how to do that properly.
+// it's quite easy to do in `rcs` - just prune it by bm[stripeIndex]
+// but what about updateAggregator? Do we implement something in `Evaluate` and `AddChunk`?
+// We could potentially add a filtering bitmap and combine it with the nullability bitmap?
+// perhaps call it a `mask *bitmap.Bitmap` and pass it in many functions (like Evaluate) and use
+// it there if it's not nil
 func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
 	if len(groupbys) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
