@@ -140,7 +140,8 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 	}
 }
 
-// date_part/date_trunc (tho trunc returns a timestamp we don't support yet)
+// TODO(next):
+// date_part/date_trunc
 // century
 // day
 // decade
