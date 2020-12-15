@@ -91,6 +91,8 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 		}
 		// compare only the valid bits in data
 		// ARCH: what about the bits beyond the cap?
+		// OPTIM: we don't have to clone here - we can easily iterate and check by blocks
+		// data1[j] & ~nullability1[j] == data2[j] & ~nullability2[j] or something like that
 		c1d := c1t.data.Clone()
 		c1d.AndNot(c1t.nullability)
 		c2d := c2t.data.Clone()
