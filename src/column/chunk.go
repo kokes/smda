@@ -33,6 +33,8 @@ type Chunk interface {
 }
 
 type baseChunker interface {
+	base() *baseChunk
+	baseEqual(baseChunker) bool
 	Len() int
 	Nullify(*bitmap.Bitmap)
 }
@@ -43,7 +45,7 @@ type baseChunk struct {
 	nullability *bitmap.Bitmap
 }
 
-func (bc baseChunk) Len() int {
+func (bc *baseChunk) Len() int {
 	return int(bc.length)
 }
 
@@ -53,6 +55,23 @@ func (bc *baseChunk) Nullify(bm *bitmap.Bitmap) {
 	bc.nullability = bitmap.Or(bc.nullability, bm)
 }
 
+func (bc *baseChunk) base() *baseChunk {
+	return bc
+}
+func (bc *baseChunk) baseEqual(bcb baseChunker) bool {
+	bc2 := bcb.base()
+	if bc.Len() != bc2.Len() {
+		return false
+	}
+	if bc.isLiteral != bc2.isLiteral {
+		return false
+	}
+	if !reflect.DeepEqual(bc.nullability, bc2.nullability) {
+		return false
+	}
+	return true
+}
+
 // ChunksEqual compares two chunks, even if they contain []float64 data
 // consider making this lenient enough to compare only the relevant bits in ChunkBools
 func ChunksEqual(c1 Chunk, c2 Chunk) bool {
@@ -60,7 +79,7 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 	if c1.Dtype() != c2.Dtype() {
 		return false
 	}
-	if c1.Len() != c2.Len() {
+	if !c1.baseEqual(c2) {
 		return false
 	}
 
@@ -69,12 +88,6 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 		c2t := c2.(*ChunkBools)
 		if c1t.nullability == nil && c2t.nullability == nil {
 			return reflect.DeepEqual(c1t, c2t)
-		}
-		if c1t.isLiteral != c2t.isLiteral {
-			return false
-		}
-		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
-			return false
 		}
 		// compare only the valid bits in data
 		// ARCH: what about the bits beyond the cap?
@@ -87,12 +100,6 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 		c2t := c2.(*ChunkInts)
 		if c1t.nullability == nil && c2t.nullability == nil {
 			return reflect.DeepEqual(c1t, c2t)
-		}
-		if c1t.isLiteral != c2t.isLiteral {
-			return false
-		}
-		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
-			return false
 		}
 		for j := 0; j < c1t.Len(); j++ {
 			if c1t.nullability.Get(j) {
@@ -108,12 +115,6 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 		if c1t.nullability == nil && c2t.nullability == nil {
 			return reflect.DeepEqual(c1t, c2t)
 		}
-		if c1t.isLiteral != c2t.isLiteral {
-			return false
-		}
-		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
-			return false
-		}
 		for j := 0; j < c1t.Len(); j++ {
 			if c1t.nullability.Get(j) {
 				continue
@@ -127,12 +128,6 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 		c2t := c2.(*ChunkStrings)
 		if c1t.nullability == nil && c2t.nullability == nil {
 			return reflect.DeepEqual(c1t, c2t)
-		}
-		if c1t.isLiteral != c2t.isLiteral {
-			return false
-		}
-		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
-			return false
 		}
 		for j := 0; j < c1t.Len(); j++ {
 			if c1t.nullability.Get(j) {
@@ -148,12 +143,6 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 		if c1t.nullability == nil && c2t.nullability == nil {
 			return reflect.DeepEqual(c1t, c2t)
 		}
-		if c1t.isLiteral != c2t.isLiteral {
-			return false
-		}
-		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
-			return false
-		}
 		for j := 0; j < c1t.Len(); j++ {
 			if c1t.nullability.Get(j) {
 				continue
@@ -167,12 +156,6 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 		c2t := c2.(*ChunkDates)
 		if c1t.nullability == nil && c2t.nullability == nil {
 			return reflect.DeepEqual(c1t, c2t)
-		}
-		if c1t.isLiteral != c2t.isLiteral {
-			return false
-		}
-		if !reflect.DeepEqual(c1t.nullability, c2t.nullability) {
-			return false
 		}
 		for j := 0; j < c1t.Len(); j++ {
 			if c1t.nullability.Get(j) {
