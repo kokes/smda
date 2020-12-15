@@ -261,6 +261,10 @@ func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*stripeData, error) 
 // we could probably make use of a "stripeReader", which would only open the file once
 // by using this, we will open and close the file every time we want a column
 // OPTIM: this does not buffer any reads... but it only reads things thrice, so it shouldn't matter, right?
+// TODO(next): move all these readers into one struct with methods - the struct takes in a dataset
+// and a stripe and allows for reading multiple columns without too much overhead (we could even sort
+// the requests by offset, so that we don't seek around too much, but it might be too premature at this point)
+// It will help us a bit with local files, it will be essential for remote storage
 func (db *Database) ReadColumnFromStripe(ds *Dataset, stripe Stripe, nthColumn int) (column.Chunk, error) {
 	f, err := os.Open(db.stripePath(ds, stripe))
 	if err != nil {
