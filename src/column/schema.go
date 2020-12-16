@@ -94,6 +94,14 @@ func parseInt(s string) (int64, error) {
 // we could copy paste the code and just remove the errors (and have a bool function) or we could
 // take the code from `go/scanner`: `func (s *Scanner) scanNumber() (token.Token, string) {`
 // Also, extracting strconv.ParseInt and removing the error reporting dropped the sad path from 50ns to 14ns per op
+// all in all, this seems to speed up type detection, but it won't help much with the overall upload perf (seemingly)
+// probably because that pipeline is dominated by the whole chunk construction bit
+// FloatDetection               117MB/s ± 2%    230MB/s ± 1%   +95.82%  (p=0.000 n=6+10)
+// BoolDetection                914MB/s ± 2%    886MB/s ± 1%    -3.02%  (p=0.000 n=6+9)
+// StringDetection             44.7MB/s ± 1%  139.6MB/s ± 1%  +212.60%  (p=0.000 n=6+10)
+// IntDetection                 195MB/s ± 1%    210MB/s ± 1%    +7.62%  (p=0.000 n=6+10)
+// DateDetection               54.2MB/s ± 1%  106.5MB/s ± 1%   +96.63%  (p=0.000 n=6+10)
+// DatetimeDetection            120MB/s ± 0%    213MB/s ± 0%   +77.33%  (p=0.002 n=5+8)
 func parseFloat(s string) (float64, error) {
 	return strconv.ParseFloat(s, 64)
 }
