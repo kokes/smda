@@ -90,6 +90,10 @@ func parseInt(s string) (int64, error) {
 
 // OPTIM: for some reason, this allocates... but not on its own, only when combined with other detectors
 // in guessType. I couldn't quite figure out why.
+// I found out why! The error reporting in all strconv functions... allocates
+// we could copy paste the code and just remove the errors (and have a bool function) or we could
+// take the code from `go/scanner`: `func (s *Scanner) scanNumber() (token.Token, string) {`
+// Also, extracting strconv.ParseInt and removing the error reporting dropped the sad path from 50ns to 14ns per op
 func parseFloat(s string) (float64, error) {
 	return strconv.ParseFloat(s, 64)
 }
@@ -128,9 +132,6 @@ err:
 }
 
 // does NOT care about NULL inference, that's what isNull is for
-// OPTIM: this function is weird, because it does allocate when benchmarking - but not when individual
-// subfunctions are called - where are the allocations coming from? Improper inlining?
-// by reordering these, I found that whatever is after parseInt (exclusive) allocates
 func guessType(s string) Dtype {
 	// this is the fastest, so let's do this first
 	if _, err := parseBool(s); err == nil {
