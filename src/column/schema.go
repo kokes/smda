@@ -127,17 +127,6 @@ err:
 	return false, errors.New("not a bool")
 }
 
-// we need an early exit since parseInt and parseFloat are expensive
-// does NOT cover infties, but we don't support them anyway (for now)
-func containsDigit(s string) bool {
-	for _, char := range s {
-		if char >= '0' && char <= '9' {
-			return true
-		}
-	}
-	return false
-}
-
 // does NOT care about NULL inference, that's what isNull is for
 // OPTIM: this function is weird, because it does allocate when benchmarking - but not when individual
 // subfunctions are called - where are the allocations coming from? Improper inlining?
@@ -146,20 +135,17 @@ func guessType(s string) Dtype {
 	if _, err := parseBool(s); err == nil {
 		return DtypeBool
 	}
-	// early exit - only makes sense to do parse(Int|Float) if there's at least one digit
-	if containsDigit(s) {
-		if _, err := parseInt(s); err == nil {
-			return DtypeInt
-		}
-		if _, err := parseFloat(s); err == nil {
-			return DtypeFloat
-		}
-		if _, err := parseDate(s); err == nil {
-			return DtypeDate
-		}
-		if _, err := parseDatetime(s); err == nil {
-			return DtypeDatetime
-		}
+	if _, err := parseInt(s); err == nil {
+		return DtypeInt
+	}
+	if _, err := parseFloat(s); err == nil {
+		return DtypeFloat
+	}
+	if _, err := parseDate(s); err == nil {
+		return DtypeDate
+	}
+	if _, err := parseDatetime(s); err == nil {
+		return DtypeDatetime
 	}
 
 	return DtypeString

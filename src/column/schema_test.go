@@ -395,22 +395,6 @@ func BenchmarkStringDetection(b *testing.B) {
 	b.SetBytes(int64(nbytes))
 }
 
-func TestContainsDigit(t *testing.T) {
-	trues := []string{"1", "+2", "-0", ".5", "123", "foo123"}
-	falses := []string{"", "abc", "foobar", ".", "infty", "nan"}
-
-	for _, val := range trues {
-		if !containsDigit(val) {
-			t.Errorf("expected %v to contain a digit", val)
-		}
-	}
-	for _, val := range falses {
-		if containsDigit(val) {
-			t.Errorf("expected %v not to contain a digit", val)
-		}
-	}
-}
-
 func BenchmarkIntDetection(b *testing.B) {
 	n := 1000
 	strvals := make([]string, 0, n)
