@@ -130,6 +130,7 @@ err:
 // does NOT care about NULL inference, that's what isNull is for
 // OPTIM: this function is weird, because it does allocate when benchmarking - but not when individual
 // subfunctions are called - where are the allocations coming from? Improper inlining?
+// by reordering these, I found that whatever is after parseInt (exclusive) allocates
 func guessType(s string) Dtype {
 	// this is the fastest, so let's do this first
 	if _, err := parseBool(s); err == nil {
