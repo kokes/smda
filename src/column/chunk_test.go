@@ -583,6 +583,8 @@ func TestNewLiterals(t *testing.T) {
 		{"true", 2, DtypeBool, "[true,true]"},
 		{"false", 3, DtypeBool, "[false,false,false]"},
 		{"foo", 5, DtypeString, "[\"foo\",\"foo\",\"foo\",\"foo\",\"foo\"]"},
+		{"2020-02-14", 3, DtypeDate, "[\"2020-02-14\",\"2020-02-14\",\"2020-02-14\"]"},
+		{"2020-02-14 12:34:56", 3, DtypeDatetime, "[\"2020-02-14 12:34:56.000000\",\"2020-02-14 12:34:56.000000\",\"2020-02-14 12:34:56.000000\"]"},
 	}
 	for _, test := range tests {
 		chunkAuto, err := NewChunkLiteralAuto(test.val, test.length)
@@ -627,6 +629,36 @@ func TestNewLiterals(t *testing.T) {
 			if !bytes.Equal(blob, []byte(test.jsondata)) {
 				t.Errorf("expecting %v to json serialise as %s, got %s instead", test.val, test.jsondata, blob)
 			}
+		}
+	}
+}
+
+func TestJSONMarshal(t *testing.T) {
+	tests := []struct {
+		dtype    Dtype
+		vals     string
+		expected string
+	}{
+		// TODO: add other types (implemented this originally because of date[times])
+		{DtypeInt, "1,2,3", "[1,2,3]"},
+		{DtypeBool, "t,f,t", "[true,false,true]"},
+		{DtypeDate, "2020-01-01,2020-08-23,1900-12-30", "[\"2020-01-01\",\"2020-08-23\",\"1900-12-30\"]"},
+		{DtypeDatetime, "2020-01-01 12:34:56,2020-08-23 00:00:00,1900-12-30 23:59:59", "[\"2020-01-01 12:34:56.000000\",\"2020-08-23 00:00:00.000000\",\"1900-12-30 23:59:59.000000\"]"},
+	}
+
+	for _, test := range tests {
+		nc := NewChunkFromSchema(Schema{Dtype: test.dtype})
+		if err := nc.AddValues(strings.Split(test.vals, ",")); err != nil {
+			t.Error(err)
+			continue
+		}
+		marshalled, err := json.Marshal(nc)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		if string(marshalled) != test.expected {
+			t.Errorf("expected %s to marshal into %s, but got %s instead", test.vals, test.expected, string(marshalled))
 		}
 	}
 }

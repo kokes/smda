@@ -38,6 +38,11 @@ func (d date) String() string {
 	return fmt.Sprintf("%04d-%02d-%02d", d.Year(), d.Month(), d.Day())
 }
 
+func (d date) MarshalJSON() ([]byte, error) {
+	val := fmt.Sprintf("\"%s\"", d.String())
+	return []byte(val), nil
+}
+
 func (dt datetime) Year() int  { return int(dt >> (32 + 14)) }
 func (dt datetime) Month() int { return int(dt >> (32 + 10) & (1<<5 - 1)) }
 func (dt datetime) Day() int   { return int(dt >> (32 + 5) & (1<<5 - 1)) }
@@ -49,6 +54,11 @@ func (dt datetime) Microsecond() int { return int(dt&(1<<32-1)) % 1e6 }
 
 func (dt datetime) String() string {
 	return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d.%06d", dt.Year(), dt.Month(), dt.Day(), dt.Hour(), dt.Minute(), dt.Second(), dt.Microsecond())
+}
+
+func (dt datetime) MarshalJSON() ([]byte, error) {
+	val := fmt.Sprintf("\"%s\"", dt.String())
+	return []byte(val), nil
 }
 
 // TODO: just like with isNull, support alternative formats via loadSettings

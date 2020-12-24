@@ -1850,6 +1850,7 @@ func (rc *ChunkBools) MarshalJSON() ([]byte, error) {
 	return json.Marshal(dt)
 }
 
+// ARCH: don't use .String at all in this method, use json.Marshal instead
 func (rc *ChunkDates) MarshalJSON() ([]byte, error) {
 	if rc.isLiteral {
 		dt := make([]string, 0, rc.length)
@@ -1877,6 +1878,8 @@ func (rc *ChunkDates) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(dt)
 }
+
+// ARCH: don't use .String at all in this method, use json.Marshal instead
 func (rc *ChunkDatetimes) MarshalJSON() ([]byte, error) {
 	if rc.isLiteral {
 		dt := make([]string, 0, rc.length)
