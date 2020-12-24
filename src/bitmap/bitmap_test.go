@@ -21,6 +21,15 @@ func TestBitmapSetsGets(t *testing.T) {
 	}
 }
 
+func BenchmarkBitmapSets(b *testing.B) {
+	n := 1000
+	bm := NewBitmap(n)
+	b.ResetTimer()
+	for j := 0; j < b.N; j++ {
+		bm.Set(n/2, true)
+	}
+}
+
 func TestBitmapData(t *testing.T) {
 	tests := []struct {
 		length int
