@@ -30,8 +30,8 @@ func handleRoot(db *database.Database) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		// TODO: go generate or go-bin (and there are plans to have this natively in Go)
-		fn := "cmd/index.html"
+		// TODO: go generate or go-bindata (and there are plans to have this natively in Go)
+		fn := "cmd/server/index.html"
 		// this is an ugly hack for tests to find the asset (since their working directory is /src, not the root)
 		// will get resolved once we have our assets in the binary
 		wd, err := os.Getwd()
@@ -39,7 +39,7 @@ func handleRoot(db *database.Database) http.HandlerFunc {
 			panic(err)
 		}
 		if filepath.Base(wd) == "web" {
-			fn = "../../cmd/index.html"
+			fn = "../../cmd/server/index.html"
 		}
 		http.ServeFile(w, r, fn)
 	}

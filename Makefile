@@ -8,13 +8,13 @@ check:
 	CGO_ENABLED=0 $(GORLS) vet ./...
 
 build: check test
-	CGO_ENABLED=0 $(GORLS) build cmd/server.go
+	CGO_ENABLED=0 $(GORLS) build ./cmd/server/
 
 build-docker:
 	docker build . -t kokes/smda:latest
 
 run:
-	mkdir -p tmp && rm -r tmp && $(GORLS) run cmd/server.go -port 8822 -samples -wdir tmp
+	mkdir -p tmp && rm -r tmp && $(GORLS) run cmd/server/main.go -port 8822 -samples -wdir tmp
 
 run-docker: build-docker
 	# ephemeral run - will destroy the container after exiting
