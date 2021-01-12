@@ -12,6 +12,7 @@ type AggState struct {
 	floats    []float64
 	strings   []string
 	dates     []date
+	datetimes []datetime // TODO(next): datetime
 	counts    []int64
 	AddChunk  func(buckets []uint64, ndistinct int, data Chunk)
 	Resolve   func() (Chunk, error)

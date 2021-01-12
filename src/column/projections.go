@@ -287,6 +287,7 @@ type compFuncs struct {
 	strings  func(string, string) bool
 	bools    func(uint64, uint64) uint64
 	dates    func(date, date) bool
+	// TODO(next): datetimes
 }
 
 // OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
