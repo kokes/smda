@@ -219,8 +219,9 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", []string{"foo"}, []string{"foo", "count()"}, "foo,count()\n1,2\n,3\n"},
 		// we can't have sum(bool) yet, because bool aggregators can't have state in []int64
 		// {"foo,bar\n1,t\n,\n1,f\n2,f\n2,t\n1,t\n", []string{"foo"}, []string{"foo", "sum(bar)"}, "foo,sumtbar()\n1,2\n2,2\n"},
-
-		// TODO(next): dates
+		// dates
+		{"foo,bar\n1,2020-01-30\n1,2020-02-20\n1,1979-12-31", []string{"foo"}, []string{"foo", "max(bar)"}, "foo,max(bar)\n1,2020-02-20\n"},
+		{"foo,bar\n1,2020-01-30\n1,2020-02-20\n1,1979-12-31", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31\n"},
 	}
 
 	for testNo, test := range tests {
