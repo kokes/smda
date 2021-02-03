@@ -13,6 +13,9 @@ build: check test
 build-docker:
 	docker build . -t kokes/smda:latest
 
+build-ingest:
+	CGO_ENABLED=0 $(GORLS) build ./cmd/ingest/
+
 run:
 	mkdir -p tmp && rm -r tmp && $(GORLS) run cmd/server/main.go -port 8822 -samples -wdir tmp
 
