@@ -145,3 +145,22 @@ func DatesLessThan(a, b date) bool {
 func DatesLessThanEqual(a, b date) bool {
 	return DatesGreaterThanEqual(b, a)
 }
+
+func DatetimesEqual(a, b datetime) bool {
+	return a == b
+}
+func DatetimesNotEqual(a, b datetime) bool {
+	return !DatetimesEqual(a, b)
+}
+func DatetimesGreaterThan(a, b datetime) bool {
+	return a > b
+}
+func DatetimesGreaterThanEqual(a, b datetime) bool {
+	return a >= b
+}
+func DatetimesLessThan(a, b datetime) bool {
+	return DatetimesGreaterThan(b, a)
+}
+func DatetimesLessThanEqual(a, b datetime) bool {
+	return DatetimesGreaterThanEqual(b, a)
+}

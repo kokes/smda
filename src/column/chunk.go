@@ -423,6 +423,12 @@ func newChunkDatesFromSlice(data []date, nulls *bitmap.Bitmap) *ChunkDates {
 		data:      data,
 	}
 }
+func newChunkDatetimesFromSlice(data []datetime, nulls *bitmap.Bitmap) *ChunkDatetimes {
+	return &ChunkDatetimes{
+		baseChunk: baseChunk{length: uint32(len(data)), nullability: nulls},
+		data:      data,
+	}
+}
 func newChunkStringsFromSlice(data []string, nulls *bitmap.Bitmap) *ChunkStrings {
 	rc := newChunkStrings()
 	if err := rc.AddValues(data); err != nil {

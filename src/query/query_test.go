@@ -222,6 +222,9 @@ func TestBasicAggregation(t *testing.T) {
 		// dates
 		{"foo,bar\n1,2020-01-30\n1,2020-02-20\n1,1979-12-31", []string{"foo"}, []string{"foo", "max(bar)"}, "foo,max(bar)\n1,2020-02-20\n"},
 		{"foo,bar\n1,2020-01-30\n1,2020-02-20\n1,1979-12-31", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31\n"},
+		{"foo,bar\n1,2020-01-30 12:34:56\n1,2020-02-20 00:00:00\n1,1979-12-31 19:01:57", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31 19:01:57\n"},
+		{"foo,bar\n1,2020-01-30 12:34:56\n1,1979-12-31 19:01:57.001\n1,1979-12-31 19:01:57.002", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31 19:01:57.001\n"},
+		{"foo,bar\n1,2020-01-30 12:34:56\n1,1979-12-31 19:01:57.001\n1,1979-12-31 19:01:57.0001", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31 19:01:57.0001\n"},
 	}
 
 	for testNo, test := range tests {
