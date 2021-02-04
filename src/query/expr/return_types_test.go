@@ -75,6 +75,40 @@ func TestColumnsUsed(t *testing.T) {
 	}
 }
 
+func TestCoalesceColumns(t *testing.T) {
+	tests := []struct {
+		types         []column.Dtype
+		expectedType  column.Dtype
+		expectedError error
+	}{
+		{nil, column.DtypeInvalid, errNoTypes},
+		// single column -> same type
+		{[]column.Dtype{column.DtypeBool}, column.DtypeBool, nil},
+		{[]column.Dtype{column.DtypeInt}, column.DtypeInt, nil},
+		{[]column.Dtype{column.DtypeFloat}, column.DtypeFloat, nil},
+		// multiple of same type -> same type
+		{[]column.Dtype{column.DtypeBool, column.DtypeBool, column.DtypeBool}, column.DtypeBool, nil},
+		{[]column.Dtype{column.DtypeDatetime, column.DtypeDatetime, column.DtypeDatetime}, column.DtypeDatetime, nil},
+		// int/float mismatch -> float
+		{[]column.Dtype{column.DtypeInt, column.DtypeFloat}, column.DtypeFloat, nil},
+		{[]column.Dtype{column.DtypeFloat, column.DtypeInt}, column.DtypeFloat, nil},
+		// everything else -> err
+		{[]column.Dtype{column.DtypeFloat, column.DtypeString}, column.DtypeInvalid, errTypeMismatch},
+		{[]column.Dtype{column.DtypeBool, column.DtypeDatetime}, column.DtypeInvalid, errTypeMismatch},
+		{[]column.Dtype{column.DtypeBool, column.DtypeBool, column.DtypeBool, column.DtypeInt}, column.DtypeInvalid, errTypeMismatch},
+	}
+
+	for _, test := range tests {
+		dtype, err := coalesceType(test.types...)
+		if dtype != test.expectedType {
+			t.Errorf("expecting coalesce(%+v) to result in %v, got %v instead", test.types, test.expectedType, dtype)
+		}
+		if err != test.expectedError {
+			t.Errorf("expecting coalesce(%+v) to result in err %v, got %v instead", test.types, test.expectedError, err)
+		}
+	}
+}
+
 func TestColumnsUsedVarargs(t *testing.T) {
 	tests := []struct {
 		rawExprs []string

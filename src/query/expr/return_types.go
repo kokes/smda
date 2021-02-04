@@ -10,6 +10,7 @@ import (
 )
 
 var errTypeMismatch = errors.New("expecting compatible types")
+var errNoTypes = errors.New("expecting at least one column")
 
 // should this be in the database package?
 func comparableTypes(t1, t2 column.Dtype) bool {
@@ -20,6 +21,29 @@ func comparableTypes(t1, t2 column.Dtype) bool {
 		return true
 	}
 	return false
+}
+
+func coalesceType(types ...column.Dtype) (column.Dtype, error) {
+	if len(types) == 0 {
+		return column.DtypeInvalid, errNoTypes
+	}
+	if len(types) == 1 {
+		return types[0], nil
+	}
+
+	candidate := types[0]
+	for _, el := range types[1:] {
+		if el == candidate || (el == column.DtypeInt && candidate == column.DtypeFloat) {
+			continue
+		}
+		if el == column.DtypeFloat && candidate == column.DtypeInt {
+			candidate = column.DtypeFloat
+			continue
+		}
+
+		return column.DtypeInvalid, errTypeMismatch
+	}
+	return candidate, nil
 }
 
 func dedupeSortedStrings(s []string) []string {
@@ -202,12 +226,24 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 		schema.Dtype = argTypes[0].Dtype // TODO: add nullif() to tests to ensure that we catch it before this and don't panic
 		schema.Nullable = true           // even if the nullif condition is never met, I think it's fair to set it as nullable
 	case "coalesce":
-		// we'll need to figure out how to deal with the whole number-like type compatibility (e.g. if there's at least
-		// one float, it's a float - but that will change in the future if we add decimals)
-		// same issue in multiplication and other operations
-		// trying something with compatibleTypes()
-		schema.Dtype = argTypes[0].Dtype // TODO: will break for [int, float]
-		schema.Nullable = true           // if at least one column is a literal, we can deduce this to be false
+		// OPTIM: we can optimise this away if len(argTypes) == 1
+		types := make([]column.Dtype, 0, len(argTypes))
+		nullable := true
+		for _, el := range argTypes {
+			types = append(types, el.Dtype)
+			// OPTIM: we can prune all the arguments that come after the first non-nullable
+			// we can't prune it just yet - we could have an invalid call (e.g. coalesce(int, float, string))
+			// but we can note the position of the first non-nullable arg
+			if el.Nullable == false {
+				nullable = false
+			}
+		}
+		candidate, err := coalesceType(types...)
+		if err != nil {
+			return schema, err
+		}
+		schema.Dtype = candidate
+		schema.Nullable = nullable
 	default:
 		return schema, fmt.Errorf("unsupported function: %v", funName)
 	}
