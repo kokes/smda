@@ -2,6 +2,7 @@ package expr
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -12,6 +13,8 @@ import (
 	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
 )
+
+var errNoNestedAggregations = errors.New("cannot nest aggregations (e.g. sum(min(a)))")
 
 type exprType uint8
 
@@ -135,19 +138,26 @@ func (expr *Expression) InitAggregator(schema database.TableSchema) error {
 	return nil
 }
 
-// TODO: there cannot be nested aggexprs, test for that
-func AggExpr(expr *Expression) []*Expression {
+func AggExpr(expr *Expression) ([]*Expression, error) {
 	var ret []*Expression
+	found := false
 	if expr.etype == exprFunCall && expr.evaler == nil {
 		ret = append(ret, expr)
+		found = true
 	}
 	for _, ch := range expr.children {
-		ach := AggExpr(ch)
+		ach, err := AggExpr(ch)
+		if err != nil {
+			return nil, err
+		}
 		if ach != nil {
+			if found {
+				return nil, errNoNestedAggregations
+			}
 			ret = append(ret, ach...)
 		}
 	}
-	return ret
+	return ret, nil
 }
 
 func (expr *Expression) String() string {

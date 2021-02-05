@@ -181,14 +181,19 @@ func TestAggExpr(t *testing.T) {
 	tests := []struct {
 		raw      string
 		expected []string
+		err      error
 	}{
-		{"1", nil},
-		{"1 + nullif(foo) - bar", nil},
-		{"min(a)", []string{"min(a)"}},
-		{"min(a) + min(b)", []string{"min(a)", "min(b)"}},
-		{"4*min(a) + 3-min(b)", []string{"min(a)", "min(b)"}},
-		{"2*nullif(min(a) + 3*min(b))", []string{"min(a)", "min(b)"}},
-		{"min(a)*min(b)*min(c)", []string{"min(a)", "min(b)", "min(c)"}},
+		{"1", nil, nil},
+		{"1 + nullif(foo) - bar", nil, nil},
+		{"min(a)", []string{"min(a)"}, nil},
+		{"min(a) + min(b)", []string{"min(a)", "min(b)"}, nil},
+		{"4*min(a) + 3-min(b)", []string{"min(a)", "min(b)"}, nil},
+		{"2*nullif(min(a) + 3*min(b))", []string{"min(a)", "min(b)"}, nil},
+		{"min(a)*min(b)*min(c)", []string{"min(a)", "min(b)", "min(c)"}, nil},
+		// nested aggexprs
+		{"min(5*min(a))", nil, errNoNestedAggregations},
+		{"sum(max(b))", nil, errNoNestedAggregations},
+		{"1-sum(nullif(foo, max(bar)))", nil, errNoNestedAggregations},
 	}
 	for _, test := range tests {
 		expr, err := ParseStringExpr(test.raw)
@@ -196,7 +201,10 @@ func TestAggExpr(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		res := AggExpr(expr)
+		res, err := AggExpr(expr)
+		if err != test.err {
+			t.Errorf("expecting %s to result in error %+v, got %+v instead", test.raw, test.err, err)
+		}
 		ress := stringifySlice(res)
 		if !reflect.DeepEqual(ress, test.expected) {
 			t.Errorf("expected %+v to have %+v as aggregating expressions, got %+v instead", test.raw, test.expected, ress)

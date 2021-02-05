@@ -101,7 +101,10 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 	// we'll also collect all the aggregating expressions, so that we can feed them individual chunks
 	var aggexprs []*expr.Expression
 	for _, proj := range projs {
-		aggexpr := expr.AggExpr(proj)
+		aggexpr, err := expr.AggExpr(proj)
+		if err != nil {
+			return nil, err
+		}
 		if aggexpr != nil {
 			aggexprs = append(aggexprs, aggexpr...)
 			continue
