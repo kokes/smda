@@ -360,7 +360,7 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 		funName := node.Fun.(*ast.Ident).Name
 		ret := &Expression{
 			etype: exprFunCall,
-			value: funName,
+			value: strings.ToLower(funName),
 		}
 
 		var children []*Expression

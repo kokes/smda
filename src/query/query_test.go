@@ -293,7 +293,7 @@ func TestAggregationProjectionErrors(t *testing.T) {
 		{"foo,bar,baz\n1,2,3\n", []string{"foo", "bar"}, []string{"foo*2", "bar"}},
 		{"foo,bar,baz\n1,2,3\n", []string{"foo"}, []string{"bar"}},
 		{"foo,bar,baz\n1,2,3\n", []string{"nullif(foo, 2)"}, []string{"foo"}},
-		// {"foo,bar,baz\n1,2,3\n", []string{"2*foo"}, []string{"2*FOO"}}, // enable this once we get case insensitivity merged
+		{"foo,bar,baz\n1,2,3\n", []string{"2*foo"}, []string{"2*FOO"}},
 	}
 
 	for _, test := range tests {

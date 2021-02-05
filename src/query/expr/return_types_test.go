@@ -10,8 +10,6 @@ import (
 	"github.com/kokes/smda/src/database"
 )
 
-// TODO: test case insensitivity of keywords (just function names at this point) - it's not implemented yet
-
 func TestStringDedup(t *testing.T) {
 	tests := []struct {
 		input  string

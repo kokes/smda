@@ -41,6 +41,16 @@ func TestParsingContents(t *testing.T) {
 		{"count(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
 			{etype: exprIdentifier, value: "foobar"},
 		}}},
+		// case insensitivity of function names
+		{"COUNT(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprIdentifier, value: "foobar"},
+		}}},
+		{"Count(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprIdentifier, value: "foobar"},
+		}}},
+		{"counT(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprIdentifier, value: "foobar"},
+		}}},
 		{"bak = 'my_literal'", &Expression{etype: exprEquality, children: []*Expression{
 			{etype: exprIdentifier, value: "bak"},
 			{etype: exprLiteralString, value: "my_literal"},
