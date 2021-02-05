@@ -55,7 +55,7 @@ func TestDatasetTypeInference(t *testing.T) {
 			continue
 		}
 		if !reflect.DeepEqual(cs, dataset.cs) {
-			t.Errorf("expecting %v to be inferred as %v, got %v", dataset.raw, dataset.cs, cs)
+			t.Errorf("expecting %+v to be inferred as %+v, got %+v", dataset.raw, dataset.cs, cs)
 		}
 	}
 }
@@ -67,7 +67,7 @@ func TestInferTypesNoFile(t *testing.T) {
 	}
 	filename := filepath.Join(tmpdir, "does_not_exist.csv")
 	if _, err := InferTypes(filename, nil); !os.IsNotExist(err) {
-		t.Errorf("expecting type inference on a non-existent file to throw a file not found error, got: %v", err)
+		t.Errorf("expecting type inference on a non-existent file to throw a file not found error, got: %+v", err)
 	}
 }
 
@@ -83,7 +83,7 @@ func TestInferTypesEmptyFile(t *testing.T) {
 	}
 	f.Close()
 	if _, err := InferTypes(filename, &loadSettings{}); err != io.EOF {
-		t.Errorf("expecting type inference on a non-existent file to throw a file not found error, got: %v", err)
+		t.Errorf("expecting type inference on a non-existent file to throw a file not found error, got: %+v", err)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestInferTypesInvalidCSV(t *testing.T) {
 	}
 
 	if _, err := InferTypes(filename, &loadSettings{}); !errors.Is(err, csv.ErrQuote) {
-		t.Errorf("type inference on an invalid CSV should throw a native error, csv.ErrQuote in this case, but got: %v", err)
+		t.Errorf("type inference on an invalid CSV should throw a native error, csv.ErrQuote in this case, but got: %+v", err)
 	}
 }
 
@@ -115,6 +115,6 @@ func TestInferTypesNoloadSettings(t *testing.T) {
 	f.Close()
 
 	if _, err := InferTypes(filename, nil); err != errInvalidloadSettings {
-		t.Errorf("when inferring types from a CSV, we need to submit load settings - did not submit them, but didn't get errInvalidloadSettings, got: %v", err)
+		t.Errorf("when inferring types from a CSV, we need to submit load settings - did not submit them, but didn't get errInvalidloadSettings, got: %+v", err)
 	}
 }

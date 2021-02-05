@@ -30,7 +30,7 @@ func TestStringDedup(t *testing.T) {
 		output := strings.Split(test.output, ",")
 		deduped := dedupeSortedStrings(input)
 		if !reflect.DeepEqual(deduped, output) {
-			t.Errorf("expecting %v to dedupe into %v, got %v instead", test.input, test.output, deduped)
+			t.Errorf("expecting %+v to dedupe into %+v, got %+v instead", test.input, test.output, deduped)
 		}
 	}
 }
@@ -65,12 +65,12 @@ func TestColumnsUsed(t *testing.T) {
 	for _, test := range tests {
 		expr, err := ParseStringExpr(test.rawExpr)
 		if err != nil {
-			t.Errorf("cannot parse %v, got %v", test.rawExpr, err)
+			t.Errorf("cannot parse %+v, got %+v", test.rawExpr, err)
 			continue
 		}
 		used := expr.ColumnsUsed(schema)
 		if !reflect.DeepEqual(used, test.colsUsed) {
-			t.Errorf("expecting %v to use %v, but got %v instead", test.rawExpr, test.colsUsed, used)
+			t.Errorf("expecting %+v to use %+v, but got %+v instead", test.rawExpr, test.colsUsed, used)
 		}
 	}
 }
@@ -101,10 +101,10 @@ func TestCoalesceColumns(t *testing.T) {
 	for _, test := range tests {
 		dtype, err := coalesceType(test.types...)
 		if dtype != test.expectedType {
-			t.Errorf("expecting coalesce(%+v) to result in %v, got %v instead", test.types, test.expectedType, dtype)
+			t.Errorf("expecting coalesce(%+v) to result in %+v, got %+v instead", test.types, test.expectedType, dtype)
 		}
 		if err != test.expectedError {
-			t.Errorf("expecting coalesce(%+v) to result in err %v, got %v instead", test.types, test.expectedError, err)
+			t.Errorf("expecting coalesce(%+v) to result in err %+v, got %+v instead", test.types, test.expectedError, err)
 		}
 	}
 }
@@ -130,14 +130,14 @@ func TestColumnsUsedVarargs(t *testing.T) {
 		for _, rawExpr := range test.rawExprs {
 			expr, err := ParseStringExpr(rawExpr)
 			if err != nil {
-				t.Errorf("cannot parse %v, got %v", rawExpr, err)
+				t.Errorf("cannot parse %+v, got %+v", rawExpr, err)
 				continue
 			}
 			exprs = append(exprs, expr)
 		}
 		used := ColumnsUsed(schema, exprs...)
 		if !reflect.DeepEqual(used, test.colsUsed) {
-			t.Errorf("expecting %v to use %v, but got %v instead", test.rawExprs, test.colsUsed, used)
+			t.Errorf("expecting %+v to use %+v, but got %+v instead", test.rawExprs, test.colsUsed, used)
 		}
 	}
 }
@@ -156,11 +156,11 @@ func TestValidity(t *testing.T) {
 	for _, raw := range exprs {
 		expr, err := ParseStringExpr(raw)
 		if err != nil {
-			t.Errorf("cannot parse %v, got %v", raw, err)
+			t.Errorf("cannot parse %+v, got %+v", raw, err)
 			continue
 		}
 		if _, err := expr.ReturnType(schema); err != nil {
-			t.Errorf("expecting %v to be a valid expression, got: %v", raw, err)
+			t.Errorf("expecting %+v to be a valid expression, got: %+v", raw, err)
 		}
 	}
 }
@@ -183,11 +183,11 @@ func TestValiditySadPaths(t *testing.T) {
 	for _, raw := range exprs {
 		expr, err := ParseStringExpr(raw)
 		if err != nil {
-			t.Errorf("cannot parse %v, got %v", raw, err)
+			t.Errorf("cannot parse %+v, got %+v", raw, err)
 			continue
 		}
 		if _, err := expr.ReturnType(schema); err == nil {
-			t.Errorf("expecting %v to be an invalid expression", raw)
+			t.Errorf("expecting %+v to be an invalid expression", raw)
 		}
 	}
 }
@@ -285,7 +285,7 @@ func TestReturnTypes(t *testing.T) {
 			continue
 		}
 		if !reflect.DeepEqual(retType, test.returnType) {
-			t.Errorf("expecting %v to return a schema %v, got %v instead", test.rawExpr, test.returnType, retType)
+			t.Errorf("expecting %+v to return a schema %+v, got %+v instead", test.rawExpr, test.returnType, retType)
 		}
 
 	}

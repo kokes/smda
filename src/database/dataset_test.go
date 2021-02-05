@@ -17,7 +17,7 @@ func TestNewUidStringify(t *testing.T) {
 	suid := uid.String()
 
 	if len(suid) != 18 {
-		t.Fatalf("expecting stringified unique IDs to be 18 chars (9 bytes, but in hex), got:  %v", suid)
+		t.Fatalf("expecting stringified unique IDs to be 18 chars (9 bytes, but in hex), got:  %+v", suid)
 	}
 }
 
@@ -29,10 +29,10 @@ func TestNewUidJSONify(t *testing.T) {
 	}
 
 	if len(dt) != 20 {
-		t.Errorf("expecting JSONified unique IDs to be 20 chars (9 bytes, but in hex + quotes), got:  %v", len(dt))
+		t.Errorf("expecting JSONified unique IDs to be 20 chars (9 bytes, but in hex + quotes), got:  %+v", len(dt))
 	}
 	if !(dt[0] == '"' && dt[len(dt)-1] == '"') {
-		t.Errorf("expecting JSONified unique IDs to be quoted, got %v", string(dt))
+		t.Errorf("expecting JSONified unique IDs to be quoted, got %+v", string(dt))
 	}
 }
 
@@ -48,10 +48,10 @@ func TestNewUidDeJSONify(t *testing.T) {
 		t.Fatal(err)
 	}
 	if uid2.Otype != uid.Otype {
-		t.Errorf("expecting the type to be the same after a roundtrip, got: %v", uid2.Otype)
+		t.Errorf("expecting the type to be the same after a roundtrip, got: %+v", uid2.Otype)
 	}
 	if uid2.oid != uid.oid {
-		t.Errorf("expecting the id to be the same after a roundtrip, got: %v", uid2.oid)
+		t.Errorf("expecting the id to be the same after a roundtrip, got: %+v", uid2.oid)
 	}
 }
 
@@ -84,7 +84,7 @@ func TestInitExistingDB(t *testing.T) {
 	// we should not be able to init a new one in the same dir
 	for j := 0; j < 3; j++ {
 		if _, err := NewDatabase(&Config{WorkingDirectory: tdr}); !errors.Is(err, errPathNotEmpty) {
-			t.Errorf("creating a database in an existing directory should trigger errPathNotEmpty, got %v", err)
+			t.Errorf("creating a database in an existing directory should trigger errPathNotEmpty, got %+v", err)
 		}
 	}
 }
@@ -158,7 +158,7 @@ func TestRemovingDatasets(t *testing.T) {
 	// test that files were deleted - we don't need to check individual stripes, we can just
 	// check the directory is no longer there
 	if _, err := os.Stat(db.DatasetPath(ds)); !os.IsNotExist(err) {
-		t.Errorf("expecting data to be deleted along with a dataset, but got: %v", err)
+		t.Errorf("expecting data to be deleted along with a dataset, but got: %+v", err)
 	}
 }
 
@@ -224,11 +224,11 @@ func TestLocateColumn(t *testing.T) {
 			idx, _, err = schema.LocateColumn(test.lookup)
 		}
 		if !errors.Is(err, test.err) {
-			t.Errorf("expected looking up %v in %v to return %v, got %v instead", test.lookup, test.cols, test.err, err)
+			t.Errorf("expected looking up %+v in %+v to return %+v, got %+v instead", test.lookup, test.cols, test.err, err)
 			continue
 		}
 		if idx != test.expectedIdx {
-			t.Errorf("expected looking up %v in %v to return idx %v, got %v instead", test.lookup, test.cols, test.expectedIdx, idx)
+			t.Errorf("expected looking up %+v in %+v to return idx %+v, got %+v instead", test.lookup, test.cols, test.expectedIdx, idx)
 		}
 	}
 }

@@ -16,7 +16,7 @@ func TestBitmapSetsGets(t *testing.T) {
 	}
 	for j, v := range vals {
 		if bm.Get(j) != v {
-			t.Fatalf("position %v: expected %v, got %v", j, v, bm.Get(j))
+			t.Fatalf("position %+v: expected %+v, got %+v", j, v, bm.Get(j))
 		}
 	}
 }
@@ -58,7 +58,7 @@ func TestBitmapData(t *testing.T) {
 		bmc := len(test.set)
 		onc := ones(bm.Data())
 		if bmc != onc {
-			t.Errorf("expecting a bitmap of %v to result in %d ones, got %d", test.set, onc, bmc)
+			t.Errorf("expecting a bitmap of %+v to result in %d ones, got %d", test.set, onc, bmc)
 		}
 	}
 }
@@ -181,7 +181,7 @@ func TestBitmapRoundtrip(t *testing.T) {
 			return
 		}
 		if !reflect.DeepEqual(b, b2) {
-			t.Errorf("expecting %v, got %v", b, b2)
+			t.Errorf("expecting %+v, got %+v", b, b2)
 			return
 		}
 	}
@@ -194,10 +194,10 @@ func TestKeepingFirstN(t *testing.T) {
 		bm := NewBitmapFromBools(raw)
 		bm.KeepFirstN(j)
 		if bm.Count() != j {
-			t.Errorf("expecting truncating to %v to keep that many values, got %v", j, bm.Count())
+			t.Errorf("expecting truncating to %+v to keep that many values, got %+v", j, bm.Count())
 		}
 		if len(raw) != bm.cap {
-			t.Errorf("not expecting the length of the bitmap to change after KeepFirstN, got %v from %v", bm.cap, len(raw))
+			t.Errorf("not expecting the length of the bitmap to change after KeepFirstN, got %+v from %+v", bm.cap, len(raw))
 		}
 	}
 	// if we tell it to keep more values then there are, it will just keep them all
@@ -205,10 +205,10 @@ func TestKeepingFirstN(t *testing.T) {
 		bm := NewBitmapFromBools(raw)
 		bm.KeepFirstN(j)
 		if bm.Count() > j {
-			t.Errorf("expecting truncating to %v to keep that many values, got %v", j, bm.Count())
+			t.Errorf("expecting truncating to %+v to keep that many values, got %+v", j, bm.Count())
 		}
 		if len(raw) != bm.cap {
-			t.Errorf("not expecting the length of the bitmap to change after KeepFirstN, got %v from %v", bm.cap, len(raw))
+			t.Errorf("not expecting the length of the bitmap to change after KeepFirstN, got %+v from %+v", bm.cap, len(raw))
 		}
 	}
 }
@@ -243,7 +243,7 @@ func TestBitmapAppending(t *testing.T) {
 
 		bm1.Append(bm2)
 		if !reflect.DeepEqual(bm1, bm3) {
-			t.Errorf("could not concat %v and %v to get %v", test.a, test.b, test.res)
+			t.Errorf("could not concat %+v and %+v to get %+v", test.a, test.b, test.res)
 		}
 	}
 }
@@ -279,12 +279,12 @@ func TestOr(t *testing.T) {
 
 		ored := Or(ba, bb)
 		if !reflect.DeepEqual(ored, exp) {
-			t.Errorf("expecting %v | %v to result in %v, got %v instead", test.a, test.b, test.exp, ored)
+			t.Errorf("expecting %+v | %+v to result in %+v, got %+v instead", test.a, test.b, test.exp, ored)
 		}
 		if ba != nil {
 			ba.Or(bb)
 			if !reflect.DeepEqual(ba, exp) {
-				t.Errorf("expecting %v |= %v to result in %v, got %v instead", test.a, test.b, test.exp, ba)
+				t.Errorf("expecting %+v |= %+v to result in %+v, got %+v instead", test.a, test.b, test.exp, ba)
 			}
 		}
 	}

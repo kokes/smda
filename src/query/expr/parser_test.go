@@ -138,7 +138,7 @@ func TestParsingContents(t *testing.T) {
 	for _, test := range tests {
 		parsed, err := ParseStringExpr(test.raw)
 		if err != nil {
-			t.Errorf("expression %v failed: %w", test.raw, err)
+			t.Errorf("expression %+v failed: %w", test.raw, err)
 			t.Fail()
 			continue
 		}
@@ -189,7 +189,7 @@ func TestAggExpr(t *testing.T) {
 		res := AggExpr(expr)
 		ress := stringifySlice(res)
 		if !reflect.DeepEqual(ress, test.expected) {
-			t.Errorf("expected %v to have %v as aggregating expressions, got %v instead", test.raw, test.expected, ress)
+			t.Errorf("expected %+v to have %+v as aggregating expressions, got %+v instead", test.raw, test.expected, ress)
 		}
 	}
 }

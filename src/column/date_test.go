@@ -16,7 +16,7 @@ func TestBasicDates(t *testing.T) {
 	for _, test := range tests {
 		val, err := parseDate(test.input)
 		if err != test.err {
-			t.Errorf("failed to parse %s as a date with err %v, got %v", test.input, test.err, err)
+			t.Errorf("failed to parse %s as a date with err %+v, got %+v", test.input, test.err, err)
 			continue
 		}
 		expected := newDate(test.year, test.month, test.day, 0)
@@ -25,7 +25,7 @@ func TestBasicDates(t *testing.T) {
 		}
 
 		if val.String() != test.input {
-			t.Errorf("failed to roundtrip %v, got %v instead", test.input, val.String())
+			t.Errorf("failed to roundtrip %+v, got %+v instead", test.input, val.String())
 		}
 	}
 }
@@ -51,7 +51,7 @@ func TestBasicDatetimes(t *testing.T) {
 	for _, test := range tests {
 		val, err := parseDatetime(test.input)
 		if err != test.err {
-			t.Errorf("failed to parse %s as a date with err %v, got %v", test.input, test.err, err)
+			t.Errorf("failed to parse %s as a date with err %+v, got %+v", test.input, test.err, err)
 			continue
 		}
 		expected := newDatetime(test.year, test.month, test.day, test.hour, test.minute, test.second, test.microsecond)
@@ -61,7 +61,7 @@ func TestBasicDatetimes(t *testing.T) {
 
 		if test.roundtrip {
 			if val.String() != test.input {
-				t.Errorf("failed to roundtrip %v, got %v instead", test.input, val.String())
+				t.Errorf("failed to roundtrip %+v, got %+v instead", test.input, val.String())
 			}
 		}
 	}

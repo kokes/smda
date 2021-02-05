@@ -51,7 +51,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 			gw.Write([]byte(test.contents))
 			gw.Close()
 		default:
-			t.Fatalf("unsupported compression for writing: %v", test.compression)
+			t.Fatalf("unsupported compression for writing: %+v", test.compression)
 		}
 
 		// first try from a reader
@@ -64,7 +64,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 			dsCols = append(dsCols, col.Name)
 		}
 		if !reflect.DeepEqual(dsCols, test.columns) {
-			t.Errorf("expecting columns to be %v, got %v", test.columns, dsCols)
+			t.Errorf("expecting columns to be %+v, got %+v", test.columns, dsCols)
 		}
 
 		// but also from a file
@@ -81,7 +81,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 			dsCols = append(dsCols, col.Name)
 		}
 		if !reflect.DeepEqual(dsCols, test.columns) {
-			t.Errorf("expecting columns to be %v, got %v", test.columns, dsCols)
+			t.Errorf("expecting columns to be %+v, got %+v", test.columns, dsCols)
 		}
 	}
 }
@@ -109,7 +109,7 @@ func TestReadingFromStripes(t *testing.T) {
 	}
 	cols := col.(*column.ChunkInts)
 	if cols.Len() != 2 {
-		t.Errorf("expecting the length to be %v, got %v", 2, cols.Len())
+		t.Errorf("expecting the length to be %+v, got %+v", 2, cols.Len())
 	}
 
 	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0], 1)
@@ -118,7 +118,7 @@ func TestReadingFromStripes(t *testing.T) {
 	}
 	colb := col.(*column.ChunkBools)
 	if colb.Len() != 2 {
-		t.Errorf("expecting the length to be %v, got %v", 2, colb.Len())
+		t.Errorf("expecting the length to be %+v, got %+v", 2, colb.Len())
 	}
 	// TODO: unexported for now, fix
 	// if !colb.nullable {
@@ -131,7 +131,7 @@ func TestReadingFromStripes(t *testing.T) {
 	}
 	colf := col.(*column.ChunkFloats)
 	if colf.Len() != 2 {
-		t.Errorf("expecting the length to be %v, got %v", 2, colf.Len())
+		t.Errorf("expecting the length to be %+v, got %+v", 2, colf.Len())
 	}
 }
 
@@ -247,7 +247,7 @@ func TestLoadingSampleData(t *testing.T) {
 	}
 
 	if len(db.Datasets) != len(fns) {
-		t.Errorf("expecting %v datasets, got %v", len(fns), len(db.Datasets))
+		t.Errorf("expecting %+v datasets, got %+v", len(fns), len(db.Datasets))
 	}
 
 	ecols := []string{"foo", "bar", "baz"}
@@ -257,7 +257,7 @@ func TestLoadingSampleData(t *testing.T) {
 			cols = append(cols, col.Name)
 		}
 		if !reflect.DeepEqual(cols, ecols) {
-			t.Errorf("expecting each dataset to have the header of %v, got %v", ecols, cols)
+			t.Errorf("expecting each dataset to have the header of %+v, got %+v", ecols, cols)
 		}
 	}
 }
@@ -282,7 +282,7 @@ func TestLoadingSampleDataErrs(t *testing.T) {
 	ourdir := filepath.Join(tmpdir, "does_not_exist")
 
 	if err := db.LoadSampleData(ourdir); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("loading samples from a non-existent directory should trigger an IsNotExist, but got: %v", err)
+		t.Errorf("loading samples from a non-existent directory should trigger an IsNotExist, but got: %+v", err)
 	}
 
 	// now let's write some invalid data and expect it to fail for that reason
@@ -291,7 +291,7 @@ func TestLoadingSampleDataErrs(t *testing.T) {
 	}
 
 	if err := db.LoadSampleData(tmpdir); !errors.Is(err, csv.ErrBareQuote) {
-		t.Errorf("invalid data in a sample directory, expecting a CSV error to bubble up, got %v instead", err)
+		t.Errorf("invalid data in a sample directory, expecting a CSV error to bubble up, got %+v instead", err)
 	}
 }
 
@@ -319,7 +319,7 @@ func TestBasicFileCaching(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(contents, buf.Bytes()) {
-			t.Errorf("roundtrip failed for %v bytes", size)
+			t.Errorf("roundtrip failed for %+v bytes", size)
 		}
 	}
 }
@@ -335,7 +335,7 @@ func TestCacheErrors(t *testing.T) {
 
 	data := strings.NewReader("ahoy")
 	if err := CacheIncomingFile(data, nopath); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("cannot cache into a non-existent directory, but got %v", err)
+		t.Errorf("cannot cache into a non-existent directory, but got %+v", err)
 	}
 }
 
@@ -392,7 +392,7 @@ func TestChecksumValidation(t *testing.T) {
 				continue
 			}
 			if err := readStripes(); err != errIncorrectChecksum {
-				t.Errorf("flipping bits should trigger %v, got %v instead", errIncorrectChecksum, err)
+				t.Errorf("flipping bits should trigger %+v, got %+v instead", errIncorrectChecksum, err)
 			}
 		}
 	}
@@ -442,7 +442,7 @@ func TestChecksumValidation(t *testing.T) {
 // 		}
 
 // 		if _, err := db.ReadColumnFromStripe(ds, ds.Stripes[0], 0); err != errInvalidOffsetData {
-// 			t.Errorf("expecting offsets %v to trigger errInvalidOffsetData, but got %v instead", test, err)
+// 			t.Errorf("expecting offsets %+v to trigger errInvalidOffsetData, but got %+v instead", test, err)
 // 		}
 // 	}
 // }
@@ -465,7 +465,7 @@ func TestHeaderValidation(t *testing.T) {
 			schema = append(schema, column.Schema{Name: el})
 		}
 		if err := validateHeaderAgainstSchema(test.header, schema); err != test.err {
-			t.Fatalf("expected validation of header %v and schema %v to result in %v, got %v instead", test.header, test.schemaNames, test.err, err)
+			t.Fatalf("expected validation of header %+v and schema %+v to result in %+v, got %+v instead", test.header, test.schemaNames, test.err, err)
 		}
 	}
 }
@@ -504,7 +504,7 @@ func TestLoadingFromMaps(t *testing.T) {
 	for _, test := range tests {
 		ds, err := db.LoadDatasetFromMap(test.data)
 		if !errors.Is(err, test.err) {
-			t.Errorf("expecting %v to fail with %v, got %v instead", test.data, test.err, err)
+			t.Errorf("expecting %+v to fail with %+v, got %+v instead", test.data, test.err, err)
 			continue
 		}
 		if err != nil {
@@ -515,7 +515,7 @@ func TestLoadingFromMaps(t *testing.T) {
 			columns = append(columns, col.Name)
 		}
 		if !reflect.DeepEqual(columns, test.header) {
-			t.Errorf("expecting %v to result in %v columns, got %v instead", test.data, test.header, columns)
+			t.Errorf("expecting %+v to result in %+v columns, got %+v instead", test.data, test.header, columns)
 			continue
 		}
 	}

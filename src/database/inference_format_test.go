@@ -87,7 +87,7 @@ func TestInferDelimiterBasic(t *testing.T) {
 		r := []byte(testCase.firstLine)
 		inferredDelimiter := inferDelimiter(r)
 		if inferredDelimiter != testCase.expectedDelimiter {
-			t.Errorf("inferring delimiters, expected %v, got %v", testCase.expectedDelimiter, inferredDelimiter)
+			t.Errorf("inferring delimiters, expected %+v, got %+v", testCase.expectedDelimiter, inferredDelimiter)
 			return
 		}
 	}
@@ -104,7 +104,7 @@ func TestCompressionStringer(t *testing.T) {
 	}
 	for _, test := range tests {
 		if test.cmp.String() != test.str {
-			t.Errorf("expecting %v to print as %v", test.cmp, test.str)
+			t.Errorf("expecting %+v to print as %+v", test.cmp, test.str)
 		}
 	}
 }
@@ -121,7 +121,7 @@ func TestDelimiterStringer(t *testing.T) {
 	}
 	for _, test := range tests {
 		if test.dlm.String() != test.str {
-			t.Errorf("expecting %v to print as %v", test.dlm, test.str)
+			t.Errorf("expecting %+v to print as %+v", test.dlm, test.str)
 		}
 	}
 }
@@ -139,7 +139,7 @@ func TestWrappingUncompressedData(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(raw, newData) {
-		t.Fatalf("expected %v, got %v", raw, newData)
+		t.Fatalf("expected %+v, got %+v", raw, newData)
 	}
 }
 
@@ -164,6 +164,6 @@ func TestWrappingGzippedData(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(raw, newData) {
-		t.Fatalf("expected %v, got %v", raw, newData)
+		t.Fatalf("expected %+v, got %+v", raw, newData)
 	}
 }

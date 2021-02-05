@@ -49,11 +49,11 @@ func TestStatusHandling(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Fatalf("unexpected status: %v", resp.Status)
+		t.Fatalf("unexpected status: %+v", resp.Status)
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct != "application/json" {
-		t.Errorf("unexpected content type: %v", ct)
+		t.Errorf("unexpected content type: %+v", ct)
 	}
 	defer resp.Body.Close()
 
@@ -66,7 +66,7 @@ func TestStatusHandling(t *testing.T) {
 		t.Fatal("body cannot contain multiple JSON objects")
 	}
 	if !(len(body) == 1 && body["status"] == "ok") {
-		t.Fatalf("unexpected payload: %v", body)
+		t.Fatalf("unexpected payload: %+v", body)
 	}
 }
 
@@ -89,11 +89,11 @@ func TestRootHandling(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Fatalf("unexpected status: %v", resp.Status)
+		t.Fatalf("unexpected status: %+v", resp.Status)
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct != "text/html; charset=utf-8" {
-		t.Errorf("unexpected content type: %v", ct)
+		t.Errorf("unexpected content type: %+v", ct)
 	}
 	defer resp.Body.Close()
 	ret, err := ioutil.ReadAll(resp.Body)
@@ -126,10 +126,10 @@ func TestRootDoesNotHandle404(t *testing.T) {
 			t.Fatal(err)
 		}
 		if resp.StatusCode != 404 {
-			t.Errorf("expected path %v to result in a 404, got %v", path, resp.Status)
+			t.Errorf("expected path %+v to result in a 404, got %+v", path, resp.Status)
 		}
 		if resp.Header.Get("Content-Type") != "application/json" {
-			t.Errorf("expected a 404 to return a JSON, got: %v", resp.Header.Get("Content-Type"))
+			t.Errorf("expected a 404 to return a JSON, got: %+v", resp.Header.Get("Content-Type"))
 		}
 		var errbody map[string]string
 		dec := json.NewDecoder(resp.Body)
@@ -140,7 +140,7 @@ func TestRootDoesNotHandle404(t *testing.T) {
 			t.Fatal("body cannot contain multiple JSON objects")
 		}
 		if !(len(errbody) == 1 && errbody["error"] == "file not found") {
-			t.Errorf("unexpected error message: %v", errbody)
+			t.Errorf("unexpected error message: %+v", errbody)
 		}
 	}
 }
@@ -173,11 +173,11 @@ func TestDatasetListing(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Fatalf("unexpected status: %v", resp.Status)
+		t.Fatalf("unexpected status: %+v", resp.Status)
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct != "application/json" {
-		t.Errorf("unexpected content type: %v", ct)
+		t.Errorf("unexpected content type: %+v", ct)
 	}
 	defer resp.Body.Close()
 
@@ -199,11 +199,11 @@ func TestDatasetListing(t *testing.T) {
 	}
 	for _, ds := range body {
 		if len(ds.ID) != 18 {
-			t.Errorf("unexpected dataset ID: %v", ds.ID)
+			t.Errorf("unexpected dataset ID: %+v", ds.ID)
 		}
 		for _, col := range ds.Schema {
 			if !(col.Dtype == "int" || col.Dtype == "float" || col.Dtype == "bool" || col.Dtype == "string") {
-				t.Errorf("unexpected column type: %v", col.Dtype)
+				t.Errorf("unexpected column type: %+v", col.Dtype)
 			}
 		}
 	}
@@ -229,11 +229,11 @@ func TestDatasetListingNoDatasets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Fatalf("unexpected status: %v", resp.Status)
+		t.Fatalf("unexpected status: %+v", resp.Status)
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct != "application/json" {
-		t.Errorf("unexpected content type: %v", ct)
+		t.Errorf("unexpected content type: %+v", ct)
 	}
 	defer resp.Body.Close()
 
@@ -242,7 +242,7 @@ func TestDatasetListingNoDatasets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(bytes.TrimSpace(body), []byte("[]")) {
-		t.Errorf("expecting datasets listing to give us an empty array, got %v", string(body))
+		t.Errorf("expecting datasets listing to give us an empty array, got %+v", string(body))
 	}
 }
 
@@ -259,11 +259,11 @@ func TestErrorsAreWrittenOut(t *testing.T) {
 		responseError(rec, test.status, test.error)
 
 		if rec.Result().StatusCode != test.status {
-			t.Errorf("did not expect this status: %v", rec.Result().StatusCode)
+			t.Errorf("did not expect this status: %+v", rec.Result().StatusCode)
 		}
 
 		if rec.Header().Get("Content-Type") != "application/json" {
-			t.Errorf("unexpected content type: %v", rec.Header().Get("Content-Type"))
+			t.Errorf("unexpected content type: %+v", rec.Header().Get("Content-Type"))
 		}
 
 		var resp map[string]string
@@ -275,7 +275,7 @@ func TestErrorsAreWrittenOut(t *testing.T) {
 			t.Fatal("body cannot contain multiple JSON objects")
 		}
 		if !(len(resp) == 1 && resp["error"] == test.error) {
-			t.Errorf("did not expect this response error: %v", resp)
+			t.Errorf("did not expect this response error: %+v", resp)
 		}
 	}
 }
@@ -315,7 +315,7 @@ func TestQueryMethods(t *testing.T) {
 			t.Fatal(err)
 		}
 		if resp.StatusCode != http.StatusMethodNotAllowed {
-			t.Errorf("expected a non-supported method to yield a 405, got %v", resp.StatusCode)
+			t.Errorf("expected a non-supported method to yield a 405, got %+v", resp.StatusCode)
 		}
 	}
 }
@@ -365,11 +365,11 @@ func TestHandlingQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 		if resp.StatusCode != 200 {
-			t.Fatalf("unexpected status: %v", resp.Status)
+			t.Fatalf("unexpected status: %+v", resp.Status)
 		}
 		ct := resp.Header.Get("Content-Type")
 		if ct != "application/json" {
-			t.Errorf("unexpected content type: %v", ct)
+			t.Errorf("unexpected content type: %+v", ct)
 		}
 		defer resp.Body.Close()
 
@@ -387,10 +387,10 @@ func TestHandlingQueries(t *testing.T) {
 
 		expCol := []string{"foo", "bar"}
 		if !reflect.DeepEqual(expCol, respBody.Columns) {
-			t.Errorf("expected the columns to be %v, got %v", expCol, respBody.Columns)
+			t.Errorf("expected the columns to be %+v, got %+v", expCol, respBody.Columns)
 		}
 		if !(len(respBody.Data) == 2 && len(respBody.Data[0]) == 2) {
-			t.Errorf("unexpected payload: %v", respBody.Data)
+			t.Errorf("unexpected payload: %+v", respBody.Data)
 		}
 	}
 }
@@ -424,7 +424,7 @@ func TestInvalidQueries(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %v", resp.Status)
+		t.Fatalf("unexpected status: %+v", resp.Status)
 	}
 	var rerr map[string]string
 	dec := json.NewDecoder(resp.Body)
@@ -435,7 +435,7 @@ func TestInvalidQueries(t *testing.T) {
 		t.Fatal("body cannot contain multiple JSON objects")
 	}
 	if rerr["error"] != `did not supply correct query parameters: json: unknown field "foobar"` {
-		t.Fatalf("expected query to fail with an unexpected query parameter, but got: %v", rerr["error"])
+		t.Fatalf("expected query to fail with an unexpected query parameter, but got: %+v", rerr["error"])
 	}
 }
 
@@ -460,11 +460,11 @@ func TestBasicRawUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Fatalf("unexpected status: %v", resp.Status)
+		t.Fatalf("unexpected status: %+v", resp.Status)
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct != "application/json" {
-		t.Errorf("unexpected content type: %v", ct)
+		t.Errorf("unexpected content type: %+v", ct)
 	}
 	defer resp.Body.Close()
 	var dec database.Dataset
@@ -480,10 +480,10 @@ func TestBasicRawUpload(t *testing.T) {
 		t.Errorf("expecting an ID for a dataset")
 	}
 	if dec.Name != "test_file" {
-		t.Errorf("expected the name to be %v, got %v", "test_file", dec.Name)
+		t.Errorf("expected the name to be %+v, got %+v", "test_file", dec.Name)
 	}
 	if dec.Schema != nil {
-		t.Errorf("not expecting a schema to be present, got: %v", dec.Schema)
+		t.Errorf("not expecting a schema to be present, got: %+v", dec.Schema)
 	}
 }
 
@@ -508,11 +508,11 @@ func TestBasicAutoUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Fatalf("unexpected status: %v", resp.Status)
+		t.Fatalf("unexpected status: %+v", resp.Status)
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct != "application/json" {
-		t.Errorf("unexpected content type: %v", ct)
+		t.Errorf("unexpected content type: %+v", ct)
 	}
 	defer resp.Body.Close()
 	var dec database.Dataset
@@ -525,7 +525,7 @@ func TestBasicAutoUpload(t *testing.T) {
 		t.Fatal("body cannot contain multiple JSON objects")
 	}
 	if dec.Name != "auto_file" {
-		t.Errorf("expected the name to be %v, got %v", "auto_file", dec.Name)
+		t.Errorf("expected the name to be %+v, got %+v", "auto_file", dec.Name)
 	}
 	if dec.ID.Otype != database.OtypeDataset {
 		t.Errorf("expecting an ID for a dataset")
@@ -535,7 +535,7 @@ func TestBasicAutoUpload(t *testing.T) {
 	}
 	es := database.TableSchema{{Name: "foo", Dtype: column.DtypeInt, Nullable: false}, {Name: "bar", Dtype: column.DtypeInt, Nullable: true}, {Name: "baz", Dtype: column.DtypeBool, Nullable: false}}
 	if !reflect.DeepEqual(dec.Schema, es) {
-		t.Errorf("expecting the schema to be inferred as %v, got %v", es, dec.Schema)
+		t.Errorf("expecting the schema to be inferred as %+v, got %+v", es, dec.Schema)
 	}
 
 }

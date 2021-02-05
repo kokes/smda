@@ -80,7 +80,7 @@ func TestBasicQueries(t *testing.T) {
 	firstCol.AddValue("1")
 	firstCol.AddValue("4")
 	if !reflect.DeepEqual(qr.Data[0], firstCol) {
-		t.Errorf("first column does not match what's expected: %v vs. %v", qr.Data[0], firstCol)
+		t.Errorf("first column does not match what's expected: %+v vs. %+v", qr.Data[0], firstCol)
 	}
 }
 
@@ -120,7 +120,7 @@ func TestLimitsInQueries(t *testing.T) {
 		q.Limit = &limit
 		_, err := Run(db, q)
 		if !errors.Is(err, errInvalidLimitValue) {
-			t.Errorf("expected error for negative values to be %v, got %v instead", errInvalidLimitValue, err)
+			t.Errorf("expected error for negative values to be %+v, got %+v instead", errInvalidLimitValue, err)
 		}
 	}
 
@@ -142,7 +142,7 @@ func TestLimitsInQueries(t *testing.T) {
 			firstCol.AddValues(firstColRaw[:limit])
 		}
 		if !reflect.DeepEqual(qr.Data[0], firstCol) {
-			t.Errorf("first column does not match what's expected: %v vs. %v", qr.Data[0], firstCol)
+			t.Errorf("first column does not match what's expected: %+v vs. %+v", qr.Data[0], firstCol)
 		}
 	}
 }
@@ -263,7 +263,7 @@ func TestBasicAggregation(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(nrc) == 0 {
-			t.Errorf("got no data from %v", test.input)
+			t.Errorf("got no data from %+v", test.input)
 			continue
 		}
 
@@ -278,7 +278,7 @@ func TestBasicAggregation(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !column.ChunksEqual(col, expcol) {
-				t.Errorf("[%d] failed to aggregate %v", testNo, test.input)
+				t.Errorf("[%d] failed to aggregate %+v", testNo, test.input)
 			}
 		}
 	}
@@ -324,7 +324,7 @@ func TestAggregationProjectionErrors(t *testing.T) {
 		}
 		_, err = aggregate(db, ds, aggexpr, projexpr)
 		if !errors.Is(err, errInvalidProjectionInAggregation) {
-			t.Errorf("expecting projection %v and aggregation %v to result in errInvalidProjectionInAggregation, got %v instead", test.projs, test.aggexpr, err)
+			t.Errorf("expecting projection %+v and aggregation %+v to result in errInvalidProjectionInAggregation, got %+v instead", test.projs, test.aggexpr, err)
 		}
 	}
 }
@@ -395,7 +395,7 @@ func TestBasicFiltering(t *testing.T) {
 		}
 
 		if !reflect.DeepEqual(filtered.Data, expectedCols) {
-			t.Errorf("expecting filter %v to result in %v, not %v", test.filterExpression, expectedCols, filtered.Data)
+			t.Errorf("expecting filter %+v to result in %+v, not %+v", test.filterExpression, expectedCols, filtered.Data)
 		}
 
 	}

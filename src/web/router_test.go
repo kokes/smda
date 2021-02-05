@@ -59,7 +59,7 @@ func TestServerClosing(t *testing.T) {
 	}()
 	port := 1234
 	if err := RunWebserver(db, port, true, false); err != http.ErrServerClosed {
-		t.Fatalf("expecting a server to be stopped with a ErrServerClosed, got %v", err)
+		t.Fatalf("expecting a server to be stopped with a ErrServerClosed, got %+v", err)
 	}
 }
 
@@ -86,7 +86,7 @@ func TestBusyPort(t *testing.T) {
 		}
 	}()
 	if err := RunWebserver(db, port, true, false); err != errRequestedPortBusy {
-		t.Errorf("server started on a busy port with port ensuring should err with errRequestPortBusy, got %v", err)
+		t.Errorf("server started on a busy port with port ensuring should err with errRequestPortBusy, got %+v", err)
 	}
 
 	// now we're not ensuring ports
@@ -141,7 +141,7 @@ func TestNoAvailablePorts(t *testing.T) {
 		}(listener)
 	}
 	if err := RunWebserver(db, basePort, false, false); err != errNoAvailablePorts {
-		t.Errorf("server started on a busy port with port ensuring should err with errNoAvailablePorts, got %v", err)
+		t.Errorf("server started on a busy port with port ensuring should err with errNoAvailablePorts, got %+v", err)
 	}
 }
 

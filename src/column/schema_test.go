@@ -26,7 +26,7 @@ func TestDtypeStringer(t *testing.T) {
 
 	for _, testCase := range tests {
 		if testCase.Dtype.String() != testCase.str {
-			t.Errorf("expected %v to stringify to %v", testCase.Dtype, testCase.str)
+			t.Errorf("expected %+v to stringify to %+v", testCase.Dtype, testCase.str)
 		}
 		expectedJSON := fmt.Sprintf("\"%v\"", testCase.str)
 		marshaled, err := json.Marshal(testCase.Dtype)
@@ -34,7 +34,7 @@ func TestDtypeStringer(t *testing.T) {
 			t.Fatal(err)
 		}
 		if expectedJSON != string(marshaled) {
-			t.Errorf("expected %v to JSON marshal into %v", string(marshaled), expectedJSON)
+			t.Errorf("expected %+v to JSON marshal into %+v", string(marshaled), expectedJSON)
 		}
 	}
 }
@@ -51,7 +51,7 @@ func TestDtypeJSONRoundtrip(t *testing.T) {
 			t.Error(err)
 		}
 		if dt != dt2 {
-			t.Errorf("Dtype roundtrip failed, expected %v, got %v", dt, dt2)
+			t.Errorf("Dtype roundtrip failed, expected %+v, got %+v", dt, dt2)
 		}
 	}
 }
@@ -199,7 +199,7 @@ func TestNullability(t *testing.T) {
 	// at some point we'll have custom null values, but for now it's just empty strings
 	for _, val := range []string{"foo", "bar", " ", "\t", "\n", "-", "NA", "N/A"} {
 		if isNull(val) {
-			t.Errorf("only empty strings should be considered null, got \"%v\"", val)
+			t.Errorf("only empty strings should be considered null, got \"%+v\"", val)
 		}
 	}
 }
@@ -221,7 +221,7 @@ func TestIntCoercion(t *testing.T) {
 			t.Error(err)
 		}
 		if resp != test.val {
-			t.Errorf("expected %v to parse as an int into %v, got %v", test.input, test.val, resp)
+			t.Errorf("expected %+v to parse as an int into %+v, got %+v", test.input, test.val, resp)
 		}
 	}
 }
@@ -232,7 +232,7 @@ func TestIntCoercionErrs(t *testing.T) {
 	for _, test := range tests {
 		_, err := parseInt(test)
 		if err == nil {
-			t.Errorf("expected %v to err, but it did not", test)
+			t.Errorf("expected %+v to err, but it did not", test)
 		}
 	}
 }
@@ -261,7 +261,7 @@ func TestFloatCoercion(t *testing.T) {
 			t.Error(err)
 		}
 		if resp != test.val {
-			t.Errorf("expected %v to parse as a float into %v, got %v", test.input, test.val, resp)
+			t.Errorf("expected %+v to parse as a float into %+v, got %+v", test.input, test.val, resp)
 		}
 	}
 }
@@ -272,7 +272,7 @@ func TestFloatCoercionErrs(t *testing.T) {
 	for _, test := range tests {
 		_, err := parseFloat(test)
 		if err == nil {
-			t.Errorf("expected %v to err, but it did not", test)
+			t.Errorf("expected %+v to err, but it did not", test)
 		}
 	}
 }
@@ -296,7 +296,7 @@ func TestBoolCoercion(t *testing.T) {
 			t.Error(err)
 		}
 		if resp != test.val {
-			t.Errorf("expected %v to parse as a bool into %v, got %v", test.input, test.val, resp)
+			t.Errorf("expected %+v to parse as a bool into %+v, got %+v", test.input, test.val, resp)
 		}
 	}
 }
@@ -307,7 +307,7 @@ func TestBoolCoercionErrs(t *testing.T) {
 	for _, test := range tests {
 		_, err := parseBool(test)
 		if err == nil {
-			t.Errorf("expected %v to err, but it did not", test)
+			t.Errorf("expected %+v to err, but it did not", test)
 		}
 	}
 }
@@ -331,7 +331,7 @@ func TestBasicTypeGuessing(t *testing.T) {
 	}
 	for _, test := range tests {
 		if guessType(test.str) != test.Dtype {
-			t.Errorf("expected %v to be guessed as a %v, but got %v", test.str, test.Dtype, guessType(test.str))
+			t.Errorf("expected %+v to be guessed as a %+v, but got %+v", test.str, test.Dtype, guessType(test.str))
 		}
 	}
 }

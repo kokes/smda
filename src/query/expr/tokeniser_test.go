@@ -35,15 +35,15 @@ func TestBasicTokenisation(t *testing.T) {
 			continue
 		}
 		if len(tokens) != len(test.expected) {
-			t.Errorf("expected %v tokens, got %v", len(test.expected), len(tokens))
+			t.Errorf("expected %+v tokens, got %+v", len(test.expected), len(tokens))
 			continue
 		}
 		for j, token := range tokens {
 			if token.value != nil {
-				t.Errorf("token %v in %v should not have a value, got %v", token.ttype, test.source, token.value)
+				t.Errorf("token %+v in %+v should not have a value, got %+v", token.ttype, test.source, token.value)
 			}
 			if token.ttype != test.expected[j] {
-				t.Errorf("expecting %v. token to be of type %v, got %v instead", j+1, test.expected[j], token.ttype)
+				t.Errorf("expecting %+v. token to be of type %+v, got %+v instead", j+1, test.expected[j], token.ttype)
 			}
 		}
 	}
@@ -64,7 +64,7 @@ func TestSlicingUntil(t *testing.T) {
 	for _, test := range tt {
 		output := sliceUntil([]byte(test.input), []byte(test.chars))
 		if !bytes.Equal(output, []byte(test.output)) {
-			t.Errorf("expecting to slice %v into %v using %v, but got %v", test.input, test.output, test.chars, string(output))
+			t.Errorf("expecting to slice %+v into %+v using %+v, but got %+v", test.input, test.output, test.chars, string(output))
 		}
 	}
 }
@@ -111,11 +111,11 @@ func TestTokenisationWithValues(t *testing.T) {
 	for _, test := range tt {
 		tokens, err := TokeniseString(test.source)
 		if err != nil {
-			t.Errorf("failed to tokenise %v, got %v", test.source, err)
+			t.Errorf("failed to tokenise %+v, got %+v", test.source, err)
 			continue
 		}
 		if !reflect.DeepEqual(tokens, test.expected) {
-			t.Errorf("expected %v to tokenise as %v, got %v", test.source, test.expected, tokens)
+			t.Errorf("expected %+v to tokenise as %+v, got %+v", test.source, test.expected, tokens)
 		}
 	}
 }
@@ -175,7 +175,7 @@ func TestTokenisationErrors(t *testing.T) {
 		if !errors.Is(err, test.firstErr) {
 			fmt.Println("GOT")
 			fmt.Println(TokeniseString(test.source))
-			t.Errorf("expecting %v when parsing %v, got %v instead", test.firstErr, test.source, err)
+			t.Errorf("expecting %+v when parsing %+v, got %+v instead", test.firstErr, test.source, err)
 		}
 	}
 }

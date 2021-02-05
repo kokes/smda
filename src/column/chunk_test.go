@@ -30,7 +30,7 @@ func TestInvalidColumnInitialisation(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
 			if err != "unknown schema type: invalid" {
-				t.Fatalf("expecting an invalid column not to be initialised with an unknown schema error, got %v", err)
+				t.Fatalf("expecting an invalid column not to be initialised with an unknown schema error, got %+v", err)
 			}
 		}
 	}()
@@ -53,7 +53,7 @@ func TestBasicStringColumn(t *testing.T) {
 		for j, val := range vals {
 			got := nc.nthValue(j)
 			if got != val {
-				t.Errorf("expecting %v, got %v", val, got)
+				t.Errorf("expecting %+v, got %+v", val, got)
 				return
 			}
 		}
@@ -168,7 +168,7 @@ func TestInvalidInts(t *testing.T) {
 	for _, testCase := range tt {
 		nc := newChunkInts()
 		if err := nc.AddValue(testCase); err == nil {
-			t.Errorf("did not expect \"%v\" to not be a valid int", testCase)
+			t.Errorf("did not expect \"%+v\" to not be a valid int", testCase)
 		}
 	}
 }
@@ -179,7 +179,7 @@ func TestInvalidFloats(t *testing.T) {
 	for _, testCase := range tt {
 		nc := newChunkFloats()
 		if err := nc.AddValue(testCase); err == nil {
-			t.Errorf("did not expect \"%v\" to not be a valid float", testCase)
+			t.Errorf("did not expect \"%+v\" to not be a valid float", testCase)
 		}
 	}
 }
@@ -190,7 +190,7 @@ func TestInvalidBools(t *testing.T) {
 	for _, testCase := range tt {
 		nc := newChunkBools()
 		if err := nc.AddValue(testCase); err == nil {
-			t.Errorf("did not expect \"%v\" to not be a valid bool", testCase)
+			t.Errorf("did not expect \"%+v\" to not be a valid bool", testCase)
 		}
 	}
 }
@@ -201,7 +201,7 @@ func TestInvalidNulls(t *testing.T) {
 	for _, testCase := range tt {
 		nc := newChunkNulls()
 		if err := nc.AddValue(testCase); err == nil {
-			t.Errorf("did not expect \"%v\" to not be a valid null", testCase)
+			t.Errorf("did not expect \"%+v\" to not be a valid null", testCase)
 		}
 	}
 }
@@ -234,7 +234,7 @@ func TestColumnLength(t *testing.T) {
 		col := NewChunkFromSchema(schema)
 		col.AddValues(test.vals)
 		if col.Len() != test.length {
-			t.Errorf("expecting %v to have length of %v, got %v", test.vals, test.length, col.Len())
+			t.Errorf("expecting %+v to have length of %+v, got %+v", test.vals, test.length, col.Len())
 		}
 	}
 }
@@ -279,8 +279,7 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		}
 
 		if !ChunksEqual(col, col2) {
-			// TODO(next): all error calls in _test.go should be %+v (perhaps even aligned - \n\t)
-			t.Errorf("%v: expecting %+v, got %+v", j+1, col, col2)
+			t.Errorf("%+v: expecting %+v, got %+v", j+1, col, col2)
 		}
 	}
 }
@@ -339,7 +338,7 @@ func TestJSONMarshaling(t *testing.T) {
 		}
 		got := bytes.TrimSpace(w.Bytes())
 		if !bytes.Equal([]byte(test.expected), got) {
-			t.Errorf("expecting %v, got %v", test.expected, string(got))
+			t.Errorf("expecting %+v, got %+v", test.expected, string(got))
 		}
 	}
 }
@@ -401,7 +400,7 @@ func TestBasicPruning(t *testing.T) {
 			continue
 		}
 		if !ChunksEqual(pruned, expected) {
-			t.Errorf("expected that pruning %v using %v would result in %v", test.values, test.bools, test.expected)
+			t.Errorf("expected that pruning %+v using %+v would result in %+v", test.values, test.bools, test.expected)
 		}
 	}
 }
@@ -505,7 +504,7 @@ func TestAppending(t *testing.T) {
 			// fmt.Println(rrc.(*ChunkFloats).nullability)
 			fmt.Println(rc, rrc)
 
-			t.Errorf("expected that %v plus %v results in %v", test.a, test.b, test.res)
+			t.Errorf("expected that %+v plus %+v results in %+v", test.a, test.b, test.res)
 		}
 
 	}
@@ -523,7 +522,7 @@ func TestAppendTypeMismatch(t *testing.T) {
 			col2 := NewChunkFromSchema(Schema{"", dt2, true})
 
 			if err := col1.Append(col2); err != errAppendTypeMismatch {
-				t.Errorf("expecting a type mismatch in Append to result in errTypeMismatchAppend, got: %v", err)
+				t.Errorf("expecting a type mismatch in Append to result in errTypeMismatchAppend, got: %+v", err)
 			}
 		}
 	}
@@ -561,7 +560,7 @@ func TestHashing(t *testing.T) {
 		rc.Hash(0, hashes2)
 
 		if !reflect.DeepEqual(hashes1, hashes2) {
-			t.Errorf("hashing twice did not result in the same slice: %v vs. %v", hashes1, hashes2)
+			t.Errorf("hashing twice did not result in the same slice: %+v vs. %+v", hashes1, hashes2)
 		}
 	}
 }
@@ -600,34 +599,34 @@ func TestNewLiterals(t *testing.T) {
 				t.Errorf("expecting literal '%s' to have dtype of %s, got %s instead", test.val, test.dtype, chunk.Dtype())
 			}
 			if chunk.Len() != test.length {
-				t.Errorf("expecting literal '%s' to have length of %v, got %v instead", test.val, test.length, chunk.Len())
+				t.Errorf("expecting literal '%s' to have length of %+v, got %+v instead", test.val, test.length, chunk.Len())
 			}
 
 			if err := chunk.AddValue(test.val); !errors.Is(err, errNoAddToLiterals) {
-				t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
+				t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %+v instead", err)
 			}
 			if err := chunk.AddValues([]string{test.val}); !errors.Is(err, errNoAddToLiterals) {
-				t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
+				t.Errorf("should not be able to add values to literal chunks, expecting errNoAddToLiterals, got %+v instead", err)
 			}
 			// if err := chunk.Prune(new(bitmap.Bitmap)); !errors.Is(err, ...) // currently panics (TODO)
 			// if err := chunk.MarshalBinary(); !errors.Is(err, ...) // not implemented yet (TODO)
 			if err := chunk.Append(chunk); !errors.Is(err, errNoAddToLiterals) {
-				t.Errorf("should not be able to append values to literal chunks, expecting errNoAddToLiterals, got %v instead", err)
+				t.Errorf("should not be able to append values to literal chunks, expecting errNoAddToLiterals, got %+v instead", err)
 			}
 			h1 := make([]uint64, test.length)
 			h2 := make([]uint64, test.length)
 			chunk.Hash(0, h1)
 			chunk.Hash(0, h2)
 			if !reflect.DeepEqual(h1, h2) {
-				t.Errorf("hashing %v twice should result in the same slice, got %v and %v instead", test.val, h1, h2)
+				t.Errorf("hashing %+v twice should result in the same slice, got %+v and %+v instead", test.val, h1, h2)
 			}
 
 			blob, err := chunk.MarshalJSON()
 			if err != nil {
-				t.Errorf("could not marshal %v into JSON", test.val)
+				t.Errorf("could not marshal %+v into JSON", test.val)
 			}
 			if !bytes.Equal(blob, []byte(test.jsondata)) {
-				t.Errorf("expecting %v to json serialise as %s, got %s instead", test.val, test.jsondata, blob)
+				t.Errorf("expecting %+v to json serialise as %s, got %s instead", test.val, test.jsondata, blob)
 			}
 		}
 	}
@@ -688,7 +687,7 @@ func TestTruths(t *testing.T) {
 		expected := bitmap.NewBitmapFromBools(test.result)
 
 		if !reflect.DeepEqual(truths, expected) {
-			t.Errorf("expected Truths(%s) to result in %v, got %b instead", test.values, test.result, truths.Data())
+			t.Errorf("expected Truths(%s) to result in %+v, got %b instead", test.values, test.result, truths.Data())
 		}
 
 	}

@@ -85,7 +85,7 @@ func TestAndOr(t *testing.T) {
 			continue
 		}
 		if !ChunksEqual(res, expected) {
-			t.Errorf("expected AND of %v and %v to result in %v, got %v instead", test.c1, test.c2, test.expected, res)
+			t.Errorf("expected AND of %+v and %+v to result in %+v, got %+v instead", test.c1, test.c2, test.expected, res)
 		}
 	}
 }
@@ -150,7 +150,7 @@ func TestComparisons(t *testing.T) {
 			continue
 		}
 		if !ChunksEqual(res, expected) {
-			t.Errorf("expected %v and %v to result in %v, got %v instead", test.c1, test.c2, test.expected, res)
+			t.Errorf("expected %+v and %+v to result in %+v, got %+v instead", test.c1, test.c2, test.expected, res)
 		}
 	}
 }
@@ -222,7 +222,7 @@ func TestAlgebraicExpressions(t *testing.T) {
 			continue
 		}
 		if !ChunksEqual(res, expected) {
-			t.Errorf("expected %v and %v to result in %v, got %v instead", test.c1, test.c2, test.expected, res)
+			t.Errorf("expected %+v and %+v to result in %+v, got %+v instead", test.c1, test.c2, test.expected, res)
 		}
 	}
 }
