@@ -39,7 +39,6 @@ const (
 	exprFunCall
 )
 
-// TODO: test all these Is...
 func (expr *Expression) IsIdentifier() bool {
 	return expr.etype == exprIdentifier || expr.etype == exprIdentifierQuoted
 }

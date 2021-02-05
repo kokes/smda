@@ -11,6 +11,7 @@ import (
 
 var errTypeMismatch = errors.New("expecting compatible types")
 var errNoTypes = errors.New("expecting at least one column")
+var errWrongNumberofArguments = errors.New("wrong number arguments passed to a function")
 
 // should this be in the database package?
 func comparableTypes(t1, t2 column.Dtype) bool {
@@ -195,16 +196,26 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 // also, should we make multiplication, inequality etc. just functions like nullif or coalesce? That would allow us
 // to fold all the functionality of eval() into a (recursive) function call
 // TODO: make sure that these return types are honoured in aggregators' resolvers
+// TODO: check input types (how will that square off with implementations?)
 func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema, error) {
 	schema := column.Schema{}
 	switch funName {
 	case "count":
+		if len(argTypes) > 1 {
+			return schema, errWrongNumberofArguments
+		}
 		schema.Dtype = column.DtypeInt
 		schema.Nullable = false
 	case "min", "max":
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
 		schema.Dtype = argTypes[0].Dtype
 		schema.Nullable = argTypes[0].Nullable
 	case "sum":
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
 		schema.Dtype = argTypes[0].Dtype
 		// ARCH: we can't do sum(bool), because a boolean aggregator can't have internal state in ints yet
 		// if argTypes[0].Dtype == column.DtypeBool {
@@ -212,20 +223,34 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 		// }
 		schema.Nullable = argTypes[0].Nullable
 	case "avg":
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
 		schema.Dtype = column.DtypeFloat // average of integers will be a float
 		schema.Nullable = argTypes[0].Nullable
 	case "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "sqrt", "exp", "exp2", "log", "log2", "log10":
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
 		schema.Dtype = column.DtypeFloat
 		schema.Nullable = true
 	case "round":
-		// TODO: check the number of params
-		// disallow anything but literals in the second argument - though that's really for the parser to handle
+		if len(argTypes) == 0 || len(argTypes) > 2 {
+			return schema, errWrongNumberofArguments
+		}
+		// OPTIM: in case len(argTypes) == 1 && DtypeInt, we could make this a noop
 		schema.Dtype = column.DtypeFloat
 		schema.Nullable = argTypes[0].Nullable
 	case "nullif":
-		schema.Dtype = argTypes[0].Dtype // TODO: add nullif() to tests to ensure that we catch it before this and don't panic
-		schema.Nullable = true           // even if the nullif condition is never met, I think it's fair to set it as nullable
+		if len(argTypes) != 2 {
+			return schema, errWrongNumberofArguments
+		}
+		schema.Dtype = argTypes[0].Dtype
+		schema.Nullable = true // even if the nullif condition is never met, I think it's fair to set it as nullable
 	case "coalesce":
+		if len(argTypes) == 0 {
+			return schema, errWrongNumberofArguments
+		}
 		// OPTIM: we can optimise this away if len(argTypes) == 1
 		types := make([]column.Dtype, 0, len(argTypes))
 		nullable := true
