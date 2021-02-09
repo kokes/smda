@@ -29,7 +29,7 @@ func TestBasicTokenisation(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		tokens, err := TokeniseString(test.source)
+		tokens, err := tokeniseString(test.source)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -109,7 +109,7 @@ func TestTokenisationWithValues(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		tokens, err := TokeniseString(test.source)
+		tokens, err := tokeniseString(test.source)
 		if err != nil {
 			t.Errorf("failed to tokenise %+v, got %+v", test.source, err)
 			continue
@@ -131,7 +131,7 @@ func TestTokenisationInvariants(t *testing.T) {
 	for _, test := range tt {
 		var first tokList
 		for j, source := range test {
-			tokens, err := TokeniseString(source)
+			tokens, err := tokeniseString(source)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -171,10 +171,10 @@ func TestTokenisationErrors(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		_, err := TokeniseString(test.source)
+		_, err := tokeniseString(test.source)
 		if !errors.Is(err, test.firstErr) {
 			fmt.Println("GOT")
-			fmt.Println(TokeniseString(test.source))
+			fmt.Println(tokeniseString(test.source))
 			t.Errorf("expecting %+v when parsing %+v, got %+v instead", test.firstErr, test.source, err)
 		}
 	}
@@ -195,7 +195,7 @@ func TestTokenisationStringer(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		parsed, err := TokeniseString(test.source)
+		parsed, err := tokeniseString(test.source)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -205,5 +205,3 @@ func TestTokenisationStringer(t *testing.T) {
 		}
 	}
 }
-
-// TODO(next): NewTokenScannerFromString and TokeniseString

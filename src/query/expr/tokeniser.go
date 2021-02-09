@@ -120,14 +120,14 @@ func NewTokenScanner(s []byte) *tokenScanner {
 	}
 }
 
-func NewTokenScannerFromString(s string) *tokenScanner {
+func newTokenScannerFromString(s string) *tokenScanner {
 	return &tokenScanner{
 		code: []byte(s),
 	}
 }
 
-func TokeniseString(s string) (tokList, error) {
-	scanner := NewTokenScannerFromString(s)
+func tokeniseString(s string) (tokList, error) {
+	scanner := newTokenScannerFromString(s)
 	var tokens []tok
 	for {
 		tok, err := scanner.Scan()

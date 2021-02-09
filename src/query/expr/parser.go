@@ -219,7 +219,7 @@ func (expr *Expression) MarshalJSON() ([]byte, error) {
 // isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
 //  - then build an expression parser with precedence built in
 func ParseStringExpr(s string) (*Expression, error) {
-	tokens, err := TokeniseString(s)
+	tokens, err := tokeniseString(s)
 	if err != nil {
 		return nil, err
 	}
