@@ -180,4 +180,30 @@ func TestTokenisationErrors(t *testing.T) {
 	}
 }
 
-// TODO: test both Stringers, NewTokenScannerFromString and TokeniseString
+func TestTokenisationStringer(t *testing.T) {
+	tests := []struct {
+		source      string
+		stringified string
+	}{
+		{"1 + 3/2", "1 + 3 / 2"},
+		// ARCH: maybe consider not printing whitespace after `(`` and before `)` (also see the coalesce test)
+		{" ( a+b) ", "( a + b )"},
+		{"foo", "foo"},
+		{"foo-bar*2", "foo - bar * 2"},
+		{"Foo+Bar", "Foo + Bar"},
+		{"coalesce(1,2,3)", "coalesce ( 1 , 2 , 3 )"},
+	}
+
+	for _, test := range tests {
+		parsed, err := TokeniseString(test.source)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		if parsed.String() != test.stringified {
+			t.Errorf("expecting expression %v to be parsed and then stringified into %v, got %v instead", test.source, test.stringified, parsed.String())
+		}
+	}
+}
+
+// TODO(next): NewTokenScannerFromString and TokeniseString

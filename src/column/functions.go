@@ -41,7 +41,7 @@ var FuncProj = map[string]func(...Chunk) (Chunk, error){
 
 func EvalCoalesce(cs ...Chunk) (Chunk, error) {
 	if len(cs) == 0 {
-		// ARCH: this should have been taken care of in return_types
+		// ARCH: this is taken care of in return_types, delete? panic?
 		return nil, errors.New("coalesce needs at least one argument")
 	}
 	if len(cs) == 1 {
@@ -50,7 +50,11 @@ func EvalCoalesce(cs ...Chunk) (Chunk, error) {
 	// OPTIM: if cs[0].IsNullable == false, exit with it (we don't have that method though)
 	panic("TODO: not implemented yet")
 	// how will we know the schema of this result? should we incorporate the return_type flow here?
-	// I guess we can't do that since that would introduce a circular dependency
+	// I guess we can't do that since that would introduce a circular dependency - but we could move
+	// coalesceType from `return_types` to `column`, so that we'd just use it here and import it in
+	// `return_types`
+	// we could, however, make this into a closure, because we don't want to keep determining the
+	// output type upon each call... though it will be expensive anyway...?
 }
 
 // var EvalAbs = numFunc(math.Abs) // this should probably behave differently for ints

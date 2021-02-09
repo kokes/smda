@@ -37,6 +37,7 @@ type baseChunker interface {
 	baseEqual(baseChunker) bool
 	Len() int
 	Nullify(*bitmap.Bitmap)
+	// IsNullable() bool
 }
 
 type baseChunk struct {
@@ -54,6 +55,11 @@ func (bc *baseChunk) Nullify(bm *bitmap.Bitmap) {
 	// OPTIM: this copies, but it covers all the cases
 	bc.nullability = bitmap.Or(bc.nullability, bm)
 }
+
+// this might be useful for COALESCE, among other things
+// func (bc *baseChunk) IsNullable() bool {
+// 	return bc.nullability != nil
+// }
 
 func (bc *baseChunk) base() *baseChunk {
 	return bc
