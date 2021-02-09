@@ -3,7 +3,6 @@ package column
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"strconv"
@@ -159,12 +158,11 @@ func TestBasicTypeInference(t *testing.T) {
 			DtypeDatetime,
 			false,
 		},
-		// TODO: once we validate values within dates, add something like this
-		// {
-		// 	[]string{"2020-13-22", "2000-99-99", "2000-01-64"},
-		// 	DtypeDate,
-		// 	false,
-		// },
+		{
+			[]string{"2020-13-22", "2000-99-99", "2000-01-64"},
+			DtypeString,
+			false,
+		},
 		{
 			[]string{},
 			DtypeInvalid,
@@ -183,10 +181,10 @@ func TestBasicTypeInference(t *testing.T) {
 		}
 		schema := guesser.InferredType()
 		if schema.Dtype != test.Dtype {
-			log.Fatalf("unexpected type: %v, expecting: %v (data: %v)", schema.Dtype, test.Dtype, test.input)
+			t.Fatalf("unexpected type: %v, expecting: %v (data: %v) %+v", schema.Dtype, test.Dtype, test.input, guesser)
 		}
 		if schema.Nullable != test.nullable {
-			log.Fatalf("unexpected nullability: %v, expecting: %v (data: %v)", schema.Nullable, test.nullable, test.input)
+			t.Fatalf("unexpected nullability: %v, expecting: %v (data: %v)", schema.Nullable, test.nullable, test.input)
 		}
 	}
 }

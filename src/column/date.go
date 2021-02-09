@@ -1,9 +1,13 @@
 package column
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 )
+
+var errInvalidDate = errors.New("date is not valid")
+var dayLimit [12]int = [12]int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
 
 const DATE_BYTE_SIZE = 4
 const DATETIME_BYTE_SIZE = 8
@@ -11,27 +15,38 @@ const DATETIME_BYTE_SIZE = 8
 type date uint32
 type datetime uint64
 
-func newDate(year, month, day, hour int) date {
-	// OPTIM: if we initialise this as an int and then shift natively
-	// and only convert upon return, will we gain anything?
-	// TODO: validation?
-	var myDate uint32
-	myDate |= uint32(year << 14)
-	myDate |= uint32(month << 10)
-	myDate |= uint32(day << 5)
-	myDate |= uint32(hour)
-	return date(myDate)
+func newDate(year, month, day, hour int) (date, error) {
+	if month < 1 || month > 12 {
+		return 0, errInvalidDate
+	}
+	maxDays := dayLimit[month-1]
+	if month == 2 && year%4 == 0 && (year%100 != 0 || year%400 == 0) {
+		maxDays = 29
+	}
+	if day < 1 || day > maxDays {
+		return 0, errInvalidDate
+	}
+
+	var myDate int
+	myDate |= year << 14
+	myDate |= month << 10
+	myDate |= day << 5
+	myDate |= hour
+	return date(myDate), nil
 }
 
-func newDatetime(year, month, day, hour, minute, second, microsecond int) datetime {
-	dateHour := newDate(year, month, day, hour)
+func newDatetime(year, month, day, hour, minute, second, microsecond int) (datetime, error) {
+	dateHour, err := newDate(year, month, day, hour)
+	if err != nil {
+		return 0, err
+	}
 	timePart := 1e6*(minute*60+second) + microsecond // microseconds in a given hour
 
-	return datetime(uint64(dateHour)<<32 + uint64(timePart))
+	return datetime(uint64(dateHour)<<32 + uint64(timePart)), nil
 }
 
 func (d date) Year() int  { return int(d >> 14) }
-func (d date) Month() int { return int(d >> 10 & (1<<5 - 1)) }
+func (d date) Month() int { return int(d >> 10 & (1<<4 - 1)) }
 func (d date) Day() int   { return int(d >> 5 & (1<<5 - 1)) }
 
 func (d date) String() string {
@@ -79,7 +94,7 @@ func parseDate(s string) (date, error) {
 		return 0, err
 	}
 
-	return newDate(int(year), int(month), int(day), 0), nil
+	return newDate(int(year), int(month), int(day), 0)
 }
 
 func parseDatetime(s string) (datetime, error) {
@@ -121,7 +136,7 @@ func parseDatetime(s string) (datetime, error) {
 			return 0, errNotaDatetime
 		}
 
-		return newDatetime(dt.Year(), dt.Month(), dt.Day(), hour, minute, second, us), nil
+		return newDatetime(dt.Year(), dt.Month(), dt.Day(), hour, minute, second, us)
 	default:
 		return 0, errNotaDatetime
 	}

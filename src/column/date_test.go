@@ -1,31 +1,61 @@
 package column
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestBasicDates(t *testing.T) {
 	tests := []struct {
-		input            string
 		year, month, day int
 		err              error
 	}{
-		{"2020-02-20", 2020, 2, 20, nil},
-		{"0000-12-31", 0, 12, 31, nil},
-		// TODO: add invalid dates, overflows etc.
+		{2020, 2, 20, nil},
+		{1987, 12, 31, nil},
+		{0, 12, 31, nil},
+		// leap years
+		{2021, 2, 29, errInvalidDate},
+		{1600, 2, 29, nil},
+		{2000, 2, 29, nil},
+		{1700, 2, 29, errInvalidDate},
+		{1800, 2, 29, errInvalidDate},
+		{1900, 2, 29, errInvalidDate},
+		// invalid dates
+		{2021, 1, 32, errInvalidDate},
+		{2021, 2, 30, errInvalidDate},
+		{2021, 3, 32, errInvalidDate},
+		{2021, 4, 31, errInvalidDate},
+		{2021, 5, 32, errInvalidDate},
+		{2021, 6, 31, errInvalidDate},
+		{2021, 7, 32, errInvalidDate},
+		{2021, 8, 32, errInvalidDate},
+		{2021, 9, 31, errInvalidDate},
+		{2021, 10, 32, errInvalidDate},
+		{2021, 11, 31, errInvalidDate},
+		{2021, 12, 32, errInvalidDate},
+		{2021, 4, 0, errInvalidDate},
+		{2021, 0, 30, errInvalidDate},
 	}
 
 	for _, test := range tests {
-		val, err := parseDate(test.input)
+		input := fmt.Sprintf("%04d-%02d-%02d", test.year, test.month, test.day)
+		val, err := parseDate(input)
 		if err != test.err {
-			t.Errorf("failed to parse %s as a date with err %+v, got %+v", test.input, test.err, err)
+			t.Errorf("failed to parse %s as a date with err %+v, got %+v", input, test.err, err)
 			continue
 		}
-		expected := newDate(test.year, test.month, test.day, 0)
-		if val != expected {
-			t.Errorf("failed to parse %s into %s, got %s instead", test.input, expected, val)
+		expected, err := newDate(test.year, test.month, test.day, 0)
+		if err != test.err {
+			t.Errorf("expected %v to return with %v, got %v instead", input, test.err, err)
+			continue
+		}
+		if test.err == nil && val != expected {
+			t.Errorf("failed to parse %s into %s, got %s instead", input, expected, val)
+			continue
 		}
 
-		if val.String() != test.input {
-			t.Errorf("failed to roundtrip %+v, got %+v instead", test.input, val.String())
+		if test.err == nil && val.String() != input {
+			t.Errorf("failed to roundtrip %+v, got %+v instead", input, val.String())
 		}
 	}
 }
@@ -45,16 +75,26 @@ func TestBasicDatetimes(t *testing.T) {
 		{"2020-12-31T12:34:56.000789", 2020, 12, 31, 12, 34, 56, 789, false, nil},
 		{"2020-12-31T12:34:56.789", 2020, 12, 31, 12, 34, 56, 789, false, nil},
 		{"2020-12-31T12:34:56", 2020, 12, 31, 12, 34, 56, 0, false, nil},
-		// TODO: add invalid datetimes, overflows etc.
+		// leap years
+		{"1600-02-29 00:01:03", 1600, 2, 29, 0, 1, 3, 0, false, nil},
+		{"2000-02-29 00:01:03", 2000, 2, 29, 0, 1, 3, 0, false, nil},
+		{"2021-02-29 00:01:03", 0, 0, 0, 0, 0, 0, 0, false, errInvalidDate},
+		{"1700-02-29 00:01:03", 0, 0, 0, 0, 0, 0, 0, false, errInvalidDate},
+		{"1800-02-29 00:01:03", 0, 0, 0, 0, 0, 0, 0, false, errInvalidDate},
+		{"1900-02-29 00:01:03", 0, 0, 0, 0, 0, 0, 0, false, errInvalidDate},
 	}
 
 	for _, test := range tests {
 		val, err := parseDatetime(test.input)
 		if err != test.err {
+			t.Errorf("failed to parse %s as a datetime with err %+v, got %+v", test.input, test.err, err)
+			continue
+		}
+		expected, err := newDatetime(test.year, test.month, test.day, test.hour, test.minute, test.second, test.microsecond)
+		if err != test.err {
 			t.Errorf("failed to parse %s as a date with err %+v, got %+v", test.input, test.err, err)
 			continue
 		}
-		expected := newDatetime(test.year, test.month, test.day, test.hour, test.minute, test.second, test.microsecond)
 		if val != expected {
 			t.Errorf("failed to parse %s into %s, got %s instead", test.input, expected, val)
 		}
@@ -125,6 +165,3 @@ func BenchmarkDatetimeParsing(b *testing.B) {
 // func DatesLessThanEqual(a, b date) bool {
 // func DatesGreaterThan(a, b date) bool {
 // func DatesGreaterThanEqual(a, b date) bool {
-
-// newDatetime
-// parseDatetime - test three and six-long microseconds
