@@ -1544,7 +1544,6 @@ func deserializeChunkBools(r io.Reader) (*ChunkBools, error) {
 	}, nil
 }
 
-// TODO: test roundtrips
 func deserializeChunkDates(r io.Reader) (*ChunkDates, error) {
 	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
@@ -1564,7 +1563,6 @@ func deserializeChunkDates(r io.Reader) (*ChunkDates, error) {
 	}, nil
 }
 
-// TODO: test roundtrips
 func deserializeChunkDatetimes(r io.Reader) (*ChunkDatetimes, error) {
 	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {

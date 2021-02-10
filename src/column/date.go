@@ -7,6 +7,8 @@ import (
 )
 
 var errInvalidDate = errors.New("date is not valid")
+var errInvalidDatetime = errors.New("datetime is not valid")
+
 var dayLimit [12]int = [12]int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
 
 const DATE_BYTE_SIZE = 4
@@ -79,7 +81,7 @@ func (dt datetime) MarshalJSON() ([]byte, error) {
 // TODO: just like with isNull, support alternative formats via loadSettings
 func parseDate(s string) (date, error) {
 	if !(len(s) == 10 && s[4] == '-' && s[7] == '-') {
-		return 0, errNotaDate
+		return 0, errInvalidDate
 	}
 	year, err := strconv.ParseInt(s[:4], 10, 64)
 	if err != nil {
@@ -105,7 +107,7 @@ func parseDatetime(s string) (datetime, error) {
 	switch len(s) {
 	case 23, 26:
 		if s[19] != '.' {
-			return 0, errNotaDatetime
+			return 0, errInvalidDatetime
 		}
 		us, err = strconv.Atoi(s[20:])
 		if err != nil {
@@ -118,27 +120,27 @@ func parseDatetime(s string) (datetime, error) {
 			return 0, err
 		}
 		if !(s[10] == ' ' || s[10] == 'T') {
-			return 0, errNotaDatetime
+			return 0, errInvalidDatetime
 		}
 		if !(s[13] == ':' && s[16] == ':') {
-			return 0, errNotaDatetime
+			return 0, errInvalidDatetime
 		}
 		hour, err := strconv.Atoi(s[11:13])
 		if err != nil {
-			return 0, errNotaDatetime
+			return 0, errInvalidDatetime
 		}
 		minute, err := strconv.Atoi(s[14:16])
 		if err != nil {
-			return 0, errNotaDatetime
+			return 0, errInvalidDatetime
 		}
 		second, err := strconv.Atoi(s[17:19])
 		if err != nil {
-			return 0, errNotaDatetime
+			return 0, errInvalidDatetime
 		}
 
 		return newDatetime(dt.Year(), dt.Month(), dt.Day(), hour, minute, second, us)
 	default:
-		return 0, errNotaDatetime
+		return 0, errInvalidDatetime
 	}
 }
 

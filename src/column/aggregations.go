@@ -1,10 +1,13 @@
 package column
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/kokes/smda/src/bitmap"
 )
+
+var errInvalidAggregation = errors.New("aggregation does not exist")
 
 type AggState struct {
 	inputType Dtype
@@ -202,8 +205,7 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 				},
 			}
 		default:
-			// TODO: custom error?
-			return nil, fmt.Errorf("aggregation not supported: %v", function)
+			return nil, fmt.Errorf("%w: %v", errInvalidAggregation, function)
 		}
 		adder, err := adderFactory(state, updaters)
 		if err != nil {

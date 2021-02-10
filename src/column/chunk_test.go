@@ -262,6 +262,8 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		{Schema{"", DtypeFloat, true}, []string{"1", "", "3"}},
 		{Schema{"", DtypeBool, false}, []string{"t", "f", "t"}},
 		{Schema{"", DtypeBool, true}, []string{"t", "", "f"}},
+		{Schema{"", DtypeDate, true}, []string{"2020-02-22", "", "2030-12-31"}},
+		{Schema{"", DtypeDatetime, true}, []string{"2020-02-22 12:34:45", "", "2030-12-31 11:12:00.012"}},
 	}
 	for j, test := range tests {
 		col := NewChunkFromSchema(test.schema)
@@ -360,6 +362,8 @@ func TestBasicPruning(t *testing.T) {
 		{DtypeInt, false, []string{"1", "2", "3"}, []bool{true, true, true}, []string{"1", "2", "3"}},
 		{DtypeFloat, false, []string{"1.23", "+0", "1e3"}, []bool{true, true, true}, []string{"1.23", "+0", "1e3"}},
 		{DtypeString, false, []string{"foo", "bar", "foo"}, []bool{false, true, false}, []string{"bar"}},
+		{DtypeDate, false, []string{"2020-02-22", "1942-04-11", "1922-12-31"}, []bool{false, true, false}, []string{"1942-04-11"}},
+		{DtypeDatetime, false, []string{"2020-02-22 12:45:55", "1942-04-11 11:00:04", "1922-12-31 04:44:12"}, []bool{false, true, false}, []string{"1942-04-11 11:00:04"}},
 
 		{DtypeNull, false, []string{"", "", ""}, []bool{false, true, false}, []string{""}},
 		{DtypeNull, false, []string{"", "", ""}, []bool{true, true, true}, []string{"", "", ""}},
@@ -372,12 +376,16 @@ func TestBasicPruning(t *testing.T) {
 		{DtypeBool, true, []string{"true", "", "true"}, []bool{true, true, false}, []string{"t", ""}},
 		{DtypeFloat, true, []string{"1.23", "+0", ""}, []bool{false, true, false}, []string{"0"}},
 		{DtypeString, true, []string{"foo", "", ""}, []bool{true, true, true}, []string{"foo", "", ""}},
+		{DtypeDate, true, []string{"2020-02-22", "", "1922-12-31"}, []bool{true, true, false}, []string{"2020-02-22", ""}},
+		{DtypeDatetime, true, []string{"2020-02-22 12:45:55", "", "1922-12-31 04:44:12"}, []bool{true, true, false}, []string{"2020-02-22 12:45:55", ""}},
 
 		// not pruning anything by leveraging nil pointers
 		{DtypeInt, true, []string{"1", "", ""}, nil, nil},
 		{DtypeBool, true, []string{"true", "", "true"}, nil, nil},
 		{DtypeFloat, true, []string{"1.23", "+0", ""}, nil, nil},
 		{DtypeString, true, []string{"foo", "", ""}, nil, nil},
+		{DtypeDate, true, []string{"2020-02-22", "", ""}, nil, nil},
+		{DtypeDatetime, true, []string{"2020-02-22 12:45:44", "", ""}, nil, nil},
 
 		{DtypeNull, true, []string{"", "", ""}, nil, nil},
 	}
