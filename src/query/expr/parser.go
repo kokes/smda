@@ -260,7 +260,7 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 
 		return &Expression{
 			etype: exprIdentifier,
-			value: value,
+			value: strings.ToLower(value), // unquoted identifiers are case insensitive, so we'll lowercase them
 		}, nil
 	case *ast.BasicLit:
 		// TODO: do we need to recheck this with our own type parsers?

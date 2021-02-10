@@ -191,6 +191,7 @@ func (schema *TableSchema) LocateColumnCaseInsensitive(s string) (int, column.Sc
 	s = strings.ToLower(s)
 	if schema != nil {
 		for j, col := range []column.Schema(*schema) {
+			// ARCH: this might be wrong - if we have a column "SomeColumn", we don't want "somecolumn" to match it, do we?
 			if strings.ToLower(col.Name) == s {
 				return j, col, nil
 			}

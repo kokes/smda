@@ -3,6 +3,7 @@ package expr
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/kokes/smda/src/column"
 )
@@ -19,9 +20,13 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		return expr.aggregator.Resolve()
 	}
 	switch expr.etype {
-	// TODO: we don't care about case sensitivity at this point
+	// ARCH: perhaps use expr.IsIdentifier?
 	case exprIdentifier, exprIdentifierQuoted:
-		col, ok := columnData[expr.value]
+		lookupValue := expr.value
+		if expr.etype == exprIdentifier {
+			lookupValue = strings.ToLower(lookupValue)
+		}
+		col, ok := columnData[lookupValue]
 		if !ok {
 			// we validated the expression, so this should not happen?
 			// perhaps to catch bugs in case folding?
@@ -41,7 +46,7 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 	// null is not a literal type yet
 	// case exprLiteralNull:
 	// 	return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0)
-	// OPTIM/TODO: we could optimise shallow function calls - e.g. `log(foo) > 1` doesn't need
+	// OPTIM: we could optimise shallow function calls - e.g. `log(foo) > 1` doesn't need
 	// `log(foo)` as a newly allocated chunk, we can compute that on the fly
 	case exprFunCall:
 		if expr.evaler == nil {
