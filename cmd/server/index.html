@@ -5,30 +5,46 @@
     <title>smda</title>
     </head>
     <style type='text/css'>
+        body {
+            margin: 0; padding: 0;
+        }
         body, table {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: .9em;
+            font-size: .87em;
         }
+        /* layout start */
+        div#container {
+            display: grid;
+            height: 100vh;
+            grid-template-columns: 250px auto;
+            grid-template-rows: 3em auto 3em;
+            /* this is also a feasible layout */
+            /* grid-template-areas: "header header" "panel content" "footer footer"; */
+            grid-template-areas: "panel header" "panel content" "panel footer";
+        }
+        header { grid-area: header; }
+        nav#panel { grid-area: panel; }
+        div#content { grid-area: content; }
+        footer { grid-area: footer; }
+
+        header, footer, nav#panel, div#content { padding: 1em; }
+
+        /* we could use some fun colours, check out the generator over at https://coolors.co */
         header, footer {
-            padding: 1em;
-            background: #eee;
+            background-color: #eee;
         }
         footer {
             text-align: right;
+            font-size: 90%;
         }
-        div#main {
-            display: flex;
-            min-height: calc(100% - 6.5em);
+        nav#panel {
+            background-color: #086375;
         }
-        div#main nav#panel {
-            width: 20%;
-            padding: .5em;
-            border-right: 1px dashed #eee;
+        nav#panel, nav#panel a { color: #CCDBDC; }
+        div#content {
+            background-color: white;
         }
-        div#main div#content {
-            width: 80%;
-            padding: 1em;
-        }
+        /* end layout */
         div.parsed-columns span {
             background-color: #7D7;
             border-radius: 4px;
@@ -51,13 +67,13 @@
         }
     </style>
 <body>
-    <header>
-        <span id='status'></span>
+    <div id='container'>
+        <header>
+            <span id='status'></span>
 
-        <input id='filepicker' type='file' />
-    </header>
+            <input id='filepicker' type='file' />
+        </header>
 
-    <div id='main'>
         <nav id='panel'>
             Explore:
             <div id='datasets'>
@@ -66,11 +82,12 @@
 
         <div id='content'>
         </div>
+
+        <footer>
+            <a href='https://github.com/kokes/smda'>github</a>
+        </footer>
     </div>
 
-    <footer>
-        <a href='https://github.com/kokes/smda'>github</a>
-    </footer>
 <script type='text/javascript'>
     function split_expressions(s) {
         let nested = []; // stack
