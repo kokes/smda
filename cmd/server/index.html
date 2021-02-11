@@ -45,12 +45,6 @@
             background-color: white;
         }
         /* end layout */
-        div.parsed-columns span {
-            background-color: #7D7;
-            border-radius: 4px;
-            padding: .2em .5em;
-            margin-right: .5em;
-        }
         table.data-view {
             border-spacing: 0;
             margin-top: 1em;
@@ -71,6 +65,7 @@
         <header>
             <span id='status'></span>
 
+            <!-- TODO(next): make this work -->
             <input id='filepicker' type='file' />
         </header>
 
@@ -89,99 +84,6 @@
     </div>
 
 <script type='text/javascript'>
-    function split_expressions(s) {
-        let nested = []; // stack
-        let exprs = [];
-        let current_expr = [];
-        let idx = 0;
-        while (true) {
-            if (idx >= s.length) {
-                break;
-            }
-            const char = s[idx];
-            switch (char) {
-                case ',':
-                    if (nested.length === 0) {
-                        exprs.push(current_expr.join(''));
-                        current_expr = [];
-                        idx++;
-                        continue;
-                    }
-                    break;
-                case ' ':
-                    idx++;
-                    continue;
-                case '\n':
-                    idx++;
-                    continue;
-                case '(':
-                    nested.push(char);
-                    break;
-                case ')':
-                    if (nested.pop() !== '(') {
-                        throw Error('unexpected closing bracket')
-                    }
-                    break;
-                // strings and identifiers (', ")
-                case '\'':
-                case '\"':
-                    let j = 0;
-                    nested.push(char); // this will force unclosed strings to result in remainders
-                    for (j = idx + 1; j < s.length; j++) {
-                        const ch = s[j];
-                        if (ch === '\\') {
-                            // TODO: what if this is the last char
-                            j++; // escaped char means that the following char should be skipped too
-                            continue;
-                        }
-                        if (ch === char) {
-                            nested.pop();
-                            break;
-                        }
-                    }
-                    current_expr = current_expr.concat(s.slice(idx, j+1).split(''));
-                    idx = j + 1; // include the end quote, but don't fall through to the `.push(char)` below
-                    continue;
-            }
-            current_expr.push(char);
-            idx++;
-        }
-        let remains = null;
-        if (current_expr.length > 0) {
-            // we'll have to modify this for onBlur (the last element)
-            remains = current_expr.join('');
-            // if (nested.length > 0) {
-            // } else {
-            //     exprs.push(current_expr.join(''));
-            // }
-        }
-        return {
-            expressions: exprs,
-            remainder: remains,
-            valid: nested.length === 0,
-        };
-    }
-
-    // tests for split_expressions
-    // console.log('result')
-    // const inputs = [
-    //     '',
-    //     '"',
-    //     '\'',
-    //     'foo',
-    //     'bar, baz',
-    //     'sum("hello")',
-    //     'sum("hello world")',
-    //     '"hello ',
-    //     'sum("hello, world"), nullif(baz, \'some ) string\')',
-    //     'sum("hello world"), nullif(baz, \'some\\\' string\')',
-    //     'foo, bar, baz, sum(bak),\n avg(nullif(foo, 3)), avg("BAU WAU"), sum(foo',
-    // ]
-
-    // for (let input of inputs) {
-    //     console.log(split_expressions(input));
-    // }
-
     class statusGetter {
         constructor(endpoint, target, minDuration, maxDuration) {
             this.endpoint = endpoint;
@@ -291,48 +193,7 @@
             })
             return await req.json();
         }
-
-        // TODO: this is just a rendering thing - it doesn't extract any information out ¯\_(ツ)_/¯
-        async renderTableSelection(target) {
-            const container = document.createElement('div');
-            const parsed_columns = document.createElement('div');
-            parsed_columns.className = 'parsed-columns';
-
-            container.appendChild(parsed_columns);
-
-            const inp = document.createElement('input');
-            inp.setAttribute('placeholder', 'select columns');
-            const render_expressions = function(e) {
-                if (e.target.value.trim().length === 0) {
-                    return;
-                }
-                const exprs = split_expressions(e.target.value);
-                const target = e.target.parentNode.querySelector('.parsed-columns');
-                let to_render = exprs.expressions;
-                // render remaining string when switching away or when hitting enter
-                if (exprs.valid === true && (e.type === 'blur' || e.key == 'Enter')) {
-                    to_render.push(exprs.remainder);
-                    exprs.remainder = '';
-                }
-                // save these bits of information to send it to the backend
-                for (let expr of to_render) {
-                    const spex = document.createElement('span');
-                    spex.innerText = expr;
-                    target.appendChild(spex);
-                }
-                if (exprs.expressions.length > 0) {
-                    e.target.value = exprs.remainder;
-                }
-            }
-            inp.addEventListener('keyup', render_expressions);
-            inp.addEventListener('blur', render_expressions);
-            inp.addEventListener('change', render_expressions);
-
-            container.appendChild(inp);
-            target.appendChild(container);
-        }
         async renderTable(data, target) {
-            this.renderTableSelection(target);
             const table = document.createElement('table');
             table.className = "data-view";
             const thead = document.createElement('tr');
