@@ -40,6 +40,7 @@ func TestServerHappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
 func TestServerClosing(t *testing.T) {
 	db, err := database.NewDatabase(nil)
 	if err != nil {
@@ -51,6 +52,8 @@ func TestServerClosing(t *testing.T) {
 		}
 	}()
 
+	// TODO: this is a data race - but how can we force close a server, if its launch is blocking?
+	// enable -race in our CI/Makefile once this is fixed
 	go func() {
 		time.Sleep(5 * time.Millisecond)
 		if err := db.Server.Close(); err != nil {
