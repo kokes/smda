@@ -11,21 +11,10 @@ import (
 	"github.com/kokes/smda/src/query"
 )
 
-func responseError(w http.ResponseWriter, status int, error string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	resp := make(map[string]string)
-	resp["error"] = error
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		panic(err)
-	}
-}
-
 func handleRoot(db *database.Database) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
-			responseError(w, http.StatusNotFound, "file not found")
+			http.Error(w, "file not found", http.StatusNotFound)
 			return
 		}
 
@@ -36,6 +25,7 @@ func handleRoot(db *database.Database) http.HandlerFunc {
 		// will get resolved once we have our assets in the binary
 		wd, err := os.Getwd()
 		if err != nil {
+			// ARCH: we panic here in a few places (mostly when writing stuff to `w`) - is it too late to explicitly send a 500?
 			panic(err)
 		}
 		if filepath.Base(wd) == "web" {
@@ -67,29 +57,29 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodPost {
-			responseError(w, http.StatusMethodNotAllowed, "only POST requests allowed for /api/query")
+			http.Error(w, "only POST requests allowed for /api/query", http.StatusMethodNotAllowed)
 			return
 		}
 		var qr query.Query
 		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&qr); err != nil {
-			responseError(w, http.StatusBadRequest, fmt.Sprintf("did not supply correct query parameters: %v", err))
+			http.Error(w, fmt.Sprintf("did not supply correct query parameters: %v", err), http.StatusBadRequest)
 			return
 		}
 		// NewDecoder(r).Decode() can lead to bugs: https://github.com/golang/go/issues/36225
 		if dec.More() {
-			responseError(w, http.StatusBadRequest, "body can only contain a single JSON object")
+			http.Error(w, "body can only contain a single JSON object", http.StatusBadRequest)
 			return
 		}
 		res, err := query.Run(db, qr)
 		if err != nil {
-			responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed this query: %v", err))
+			http.Error(w, fmt.Sprintf("failed this query: %v", err), http.StatusInternalServerError)
 			return
 		}
 		resp, err := json.Marshal(res)
 		if err != nil {
-			responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed to serialise query results: %v", err))
+			http.Error(w, fmt.Sprintf("failed to serialise query results: %v", err), http.StatusInternalServerError)
 		}
 		w.Write(resp)
 	}
@@ -99,7 +89,7 @@ func handleUpload(db *database.Database) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodPost {
-			responseError(w, http.StatusMethodNotAllowed, "only POST requests allowed for /upload/raw")
+			http.Error(w, "only POST requests allowed for /upload/raw", http.StatusMethodNotAllowed)
 			return
 		}
 		// there are two reasons we don't operate on r.Body directly:
@@ -110,13 +100,13 @@ func handleUpload(db *database.Database) http.HandlerFunc {
 		ds.Name = r.URL.Query().Get("name")
 
 		if err := database.CacheIncomingFile(r.Body, db.DatasetPath(ds)); err != nil {
-			responseError(w, http.StatusInternalServerError, "could not upload file")
+			http.Error(w, "could not upload file", http.StatusInternalServerError)
 			return
 		}
 		defer r.Body.Close()
 
 		if err := json.NewEncoder(w).Encode(ds); err != nil {
-			responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed to cache data: %v", err))
+			http.Error(w, fmt.Sprintf("failed to cache data: %v", err), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -127,19 +117,19 @@ func handleUpload(db *database.Database) http.HandlerFunc {
 //   that is - we load the raw data and return a jobID - and let the requester ping the server backend for status
 func handleAutoUpload(db *database.Database) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodPost {
-			responseError(w, http.StatusMethodNotAllowed, "only POST requests allowed for /upload/auto")
+			http.Error(w, "only POST requests allowed for /upload/auto", http.StatusMethodNotAllowed)
 			return
 		}
 
 		ds, err := db.LoadDatasetFromReaderAuto(r.Body)
 		defer r.Body.Close()
 		if err != nil {
-			responseError(w, http.StatusInternalServerError, fmt.Sprintf("failed to parse a given file: %v", err))
+			http.Error(w, fmt.Sprintf("failed to parse a given file: %v", err), http.StatusInternalServerError)
 			return
 		}
 		ds.Name = r.URL.Query().Get("name")
+		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(ds); err != nil {
 			panic(err)
 		}

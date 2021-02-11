@@ -128,19 +128,15 @@ func TestRootDoesNotHandle404(t *testing.T) {
 		if resp.StatusCode != 404 {
 			t.Errorf("expected path %+v to result in a 404, got %+v", path, resp.Status)
 		}
-		if resp.Header.Get("Content-Type") != "application/json" {
+		if resp.Header.Get("Content-Type") != "text/plain; charset=utf-8" {
 			t.Errorf("expected a 404 to return a JSON, got: %+v", resp.Header.Get("Content-Type"))
 		}
-		var errbody map[string]string
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errbody); err != nil {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
 			t.Fatal(err)
 		}
-		if dec.More() {
-			t.Fatal("body cannot contain multiple JSON objects")
-		}
-		if !(len(errbody) == 1 && errbody["error"] == "file not found") {
-			t.Errorf("unexpected error message: %+v", errbody)
+		if strings.TrimSpace(string(body)) != "file not found" {
+			t.Fatalf("unexpected body in a 404: %s", body)
 		}
 	}
 }
@@ -243,40 +239,6 @@ func TestDatasetListingNoDatasets(t *testing.T) {
 	}
 	if !bytes.Equal(bytes.TrimSpace(body), []byte("[]")) {
 		t.Errorf("expecting datasets listing to give us an empty array, got %+v", string(body))
-	}
-}
-
-func TestErrorsAreWrittenOut(t *testing.T) {
-	tests := []struct {
-		status int
-		error  string
-	}{
-		{http.StatusInternalServerError, "failed to process"},
-	}
-
-	for _, test := range tests {
-		rec := httptest.NewRecorder()
-		responseError(rec, test.status, test.error)
-
-		if rec.Result().StatusCode != test.status {
-			t.Errorf("did not expect this status: %+v", rec.Result().StatusCode)
-		}
-
-		if rec.Header().Get("Content-Type") != "application/json" {
-			t.Errorf("unexpected content type: %+v", rec.Header().Get("Content-Type"))
-		}
-
-		var resp map[string]string
-		dec := json.NewDecoder(rec.Body)
-		if err := dec.Decode(&resp); err != nil {
-			t.Fatal(err)
-		}
-		if dec.More() {
-			t.Fatal("body cannot contain multiple JSON objects")
-		}
-		if !(len(resp) == 1 && resp["error"] == test.error) {
-			t.Errorf("did not expect this response error: %+v", resp)
-		}
 	}
 }
 
@@ -426,16 +388,14 @@ func TestInvalidQueries(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %+v", resp.Status)
 	}
-	var rerr map[string]string
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&rerr); err != nil {
+	expErr := `did not supply correct query parameters: json: unknown field "foobar"`
+	defer resp.Body.Close()
+	ret, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if dec.More() {
-		t.Fatal("body cannot contain multiple JSON objects")
-	}
-	if rerr["error"] != `did not supply correct query parameters: json: unknown field "foobar"` {
-		t.Fatalf("expected query to fail with an unexpected query parameter, but got: %+v", rerr["error"])
+	if strings.TrimSpace(string(ret)) != expErr {
+		t.Errorf("expected the query endpoint to result in %s, got %s instead", expErr, ret)
 	}
 }
 
