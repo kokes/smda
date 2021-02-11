@@ -114,7 +114,7 @@ type tokenScanner struct {
 	position int
 }
 
-func NewTokenScanner(s []byte) *tokenScanner {
+func newTokenScanner(s []byte) *tokenScanner {
 	return &tokenScanner{
 		code: s,
 	}
@@ -130,7 +130,7 @@ func tokeniseString(s string) (tokList, error) {
 	scanner := newTokenScannerFromString(s)
 	var tokens []tok
 	for {
-		tok, err := scanner.Scan()
+		tok, err := scanner.scan()
 		if err != nil {
 			return nil, err
 		}
@@ -157,7 +157,7 @@ func (ts *tokenScanner) peekOne() byte {
 	return ts.peek(1)[0]
 }
 
-func (ts *tokenScanner) Scan() (tok, error) {
+func (ts *tokenScanner) scan() (tok, error) {
 	if ts.position >= len(ts.code) {
 		return tok{tokenEOF, nil}, nil
 	}
@@ -165,7 +165,7 @@ func (ts *tokenScanner) Scan() (tok, error) {
 	switch char {
 	case ' ', '\t', '\n':
 		ts.position++
-		return ts.Scan()
+		return ts.scan()
 	case ',':
 		ts.position++
 		return tok{tokenComma, nil}, nil

@@ -18,9 +18,9 @@ var errTypeNotSupported = errors.New("type not supported in this function")
 // ARCH: we're not treating literals any differently, but since they share the same backing store
 //       as non-literals, we're okay... is that okay?
 var FuncProj = map[string]func(...Chunk) (Chunk, error){
-	"nullif":   EvalNullIf,
-	"coalesce": EvalCoalesce,
-	"round":    EvalRound, // TODO: ceil, floor
+	"nullif":   evalNullIf,
+	"coalesce": evalCoalesce,
+	"round":    evalRound, // TODO: ceil, floor
 	"sin":      numFunc(math.Sin),
 	"cos":      numFunc(math.Cos),
 	"tan":      numFunc(math.Tan),
@@ -39,7 +39,7 @@ var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	// TODO: log with arbitrary base
 }
 
-func EvalCoalesce(cs ...Chunk) (Chunk, error) {
+func evalCoalesce(cs ...Chunk) (Chunk, error) {
 	if len(cs) == 0 {
 		// ARCH: this is taken care of in return_types, delete? panic?
 		return nil, errors.New("coalesce needs at least one argument")
@@ -62,7 +62,7 @@ func EvalCoalesce(cs ...Chunk) (Chunk, error) {
 // at some point test sum(nullif([1,2,3], 2)) to check we're not interpreting
 // "dead" values
 // treat this differently, if cs[0] is a literal column
-func EvalNullIf(cs ...Chunk) (Chunk, error) {
+func evalNullIf(cs ...Chunk) (Chunk, error) {
 	eq, err := EvalEq(cs[0], cs[1])
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func EvalNullIf(cs ...Chunk) (Chunk, error) {
 // ARCH: this could be generalised using numFunc, we just have to pass in a closure
 // with our power
 // ARCH: should this return decimals (which we don't support)?
-func EvalRound(cs ...Chunk) (Chunk, error) {
+func evalRound(cs ...Chunk) (Chunk, error) {
 	var factor int
 	if len(cs) == 2 {
 		// TODO: check factor size (and test it)

@@ -201,9 +201,9 @@ func (rl *rawLoader) yieldRow() ([]string, error) {
 	return row, nil
 }
 
-// ReadIntoStripe reads data from a source file and saves them into a stripe
+// readIntoStripe reads data from a source file and saves them into a stripe
 // maybe these two arguments can be embedded into rl.settings?
-func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*stripeData, error) {
+func (rl *rawLoader) readIntoStripe(maxRows, maxBytes int) (*stripeData, error) {
 	ds := newDataStripe()
 	// if no schema is set, read the header and set it yourself (to be all non-nullable strings)
 	if rl.settings.schema == nil {
@@ -362,7 +362,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 
 	stripes := make([]Stripe, 0)
 	for {
-		ds, loadingErr := rl.ReadIntoStripe(db.Config.MaxRowsPerStripe, db.Config.MaxBytesPerStripe)
+		ds, loadingErr := rl.readIntoStripe(db.Config.MaxRowsPerStripe, db.Config.MaxBytesPerStripe)
 		if loadingErr != nil && loadingErr != io.EOF {
 			return nil, loadingErr
 		}
@@ -428,7 +428,7 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 		delimiter:   dlim,
 	}
 
-	schema, err := InferTypes(path, ls)
+	schema, err := inferTypes(path, ls)
 	if err != nil {
 		return nil, err
 	}
