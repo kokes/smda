@@ -178,8 +178,9 @@
             await this.loadDatasets();
             const columns = this.datasets[datasetID].schema.map(x=>x.name)
             const body = {
-                // always submit it as quoted, though TODO: are there quotes in the individual names? can there be?
-                select: columns.map(x => `"${x}"`),
+                // always submit it as quoted if it's not all lowercase,
+                // TODO: are there quotes in the individual names? can there be?
+                select: columns.map(x => x.toLowerCase() === x ? x : `"${x}"`),
                 limit: 25,
                 dataset: datasetID,
                 // aggregate: ['strings', 'bools'],
