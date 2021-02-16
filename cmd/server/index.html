@@ -65,8 +65,7 @@
         <header>
             <span id='status'></span>
 
-            <!-- TODO(next): make this work -->
-            <input id='filepicker' type='file' />
+            <input id='filepicker' type='file' multiple />
         </header>
 
         <nav id='panel'>
@@ -144,7 +143,25 @@
             }
         }
         setupUI() {
+            this.setupUploader()
             this.listDatasets(document.getElementById('datasets'));
+        }
+        setupUploader() {
+            const fp = document.getElementById("filepicker");
+            fp.addEventListener("change", async e => {
+                e.target.disabled = "disabled";
+                for (const file of e.target.files) {
+                    const request = await fetch("/upload/auto", {
+                        method: "POST",
+                        body: file,
+                    })
+                    // TODO: err handling
+                    const response = await request.json();
+                }
+                e.target.value = "";
+                e.target.disabled = "";
+                // TODO: refresh explore or do that implicitly via server side events?
+            })
         }
         async setupExplore(datasetID) {
             const target = document.getElementById('content');
