@@ -132,10 +132,18 @@ func TestComparisons(t *testing.T) {
 		{DtypeInt, DtypeFloat, EvalEq, 3, "lit:2", "1,2,3", "f,t,f"},
 		{DtypeInt, DtypeFloat, EvalEq, 3, "lit:3", "lit:3.4", "lit:f"},
 		{DtypeInt, DtypeFloat, EvalEq, 3, "lit:3", "lit:3", "lit:t"},
+		{DtypeDate, DtypeDate, EvalEq, 3, "2020-02-22,1977-12-31,1901-02-28", "lit:1977-12-31", "f,t,f"},
+		{DtypeDate, DtypeDate, EvalEq, 3, "lit:1977-12-31", "lit:1977-12-31", "lit:t"},
+		{DtypeDatetime, DtypeDatetime, EvalEq, 2, "2020-02-22 12:34:56,1980-12-22 00:01:02", "1980-12-22 00:01:02,1980-12-22 00:01:02", "f,t"},
 
 		{DtypeInt, DtypeFloat, EvalNeq, 3, "1,2,3", "1.2,2.0,3", "t,f,f"},
 		{DtypeFloat, DtypeInt, EvalNeq, 3, "1.2,2.0,3", "1,2,3", "t,f,f"},
-		// TODO(next): test dates
+		{DtypeDate, DtypeDate, EvalNeq, 3, "2020-02-22,1977-12-31,1901-02-28", "lit:1977-12-31", "t,f,t"},
+		{DtypeDatetime, DtypeDatetime, EvalNeq, 2, "2020-02-22 12:34:56,1980-12-22 00:01:02", "1980-12-22 00:01:02,1980-12-22 00:01:02", "t,f"},
+		{DtypeDate, DtypeDate, EvalGt, 3, "2020-02-22,1977-12-31,1901-02-28", "lit:1977-12-31", "t,f,f"},
+		{DtypeDate, DtypeDate, EvalGte, 3, "2020-02-22,1977-12-31,1901-02-28", "lit:1977-12-31", "t,t,f"},
+		{DtypeDatetime, DtypeDatetime, EvalLt, 2, "1920-02-22 12:34:56,1980-12-22 00:01:02", "1980-12-22 00:01:02,1980-12-22 00:01:02", "t,f"},
+		{DtypeDatetime, DtypeDatetime, EvalLte, 2, "1920-02-22 12:34:56,1980-12-22 00:01:02", "1980-12-22 00:01:02,1980-12-22 00:01:02", "t,t"},
 	}
 	for _, test := range tests {
 		c1, c2, expected, err := prepColumns(test.nrows, test.dtype1, test.dtype2, DtypeBool, test.c1, test.c2, test.expected)

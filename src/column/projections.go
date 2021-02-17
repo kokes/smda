@@ -251,6 +251,7 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 	return boolChunkFromParts(res, nvals, c1.nullability, c2.nullability), nil
 }
 
+// ARCH: many if not all of these could be implemented in generics
 func compFactoryDates(c1 *ChunkDates, c2 *ChunkDates, compFn func(date, date) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
 
@@ -279,33 +280,82 @@ func compFactoryDates(c1 *ChunkDates, c2 *ChunkDates, compFn func(date, date) bo
 	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
 }
 
+func compFactoryDatetimes(c1 *ChunkDatetimes, c2 *ChunkDatetimes, compFn func(datetime, datetime) bool) (*ChunkBools, error) {
+	nvals := c1.Len()
+
+	if c1.isLiteral && c2.isLiteral {
+		// OPTIM: this should be a part of constant folding and should never get to this point
+		val := compFn(c1.data[0], c2.data[0])
+		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+	}
+
+	bm := bitmap.NewBitmap(nvals)
+	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	if c1.isLiteral {
+		val := c1.data[0]
+		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+	}
+	if c2.isLiteral {
+		val := c2.data[0]
+		eval = func(j int) bool { return compFn(c1.data[j], val) }
+	}
+	for j := 0; j < nvals; j++ {
+		// OPTIM: cannot inline re-assigned closure variable at src/column/projections.go:99:8: eval = func literal
+		if eval(j) {
+			bm.Set(j, true)
+		}
+	}
+	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+}
+
 type compFuncs struct {
-	ints     func(int64, int64) bool
-	floats   func(float64, float64) bool
-	intfloat func(int64, float64) bool
-	floatint func(float64, int64) bool
-	strings  func(string, string) bool
-	bools    func(uint64, uint64) uint64
-	dates    func(date, date) bool
-	// TODO(next): datetimes
+	ints      func(int64, int64) bool
+	floats    func(float64, float64) bool
+	intfloat  func(int64, float64) bool
+	floatint  func(float64, int64) bool
+	strings   func(string, string) bool
+	bools     func(uint64, uint64) uint64
+	dates     func(date, date) bool
+	datetimes func(datetime, datetime) bool
 }
 
 // OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
 func compEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
+	err := fmt.Errorf("comparison expression not supported for types %s and %s: %w", c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
 	if c1.Dtype() == c2.Dtype() {
 		switch c1.Dtype() {
 		case DtypeString:
+			if cf.strings == nil {
+				return nil, err
+			}
 			return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings), cf.strings)
 		case DtypeInt:
+			if cf.ints == nil {
+				return nil, err
+			}
 			return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts), cf.ints)
 		case DtypeFloat:
+			if cf.floats == nil {
+				return nil, err
+			}
 			return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
 		case DtypeBool:
+			if cf.bools == nil {
+				return nil, err
+			}
 			return compFactoryBools(c1.(*ChunkBools), c2.(*ChunkBools), cf.bools)
 		case DtypeDate:
+			if cf.dates == nil {
+				return nil, err
+			}
 			return compFactoryDates(c1.(*ChunkDates), c2.(*ChunkDates), cf.dates)
+		case DtypeDatetime:
+			if cf.datetimes == nil {
+				return nil, err
+			}
+			return compFactoryDatetimes(c1.(*ChunkDatetimes), c2.(*ChunkDatetimes), cf.datetimes)
 		default:
-			return nil, fmt.Errorf("comparison expression not supported for types %s and %s: %w", c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
+			return nil, err
 		}
 	}
 
@@ -315,11 +365,17 @@ func compEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
 	cs := dtypes{c1d, c2d}
 	switch cs {
 	case dtypes{DtypeInt, DtypeFloat}:
+		if cf.intfloat == nil {
+			return nil, err
+		}
 		return compFactoryIntsFloats(c1.(*ChunkInts), c2.(*ChunkFloats), cf.intfloat)
 	case dtypes{DtypeFloat, DtypeInt}:
+		if cf.floatint == nil {
+			return nil, err
+		}
 		return compFactoryFloatsInts(c1.(*ChunkFloats), c2.(*ChunkInts), cf.floatint)
 	default:
-		return nil, fmt.Errorf("comparison expression not supported for types %v and %v: %w", c1d, c2d, errProjectionNotSupported)
+		return nil, err
 
 	}
 }
@@ -341,52 +397,56 @@ func EvalOr(c1 Chunk, c2 Chunk) (Chunk, error) {
 // EvalEq compares values from two different chunks
 func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return compEval(c1, c2, compFuncs{
-		ints:     func(a, b int64) bool { return a == b },
-		floats:   func(a, b float64) bool { return a == b },
-		intfloat: func(a int64, b float64) bool { return float64(a) == b },
-		floatint: func(a float64, b int64) bool { return a == float64(b) },
-		strings:  func(a, b string) bool { return a == b },
-		bools:    func(a, b uint64) uint64 { return a ^ (^b) },
-		dates:    DatesEqual,
+		ints:      func(a, b int64) bool { return a == b },
+		floats:    func(a, b float64) bool { return a == b },
+		intfloat:  func(a int64, b float64) bool { return float64(a) == b },
+		floatint:  func(a float64, b int64) bool { return a == float64(b) },
+		strings:   func(a, b string) bool { return a == b },
+		bools:     func(a, b uint64) uint64 { return a ^ (^b) },
+		dates:     DatesEqual,
+		datetimes: DatetimesEqual,
 	})
 }
 
 // EvalNeq compares values from two different chunks for inequality
 func EvalNeq(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return compEval(c1, c2, compFuncs{
-		ints:     func(a, b int64) bool { return a != b },
-		floats:   func(a, b float64) bool { return a != b },
-		intfloat: func(a int64, b float64) bool { return float64(a) != b },
-		floatint: func(a float64, b int64) bool { return a != float64(b) },
-		strings:  func(a, b string) bool { return a != b },
-		bools:    func(a, b uint64) uint64 { return a ^ b },
-		dates:    DatesNotEqual,
+		ints:      func(a, b int64) bool { return a != b },
+		floats:    func(a, b float64) bool { return a != b },
+		intfloat:  func(a int64, b float64) bool { return float64(a) != b },
+		floatint:  func(a float64, b int64) bool { return a != float64(b) },
+		strings:   func(a, b string) bool { return a != b },
+		bools:     func(a, b uint64) uint64 { return a ^ b },
+		dates:     DatesNotEqual,
+		datetimes: DatetimesNotEqual,
 	})
 }
 
 // EvalGt checks if values in c1 are greater than in c2
 func EvalGt(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return compEval(c1, c2, compFuncs{
-		ints:     func(a, b int64) bool { return a > b },
-		floats:   func(a, b float64) bool { return a > b },
-		intfloat: func(a int64, b float64) bool { return float64(a) > b },
-		floatint: func(a float64, b int64) bool { return a > float64(b) },
-		strings:  func(a, b string) bool { return a > b },
-		bools:    func(a, b uint64) uint64 { return a & (^b) },
-		dates:    DatesGreaterThan,
+		ints:      func(a, b int64) bool { return a > b },
+		floats:    func(a, b float64) bool { return a > b },
+		intfloat:  func(a int64, b float64) bool { return float64(a) > b },
+		floatint:  func(a float64, b int64) bool { return a > float64(b) },
+		strings:   func(a, b string) bool { return a > b },
+		bools:     func(a, b uint64) uint64 { return a & (^b) },
+		dates:     DatesGreaterThan,
+		datetimes: DatetimesGreaterThan,
 	})
 }
 
 // EvalGte checks if values in c1 are greater than or equal to those in c2
 func EvalGte(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return compEval(c1, c2, compFuncs{
-		ints:     func(a, b int64) bool { return a >= b },
-		floats:   func(a, b float64) bool { return a >= b },
-		intfloat: func(a int64, b float64) bool { return float64(a) >= b },
-		floatint: func(a float64, b int64) bool { return a >= float64(b) },
-		strings:  func(a, b string) bool { return a >= b },
-		bools:    func(a, b uint64) uint64 { return (a & (^b)) | (a ^ (^b)) },
-		dates:    DatesGreaterThanEqual,
+		ints:      func(a, b int64) bool { return a >= b },
+		floats:    func(a, b float64) bool { return a >= b },
+		intfloat:  func(a int64, b float64) bool { return float64(a) >= b },
+		floatint:  func(a float64, b int64) bool { return a >= float64(b) },
+		strings:   func(a, b string) bool { return a >= b },
+		bools:     func(a, b uint64) uint64 { return (a & (^b)) | (a ^ (^b)) },
+		dates:     DatesGreaterThanEqual,
+		datetimes: DatetimesGreaterThanEqual,
 	})
 }
 
