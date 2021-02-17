@@ -120,10 +120,6 @@ func TestReadingFromStripes(t *testing.T) {
 	if colb.Len() != 2 {
 		t.Errorf("expecting the length to be %+v, got %+v", 2, colb.Len())
 	}
-	// TODO: unexported for now, fix
-	// if !colb.nullable {
-	// 	t.Errorf("expecting the second column to be nullable")
-	// }
 
 	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0], 2)
 	if err != nil {

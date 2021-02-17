@@ -57,6 +57,10 @@ func (bc *baseChunk) Nullify(bm *bitmap.Bitmap) {
 }
 
 // this might be useful for COALESCE, among other things
+// though this is misleading - a column can be nullable, but have its nullability
+// bitmap nil - a nearly full column will have its chunks without nulls and thus
+// with nullability == nil. We should only talk about nullability in the context
+// of schemas
 // func (bc *baseChunk) IsNullable() bool {
 // 	return bc.nullability != nil
 // }
