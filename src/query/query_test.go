@@ -11,32 +11,6 @@ import (
 	"github.com/kokes/smda/src/query/expr"
 )
 
-func TestQueryingEmptyDatasets(t *testing.T) {
-	db, err := database.NewDatabase(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := db.Drop(); err != nil {
-			panic(err)
-		}
-	}()
-
-	ds := database.NewDataset()
-	db.AddDataset(ds)
-	limit := 100
-	q := Query{Dataset: ds.ID, Limit: &limit}
-
-	qr, err := Run(db, q)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expschema := database.TableSchema{}
-	if !(reflect.DeepEqual(qr.Schema, expschema) && len(qr.Data) == 0) {
-		t.Errorf("expected empty schema %+v, got %+v instead", expschema, qr.Schema)
-	}
-}
-
 func selectExpr(cols []string) []*expr.Expression {
 	ret := make([]*expr.Expression, 0, len(cols))
 	for _, col := range cols {
@@ -87,6 +61,32 @@ func TestBasicQueries(t *testing.T) {
 	firstCol.AddValue("4")
 	if !reflect.DeepEqual(qr.Data[0], firstCol) {
 		t.Errorf("first column does not match what's expected: %+v vs. %+v", qr.Data[0], firstCol)
+	}
+}
+
+// ARCH: we repeat quite a heavy setup - maybe abstract it out somehow?
+func TestQueryNothing(t *testing.T) {
+	db, err := database.NewDatabase(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
+	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
+	ds, err := db.LoadDatasetFromReaderAuto(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.AddDataset(ds)
+	cols := selectExpr(nil)
+	q := Query{Select: cols, Dataset: ds.ID}
+
+	if _, err := Run(db, q); err != errNoProjection {
+		t.Errorf("expected that selecting nothing will yield %v, got %v instead", errNoProjection, err)
 	}
 }
 
@@ -170,7 +170,6 @@ func stringsToExprs(raw []string) ([]*expr.Expression, error) {
 	return ret, nil
 }
 
-// TODO: not testing nulls here
 // TODO: this only tests `aggregate`, not the whole query function - so we don't get schema checks e.g.
 func TestBasicAggregation(t *testing.T) {
 	tests := []struct {

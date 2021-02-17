@@ -10,6 +10,7 @@ import (
 	"github.com/kokes/smda/src/query/expr"
 )
 
+var errNoProjection = errors.New("no expressions specified to be selected")
 var errInvalidLimitValue = errors.New("invalid limit value")
 var errInvalidProjectionInAggregation = errors.New("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo))")
 
@@ -217,10 +218,9 @@ type Result struct {
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
 // the former should result in a 4xx, the latter in a 5xx
 func Run(db *database.Database, q Query) (*Result, error) {
-	// TODO: custom error + explicit test for this
-	// if len(q.Select) == 0 {
-	// 	return nil, errors.New("did not specify any columns to be retrieved")
-	// }
+	if len(q.Select) == 0 {
+		return nil, errNoProjection
+	}
 	res := &Result{
 		Schema: make([]column.Schema, 0, len(q.Select)),
 		Data:   make([]column.Chunk, 0),
