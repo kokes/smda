@@ -336,8 +336,8 @@ func TestHandlingQueries(t *testing.T) {
 		defer resp.Body.Close()
 
 		var respBody struct {
-			Columns []string `json:"columns"`
-			Data    [][]int  `json:"data"`
+			Schema database.TableSchema `json:"schema"`
+			Data   [][]int              `json:"data"`
 		}
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&respBody); err != nil {
@@ -347,9 +347,12 @@ func TestHandlingQueries(t *testing.T) {
 			t.Fatal("body cannot contain multiple JSON objects")
 		}
 
-		expCol := []string{"foo", "bar"}
-		if !reflect.DeepEqual(expCol, respBody.Columns) {
-			t.Errorf("expected the columns to be %+v, got %+v", expCol, respBody.Columns)
+		expSchema := database.TableSchema{
+			column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
+			column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
+		}
+		if !reflect.DeepEqual(expSchema, respBody.Schema) {
+			t.Errorf("expected schema to be %+v, got %+v", expSchema, respBody.Schema)
 		}
 		if !(len(respBody.Data) == 2 && len(respBody.Data[0]) == 2) {
 			t.Errorf("unexpected payload: %+v", respBody.Data)

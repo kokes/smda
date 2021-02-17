@@ -91,6 +91,8 @@ func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
 // We could potentially add a filtering bitmap and combine it with the nullability bitmap?
 // perhaps call it a `mask *bitmap.Bitmap` and pass it in many functions (like Evaluate) and use
 // it there if it's not nil
+// OPTIM: if there's GROUPBY+LIMIT (and without ORDERBY), we can shortcircuit the hashing part - once we
+// reach ndistinct == LIMIT, we can stop
 func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
 	if len(groupbys) == 0 {
 		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
@@ -207,8 +209,8 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
 // a Result to be a Dataset of its own (for better interoperability, persistence, caching etc.)
 type Result struct {
-	Columns []string       `json:"columns"`
-	Data    []column.Chunk `json:"data"`
+	Schema database.TableSchema `json:"schema"`
+	Data   []column.Chunk       `json:"data"`
 }
 
 // Run runs a given query against this database
@@ -220,13 +222,23 @@ func Run(db *database.Database, q Query) (*Result, error) {
 	// 	return nil, errors.New("did not specify any columns to be retrieved")
 	// }
 	res := &Result{
-		Columns: make([]string, 0),
-		Data:    make([]column.Chunk, 0),
+		Schema: make([]column.Schema, 0, len(q.Select)),
+		Data:   make([]column.Chunk, 0),
 	}
 
 	ds, err := db.GetDataset(q.Dataset)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, col := range q.Select {
+		rschema, err := col.ReturnType(ds.Schema)
+		if err != nil {
+			return nil, err
+		}
+		res.Schema = append(res.Schema, rschema)
+		// ARCH: this won't be used in aggregation, is that okay?
+		res.Data = append(res.Data, column.NewChunkFromSchema(rschema))
 	}
 
 	var bms []*bitmap.Bitmap
@@ -237,31 +249,14 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		}
 	}
 
-	// TODO: we never call ReturnTypes in this branch, so we don't know
-	// the schema of our projections (only implicitly through the Chunks themselves)
 	if q.Aggregate != nil {
 		columns, err := aggregate(db, ds, q.Aggregate, q.Select)
 		if err != nil {
 			return nil, err
 		}
-		res.Columns = make([]string, 0, len(columns))
-		for _, col := range q.Select {
-			// TODO: quoted identifiers get stringified with their quotes, so it looks weird in the UI
-			res.Columns = append(res.Columns, col.String())
-		}
 		res.Data = columns
 		return res, nil
 		// no limit?
-	}
-
-	// this is a branch for non-aggregate queries
-	for _, col := range q.Select {
-		res.Columns = append(res.Columns, col.String())
-		rschema, err := col.ReturnType(ds.Schema)
-		if err != nil {
-			return nil, err
-		}
-		res.Data = append(res.Data, column.NewChunkFromSchema(rschema))
 	}
 
 	limit := -1

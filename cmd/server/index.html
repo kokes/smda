@@ -215,9 +215,9 @@
             const table = document.createElement('table');
             table.className = "data-view";
             const thead = document.createElement('tr');
-            for (let colname of data.columns) {
+            for (let column of data.schema) {
                 const th = document.createElement('th');
-                th.innerText = colname;
+                th.innerText = column.name;
                 thead.appendChild(th);
             }
             table.appendChild(thead);
@@ -228,7 +228,7 @@
 
             for (let rowNum=0; rowNum < nrows; rowNum++) {
                 const row = document.createElement('tr');
-                for (let colNum = 0; colNum < data.columns.length; colNum++) {
+                for (let colNum = 0; colNum < data.schema.length; colNum++) {
                     const cell = document.createElement('td');
                     cell.innerText = data.data[colNum][rowNum];
                     row.appendChild(cell);

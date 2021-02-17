@@ -31,8 +31,9 @@ func TestQueryingEmptyDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !(reflect.DeepEqual(qr.Columns, []string{}) && len(qr.Data) == 0) {
-		t.Error("did not expect to get anything back")
+	expschema := database.TableSchema{}
+	if !(reflect.DeepEqual(qr.Schema, expschema) && len(qr.Data) == 0) {
+		t.Errorf("expected empty schema %+v, got %+v instead", expschema, qr.Schema)
 	}
 }
 
@@ -73,8 +74,13 @@ func TestBasicQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !(reflect.DeepEqual(qr.Columns, []string{"foo", "bar", "baz"}) && len(qr.Data) == 3) {
-		t.Error("expecting three columns of data")
+	expschema := database.TableSchema{
+		column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
+		column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
+		column.Schema{Name: "baz", Dtype: column.DtypeInt, Nullable: false},
+	}
+	if !(reflect.DeepEqual(qr.Schema, expschema) && len(qr.Data) == 3) {
+		t.Errorf("expected schema %+v, got %+v instead", expschema, qr.Schema)
 	}
 	firstCol := column.NewChunkFromSchema(column.Schema{Dtype: column.DtypeInt})
 	firstCol.AddValue("1")
@@ -132,8 +138,13 @@ func TestLimitsInQueries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !(reflect.DeepEqual(qr.Columns, []string{"foo", "bar", "baz"}) && len(qr.Data) == 3) {
-			t.Error("expecting three columns of data")
+		expschema := database.TableSchema{
+			column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
+			column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
+			column.Schema{Name: "baz", Dtype: column.DtypeInt, Nullable: false},
+		}
+		if !(reflect.DeepEqual(qr.Schema, expschema) && len(qr.Data) == 3) {
+			t.Errorf("expected schema %+v, got %+v instead", expschema, qr.Schema)
 		}
 		firstCol := column.NewChunkFromSchema(column.Schema{Dtype: column.DtypeInt})
 		if limit > len(firstColRaw) {
