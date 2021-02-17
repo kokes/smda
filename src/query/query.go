@@ -278,7 +278,19 @@ func Run(db *database.Database, q Query) (*Result, error) {
 			}
 			limit -= filteredLen
 		}
-		var bmnf *bitmap.Bitmap // bitmap for non-filtered data - I really dislike the way this is handled (TODO)
+		// prune non-filtered stripes as well (when limit is applied)
+		// ARCH: we used to have a condition on that if (bms == nil), but I don't think
+		// it's needed, revisit it
+		var bmnf *bitmap.Bitmap
+		if limit >= 0 {
+			if stripe.Length > limit {
+				bmnf = bitmap.NewBitmap(stripe.Length)
+				bmnf.Invert()
+				bmnf.KeepFirstN(limit)
+			}
+
+			limit -= stripe.Length
+		}
 		for j, colExpr := range q.Select {
 			colnames := colExpr.ColumnsUsed(ds.Schema) // OPTIM: calculated for each stripe, can be cached
 			columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
@@ -296,29 +308,12 @@ func Run(db *database.Database, q Query) (*Result, error) {
 				col = col.Prune(bms[stripeIndex])
 			}
 
-			// prune non-filtered stripes as well (when limit is applied)
-			// for each stripe, set up the bitmap when in the first column (because we don't
-			// know the columns' length before that)
-			if limit >= 0 && j == 0 && bms == nil {
-				ln := col.Len()
-				if ln <= limit {
-					limit -= ln
-				} else {
-					bmnf = bitmap.NewBitmap(ln)
-					bmnf.Invert()
-					bmnf.KeepFirstN(limit)
-				}
-			}
 			if bmnf != nil {
 				col = col.Prune(bmnf)
 			}
 			if err := res.Data[j].Append(col); err != nil {
 				return nil, err
 			}
-		}
-		if bmnf != nil {
-			limit -= bmnf.Count()
-			bmnf = nil
 		}
 		if limit <= 0 {
 			break
