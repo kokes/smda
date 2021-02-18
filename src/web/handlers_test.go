@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -96,7 +96,7 @@ func TestRootHandling(t *testing.T) {
 		t.Errorf("unexpected content type: %+v", ct)
 	}
 	defer resp.Body.Close()
-	ret, err := ioutil.ReadAll(resp.Body)
+	ret, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,11 +131,11 @@ func TestRootDoesNotHandle404(t *testing.T) {
 		if resp.Header.Get("Content-Type") != "text/plain; charset=utf-8" {
 			t.Errorf("expected a 404 to return a JSON, got: %+v", resp.Header.Get("Content-Type"))
 		}
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.TrimSpace(string(body)) != "file not found" {
+		if strings.TrimSpace(string(body)) != "404 page not found" {
 			t.Fatalf("unexpected body in a 404: %s", body)
 		}
 	}
@@ -233,7 +233,7 @@ func TestDatasetListingNoDatasets(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +393,7 @@ func TestInvalidQueries(t *testing.T) {
 	}
 	expErr := `did not supply correct query parameters: json: unknown field "foobar"`
 	defer resp.Body.Close()
-	ret, err := ioutil.ReadAll(resp.Body)
+	ret, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}

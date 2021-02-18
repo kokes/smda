@@ -1,4 +1,4 @@
-FROM golang:1.15-alpine AS build
+FROM golang:1.16-alpine AS build
 # technically, we don't need the Makefile, because our build process is very
 # simple at this point - but let's keep it, since we don't know what might happen
 # in the future
@@ -8,15 +8,14 @@ WORKDIR /smda/
 COPY Makefile go.mod ./
 COPY src src
 COPY cmd cmd
-COPY samples samples
 RUN make build
 
 FROM scratch
-WORKDIR /smda/
+# ARCH: this is a bit of a hack to ensure that /tmp/ exists wihout having to create
+# it in alpine and copying it over (we need it for temporary directories)
+# We might as well use alpine as the base image
+WORKDIR /tmp/
 COPY --from=build /smda/server .
-# TODO: this will not be necessary once we include artifacts in our binary
-COPY --from=build /smda/cmd cmd
-COPY --from=build /smda/samples samples
 
 EXPOSE 8822
 CMD ["./server", "-port", "8822", "-ensure-port", "-expose", "-samples"]

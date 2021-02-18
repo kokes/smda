@@ -4,7 +4,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -41,7 +40,7 @@ func TestDatasetTypeInference(t *testing.T) {
 		// {"foo\nfoo\n\ntrue", TableSchema{{"foo", column.DtypeBool, true}}}, // this should be nullable, but we keep saying it is not
 	}
 	for _, dataset := range datasets {
-		f, err := ioutil.TempFile("", "")
+		f, err := os.CreateTemp("", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -61,7 +60,7 @@ func TestDatasetTypeInference(t *testing.T) {
 }
 
 func TestInferTypesNoFile(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "infer")
+	tmpdir, err := os.MkdirTemp("", "infer")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +71,7 @@ func TestInferTypesNoFile(t *testing.T) {
 }
 
 func TestInferTypesEmptyFile(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "infer")
+	tmpdir, err := os.MkdirTemp("", "infer")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,12 +87,12 @@ func TestInferTypesEmptyFile(t *testing.T) {
 }
 
 func TestInferTypesInvalidCSV(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "infer")
+	tmpdir, err := os.MkdirTemp("", "infer")
 	if err != nil {
 		t.Fatal(err)
 	}
 	filename := filepath.Join(tmpdir, "filename.csv")
-	if err := ioutil.WriteFile(filename, []byte("\"ahoy"), os.ModePerm); err != nil {
+	if err := os.WriteFile(filename, []byte("\"ahoy"), os.ModePerm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -103,7 +102,7 @@ func TestInferTypesInvalidCSV(t *testing.T) {
 }
 
 func TestInferTypesNoloadSettings(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "infer")
+	tmpdir, err := os.MkdirTemp("", "infer")
 	if err != nil {
 		t.Fatal(err)
 	}

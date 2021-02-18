@@ -3,7 +3,6 @@ package database
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,7 +56,7 @@ func TestNewUidDeJSONify(t *testing.T) {
 
 func TestInitDB(t *testing.T) {
 	// REFACTOR: use t.TempDir here and everywhere else (go 1.15+)
-	dr, err := ioutil.TempDir("", "init_db_testing")
+	dr, err := os.MkdirTemp("", "init_db_testing")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +70,7 @@ func TestInitDB(t *testing.T) {
 }
 
 func TestInitExistingDB(t *testing.T) {
-	dr, err := ioutil.TempDir("", "init_db_testing")
+	dr, err := os.MkdirTemp("", "init_db_testing")
 	if err != nil {
 		t.Fatal(err)
 	}

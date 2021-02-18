@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
-	"io/ioutil"
 	"testing"
 )
 
@@ -134,7 +133,7 @@ func TestWrappingUncompressedData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	newData, err := ioutil.ReadAll(newReader)
+	newData, err := io.ReadAll(newReader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +158,7 @@ func TestWrappingGzippedData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	newData, err := ioutil.ReadAll(newReader)
+	newData, err := io.ReadAll(newReader)
 	if err != nil {
 		t.Fatal(err)
 	}

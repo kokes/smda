@@ -1,38 +1,26 @@
 package web
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/query"
 )
 
-func handleRoot(db *database.Database) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.Error(w, "file not found", http.StatusNotFound)
-			return
-		}
+//go:embed assets
+var assets embed.FS
 
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		// TODO: go generate or go-bindata (and there are plans to have this natively in Go)
-		fn := "cmd/server/index.html"
-		// this is an ugly hack for tests to find the asset (since their working directory is /src, not the root)
-		// will get resolved once we have our assets in the binary
-		wd, err := os.Getwd()
-		if err != nil {
-			// ARCH: we panic here in a few places (mostly when writing stuff to `w`) - is it too late to explicitly send a 500?
-			panic(err)
-		}
-		if filepath.Base(wd) == "web" {
-			fn = "../../cmd/server/index.html"
-		}
-		http.ServeFile(w, r, fn)
+func handleRoot(db *database.Database) http.HandlerFunc {
+	// TODO(next): handle live reloads - custom DirFS when we're in dev mode
+	root, err := fs.Sub(assets, "assets")
+	if err != nil {
+		panic(err)
 	}
+	return http.FileServer(http.FS(root)).ServeHTTP
 }
 
 func handleStatus(db *database.Database) http.HandlerFunc {

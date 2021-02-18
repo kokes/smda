@@ -1,13 +1,19 @@
 package main
 
 import (
+	"embed"
 	"flag"
+	"io/fs"
 	"log"
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/web"
 )
 
+//go:embed samples/*.csv
+var sampleDir embed.FS
+
+// ARCH/TODO(next): main -> run
 func main() {
 	expose := flag.Bool("expose", false, "expose the server on the network, do not run it just locally")
 	port := flag.Int("port", 8822, "port to listen on")
@@ -28,7 +34,11 @@ func main() {
 	// it's a tradeoff we need to keep in mind
 	// once we implement automatic fetching of new datasets from the frontend, we should change this to be async
 	if *loadSamples {
-		if err := d.LoadSampleData("samples"); err != nil {
+		samplefs, err := fs.Sub(sampleDir, "samples")
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := d.LoadSampleData(samplefs); err != nil {
 			log.Fatal(err)
 		}
 	}

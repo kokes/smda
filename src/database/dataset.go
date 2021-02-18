@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"os"
@@ -46,7 +45,7 @@ func NewDatabase(config *Config) (*Database, error) {
 	}
 	if config.WorkingDirectory == "" {
 		// if no directory supplied, create a database in a temp directory
-		tdir, err := ioutil.TempDir("", "smda_tmp")
+		tdir, err := os.MkdirTemp("", "smda_tmp")
 		if err != nil {
 			return nil, err
 		}

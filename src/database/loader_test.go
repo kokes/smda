@@ -6,7 +6,6 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -31,7 +30,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		{"\xEF\xBB\xBFfoo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionNone, "foo_bom.csv"}, // BOM
 	}
 
-	tdir, err := ioutil.TempDir("", "test_compression")
+	tdir, err := os.MkdirTemp("", "test_compression")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +68,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 
 		// but also from a file
 		tfn := filepath.Join(tdir, test.filename)
-		if err := ioutil.WriteFile(tfn, bf.Bytes(), os.ModePerm); err != nil {
+		if err := os.WriteFile(tfn, bf.Bytes(), os.ModePerm); err != nil {
 			t.Fatal(err)
 		}
 		ds, err = d.loadDatasetFromLocalFileAuto(tfn)
@@ -209,7 +208,7 @@ func TestLoadingSampleData(t *testing.T) {
 		}
 	}()
 
-	tmpdir, err := ioutil.TempDir("", "sample_data")
+	tmpdir, err := os.MkdirTemp("", "sample_data")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,11 +233,12 @@ func TestLoadingSampleData(t *testing.T) {
 			panic("misspecified test case")
 		}
 
-		if err := ioutil.WriteFile(tfn, data, os.ModePerm); err != nil {
+		if err := os.WriteFile(tfn, data, os.ModePerm); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := db.LoadSampleData(tmpdir); err != nil {
+	tmpfs := os.DirFS(tmpdir)
+	if err := db.LoadSampleData(tmpfs); err != nil {
 		t.Fatal(err)
 	}
 
@@ -269,30 +269,25 @@ func TestLoadingSampleDataErrs(t *testing.T) {
 		}
 	}()
 
-	tmpdir, err := ioutil.TempDir("", "sample_data")
+	tmpdir, err := os.MkdirTemp("", "sample_data")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpdir)
 
-	ourdir := filepath.Join(tmpdir, "does_not_exist")
-
-	if err := db.LoadSampleData(ourdir); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("loading samples from a non-existent directory should trigger an IsNotExist, but got: %+v", err)
-	}
-
 	// now let's write some invalid data and expect it to fail for that reason
-	if err := ioutil.WriteFile(filepath.Join(tmpdir, "sample.csv"), []byte("foo\""), os.ModePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpdir, "sample.csv"), []byte("foo\""), os.ModePerm); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := db.LoadSampleData(tmpdir); !errors.Is(err, csv.ErrBareQuote) {
+	tmpdirfs := os.DirFS(tmpdir)
+	if err := db.LoadSampleData(tmpdirfs); !errors.Is(err, csv.ErrBareQuote) {
 		t.Errorf("invalid data in a sample directory, expecting a CSV error to bubble up, got %+v instead", err)
 	}
 }
 
 func TestBasicFileCaching(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "caching")
+	tmpdir, err := os.MkdirTemp("", "caching")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +305,7 @@ func TestBasicFileCaching(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		contents, err := ioutil.ReadFile(path)
+		contents, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -321,7 +316,7 @@ func TestBasicFileCaching(t *testing.T) {
 }
 
 func TestCacheErrors(t *testing.T) {
-	tmpdir, err := ioutil.TempDir("", "caching")
+	tmpdir, err := os.MkdirTemp("", "caching")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,7 +363,7 @@ func TestChecksumValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := db.stripePath(ds, stripe)
-	stripeData, err := ioutil.ReadFile(path)
+	stripeData, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +378,7 @@ func TestChecksumValidation(t *testing.T) {
 			} else {
 				mut[j] |= 1 << pos
 			}
-			if err := ioutil.WriteFile(path, mut, os.ModePerm); err != nil {
+			if err := os.WriteFile(path, mut, os.ModePerm); err != nil {
 				t.Error(err)
 				continue
 			}
@@ -414,7 +409,7 @@ func TestChecksumValidation(t *testing.T) {
 // 	}
 
 // 	path := db.stripePath(ds, ds.Stripes[0])
-// 	data, err := ioutil.ReadFile(path)
+// 	data, err := os.ReadFile(path)
 // 	if err != nil {
 // 		t.Fatal(err)
 // 	}
@@ -433,7 +428,7 @@ func TestChecksumValidation(t *testing.T) {
 // 		}
 // 		offsets := bf.Bytes()
 // 		copy(testSlice[len(testSlice)-len(offsets)-4:], offsets) // hard coded position of offsets, may change (the four is for headerLen)
-// 		if err := ioutil.WriteFile(path, testSlice, os.ModePerm); err != nil {
+// 		if err := os.WriteFile(path, testSlice, os.ModePerm); err != nil {
 // 			t.Fatal(err)
 // 		}
 

@@ -389,7 +389,7 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			return ret, nil
 		}
 		// if it's not a projection, it must be an aggregator
-		// TODO/ARCH: cannot initialise the aggregator here, because we don't know
+		// ARCH: cannot initialise the aggregator here, because we don't know
 		// the types that go in (and we're already using static dispatch here)
 		aggfac, err := column.NewAggregator(funName)
 		if err != nil {

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"math/rand"
 	"reflect"
@@ -58,7 +58,7 @@ func TestBasicStringColumn(t *testing.T) {
 			}
 		}
 
-		_, err := nc.WriteTo(ioutil.Discard)
+		_, err := nc.WriteTo(io.Discard)
 		if err != nil {
 			t.Error(err)
 			return
@@ -82,7 +82,7 @@ func TestBasicIntColumn(t *testing.T) {
 			t.Error(err)
 		}
 
-		_, err := nc.WriteTo(ioutil.Discard)
+		_, err := nc.WriteTo(io.Discard)
 		if err != nil {
 			t.Error(err)
 			return
@@ -112,7 +112,7 @@ func TestBasicFloatColumn(t *testing.T) {
 			t.Error(err)
 		}
 
-		_, err := nc.WriteTo(ioutil.Discard)
+		_, err := nc.WriteTo(io.Discard)
 		if err != nil {
 			t.Error(err)
 			return
@@ -134,7 +134,7 @@ func TestBasicBoolColumn(t *testing.T) {
 			t.Error(err)
 		}
 
-		_, err := nc.WriteTo(ioutil.Discard)
+		_, err := nc.WriteTo(io.Discard)
 		if err != nil {
 			t.Error(err)
 			return

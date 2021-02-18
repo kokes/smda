@@ -9,9 +9,8 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/kokes/smda/src/column"
@@ -32,16 +31,18 @@ var errLengthMismatch = errors.New("column length mismatch")
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
 // using default settings
-// TODO: this will fall into the go-bindata packing issue (also includes webserver's static files)
-func (db *Database) LoadSampleData(path string) error {
+func (db *Database) LoadSampleData(sampleDir fs.FS) error {
 	// walking would be more efficient, but it should not matter here
-	files, err := ioutil.ReadDir(path)
+	files, err := fs.Glob(sampleDir, "*")
 	if err != nil {
 		return fmt.Errorf("could not load samples: %w", err)
 	}
 	for _, file := range files {
-		ffn := filepath.Join(path, file.Name())
-		_, err := db.loadDatasetFromLocalFileAuto(ffn)
+		f, err := sampleDir.Open(file)
+		if err != nil {
+			return err
+		}
+		_, err = db.LoadDatasetFromReaderAuto(f)
 		if err != nil {
 			return err
 		}
@@ -405,7 +406,7 @@ func (db *Database) loadDatasetFromLocalFile(path string, settings *loadSettings
 
 // LoadDatasetFromReaderAuto loads data from a reader and returns a Dataset
 func (db *Database) LoadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
-	f, err := ioutil.TempFile("", "")
+	f, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err
 	}
