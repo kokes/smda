@@ -165,7 +165,6 @@
         }
         async setupExplore(datasetID) {
             const target = document.getElementById('content');
-            empty(target);
 
             // TODO: render metadata as well
             const data = await this.getDatasetData(datasetID);
@@ -177,7 +176,6 @@
             this.datasets = Object.fromEntries(raw.map(x => [x.id, x]))
         }
         async listDatasets(target) {
-            empty(target);
             await this.loadDatasets();
             const list = document.createElement('ul');
 
@@ -189,6 +187,7 @@
                 dsli.appendChild(link);
                 list.appendChild(dsli);
             }
+            empty(target);
             target.appendChild(list);
         }
         async getDatasetData(datasetID) {
@@ -236,6 +235,7 @@
                 table.appendChild(row);
             }
 
+            empty(target);
             target.appendChild(table);
         }
     }
