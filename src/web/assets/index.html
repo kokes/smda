@@ -111,6 +111,13 @@
         }
     }
 
+    function node(tag, props, ...children) {
+        const tg = document.createElement(tag);
+        Object.keys(props || {}).forEach(k => tg.setAttribute(k, props[k]));
+        children.forEach(child => tg.append(child))
+        return tg;
+    }
+
     // ARCH: this does a bit of UI stuff - maybe separate that out completely, so that
     // this becomes more testable
     class smda {
@@ -177,18 +184,15 @@
         }
         async listDatasets(target) {
             await this.loadDatasets();
-            const list = document.createElement('ul');
 
+            const items = []
             for (const [dsID, ds] of Object.entries(this.datasets || {})) {
-                const dsli = document.createElement('li');
-                const link = document.createElement('a');
-                link.setAttribute('href', '#explore/' + dsID);
-                link.appendChild(document.createTextNode(`${ds.name} (${dsID})`));
-                dsli.appendChild(link);
-                list.appendChild(dsli);
+                const link = node("a", {href: `#explore/${dsID}`}, `${ds.name} (${dsID})`);
+                const item = node("li", {}, link);
+                items.push(item);
             }
             empty(target);
-            target.appendChild(list);
+            target.appendChild(node("ul", {}, ...items));
         }
         async getDatasetData(datasetID) {
             await this.loadDatasets();
@@ -211,28 +215,32 @@
             return await req.json();
         }
         async renderTable(data, target) {
-            const table = document.createElement('table');
-            table.className = "data-view";
-            const thead = document.createElement('tr');
-            for (let column of data.schema) {
-                const th = document.createElement('th');
-                th.innerText = column.name;
-                thead.appendChild(th);
-            }
-            table.appendChild(thead);
+            const table = node("table", {"class": "data-view"},
+                node("thead", {},
+                    node("tr", {}, ...data.schema.map((col) => node("th", {}, col.name)))
+                )
+            )
 
             // this works, could only fail if we get zero columns, but that can't happen
             // might be more convenient/explicit if we send nrows from the backend
+            // TODO: send this as metadata
             const nrows = data.data[0].length;
 
             for (let rowNum=0; rowNum < nrows; rowNum++) {
-                const row = document.createElement('tr');
-                for (let colNum = 0; colNum < data.schema.length; colNum++) {
-                    const cell = document.createElement('td');
-                    cell.innerText = data.data[colNum][rowNum];
-                    row.appendChild(cell);
-                }
+                const row = node("tr", {},
+                    ...data.schema.map((val, idx) => {
+                        return node("td", {}, data.data[idx][rowNum])
+                    })
+                )
                 table.appendChild(row);
+                // ARCH: I think the imperative code below is more readable...
+                // const row = document.createElement('tr');
+                // for (let colNum = 0; colNum < data.schema.length; colNum++) {
+                //     const cell = document.createElement('td');
+                //     cell.innerText = data.data[colNum][rowNum];
+                //     row.appendChild(cell);
+                // }
+                // table.appendChild(row);
             }
 
             empty(target);
