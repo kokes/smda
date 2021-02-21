@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/query"
@@ -15,7 +16,10 @@ import (
 var assets embed.FS
 
 func handleRoot(db *database.Database) http.HandlerFunc {
-	// TODO(next): handle live reloads - custom DirFS when we're in dev mode
+	// ARCH: are we doing this right? a) should we use the fs.FS differently? b) should we use a flag instead of envs?
+	if os.Getenv("DEV") != "" {
+		return http.FileServer(http.Dir("src/web/assets")).ServeHTTP
+	}
 	root, err := fs.Sub(assets, "assets")
 	if err != nil {
 		panic(err)
