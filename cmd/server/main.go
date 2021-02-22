@@ -13,11 +13,11 @@ import (
 //go:embed samples/*.csv
 var sampleDir embed.FS
 
-// ARCH/TODO(next): main -> run
+// ARCH/TODO(next): main -> run (+ tests in main_test.go - but how can we test exposure? [the only thing worth testing])
+// maybe also test an existing working directory and a busy port, loading samples makes sense?
 func main() {
 	expose := flag.Bool("expose", false, "expose the server on the network, do not run it just locally")
 	port := flag.Int("port", 8822, "port to listen on")
-	ensurePort := flag.Bool("ensure-port", false, "if the specified port is busy, do not attept any other ports")
 	wdir := flag.String("wdir", "tmp", "working directory for the database")
 	loadSamples := flag.Bool("samples", false, "load sample datasets")
 	flag.Parse()
@@ -43,7 +43,7 @@ func main() {
 		}
 	}
 
-	if err := web.RunWebserver(d, *port, *ensurePort, *expose); err != nil {
+	if err := web.RunWebserver(d, *port, *expose); err != nil {
 		log.Fatal(err)
 	}
 }

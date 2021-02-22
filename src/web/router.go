@@ -1,7 +1,6 @@
 package web
 
 import (
-	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -9,9 +8,6 @@ import (
 
 	"github.com/kokes/smda/src/database"
 )
-
-var errRequestedPortBusy = errors.New("requested port busy")
-var errNoAvailablePorts = errors.New("no available ports to use")
 
 func setupRoutes(db *database.Database) {
 	mux := http.NewServeMux()
@@ -32,33 +28,16 @@ func setupRoutes(db *database.Database) {
 }
 
 // RunWebserver sets up all the necessities for a server to run (namely routes) and launches one
-func RunWebserver(db *database.Database, port int, ensurePort, expose bool) error {
+func RunWebserver(db *database.Database, port int, expose bool) error {
 	setupRoutes(db)
 	host := "localhost"
 	if expose {
 		host = ""
 	}
 
-	// we're trying to find an available port, but this is for end users only
-	for j := 0; j < 100; j++ {
-		nport := port + j
-		address := net.JoinHostPort(host, strconv.Itoa(nport))
-		listener, err := net.Listen("tcp", address)
-		if err != nil {
-			if err.(*net.OpError).Err.Error() == "bind: address already in use" {
-				if ensurePort {
-					return errRequestedPortBusy
-				}
-				log.Printf("port %v busy, trying %v", nport, nport+1)
-				continue
-			}
-
-			return err
-		}
-		db.Server.Addr = address
-		log.Printf("listening on %v", address)
-		// this won't immediately return, only when shut down
-		return db.Server.Serve(listener)
-	}
-	return errNoAvailablePorts
+	address := net.JoinHostPort(host, strconv.Itoa(port))
+	db.Server.Addr = address
+	log.Printf("listening on %v", address)
+	// this won't immediately return, only when shut down
+	return db.Server.ListenAndServe()
 }

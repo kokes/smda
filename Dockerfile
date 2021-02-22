@@ -18,4 +18,4 @@ WORKDIR /tmp/
 COPY --from=build /smda/server .
 
 EXPOSE 8822
-CMD ["./server", "-port", "8822", "-ensure-port", "-expose", "-samples"]
+CMD ["./server", "-port", "8822", "-expose", "-samples"]
