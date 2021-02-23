@@ -233,6 +233,8 @@ func Run(db *database.Database, q Query) (*Result, error) {
 	}
 
 	var bms []*bitmap.Bitmap
+	// OPTIM: it's quite inefficient to filter outside the aggregator - we might be loading
+	// the same columns in both cases -> double the work
 	if q.Filter != nil {
 		bms, err = filter(db, ds, q.Filter)
 		if err != nil {
