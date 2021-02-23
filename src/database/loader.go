@@ -275,9 +275,6 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripe Stripe, nthColumn i
 
 	offsetStart, offsetEnd := stripe.Offsets[nthColumn], stripe.Offsets[nthColumn+1]
 
-	// OPTIM: once we start loading multiple columns in a loop, read into byte buffers here,
-	// so that we can reuse them (f.Seek && buffer.Grow && io.CopyN)
-	// I tried this before and it did lead to a regression, so I'm not sure what's wrong here
 	buf := make([]byte, offsetEnd-offsetStart)
 	n, err := f.ReadAt(buf, int64(offsetStart))
 	if err != nil {
@@ -298,18 +295,75 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripe Stripe, nthColumn i
 	return column.Deserialize(br, ds.Schema[nthColumn].Dtype)
 }
 
+type StripeReader struct {
+	f       *os.File
+	offsets []uint32
+	schema  TableSchema
+	buffer  *bytes.Buffer
+}
+
+func NewStripeReader(db *Database, ds *Dataset, stripe Stripe) (*StripeReader, error) {
+	f, err := os.Open(db.stripePath(ds, stripe))
+	if err != nil {
+		return nil, err
+	}
+
+	return &StripeReader{
+		f:       f,
+		offsets: stripe.Offsets,
+		schema:  ds.Schema,
+		buffer:  new(bytes.Buffer),
+	}, nil
+}
+
+func (sr *StripeReader) Close() error {
+	return sr.f.Close()
+}
+
+func (sr *StripeReader) ReadColumn(nthColumn int) (column.Chunk, error) {
+	offsetStart, offsetEnd := sr.offsets[nthColumn], sr.offsets[nthColumn+1]
+	length := int(offsetEnd - offsetStart)
+
+	sr.buffer.Reset()
+	sr.buffer.Grow(length)
+
+	if _, err := sr.f.Seek(int64(offsetStart), io.SeekStart); err != nil {
+		return nil, err
+	}
+	if _, err := io.CopyN(sr.buffer, sr.f, int64(length)); err != nil {
+		return nil, err
+	}
+
+	raw := sr.buffer.Bytes()
+	// IEEE CRC32 is in the first four bytes of this slice
+	checksumExpected := binary.LittleEndian.Uint32(raw[:4])
+	checksumGot := crc32.ChecksumIEEE(raw[4:])
+	if checksumExpected != checksumGot {
+		return nil, errIncorrectChecksum
+	}
+
+	br := bytes.NewReader(raw[4:])
+	return column.Deserialize(br, sr.schema[nthColumn].Dtype)
+}
+
 // ReadColumnsFromStripeByNames repeatedly calls ReadColumnFromStripeByName, so it's just a helper method
 // OPTIM: here we could use a stripe reader (or a ReadColumsFromStripe([]idx))
 // OPTIM: we could find out if the columns are contiguous and just read them in one go
 //        what if they are not ordered in the right way?
 func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) (map[string]column.Chunk, error) {
 	cols := make(map[string]column.Chunk, len(columns))
+	sr, err := NewStripeReader(db, ds, stripe)
+	if err != nil {
+		return nil, err
+	}
+	defer sr.Close()
 	for _, column := range columns {
 		idx, _, err := ds.Schema.LocateColumn(column)
 		if err != nil {
 			return nil, err
 		}
-		col, err := db.ReadColumnFromStripe(ds, stripe, idx)
+		// ARCH: consider ReadColumnByName to avoid the LocateColumn call above (and hide it in this method)
+		col, err := sr.ReadColumn(idx)
 		if err != nil {
 			return nil, err
 		}

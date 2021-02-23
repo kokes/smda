@@ -166,19 +166,25 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
-				for cn := 0; cn < 3; cn++ {
-					crows := 0
-					for _, stripe := range ds.Stripes {
-						col, err := db.ReadColumnFromStripe(ds, stripe, cn)
+				crows := 0
+				for _, stripe := range ds.Stripes {
+					sr, err := NewStripeReader(db, ds, stripe)
+					if err != nil {
+						b.Fatal(err)
+					}
+					for cn := 0; cn < 3; cn++ {
+						col, err := sr.ReadColumn(cn)
 						if err != nil {
 							b.Fatal(err)
 						}
-						crows += col.Len()
+						if cn == 0 {
+							crows += col.Len()
+						}
 					}
 
-					if crows != nrows {
-						b.Errorf("expecting %v rows, got %v", nrows, crows)
-					}
+				}
+				if crows != nrows {
+					b.Errorf("expecting %v rows, got %v", nrows, crows)
 				}
 			}
 		})
