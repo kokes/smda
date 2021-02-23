@@ -258,50 +258,17 @@ func (rl *rawLoader) readIntoStripe(maxRows, maxBytes int) (*stripeData, error) 
 	return ds, nil
 }
 
-// ReadColumnFromStripe reads a column chunk from a given stripe (identified by its UID)
-// we could probably make use of a "stripeReader", which would only open the file once
-// by using this, we will open and close the file every time we want a column
-// OPTIM: this does not buffer any reads... but it only reads things thrice, so it shouldn't matter, right?
-// TODO(next): move all these readers into one struct with methods - the struct takes in a dataset
-// and a stripe and allows for reading multiple columns without too much overhead (we could even sort
-// the requests by offset, so that we don't seek around too much, but it might be too premature at this point)
-// It will help us a bit with local files, it will be essential for remote storage
-func (db *Database) ReadColumnFromStripe(ds *Dataset, stripe Stripe, nthColumn int) (column.Chunk, error) {
-	f, err := os.Open(db.stripePath(ds, stripe))
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	offsetStart, offsetEnd := stripe.Offsets[nthColumn], stripe.Offsets[nthColumn+1]
-
-	buf := make([]byte, offsetEnd-offsetStart)
-	n, err := f.ReadAt(buf, int64(offsetStart))
-	if err != nil {
-		return nil, err
-	}
-	if n != len(buf) {
-		return nil, fmt.Errorf("expected to read %v bytes, but only got %v", len(buf), n)
-	}
-
-	// IEEE CRC32 is in the first four bytes of this slice
-	checksumExpected := binary.LittleEndian.Uint32(buf[:4])
-	checksumGot := crc32.ChecksumIEEE(buf[4:])
-	if checksumExpected != checksumGot {
-		return nil, errIncorrectChecksum
-	}
-
-	br := bytes.NewReader(buf[4:])
-	return column.Deserialize(br, ds.Schema[nthColumn].Dtype)
-}
-
 type StripeReader struct {
-	f       *os.File
+	f *os.File
+	// seeking is slow, so keep position manually is a big win
+	// if we read columns sequentially, we don't need to seek at all
+	pos     int
 	offsets []uint32
 	schema  TableSchema
 	buffer  *bytes.Buffer
 }
 
+// OPTIM: pass in a bytes buffer to reuse it?
 func NewStripeReader(db *Database, ds *Dataset, stripe Stripe) (*StripeReader, error) {
 	f, err := os.Open(db.stripePath(ds, stripe))
 	if err != nil {
@@ -327,12 +294,16 @@ func (sr *StripeReader) ReadColumn(nthColumn int) (column.Chunk, error) {
 	sr.buffer.Reset()
 	sr.buffer.Grow(length)
 
-	if _, err := sr.f.Seek(int64(offsetStart), io.SeekStart); err != nil {
-		return nil, err
+	if sr.pos != int(offsetStart) {
+		if _, err := sr.f.Seek(int64(offsetStart), io.SeekStart); err != nil {
+			return nil, err
+		}
+		sr.pos = int(offsetStart)
 	}
 	if _, err := io.CopyN(sr.buffer, sr.f, int64(length)); err != nil {
 		return nil, err
 	}
+	sr.pos += length
 
 	raw := sr.buffer.Bytes()
 	// IEEE CRC32 is in the first four bytes of this slice

@@ -102,7 +102,12 @@ func TestReadingFromStripes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	col, err := db.ReadColumnFromStripe(ds, ds.Stripes[0], 0)
+	sr, err := NewStripeReader(db, ds, ds.Stripes[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sr.Close()
+	col, err := sr.ReadColumn(0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +116,7 @@ func TestReadingFromStripes(t *testing.T) {
 		t.Errorf("expecting the length to be %+v, got %+v", 2, cols.Len())
 	}
 
-	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0], 1)
+	col, err = sr.ReadColumn(1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +125,7 @@ func TestReadingFromStripes(t *testing.T) {
 		t.Errorf("expecting the length to be %+v, got %+v", 2, colb.Len())
 	}
 
-	col, err = db.ReadColumnFromStripe(ds, ds.Stripes[0], 2)
+	col, err = sr.ReadColumn(2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,6 +177,7 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 					if err != nil {
 						b.Fatal(err)
 					}
+					defer sr.Close()
 					for cn := 0; cn < 3; cn++ {
 						col, err := sr.ReadColumn(cn)
 						if err != nil {
@@ -181,6 +187,7 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 							crows += col.Len()
 						}
 					}
+					sr.Close()
 
 				}
 				if crows != nrows {
@@ -357,8 +364,13 @@ func TestChecksumValidation(t *testing.T) {
 	// this should work fine
 	stripe := ds.Stripes[0]
 	readStripes := func() error {
+		sr, err := NewStripeReader(db, ds, stripe)
+		if err != nil {
+			return err
+		}
+		defer sr.Close()
 		for colNum := 0; colNum < 3; colNum++ {
-			_, err := db.ReadColumnFromStripe(ds, stripe, colNum)
+			_, err := sr.ReadColumn(colNum)
 			if err != nil {
 				return err
 			}

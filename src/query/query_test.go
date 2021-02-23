@@ -277,13 +277,18 @@ func TestBasicAggregation(t *testing.T) {
 			continue
 		}
 
+		sr, err := database.NewStripeReader(db, dso, dso.Stripes[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer sr.Close()
 		for j, col := range nrc {
 			// TODO: we can't just read the first stripe, we need to either
 			//        1) select the given column and see if it matches
 			//        2) create a helper method which tests for equality of two datasets (== schema, == each column
 			//           in each stripe, ignore stripeIDs)
 			// also, to test this, we need to initialise the db with MaxRowsPerStripe to a very low number to force creation of multiple stripes
-			expcol, err := db.ReadColumnFromStripe(dso, dso.Stripes[0], j)
+			expcol, err := sr.ReadColumn(j)
 			if err != nil {
 				t.Fatal(err)
 			}

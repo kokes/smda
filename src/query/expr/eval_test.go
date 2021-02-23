@@ -103,13 +103,13 @@ func TestBasicEval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coldata := make(map[string]column.Chunk)
-	for idx, cln := range ds.Schema {
-		column, err := db.ReadColumnFromStripe(ds, ds.Stripes[0], idx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		coldata[cln.Name] = column
+	columns := make([]string, 0, len(ds.Schema))
+	for _, cln := range ds.Schema {
+		columns = append(columns, cln.Name)
+	}
+	coldata, err := db.ReadColumnsFromStripeByNames(ds, ds.Stripes[0], columns)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	for _, test := range tests {
