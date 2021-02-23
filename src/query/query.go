@@ -29,14 +29,6 @@ type Query struct {
 	Limit     *int               `json:"limit,omitempty"`
 }
 
-func colmap(columns []string, coldata []column.Chunk) map[string]column.Chunk {
-	colmap := make(map[string]column.Chunk)
-	for j, colname := range columns {
-		colmap[colname] = coldata[j]
-	}
-	return colmap
-}
-
 // OPTIM: this filters the whole dataset, but it we may only need to filter a single stripe - e.g. if we have no order or
 // groupby clause and a limit (implicit or explicit)
 func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expression) ([]*bitmap.Bitmap, error) {
@@ -54,7 +46,7 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 		if err != nil {
 			return nil, err
 		}
-		fvals, err := expr.Evaluate(filterExpr, stripe.Length, colmap(colnames, columns))
+		fvals, err := expr.Evaluate(filterExpr, stripe.Length, columns)
 		if err != nil {
 			return nil, err
 		}
@@ -133,11 +125,10 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		if err != nil {
 			return nil, err
 		}
-		columnMap := colmap(columnNames, columnData) // consider changing ReadColumnsFromStripeByNames to return this map
 
 		// 1) evaluate all the aggregation expressions (those expressions that determine groups, e.g. `country`)
 		for j, expression := range groupbys {
-			rc, err := expr.Evaluate(expression, stripe.Length, columnMap)
+			rc, err := expr.Evaluate(expression, stripe.Length, columnData)
 			if err != nil {
 				return nil, err
 			}
@@ -174,7 +165,7 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 			hashes[j] = groups[el]
 		}
 		for _, aggexpr := range aggexprs {
-			if err := expr.UpdateAggregator(aggexpr, hashes, len(groups), columnMap); err != nil {
+			if err := expr.UpdateAggregator(aggexpr, hashes, len(groups), columnData); err != nil {
 				return nil, err
 			}
 		}
@@ -298,7 +289,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 				return nil, err
 			}
 
-			col, err := expr.Evaluate(colExpr, stripe.Length, colmap(colnames, columns))
+			col, err := expr.Evaluate(colExpr, stripe.Length, columns)
 			if err != nil {
 				return nil, err
 			}

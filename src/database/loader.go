@@ -298,22 +298,12 @@ func (db *Database) ReadColumnFromStripe(ds *Dataset, stripe Stripe, nthColumn i
 	return column.Deserialize(br, ds.Schema[nthColumn].Dtype)
 }
 
-// ReadColumnFromStripeByName reads a column by its name rather than position (that's
-// what ReadColumnFromStripe is for)
-func (db *Database) ReadColumnFromStripeByName(ds *Dataset, stripe Stripe, column string) (column.Chunk, error) {
-	idx, _, err := ds.Schema.LocateColumn(column)
-	if err != nil {
-		return nil, err
-	}
-	return db.ReadColumnFromStripe(ds, stripe, idx)
-}
-
 // ReadColumnsFromStripeByNames repeatedly calls ReadColumnFromStripeByName, so it's just a helper method
 // OPTIM: here we could use a stripe reader (or a ReadColumsFromStripe([]idx))
 // OPTIM: we could find out if the columns are contiguous and just read them in one go
 //        what if they are not ordered in the right way?
-func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) ([]column.Chunk, error) {
-	cols := make([]column.Chunk, 0, len(columns))
+func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) (map[string]column.Chunk, error) {
+	cols := make(map[string]column.Chunk, len(columns))
 	for _, column := range columns {
 		idx, _, err := ds.Schema.LocateColumn(column)
 		if err != nil {
@@ -323,7 +313,7 @@ func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, col
 		if err != nil {
 			return nil, err
 		}
-		cols = append(cols, col)
+		cols[column] = col
 	}
 	return cols, nil
 }

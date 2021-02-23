@@ -402,8 +402,12 @@ func TestBasicFiltering(t *testing.T) {
 			t.Error(err)
 			continue
 		}
+		filteredMap := make(map[string]column.Chunk)
+		for idx, col := range filtered.Schema {
+			filteredMap[col.Name] = filtered.Data[idx]
+		}
 
-		if !reflect.DeepEqual(filtered.Data, expectedCols) {
+		if !reflect.DeepEqual(filteredMap, expectedCols) {
 			t.Errorf("expecting filter %+v to result in %+v, not %+v", test.filterExpression, expectedCols, filtered.Data)
 		}
 
