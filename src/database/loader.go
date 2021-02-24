@@ -3,6 +3,7 @@ package database
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"encoding/binary"
 	"encoding/csv"
 	"errors"
@@ -28,6 +29,7 @@ var errInvalidOffsetData = errors.New("invalid offset data")
 var errSchemaMismatch = errors.New("dataset does not conform to the schema provided")
 var errNoMapData = errors.New("cannot load data from a map with no data")
 var errLengthMismatch = errors.New("column length mismatch")
+var errCannotWriteCompression = errors.New("cannot write data compressed by this compression")
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
 // using default settings
@@ -68,12 +70,13 @@ func CacheIncomingFile(r io.Reader, path string) error {
 
 type loadSettings struct {
 	// encoding
-	compression compression
-	delimiter   delimiter
+	readCompression compression
+	delimiter       delimiter
 	// hasHeader
 	schema TableSchema
 	// discardExtraColumns
 	// allowFewerColumns
+	writeCompression compression
 }
 
 // this might be confuse with `LoadRawDataset`, but they do very different things
@@ -106,7 +109,7 @@ func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
 	if settings == nil {
 		return nil, errInvalidloadSettings
 	}
-	ur, err := wrapCompressed(r, settings.compression)
+	ur, err := readCompressed(r, settings.readCompression)
 	if err != nil {
 		return nil, err
 	}
@@ -135,9 +138,18 @@ func newDataStripe() *stripeData {
 	}
 }
 
+func writeCompressed(w io.Writer, ctype compression) (io.WriteCloser, error) {
+	switch ctype {
+	case compressionGzip:
+		return gzip.NewWriter(w), nil
+	}
+	// TODO: snappy, lz4
+	return nil, fmt.Errorf("%w: %v", errCannotWriteCompression, ctype)
+}
+
 // pack data into a file and return their offsets, which will be stored in a manifest file
 // at this point they are stored in memory
-func (ds *stripeData) writeToWriter(w io.Writer) (offsets []uint32, err error) {
+func (ds *stripeData) writeToWriter(w io.Writer, ctype compression) (offsets []uint32, err error) {
 	totalOffset := uint32(0)
 	offsets = make([]uint32, 0, 1+len(ds.columns))
 	offsets = append(offsets, 0)
@@ -149,10 +161,27 @@ func (ds *stripeData) writeToWriter(w io.Writer) (offsets []uint32, err error) {
 		// perhaps using io.MultiWriter, but that would mean placing the checksum AFTER the column
 		// THOUGH PERHAPS we could just eliminate the checksum entirely and put it in our manifest file
 		// will that help us with reads though? We will still have to load the whole chunk to checksum it
-		n, err := column.WriteTo(buf)
-		if err != nil {
+		if err := buf.WriteByte(byte(ctype)); err != nil {
 			return nil, err
 		}
+		if ctype == compressionNone {
+			if _, err := column.WriteTo(buf); err != nil {
+				return nil, err
+			}
+		} else {
+			cw, err := writeCompressed(buf, ctype)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := column.WriteTo(cw); err != nil {
+				return nil, err
+			}
+			if err := cw.Close(); err != nil {
+				return nil, err
+			}
+		}
+
+		nw := buf.Len()
 		checksum := crc32.ChecksumIEEE(buf.Bytes())
 		if err := binary.Write(w, binary.LittleEndian, checksum); err != nil {
 			return nil, err
@@ -160,7 +189,7 @@ func (ds *stripeData) writeToWriter(w io.Writer) (offsets []uint32, err error) {
 		if _, err := io.Copy(w, buf); err != nil {
 			return nil, err
 		}
-		totalOffset += uint32(n) + 4 // byte slice length + checksum
+		totalOffset += 4 + uint32(nw) // checksum + byte slice length
 		offsets = append(offsets, totalOffset)
 		buf.Reset()
 	}
@@ -168,7 +197,7 @@ func (ds *stripeData) writeToWriter(w io.Writer) (offsets []uint32, err error) {
 	return offsets, nil
 }
 
-func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData) error {
+func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData, ctype compression) error {
 	if err := os.MkdirAll(db.DatasetPath(ds), os.ModePerm); err != nil {
 		return err
 	}
@@ -181,7 +210,7 @@ func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData) error {
 	bw := bufio.NewWriter(f)
 	defer bw.Flush()
 
-	offsets, err := stripe.writeToWriter(bw)
+	offsets, err := stripe.writeToWriter(bw, ctype)
 	if err != nil {
 		return err
 	}
@@ -312,9 +341,14 @@ func (sr *StripeReader) ReadColumn(nthColumn int) (column.Chunk, error) {
 	if checksumExpected != checksumGot {
 		return nil, errIncorrectChecksum
 	}
+	ctype := compression(raw[4])
 
-	br := bytes.NewReader(raw[4:])
-	return column.Deserialize(br, sr.schema[nthColumn].Dtype)
+	br := bytes.NewReader(raw[5:])
+	cr, err := readCompressed(br, ctype)
+	if err != nil {
+		return nil, err
+	}
+	return column.Deserialize(cr, sr.schema[nthColumn].Dtype)
 }
 
 // ReadColumnsFromStripeByNames repeatedly calls ReadColumnFromStripeByName, so it's just a helper method
@@ -392,7 +426,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 			return nil, errors.New("no data loaded")
 		}
 
-		if err := db.writeStripeToFile(dataset, ds); err != nil {
+		if err := db.writeStripeToFile(dataset, ds, settings.writeCompression); err != nil {
 			return nil, err
 		}
 
@@ -440,8 +474,11 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 	}
 
 	ls := &loadSettings{
-		compression: ctype,
-		delimiter:   dlim,
+		readCompression: ctype,
+		delimiter:       dlim,
+		// ARCH: we only set write compression in *Auto calls
+		// OPTIM: make this configurable and optimised
+		writeCompression: compressionNone,
 	}
 
 	schema, err := inferTypes(path, ls)

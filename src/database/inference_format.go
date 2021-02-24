@@ -11,7 +11,7 @@ import (
 	"os"
 )
 
-type compression int
+type compression uint8
 
 const (
 	compressionNone compression = iota
@@ -65,7 +65,7 @@ func inferCompression(buffer []byte) compression {
 
 // the caller is responsible for closing this (but will they close the underlying file?
 // or is that garbage collected somehow?)
-func wrapCompressed(r io.Reader, ctype compression) (io.Reader, error) {
+func readCompressed(r io.Reader, ctype compression) (io.Reader, error) {
 	switch ctype {
 	case compressionNone:
 		return r, nil
@@ -138,7 +138,7 @@ func inferCompressionAndDelimiter(path string) (compression, delimiter, error) {
 	header = header[:n] // we'd otherwise have null-byte padding after whatever we loaded
 	ctype := inferCompression(header)
 	mr := io.MultiReader(bytes.NewReader(header), r)
-	uf, err := wrapCompressed(mr, ctype)
+	uf, err := readCompressed(mr, ctype)
 	if err != nil {
 		return 0, 0, err
 	}

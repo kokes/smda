@@ -128,7 +128,7 @@ func TestDelimiterStringer(t *testing.T) {
 func TestWrappingUncompressedData(t *testing.T) {
 	raw := []byte("foobarbaz")
 	data := bytes.NewReader(raw)
-	newReader, err := wrapCompressed(data, compressionNone)
+	newReader, err := readCompressed(data, compressionNone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestWrappingGzippedData(t *testing.T) {
 	gw.Close()
 
 	data := bytes.NewReader(gdata.Bytes())
-	newReader, err := wrapCompressed(data, compressionGzip)
+	newReader, err := readCompressed(data, compressionGzip)
 	if err != nil {
 		t.Fatal(err)
 	}
