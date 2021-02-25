@@ -170,7 +170,6 @@ func stringsToExprs(raw []string) ([]*expr.Expression, error) {
 	return ret, nil
 }
 
-// TODO: this only tests `aggregate`, not the whole query function - so we don't get schema checks e.g.
 func TestBasicAggregation(t *testing.T) {
 	tests := []struct {
 		input   string
@@ -268,11 +267,19 @@ func TestBasicAggregation(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		nrc, err := aggregate(db, ds, aggexpr, projexpr)
+		query := Query{
+			Select:    projexpr,
+			Aggregate: aggexpr,
+			Dataset:   ds.ID,
+		}
+		res, err := Run(db, query)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(nrc) == 0 {
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Data) == 0 {
 			t.Errorf("got no data from %+v", test.input)
 			continue
 		}
@@ -282,7 +289,7 @@ func TestBasicAggregation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer sr.Close()
-		for j, col := range nrc {
+		for j, col := range res.Data {
 			// TODO: we can't just read the first stripe, we need to either
 			//        1) select the given column and see if it matches
 			//        2) create a helper method which tests for equality of two datasets (== schema, == each column
