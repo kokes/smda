@@ -185,7 +185,9 @@ func TestRemovingDatasets(t *testing.T) {
 		}
 	}
 
-	db.removeDataset(ds)
+	if err := db.removeDataset(ds); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = db.GetDataset(ds.ID)
 	if !errors.Is(err, errDatasetNotFound) {
@@ -196,6 +198,10 @@ func TestRemovingDatasets(t *testing.T) {
 	// check the directory is no longer there
 	if _, err := os.Stat(db.DatasetPath(ds)); !os.IsNotExist(err) {
 		t.Errorf("expecting data to be deleted along with a dataset, but got: %+v", err)
+	}
+
+	if _, err := os.Stat(db.manifestPath(ds)); !os.IsNotExist(err) {
+		t.Errorf("expecting manifests to be deleted along with a dataset, but got: %+v", err)
 	}
 }
 

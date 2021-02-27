@@ -91,7 +91,7 @@ func NewDatabase(config *Config) (*Database, error) {
 		Datasets: make([]*Dataset, 0),
 	}
 
-	if err := os.MkdirAll(db.manifestsPath(), os.ModePerm); err != nil {
+	if err := os.MkdirAll(db.manifestPath(nil), os.ModePerm); err != nil {
 		return nil, err
 	}
 	if err := os.MkdirAll(db.dataPath(), os.ModePerm); err != nil {
@@ -99,13 +99,13 @@ func NewDatabase(config *Config) (*Database, error) {
 	}
 
 	// read manifests and load existing files
-	manifests, err := os.ReadDir(db.manifestsPath())
+	manifests, err := os.ReadDir(db.manifestPath(nil))
 	if err != nil {
 		return nil, err
 	}
 	for _, manifest := range manifests {
 		var ds Dataset
-		f, err := os.Open(filepath.Join(db.manifestsPath(), manifest.Name()))
+		f, err := os.Open(filepath.Join(db.manifestPath(nil), manifest.Name()))
 		if err != nil {
 			return nil, err
 		}
@@ -120,8 +120,12 @@ func NewDatabase(config *Config) (*Database, error) {
 	return db, nil
 }
 
-func (db *Database) manifestsPath() string {
-	return filepath.Join(db.Config.WorkingDirectory, "manifests")
+func (db *Database) manifestPath(ds *Dataset) string {
+	root := filepath.Join(db.Config.WorkingDirectory, "manifests")
+	if ds == nil {
+		return root
+	}
+	return filepath.Join(root, ds.ID.String()+".json")
 }
 func (db *Database) dataPath() string {
 	return filepath.Join(db.Config.WorkingDirectory, "data")
@@ -252,6 +256,7 @@ func NewDataset() *Dataset {
 }
 
 // DatasetPath returns the path of a given dataset (all the stripes are there)
+// ARCH: consider merging this with dataPath based on a nullable dataset argument (like manifestPath)
 func (db *Database) DatasetPath(ds *Dataset) string {
 	return filepath.Join(db.dataPath(), ds.ID.String())
 }
@@ -281,8 +286,7 @@ func (db *Database) AddDataset(ds *Dataset) error {
 	db.Datasets = append(db.Datasets, ds)
 	db.Unlock()
 
-	mfPath := filepath.Join(db.manifestsPath(), ds.ID.String()+".json")
-	f, err := os.Create(mfPath)
+	f, err := os.Create(db.manifestPath(ds))
 	if err != nil {
 		return err
 	}
@@ -297,7 +301,6 @@ func (db *Database) AddDataset(ds *Dataset) error {
 // tests cover only "real" datasets, not the raw ones
 func (db *Database) removeDataset(ds *Dataset) error {
 	db.Lock()
-	defer db.Unlock()
 	for j, dataset := range db.Datasets {
 		if dataset == ds {
 			db.Datasets = append(db.Datasets[:j], db.Datasets[j+1:]...)
@@ -305,12 +308,20 @@ func (db *Database) removeDataset(ds *Dataset) error {
 			break
 		}
 	}
+	// not deferring this - we're not throwing errors and we want to unlock
+	// it before the end of the function (removing data might take a while)
+	db.Unlock()
 
 	for _, stripe := range ds.Stripes {
 		if err := os.Remove(db.stripePath(ds, stripe)); err != nil {
 			return err
 		}
 	}
+
+	if err := os.Remove(db.manifestPath(ds)); err != nil {
+		return err
+	}
+
 	// This might throw a "directory not empty" in the future as other datasets might claim
 	// parts of this directory (if we start sharing stripes). But let's cross that bridge
 	// when we get to it
