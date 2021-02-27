@@ -39,7 +39,9 @@ func TestBasicQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.AddDataset(ds)
+	if err := db.AddDataset(ds); err != nil {
+		t.Fatal(err)
+	}
 	limit := 100
 	cols := selectExpr([]string{"foo", "bar", "baz"})
 	q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
@@ -81,7 +83,9 @@ func TestQueryNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.AddDataset(ds)
+	if err := db.AddDataset(ds); err != nil {
+		t.Fatal(err)
+	}
 	cols := selectExpr(nil)
 	q := Query{Select: cols, Dataset: ds.ID}
 
@@ -106,7 +110,9 @@ func TestLimitsInQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.AddDataset(ds)
+	if err := db.AddDataset(ds); err != nil {
+		t.Fatal(err)
+	}
 
 	firstColRaw := []string{"1", "4", "7"}
 	cols := selectExpr([]string{"foo", "bar", "baz"})

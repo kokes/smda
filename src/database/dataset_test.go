@@ -69,7 +69,7 @@ func TestInitDB(t *testing.T) {
 	}
 }
 
-func TestInitExistingDB(t *testing.T) {
+func TestOpenExistingDB(t *testing.T) {
 	dr, err := os.MkdirTemp("", "init_db_testing")
 	if err != nil {
 		t.Fatal(err)
@@ -80,10 +80,10 @@ func TestInitExistingDB(t *testing.T) {
 	if _, err := NewDatabase(&Config{WorkingDirectory: tdr}); err != nil {
 		t.Fatal(err)
 	}
-	// we should not be able to init a new one in the same dir
+	// we should be able to open said db
 	for j := 0; j < 3; j++ {
-		if _, err := NewDatabase(&Config{WorkingDirectory: tdr}); !errors.Is(err, errPathNotEmpty) {
-			t.Errorf("creating a database in an existing directory should trigger errPathNotEmpty, got %+v", err)
+		if _, err := NewDatabase(&Config{WorkingDirectory: tdr}); err != nil {
+			t.Errorf("creating a database in an existing directory after it was initialised should not trigger an err, got %+v", err)
 		}
 	}
 }
@@ -113,7 +113,9 @@ func TestAddingDatasets(t *testing.T) {
 		}
 	}()
 	ds := NewDataset()
-	db.AddDataset(ds)
+	if err := db.AddDataset(ds); err != nil {
+		t.Fatal(err)
+	}
 
 	ds2, err := db.GetDataset(ds.ID)
 	if err != nil {

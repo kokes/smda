@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -16,7 +17,7 @@ import (
 	"github.com/kokes/smda/src/column"
 )
 
-var errPathNotEmpty = errors.New("path not empty")
+var errPathNotEmpty = errors.New("path not empty, but does not contain a smda config file")
 var errDatasetNotFound = errors.New("dataset not found")
 var errColumnNotFound = errors.New("column not found in schema")
 
@@ -37,8 +38,8 @@ type Config struct {
 	MaxBytesPerStripe int
 }
 
-// NewDatabase initiates a new database in a directory, which cannot exist (we wouldn't know what to do with any of
-// the existing files there)
+// NewDatabase initiates a new database object and binds it to a given directory. If the directory
+// doesn't exist, it creates it. If it exists, it loads the data contained within.
 func NewDatabase(config *Config) (*Database, error) {
 	if config == nil {
 		config = &Config{}
@@ -62,25 +63,71 @@ func NewDatabase(config *Config) (*Database, error) {
 	if err != nil {
 		return nil, err
 	}
+	cfgFile := filepath.Join(abspath, "smda_db.json")
 	if stat, err := os.Stat(abspath); err == nil && stat.IsDir() {
-		// this will serve as OpenDatabase in the future, once we learn how to resume operation
-		return nil, fmt.Errorf("cannot initialise a database in %v: %w", abspath, errPathNotEmpty)
-	}
-	if err := os.MkdirAll(config.WorkingDirectory, os.ModePerm); err != nil {
-		return nil, err
+		// TODO(next): check smda_db.json and see if we can leverage it (overwrite Config, or at leaste merge them)
+		// let's assume it's not a directory... fair?
+		if _, err := os.Stat(cfgFile); err != nil {
+			return nil, fmt.Errorf("%w: cannot initialise a database in %v (%v)", errPathNotEmpty, abspath, err)
+		}
+	} else {
+		if err := os.MkdirAll(config.WorkingDirectory, os.ModePerm); err != nil {
+			return nil, err
+		}
+		f, err := os.Create(cfgFile)
+		if err != nil {
+			return nil, err
+		}
+		if err := f.Close(); err != nil {
+			return nil, err
+		}
 	}
 
 	// many objects within the database get random IDs assigned, so we better seed at some point
-	// might get in the way in testing, we'll deal with it if it happens to be a problem
+	// ARCH: might get in the way in testing, we'll deal with it if it happens to be a problem
 	rand.Seed(time.Now().UTC().UnixNano())
 	db := &Database{
 		Config:   config,
 		Datasets: make([]*Dataset, 0),
 	}
+
+	if err := os.MkdirAll(db.manifestsPath(), os.ModePerm); err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(db.dataPath(), os.ModePerm); err != nil {
+		return nil, err
+	}
+
+	// read manifests and load existing files
+	manifests, err := os.ReadDir(db.manifestsPath())
+	if err != nil {
+		return nil, err
+	}
+	for _, manifest := range manifests {
+		var ds Dataset
+		f, err := os.Open(filepath.Join(db.manifestsPath(), manifest.Name()))
+		if err != nil {
+			return nil, err
+		}
+		if err := json.NewDecoder(f).Decode(&ds); err != nil {
+			return nil, err
+		}
+		if err := db.AddDataset(&ds); err != nil {
+			return nil, err
+		}
+	}
+
 	return db, nil
 }
 
-// Drop deletes all data for a given Database
+func (db *Database) manifestsPath() string {
+	return filepath.Join(db.Config.WorkingDirectory, "manifests")
+}
+func (db *Database) dataPath() string {
+	return filepath.Join(db.Config.WorkingDirectory, "data")
+}
+
+// Drop deletes all local data for a given Database
 func (db *Database) Drop() error {
 	return os.RemoveAll(db.Config.WorkingDirectory)
 }
@@ -150,7 +197,6 @@ func (uid *UID) UnmarshalJSON(data []byte) error {
 
 // Stripe only contains metadata about a given stripe, it has to be loaded
 // separately to obtain actual data
-// ARCH: save offsets to manifest files?
 type Stripe struct {
 	Id      UID
 	Length  int
@@ -162,8 +208,9 @@ type Dataset struct {
 	ID     UID         `json:"id"`
 	Name   string      `json:"name"`
 	Schema TableSchema `json:"schema"`
-	// ARCH: we may need to expose this once we introduce manifest files
-	Stripes []Stripe `json:"-"`
+	// TODO/OPTIM: we need the following for manifests, but it's unnecessary for writing in our
+	// web requests - remove it from there
+	Stripes []Stripe `json:"stripes"`
 }
 
 // TableSchema is a collection of column schemas
@@ -206,7 +253,7 @@ func NewDataset() *Dataset {
 
 // DatasetPath returns the path of a given dataset (all the stripes are there)
 func (db *Database) DatasetPath(ds *Dataset) string {
-	return filepath.Join(db.Config.WorkingDirectory, ds.ID.String())
+	return filepath.Join(db.dataPath(), ds.ID.String())
 }
 
 func (db *Database) stripePath(ds *Dataset, stripe Stripe) string {
@@ -229,10 +276,22 @@ func (db *Database) GetDataset(datasetID UID) (*Dataset, error) {
 // AddDataset adds a Dataset to a Database
 // this is a pretty rare event, so we don't expect much contention
 // it's just to avoid some issues when marshaling the object around in the API etc.
-func (db *Database) AddDataset(ds *Dataset) {
+func (db *Database) AddDataset(ds *Dataset) error {
 	db.Lock()
 	db.Datasets = append(db.Datasets, ds)
 	db.Unlock()
+
+	mfPath := filepath.Join(db.manifestsPath(), ds.ID.String()+".json")
+	f, err := os.Create(mfPath)
+	if err != nil {
+		return err
+	}
+	// ARCH/OPTIM: bufio? Though the manifests are likely to be small (or will they?)
+	if err := json.NewEncoder(f).Encode(ds); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // tests cover only "real" datasets, not the raw ones

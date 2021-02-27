@@ -17,7 +17,7 @@ import (
 	"github.com/kokes/smda/src/column"
 )
 
-// ARCH: reintroduce versioning once we create manifest files
+// ARCH: reintroduce versioning (and consider how it plays along with manifest files)
 // const (
 // 	stripeOnDiskFormatVersion = 1
 // )
@@ -148,7 +148,6 @@ func writeCompressed(w io.Writer, ctype compression) (io.WriteCloser, error) {
 }
 
 // pack data into a file and return their offsets, which will be stored in a manifest file
-// at this point they are stored in memory
 func (ds *stripeData) writeToWriter(w io.Writer, ctype compression) (offsets []uint32, err error) {
 	totalOffset := uint32(0)
 	offsets = make([]uint32, 0, 1+len(ds.columns))
@@ -439,7 +438,9 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 
 	dataset.Schema = rl.settings.schema
 	dataset.Stripes = stripes
-	db.AddDataset(dataset)
+	if err := db.AddDataset(dataset); err != nil {
+		return nil, err
+	}
 	return dataset, nil
 }
 

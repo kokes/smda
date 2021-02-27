@@ -17,7 +17,10 @@ build-ingest:
 	CGO_ENABLED=0 $(GORLS) build ./cmd/ingest/
 
 run:
-	mkdir -p tmp && rm -r tmp && $(GORLS) run cmd/server/main.go -port 8822 -samples -wdir tmp
+	$(GORLS) run cmd/server/main.go -port 8822 -samples -wdir tmp
+
+run-clean:
+	mkdir -p tmp && rm -r tmp && make run
 
 run-docker: build-docker
 	# ephemeral run - will destroy the container after exiting
