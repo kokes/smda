@@ -317,7 +317,10 @@ func (sr *StripeReader) Close() error {
 
 func (sr *StripeReader) ReadColumn(nthColumn int) (column.Chunk, error) {
 	offsetStart, offsetEnd := sr.offsets[nthColumn], sr.offsets[nthColumn+1]
-	length := int(offsetEnd - offsetStart)
+	length := int(offsetEnd) - int(offsetStart)
+	if length < 5 {
+		return nil, errInvalidOffsetData
+	}
 
 	sr.buffer.Reset()
 	sr.buffer.Grow(length)
