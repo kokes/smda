@@ -407,8 +407,6 @@ func TestChecksumValidation(t *testing.T) {
 	}
 }
 
-// TODO(next): test that when we restart a server, we can load the same data (manifests)
-
 // ARCH/TODO(next): reuse when we start using manifest files
 // func TestInvalidOffsets(t *testing.T) {
 // 	db, err := NewDatabase(nil)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -122,6 +123,41 @@ func TestAddingDatasets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if ds != ds2 {
+		t.Fatal("roundtrip did not work out")
+	}
+}
+
+func TestAddingDatasetsWithRestarts(t *testing.T) {
+	db, err := NewDatabase(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wdir := db.Config.WorkingDirectory
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+	ds := NewDataset()
+	if err := db.AddDataset(ds); err != nil {
+		t.Fatal(err)
+	}
+
+	db2, err := NewDatabase(&Config{WorkingDirectory: wdir})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ds2, err := db2.GetDataset(ds.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db2.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+	if !reflect.DeepEqual(ds, ds2) {
 		t.Fatal("roundtrip did not work out")
 	}
 }
