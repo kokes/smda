@@ -171,8 +171,7 @@ func TestAlgebraicExpressions(t *testing.T) {
 		dt1, dt2, dte    Dtype
 		c1, c2, expected string
 	}{
-		// TODO(next): test extreme values and overflows
-		// TODO: test those cases that are not supported (e.g. add ints and strings)
+		// TODO(next): test those cases that are not supported (e.g. add ints and strings)
 		// no nullables
 		{EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "1,2,3", "4,5,6", "5,7,9"},
 		{EvalAdd, 3, DtypeFloat, DtypeFloat, DtypeFloat, "1.4,2.4,3.5", "4.1,5.5,6.1", "5.5,7.9,9.6"},
@@ -202,6 +201,13 @@ func TestAlgebraicExpressions(t *testing.T) {
 		{EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "lit:34", "4,,6", "38,,40"},
 		// TODO: we don't have nullable typed literals (so 4 > NULL will fail)
 		// {EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "lit:34", "lit:", "lit:"},
+
+		// overflows
+		{EvalAdd, 1, DtypeInt, DtypeInt, DtypeInt, "9223372036854775807", "0", "9223372036854775807"},
+		{EvalAdd, 1, DtypeInt, DtypeInt, DtypeInt, "9223372036854775807", "1", "-9223372036854775808"},
+		{EvalMultiply, 1, DtypeInt, DtypeInt, DtypeInt, "9223372036854775802", "4", "-24"},
+		{EvalSubtract, 1, DtypeInt, DtypeInt, DtypeInt, "-9223372036854775808", "2", "9223372036854775806"},
+		{EvalMultiply, 1, DtypeInt, DtypeInt, DtypeInt, "-9223372036854775808", "7", "-9223372036854775808"},
 
 		// literals
 		{EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "lit:34", "4,5,6", "38,39,40"},
