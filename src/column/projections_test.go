@@ -10,7 +10,7 @@ func prepColumns(nrows int, dtype1, dtype2, dtype3 Dtype, rawData1, rawData2, ra
 	c1, c2, expected := NewChunkFromSchema(Schema{Dtype: dtype1}), NewChunkFromSchema(Schema{Dtype: dtype2}), NewChunkFromSchema(Schema{Dtype: dtype3})
 	var err error
 	if strings.HasPrefix(rawData1, litPrefix) {
-		c1, err = NewChunkLiteralAuto(strings.TrimPrefix(rawData1, litPrefix), nrows)
+		c1, err = NewChunkLiteralTyped(strings.TrimPrefix(rawData1, litPrefix), dtype1, nrows)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -20,7 +20,7 @@ func prepColumns(nrows int, dtype1, dtype2, dtype3 Dtype, rawData1, rawData2, ra
 		}
 	}
 	if strings.HasPrefix(rawData2, litPrefix) {
-		c2, err = NewChunkLiteralAuto(strings.TrimPrefix(rawData2, litPrefix), nrows)
+		c2, err = NewChunkLiteralTyped(strings.TrimPrefix(rawData2, litPrefix), dtype2, nrows)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -31,7 +31,7 @@ func prepColumns(nrows int, dtype1, dtype2, dtype3 Dtype, rawData1, rawData2, ra
 	}
 
 	if strings.HasPrefix(rawData3, litPrefix) {
-		expected, err = NewChunkLiteralAuto(strings.TrimPrefix(rawData3, litPrefix), nrows)
+		expected, err = NewChunkLiteralTyped(strings.TrimPrefix(rawData3, litPrefix), dtype3, nrows)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -103,7 +103,8 @@ func TestComparisons(t *testing.T) {
 		{DtypeBool, DtypeBool, EvalNeq, 4, "t,t,f,t", "f,t,f,f", "t,f,f,t"},
 		{DtypeString, DtypeString, EvalEq, 3, "foo,bar,baz", "foo,bak,baz", "t,f,t"},
 		// eq with nulls
-		{DtypeInt, DtypeInt, EvalEq, 3, "1,,3", "1,2,3", "t,,t"}, // once we implement ChunksEqual here, we can compare 1,,3 and 1,0,3
+		{DtypeInt, DtypeInt, EvalEq, 3, "1,,3", "1,2,3", "t,,t"},
+		{DtypeInt, DtypeInt, EvalEq, 3, "1,,3", "1,0,3", "t,,t"},
 		// neq
 		{DtypeInt, DtypeInt, EvalNeq, 3, "1,2,3", "3,3,3", "t,t,f"},
 		{DtypeFloat, DtypeFloat, EvalNeq, 3, "1,2.0,3.1", "3,2,3", "t,f,t"},
@@ -170,9 +171,8 @@ func TestAlgebraicExpressions(t *testing.T) {
 		dt1, dt2, dte    Dtype
 		c1, c2, expected string
 	}{
-		// TODO: test extreme values and overflows
+		// TODO(next): test extreme values and overflows
 		// TODO: test those cases that are not supported (e.g. add ints and strings)
-		// TODO: test nullable columns
 		// no nullables
 		{EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "1,2,3", "4,5,6", "5,7,9"},
 		{EvalAdd, 3, DtypeFloat, DtypeFloat, DtypeFloat, "1.4,2.4,3.5", "4.1,5.5,6.1", "5.5,7.9,9.6"},
@@ -190,6 +190,18 @@ func TestAlgebraicExpressions(t *testing.T) {
 		{EvalMultiply, 3, DtypeFloat, DtypeFloat, DtypeFloat, "1.444,2.132,3.4124", "123.123,22.223,4.123", "177.789612,47.379436,14.0693252"},
 		{EvalMultiply, 3, DtypeInt, DtypeFloat, DtypeFloat, "11,2,39", "123.123,22.223,4.123", "1354.353,44.446,160.797"},
 		{EvalMultiply, 3, DtypeFloat, DtypeInt, DtypeFloat, "123.123,22.223,4.123", "11,2,39", "1354.353,44.446,160.797"},
+		// nulls
+		{EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "1,2,3", "4,,6", "5,,9"},
+		{EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "1,2,3", ",,", ",,"},
+		{EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, ",,", "4,5,6", ",,"},
+		{EvalAdd, 3, DtypeFloat, DtypeFloat, DtypeFloat, "1.4,,3.5", "4.1,5.5,", "5.5,,"},
+		{EvalDivide, 2, DtypeFloat, DtypeInt, DtypeFloat, "1.2,3.4", "12,", "0.09999999999999999,"},
+		{EvalDivide, 2, DtypeFloat, DtypeInt, DtypeFloat, "1.2,", "12,12", "0.09999999999999999,"},
+		{EvalDivide, 2, DtypeFloat, DtypeFloat, DtypeFloat, "1,2.2", ",8.3", ",0.26506024096385544"},
+		{EvalDivide, 2, DtypeFloat, DtypeFloat, DtypeFloat, ",2.2", "0,8.3", ",0.26506024096385544"},
+		{EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "lit:34", "4,,6", "38,,40"},
+		// TODO: we don't have nullable typed literals (so 4 > NULL will fail)
+		// {EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "lit:34", "lit:", "lit:"},
 
 		// literals
 		{EvalAdd, 3, DtypeInt, DtypeInt, DtypeInt, "lit:34", "4,5,6", "38,39,40"},
@@ -212,7 +224,7 @@ func TestAlgebraicExpressions(t *testing.T) {
 		{EvalDivide, 3, DtypeFloat, DtypeFloat, DtypeFloat, "lit:35", "lit:33.5", "lit:1.044776119402985"},
 		{EvalMultiply, 3, DtypeInt, DtypeInt, DtypeInt, "lit:34", "4,5,8", "136,170,272"},
 		{EvalMultiply, 3, DtypeInt, DtypeInt, DtypeInt, "4,5,6", "lit:35", "140,175,210"},
-		{EvalMultiply, 3, DtypeInt, DtypeInt, DtypeFloat, "lit:34", "lit:33", "lit:1122"},
+		{EvalMultiply, 3, DtypeInt, DtypeInt, DtypeInt, "lit:34", "lit:33", "lit:1122"},
 		{EvalMultiply, 3, DtypeInt, DtypeFloat, DtypeFloat, "lit:34", "4,5.5,6.2", "136,187,210.8"},
 		{EvalMultiply, 3, DtypeFloat, DtypeInt, DtypeFloat, "4,5.5,6.2", "lit:34", "136,187,210.8"},
 		{EvalMultiply, 3, DtypeFloat, DtypeFloat, DtypeFloat, "lit:35", "lit:33.5", "lit:1172.5"},

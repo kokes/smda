@@ -68,7 +68,7 @@ func TestBasicEval(t *testing.T) {
 		{"round(float1p452p13p0, 1)", column.DtypeFloat, []string{"1.5", "2.1", "3.0"}},
 		// don't have a good way to specify floats precisely (though check out log(float123)), so let's just test approx values
 		{"round(sin(float123), 4)", column.DtypeFloat, []string{"0.8415", "0.9093", "0.1411"}},
-		// {"round(sin(foo123), 4)", column.DtypeFloat, []string{"0.8415", "0.9093", "0.1411"}}, // int func calls not implemented yet
+		{"round(sin(foo123), 4)", column.DtypeFloat, []string{"0.8415", "0.9093", "0.1411"}},
 		{"exp2(float123)", column.DtypeFloat, []string{"2", "4", "8"}},
 		{"exp2(floatneg123)", column.DtypeFloat, []string{"0.5", "0.25", "0.125"}},
 		{"log(float123)", column.DtypeFloat, []string{"0", "0.6931471805599453", "1.0986122886681096"}},
@@ -76,8 +76,7 @@ func TestBasicEval(t *testing.T) {
 		{"log2(float123)", column.DtypeFloat, []string{"0", "1", "1.5849625007211563"}},
 		{"log2(foo123)", column.DtypeFloat, []string{"0", "1", "1.5849625007211563"}},
 		{"log10(float123)", column.DtypeFloat, []string{"0", "0.3010299956639812", "0.4771212547196624"}},
-		// test negatives in floats (-> nulls, not nans) [not implemented yet]
-		// {"log(floatneg123)", column.DtypeFloat, []string{"", "", ""}},
+		{"log(floatneg123)", column.DtypeFloat, []string{"", "", ""}},
 	}
 
 	db, err := database.NewDatabase(nil)

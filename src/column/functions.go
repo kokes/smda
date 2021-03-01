@@ -129,6 +129,11 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 			ctr := ct.Clone().(*ChunkFloats)
 			for j, el := range ctr.data {
 				val := fnc(el)
+				// ARCH: infinity is a valid float (well, so is nan), but I guess we cannot
+				// get it as a legit value from an operation and it's a "placeholder" for some
+				// weird operations - is that fair?
+				// Also, note that if we allow for this, we'll have to deal with the JSON
+				// serialisation issue
 				if math.IsNaN(val) || math.IsInf(val, 0) {
 					if ctr.nullability == nil {
 						ctr.nullability = bitmap.NewBitmap(ctr.Len())
@@ -144,7 +149,7 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 	}
 }
 
-// TODO(next):
+// TODO:
 // date_part/date_trunc
 // century
 // day
