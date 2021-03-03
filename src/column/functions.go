@@ -83,20 +83,24 @@ func evalRound(cs ...Chunk) (Chunk, error) {
 	var factor int
 	if len(cs) == 2 {
 		// TODO: check factor size (and test it)
+		// what if this is not a literal? Do we want to round it to each value separately?
 		factor = int(cs[1].(*ChunkInts).data[0])
 	}
 	pow := math.Pow10(factor)
 	switch ct := cs[0].(type) {
 	case *ChunkInts:
 		// cast to floats and do nothing (nothing happens, regardless of the factor specified)
+		// ARCH: check how other engines behave, it would make sense to make it a noop (make sure
+		// to edit return_types as well)
 		return ct.cast(DtypeFloat)
 	case *ChunkFloats:
+		if pow == 1 {
+			return ct, nil
+		}
 		ctr := ct.Clone().(*ChunkFloats)
 		for j, el := range ctr.data {
-			// TODO: is this the right way to round to n digits? What about overflows or loss of precision?
-			// ew can easily check by checking that abs(old-new) < 1
-			// OPTIM: in case of factor == 0, we're doing meaningless multiplication and divison, consider
-			//		  an extra if block outside this loop (at the cost of more code)
+			// ARCH: is this the right way to round to n digits? What about overflows or loss of precision?
+			// we can easily check by checking that abs(old-new) < 1
 			ctr.data[j] = math.Round(pow*el) / pow
 		}
 		return ctr, nil

@@ -160,8 +160,6 @@ func TestBoolColumnFromBits(t *testing.T) {
 	}
 }
 
-// TODO: test other constructors (newChunkFloatsFromSlice etc.)
-
 func TestInvalidInts(t *testing.T) {
 	tt := []string{"1.", ".1", "1e3"}
 
@@ -731,8 +729,8 @@ func BenchmarkHashingFloats(b *testing.B) {
 	b.SetBytes(int64(8 * n))
 }
 
-// tests for columnNulls
 // tests for .Dtype()
 // TestFilterAndPrune
 // chunksequal
 // Clone - reflect.DeepEqual? ChunksEqual? isLiteral, null and not null etc.
+// test other constructors (newChunkFloatsFromSlice etc.) - maybe wait until generics?
