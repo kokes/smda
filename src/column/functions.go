@@ -17,6 +17,7 @@ var errTypeNotSupported = errors.New("type not supported in this function")
 // TODO: this will be hard to cover properly, so let's make sure we test everything explicitly
 // ARCH: we're not treating literals any differently, but since they share the same backing store
 //       as non-literals, we're okay... is that okay?
+// TODO(next): string functions like upper, lower, trim, substring, split_part, ...
 var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	"nullif":   evalNullIf,
 	"coalesce": evalCoalesce,
