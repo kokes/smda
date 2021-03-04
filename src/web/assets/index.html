@@ -17,7 +17,7 @@
             display: grid;
             height: 100vh;
             grid-template-columns: 250px auto;
-            grid-template-rows: 4em auto 3em;
+            grid-template-rows: 3em auto 3em;
             /* this is also a feasible layout */
             /* grid-template-areas: "header header" "panel content" "footer footer"; */
             grid-template-areas: "panel header" "panel content" "panel footer";
@@ -31,10 +31,16 @@
 
         /* we could use some fun colours, check out the generator over at https://coolors.co */
         header, footer {
+            display: flex;
+            flex-direction: row;
             background-color: #eee;
+            align-items: center;
+        }
+        header {
+            justify-content: space-between;
         }
         footer {
-            text-align: right;
+            justify-content: flex-end;
             font-size: 90%;
         }
         nav#panel {
@@ -43,11 +49,10 @@
         nav#panel, nav#panel a { color: #CCDBDC; }
         div#content {
             background-color: white;
+            /* overflow-x: scroll; */
         }
         /* end layout */
         div#status {
-            position: absolute; /* TODO: flexbox? */
-            right: 1em;
             height: 2em;
             width: 2em;
         }
@@ -59,19 +64,22 @@
             margin-top: 1em;
             line-height: 1.5em;
         }
-        table.data-view tr td {
-            border-bottom: 1px solid #ccc;
-            padding: .3em 1em .3em .3em;
+        table.data-view tr:nth-child(2n+3) {
+            background: #eee;
+        }
+        table.data-view tr td, table.data-view tr th {
+            padding: .5em 1em;
         }
         table.data-view tr th {
-            padding: .3em 1em .3em .3em;
-            border: 1px solid #ccc;
-            border-width: 1px 0;
+            text-align: center;
+            border-bottom: 2px solid #ccc;
         }
     </style>
 <body>
     <div id='container'>
         <header>
+            <input id='filepicker' type='file' multiple />
+
             <div id='status'>
                 <!-- bootstrap icons: cloud-check, cloud-slash-->
                 <!-- TODO: click these to open a window with server info (resources, latencies etc.) -->
@@ -87,8 +95,6 @@
                     <path d="M13.646 14.354l-12-12 .708-.708 12 12-.707.707z"/>
                 </svg>
             </div>
-
-            <input id='filepicker' type='file' multiple />
         </header>
 
         <nav id='panel'>
