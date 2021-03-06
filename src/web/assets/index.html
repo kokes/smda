@@ -226,8 +226,8 @@
                     const cols = [
                         node("td", null, node("a", {"href": `#explore/${ds.id}`}, ds.id)),
                         node("td", null, ds.name),
+                        node("td", null, (new Date(ds.created_timestamp * 1000).toISOString())),
                         node("td", null, "-"), // TODO: fill this in and others
-                        node("td", null, "-"),
                         node("td", null, "-"),
                         node("td", null, "pretty print it"),
                     ]

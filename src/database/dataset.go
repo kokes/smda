@@ -209,9 +209,10 @@ type Stripe struct {
 
 // Dataset contains metadata for a given dataset, which at this point means a table
 type Dataset struct {
-	ID     UID         `json:"id"`
-	Name   string      `json:"name"`
-	Schema TableSchema `json:"schema"`
+	ID      UID         `json:"id"`
+	Name    string      `json:"name"`
+	Created int64       `json:"created_timestamp"`
+	Schema  TableSchema `json:"schema"`
 	// TODO/OPTIM: we need the following for manifests, but it's unnecessary for writing in our
 	// web requests - remove it from there
 	Stripes []Stripe `json:"stripes"`
@@ -252,7 +253,7 @@ func (schema *TableSchema) LocateColumnCaseInsensitive(s string) (int, column.Sc
 
 // NewDataset creates a new empty dataset
 func NewDataset() *Dataset {
-	return &Dataset{ID: newUID(OtypeDataset)}
+	return &Dataset{ID: newUID(OtypeDataset), Created: time.Now().Unix()}
 }
 
 // DatasetPath returns the path of a given dataset (all the stripes are there)
