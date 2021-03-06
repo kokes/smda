@@ -48,6 +48,8 @@ func (db *Database) LoadSampleData(sampleDir fs.FS) error {
 		if err != nil {
 			return err
 		}
+		// TODO(next): this is a bug, this will preserve the name in memory, not on disk, because of the way
+		// we implicitly add datasets in LoadDatasetFrom...
 		ds.Name = file
 	}
 	return nil
