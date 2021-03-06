@@ -246,6 +246,7 @@
             const raw = await (await fetch('/api/datasets')).json();
             this.datasets = Object.fromEntries(raw.map(x => [x.id, x]))
         }
+        // TODO(next): this is perhaps irrelevant now that we have our Datasets overview
         async listDatasets() {
             const target = document.getElementById('dataset-listing');
             await this.loadDatasets();

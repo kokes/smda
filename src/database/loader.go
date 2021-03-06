@@ -44,10 +44,11 @@ func (db *Database) LoadSampleData(sampleDir fs.FS) error {
 		if err != nil {
 			return err
 		}
-		_, err = db.LoadDatasetFromReaderAuto(f)
+		ds, err := db.LoadDatasetFromReaderAuto(f)
 		if err != nil {
 			return err
 		}
+		ds.Name = file
 	}
 	return nil
 }
