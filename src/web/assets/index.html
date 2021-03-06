@@ -59,18 +59,19 @@
         div#status svg { height: 100%; width: 100%; display: none; }
         svg#status-ok { color: green; }
         svg#status-nok { color: red; }
-        table.data-view {
+
+        table {
             border-spacing: 0;
             margin-top: 1em;
             line-height: 1.5em;
         }
-        table.data-view tr:nth-child(2n+3) {
+        table tr:nth-child(even) {
             background: #eee;
         }
-        table.data-view tr td, table.data-view tr th {
+        table tr td, table tr th {
             padding: .5em 1em;
         }
-        table.data-view tr th {
+        table tr th {
             text-align: center;
             border-bottom: 2px solid #ccc;
         }
@@ -98,8 +99,9 @@
         </header>
 
         <nav id='panel'>
+            <a href='#datasets'>Datasets</a><br />
             Explore:
-            <div id='datasets'>
+            <div id='dataset-listing'>
             </div>
         </nav>
 
@@ -170,6 +172,9 @@
                     case 'explore':
                         that.setupExplore(hash[1])
                         break;
+                    case 'datasets':
+                        that.setupDatasets();
+                        break;
                     default:
                         console.error(`unexpected route base: "${hash[0]}"`);
                 }
@@ -181,7 +186,7 @@
         }
         setupUI() {
             this.setupUploader()
-            this.listDatasets(document.getElementById('datasets'));
+            this.listDatasets();
         }
         setupUploader() {
             const fp = document.getElementById("filepicker");
@@ -207,12 +212,40 @@
             const data = await this.getDatasetData(datasetID);
             this.renderTable(data, target);
         }
+        async setupDatasets() {
+            const target = document.getElementById('content');
+
+            // OPTIM: well, this is uncached in multiple places
+            await this.loadDatasets();
+            // TODO(next): remove all this elipsis handling and make it accept arrays
+            const header = node("thead", {}, node("tr", null, ...["id", "name", "created", "size", "rows", "schema"].map(
+                column => node("th", null, column)
+            )));
+            const rows = node("tbody", null, ...Object.values(this.datasets).map(
+                ds => {
+                    const cols = [
+                        node("td", null, node("a", {"href": `#explore/${ds.id}`}, ds.id)),
+                        node("td", null, ds.name),
+                        node("td", null, "-"), // TODO: fill this in and others
+                        node("td", null, "-"),
+                        node("td", null, "-"),
+                        node("td", null, "pretty print it"),
+                    ]
+                    return node("tr", null, ...cols);
+                }
+            ));
+            const overview = node("table", {"id": "datasets"}, header, rows);
+
+            empty(target);
+            target.append(overview);
+        }
         // OPTIM: perhaps abort if loaded in the past n miliseconds
         async loadDatasets() {
             const raw = await (await fetch('/api/datasets')).json();
             this.datasets = Object.fromEntries(raw.map(x => [x.id, x]))
         }
-        async listDatasets(target) {
+        async listDatasets() {
+            const target = document.getElementById('dataset-listing');
             await this.loadDatasets();
 
             const items = []
