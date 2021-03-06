@@ -208,6 +208,7 @@ type Stripe struct {
 }
 
 // Dataset contains metadata for a given dataset, which at this point means a table
+// TODO(next): add SizeOnDisk and NRows (both in Meta?, together with Created?)
 type Dataset struct {
 	ID      UID         `json:"id"`
 	Name    string      `json:"name"`

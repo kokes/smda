@@ -163,6 +163,8 @@
             this.setupRouter();
             this.setupUI();
         }
+        // TODO/ARCH: since we control the server, I guess we don't need a hash-based router,
+        // we can have a proper one?
         setupRouter() {
             const that = this;
             // initiate a router that's based on hash changes
