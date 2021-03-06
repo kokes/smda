@@ -195,7 +195,8 @@
             fp.addEventListener("change", async e => {
                 e.target.disabled = "disabled";
                 for (const file of e.target.files) {
-                    const request = await fetch("/upload/auto", {
+                    const filename = encodeURIComponent(file.name);
+                    const request = await fetch(`/upload/auto?name=${filename}`, {
                         method: "POST",
                         body: file,
                     })
