@@ -246,11 +246,14 @@
             const header = node("thead", {}, node("tr", null, ...["id", "name", "created", "size", "rows", "schema"].map(
                 column => node("th", null, column)
             )));
-            const rows = node("tbody", null, ...Object.values(this.datasets).map(
+            const datasets = Object.values(this.datasets);
+            datasets.sort((a, b) => b.created_timestamp - a.created_timestamp)
+            const rows = node("tbody", null, ...datasets.map(
                 ds => {
                     const cols = [
                         node("td", null, node("a", {"href": `#explore/${ds.id}`}, ds.id)),
                         node("td", null, ds.name),
+                        // TODO(next): pretty print it as "7 minutes ago" (still include the iso string in a `title`)
                         node("td", null, (new Date(ds.created_timestamp * 1000).toISOString())),
                         node("td", null, ds.size_on_disk + " B"), // TODO: have a nice printer (e.g. 300000 -> 300 kB)
                         node("td", null, ds.nrows),
