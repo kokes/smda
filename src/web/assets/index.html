@@ -5,7 +5,7 @@
     <title>smda</title>
     </head>
     <style type='text/css'>
-        body {
+        * {
             margin: 0; padding: 0;
         }
         body, table {
@@ -27,7 +27,7 @@
         div#content { grid-area: content; }
         footer { grid-area: footer; }
 
-        header, footer, nav#panel, div#content { padding: 1em; }
+        header, footer, div#content { padding: 1em; }
 
         /* we could use some fun colours, check out the generator over at https://coolors.co */
         header, footer {
@@ -75,6 +75,18 @@
             text-align: center;
             border-bottom: 2px solid #ccc;
         }
+
+        nav#panel ul li {
+            list-style: none;
+        }
+        nav#panel ul li a {
+            display: block;
+            padding: 1em;
+            text-decoration: underline;
+        }
+        nav#panel ul li a:hover, nav#panel ul li a.current {
+            background: darkslategray;
+        }
     </style>
 <body>
     <div id='container'>
@@ -99,10 +111,9 @@
         </header>
 
         <nav id='panel'>
-            <a href='#datasets'>Datasets</a><br />
-            Explore:
-            <div id='dataset-listing'>
-            </div>
+            <ul>
+                <li><a href='#datasets'>Datasets</a></li>
+            </ul>
         </nav>
 
         <div id='content'>
@@ -172,6 +183,7 @@
                 const hash = window.location.hash.slice(1).split('/');
                 switch (hash[0]) {
                     case 'explore':
+                        // TODO(next): this will change into query? or dataset preview?
                         that.setupExplore(hash[1])
                         break;
                     case 'datasets':
@@ -179,6 +191,17 @@
                         break;
                     default:
                         console.error(`unexpected route base: "${hash[0]}"`);
+                }
+
+                // ARCH: this will change once we migrate to a non-hash router
+                const currentClass = "current";
+                for (let link of document.querySelectorAll("nav#panel ul li a")) {
+                    if (link.classList.contains(currentClass)) {
+                        link.classList.remove(currentClass);
+                    }
+                    if (link.getAttribute("href") === window.location.hash) {
+                        link.classList.add(currentClass);
+                    }
                 }
             }
             // upon a page reload, there is no hashchange even triggered, so we need to fire it manually
@@ -188,7 +211,6 @@
         }
         setupUI() {
             this.setupUploader()
-            this.listDatasets();
         }
         setupUploader() {
             const fp = document.getElementById("filepicker");
@@ -246,20 +268,6 @@
         async loadDatasets() {
             const raw = await (await fetch('/api/datasets')).json();
             this.datasets = Object.fromEntries(raw.map(x => [x.id, x]))
-        }
-        // TODO(next): this is perhaps irrelevant now that we have our Datasets overview
-        async listDatasets() {
-            const target = document.getElementById('dataset-listing');
-            await this.loadDatasets();
-
-            const items = []
-            for (const [dsID, ds] of Object.entries(this.datasets || {})) {
-                const link = node("a", {href: `#explore/${dsID}`}, `${ds.name} (${dsID})`);
-                const item = node("li", {}, link);
-                items.push(item);
-            }
-            empty(target);
-            target.appendChild(node("ul", {}, ...items));
         }
         async getDatasetData(datasetID) {
             await this.loadDatasets();
