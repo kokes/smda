@@ -252,9 +252,9 @@
                         node("td", null, node("a", {"href": `#explore/${ds.id}`}, ds.id)),
                         node("td", null, ds.name),
                         node("td", null, (new Date(ds.created_timestamp * 1000).toISOString())),
-                        node("td", null, "-"), // TODO: fill this in and others
-                        node("td", null, "-"),
-                        node("td", null, "pretty print it"),
+                        node("td", null, ds.size_on_disk + " B"), // TODO: have a nice printer (e.g. 300000 -> 300 kB)
+                        node("td", null, ds.nrows),
+                        node("td", null, "pretty print it"), // TODO: fill this in
                     ]
                     return node("tr", null, ...cols);
                 }

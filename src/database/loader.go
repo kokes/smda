@@ -152,7 +152,7 @@ func writeCompressed(w io.Writer, ctype compression) (io.WriteCloser, error) {
 }
 
 // pack data into a file and return their offsets, which will be stored in a manifest file
-func (ds *stripeData) writeToWriter(w io.Writer, ctype compression) (offsets []uint32, err error) {
+func (ds *stripeData) writeToWriter(w io.Writer, ctype compression) (nbytes int64, offsets []uint32, err error) {
 	totalOffset := uint32(0)
 	offsets = make([]uint32, 0, 1+len(ds.columns))
 	offsets = append(offsets, 0)
@@ -165,62 +165,62 @@ func (ds *stripeData) writeToWriter(w io.Writer, ctype compression) (offsets []u
 		// THOUGH PERHAPS we could just eliminate the checksum entirely and put it in our manifest file
 		// will that help us with reads though? We will still have to load the whole chunk to checksum it
 		if err := buf.WriteByte(byte(ctype)); err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		if ctype == compressionNone {
 			if _, err := column.WriteTo(buf); err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 		} else {
 			cw, err := writeCompressed(buf, ctype)
 			if err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 			if _, err := column.WriteTo(cw); err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 			if err := cw.Close(); err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 		}
 
 		nw := buf.Len()
 		checksum := crc32.ChecksumIEEE(buf.Bytes())
 		if err := binary.Write(w, binary.LittleEndian, checksum); err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		if _, err := io.Copy(w, buf); err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		totalOffset += 4 + uint32(nw) // checksum + byte slice length
 		offsets = append(offsets, totalOffset)
 		buf.Reset()
 	}
 
-	return offsets, nil
+	return int64(totalOffset), offsets, nil
 }
 
-func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData, ctype compression) error {
+func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData, ctype compression) (int64, error) {
 	if err := os.MkdirAll(db.DatasetPath(ds), os.ModePerm); err != nil {
-		return err
+		return 0, err
 	}
 
 	f, err := os.Create(db.stripePath(ds, stripe.meta))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer f.Close()
 	bw := bufio.NewWriter(f)
 	defer bw.Flush()
 
-	offsets, err := stripe.writeToWriter(bw, ctype)
+	nbytes, offsets, err := stripe.writeToWriter(bw, ctype)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// ARCH: we're "injecting" offsets into a passed-in stripeData pointer,
 	// should we return this instead and let the caller work with it?
 	stripe.meta.Offsets = offsets
-	return nil
+	return nbytes, nil
 }
 
 func (rl *rawLoader) yieldRow() ([]string, error) {
@@ -422,6 +422,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 		if loadingErr != nil && loadingErr != io.EOF {
 			return nil, loadingErr
 		}
+		dataset.NRows += int64(ds.meta.Length)
 		// we started reading this stripe just as we were at the end of a file - so we only get an EOF
 		// and no data
 		if loadingErr == io.EOF && ds.meta.Length == 0 {
@@ -432,9 +433,11 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 			return nil, errors.New("no data loaded")
 		}
 
-		if err := db.writeStripeToFile(dataset, ds, settings.writeCompression); err != nil {
+		nbytes, err := db.writeStripeToFile(dataset, ds, settings.writeCompression)
+		if err != nil {
 			return nil, err
 		}
+		dataset.SizeOnDisk += nbytes
 
 		stripes = append(stripes, ds.meta)
 

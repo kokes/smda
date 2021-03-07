@@ -208,12 +208,15 @@ type Stripe struct {
 }
 
 // Dataset contains metadata for a given dataset, which at this point means a table
-// TODO(next): add SizeOnDisk and NRows (both in Meta?, together with Created?)
 type Dataset struct {
-	ID      UID         `json:"id"`
-	Name    string      `json:"name"`
-	Created int64       `json:"created_timestamp"`
-	Schema  TableSchema `json:"schema"`
+	ID   UID    `json:"id"`
+	Name string `json:"name"`
+	// ARCH: move the next three to a a `Meta` struct?
+	Created    int64 `json:"created_timestamp"`
+	NRows      int64 `json:"nrows"`
+	SizeOnDisk int64 `json:"size_on_disk"`
+
+	Schema TableSchema `json:"schema"`
 	// TODO/OPTIM: we need the following for manifests, but it's unnecessary for writing in our
 	// web requests - remove it from there
 	Stripes []Stripe `json:"stripes"`
