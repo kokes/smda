@@ -257,9 +257,15 @@ func TestBasicAggregation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if err := db.AddDataset(ds); err != nil {
+			t.Fatal(err)
+		}
 
 		dso, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.output))
 		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.AddDataset(dso); err != nil {
 			t.Fatal(err)
 		}
 
@@ -383,6 +389,9 @@ func TestBasicFiltering(t *testing.T) {
 
 		input, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.input))
 		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.AddDataset(input); err != nil {
 			t.Fatal(err)
 		}
 

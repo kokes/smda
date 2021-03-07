@@ -48,9 +48,10 @@ func (db *Database) LoadSampleData(sampleDir fs.FS) error {
 		if err != nil {
 			return err
 		}
-		// TODO(next): this is a bug, this will preserve the name in memory, not on disk, because of the way
-		// we implicitly add datasets in LoadDatasetFrom...
 		ds.Name = file
+		if err := db.AddDataset(ds); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -444,9 +445,6 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 
 	dataset.Schema = rl.settings.schema
 	dataset.Stripes = stripes
-	if err := db.AddDataset(dataset); err != nil {
-		return nil, err
-	}
 	return dataset, nil
 }
 

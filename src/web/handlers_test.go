@@ -300,6 +300,9 @@ func TestHandlingQueries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if err := db.AddDataset(ds); err != nil {
+			t.Fatal(err)
+		}
 		dss = append(dss, ds)
 	}
 
@@ -450,6 +453,7 @@ func TestBasicRawUpload(t *testing.T) {
 	}
 }
 
+// TODO(next): test that file listing contains this dataset (we had a bug earlier that wouldn't write this metadata in)
 func TestBasicAutoUpload(t *testing.T) {
 	db, err := newDatabaseWithRoutes()
 	if err != nil {

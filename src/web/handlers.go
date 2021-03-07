@@ -120,9 +120,12 @@ func handleAutoUpload(db *database.Database) http.HandlerFunc {
 			http.Error(w, fmt.Sprintf("failed to parse a given file: %v", err), http.StatusInternalServerError)
 			return
 		}
-		// TODO(next): this is a bug, this will preserve the name in memory, not on disk, because of the way
-		// we implicitly add datasets in LoadDatasetFrom...
 		ds.Name = r.URL.Query().Get("name")
+
+		if err := db.AddDataset(ds); err != nil {
+			http.Error(w, fmt.Sprintf("could not write dataset to database: %v", err), http.StatusInternalServerError)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(ds); err != nil {
 			panic(err)

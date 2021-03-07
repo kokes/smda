@@ -177,6 +177,9 @@ func TestRemovingDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := db.AddDataset(ds); err != nil {
+		t.Fatal(err)
+	}
 	for _, stripe := range ds.Stripes {
 		path := db.stripePath(ds, stripe)
 		_, err := os.Stat(path)
@@ -218,6 +221,9 @@ func TestGettingNewDatasets(t *testing.T) {
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
 	ds, err := db.LoadDatasetFromReaderAuto(data)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
 	ds2, err := db.GetDataset(ds.ID)
