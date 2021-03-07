@@ -212,8 +212,10 @@ type Dataset struct {
 	ID   UID    `json:"id"`
 	Name string `json:"name"`
 	// ARCH: move the next three to a a `Meta` struct?
-	Created    int64 `json:"created_timestamp"`
-	NRows      int64 `json:"nrows"`
+	Created int64 `json:"created_timestamp"`
+	NRows   int64 `json:"nrows"`
+	// ARCH: consider RawSize to hint at compression effiency
+	// note that we'd ideally get this as the uncompressed size... might be tricky to get
 	SizeOnDisk int64 `json:"size_on_disk"`
 
 	Schema TableSchema `json:"schema"`
