@@ -70,6 +70,14 @@
         }
         table tr td, table tr th {
             padding: .5em 1em;
+            /*
+              this is primarily for extendable tables (e.g. schema overviews), so that
+              the content doesn't jump around
+            */
+            vertical-align: top;
+        }
+        table tr td summary:hover {
+            cursor: pointer;
         }
         table tr th {
             text-align: center;
@@ -289,7 +297,7 @@
             // OPTIM: well, this is uncached in multiple places
             await this.loadDatasets();
             // TODO(next): remove all this elipsis handling and make it accept arrays
-            const header = node("thead", {}, node("tr", null, ...["id", "name", "created", "size", "rows", "schema"].map(
+            const header = node("thead", {}, node("tr", null, ...["Identifier", "Name", "Created Time", "Size on disk", "Number of rows", "Table schema"].map(
                 column => node("th", null, column)
             )));
             const datasets = Object.values(this.datasets);
@@ -307,7 +315,12 @@
                             ),
                         node("td", null, formatBytes(ds.size_on_disk)),
                         node("td", null, ds.nrows),
-                        node("td", null, "pretty print it"), // TODO: fill this in
+                        node("td", null, node("details", {},
+                            node("summary", {}, `${ds.schema.length} columns`),
+                            node("ul", {}, ...ds.schema.map(
+                                col => node("li", {}, `${col.name} (${col.dtype})`)
+                            ))
+                        )),
                     ]
                     return node("tr", null, ...cols);
                 }
