@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 func main() {
@@ -28,7 +29,7 @@ func run() error {
 		return err
 	}
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		return publish(os.Stdin, *port)
+		return publish(os.Stdin, "standard_input_data", *port)
 	}
 
 	// otherwise ingest a given file
@@ -41,11 +42,11 @@ func run() error {
 	}
 	defer f.Close()
 
-	return publish(f, *port)
+	return publish(f, filepath.Base(arg), *port)
 }
 
-func publish(r io.Reader, port int) error {
-	url := fmt.Sprintf("http://localhost:%d/upload/auto", port)
+func publish(r io.Reader, name string, port int) error {
+	url := fmt.Sprintf("http://localhost:%d/upload/auto?name=%s", port, name)
 	br := bufio.NewReader(r)
 
 	resp, err := http.Post(url, "encoding/csv", br)
