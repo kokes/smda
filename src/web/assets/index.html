@@ -176,6 +176,37 @@
         return `${fixed} ${units[scale]}`;
     }
 
+    // TODO: test (0, 1, 59/60 seconds etc., test fallbacks, test future)
+    function formatTimestamp(timestamp) {
+        const now = Math.floor((new Date()).getTime()/1000);
+        const diff = now - timestamp;
+        // ARCH: change from if statements to some for loop with decreasing granularity
+        // also handle plurals betters
+        if (diff < 0) {
+            // future timestamps are tricky (clocks can get skewed) - also, even if we sent server time
+            // as some guideline... we could still get a skew (not as bad as local time though)
+            return (new Date(timestamp * 1000).toISOString());
+        }
+        if (diff < 60) {
+            return `${diff} seconds ago`;
+        }
+        if (diff < 3600) {
+            return `${Math.floor(diff/60)} minutes ago`;
+        }
+        if (diff < 3600*24) {
+            return `${Math.floor(diff/3600)} hours ago`;
+        }
+        if (diff < 3600*24*30) {
+            return `${Math.floor(diff/3600/24)} days ago`;
+        }
+        if (diff < 3600*24*365) {
+            return `${Math.floor(diff/3600/24/30)} months ago`;
+        }
+        return `${Math.floor(diff/3600/24/30)} years ago`;
+        // ARCH: should the fallback be years or ISO date?
+        // return (new Date(timestamp * 1000).toISOString());
+    }
+
     // ARCH: this does a bit of UI stuff - maybe separate that out completely, so that
     // this becomes more testable
     class smda {
@@ -268,8 +299,12 @@
                     const cols = [
                         node("td", null, node("a", {"href": `#explore/${ds.id}`}, ds.id)),
                         node("td", null, ds.name),
-                        // TODO(next): pretty print it as "7 minutes ago" (still include the iso string in a `title`)
-                        node("td", null, (new Date(ds.created_timestamp * 1000).toISOString())),
+                        node("td", null,
+                            node("span",
+                                {"title": (new Date(ds.created_timestamp * 1000).toISOString())},
+                                formatTimestamp(ds.created_timestamp)
+                                )
+                            ),
                         node("td", null, formatBytes(ds.size_on_disk)),
                         node("td", null, ds.nrows),
                         node("td", null, "pretty print it"), // TODO: fill this in
