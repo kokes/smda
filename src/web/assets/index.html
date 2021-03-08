@@ -161,6 +161,21 @@
         return tg;
     }
 
+    // TODO: test (0, 999, 1001, trailing zeroes etc.)
+    function formatBytes(nbytes) {
+        if (nbytes === 0) {
+            return "0 B"
+        }
+        const units = ["B", "KB", "MB", "GB", "TB", "PB"]; // that should be enough :-)
+        const scale = Math.floor(Math.log10(nbytes)/3);
+        let fixed = (nbytes/Math.pow(10, 3*scale)).toFixed(2);
+        if (fixed.endsWith(".00")) {
+            fixed = fixed.slice(0, fixed.length - 3);
+        }
+
+        return `${fixed} ${units[scale]}`;
+    }
+
     // ARCH: this does a bit of UI stuff - maybe separate that out completely, so that
     // this becomes more testable
     class smda {
@@ -255,7 +270,7 @@
                         node("td", null, ds.name),
                         // TODO(next): pretty print it as "7 minutes ago" (still include the iso string in a `title`)
                         node("td", null, (new Date(ds.created_timestamp * 1000).toISOString())),
-                        node("td", null, ds.size_on_disk + " B"), // TODO: have a nice printer (e.g. 300000 -> 300 kB)
+                        node("td", null, formatBytes(ds.size_on_disk)),
                         node("td", null, ds.nrows),
                         node("td", null, "pretty print it"), // TODO: fill this in
                     ]
