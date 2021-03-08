@@ -314,7 +314,7 @@
                                 )
                             ),
                         node("td", null, formatBytes(ds.size_on_disk)),
-                        node("td", null, ds.nrows),
+                        node("td", null, ds.nrows.toLocaleString()),
                         node("td", null, node("details", {},
                             node("summary", {}, `${ds.schema.length} columns`),
                             node("ul", {}, ...ds.schema.map(
