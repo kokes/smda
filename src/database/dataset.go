@@ -202,9 +202,9 @@ func (uid *UID) UnmarshalJSON(data []byte) error {
 // Stripe only contains metadata about a given stripe, it has to be loaded
 // separately to obtain actual data
 type Stripe struct {
-	Id      UID
-	Length  int
-	Offsets []uint32
+	Id      UID      `json:"id"`
+	Length  int      `json:"length"`
+	Offsets []uint32 `json:"offsets"`
 }
 
 // Dataset contains metadata for a given dataset, which at this point means a table
@@ -293,7 +293,14 @@ func (db *Database) AddDataset(ds *Dataset) error {
 	db.Datasets = append(db.Datasets, ds)
 	db.Unlock()
 
-	f, err := os.Create(db.manifestPath(ds))
+	fn := db.manifestPath(ds)
+	// only write the manifest if it doesn't exist already
+	// OPTIM: consider adding a boolean arg here to avoid os.Stat on all
+	// manifests upon startup (that's where it gets triggered the most)
+	if _, err := os.Stat(fn); err == nil {
+		return nil
+	}
+	f, err := os.Create(fn)
 	if err != nil {
 		return err
 	}

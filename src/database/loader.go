@@ -486,6 +486,7 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 		delimiter:       dlim,
 		// ARCH: we only set write compression in *Auto calls
 		// OPTIM: make this configurable and optimised
+		// TODO(next): support snappy here by default
 		writeCompression: compressionNone,
 	}
 
