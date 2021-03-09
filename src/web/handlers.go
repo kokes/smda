@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/query"
@@ -16,15 +17,24 @@ import (
 var assets embed.FS
 
 func handleRoot(db *database.Database) http.HandlerFunc {
-	// ARCH: are we doing this right? a) should we use the fs.FS differently? b) should we use a flag instead of envs?
-	if os.Getenv("DEV") != "" {
-		return http.FileServer(http.Dir("src/web/assets")).ServeHTTP
+	return func(w http.ResponseWriter, r *http.Request) {
+		// our custom router
+		if r.URL.Path == "/datasets" || r.URL.Path == "/datasets/" || strings.HasPrefix(r.URL.Path, "/explore/") {
+			r.URL.Path = "/"
+		}
+
+		// ARCH: are we doing this right? a) should we use the fs.FS differently? b) should we use a flag instead of envs?
+		if os.Getenv("DEV") != "" {
+			http.FileServer(http.Dir("src/web/assets")).ServeHTTP(w, r)
+			return
+		}
+		root, err := fs.Sub(assets, "assets")
+		if err != nil {
+			panic(err)
+		}
+		http.FileServer(http.FS(root)).ServeHTTP(w, r)
+		return
 	}
-	root, err := fs.Sub(assets, "assets")
-	if err != nil {
-		panic(err)
-	}
-	return http.FileServer(http.FS(root)).ServeHTTP
 }
 
 func handleStatus(db *database.Database) http.HandlerFunc {
