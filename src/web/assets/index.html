@@ -290,7 +290,7 @@
             // OPTIM: well, this is uncached in multiple places
             await this.loadDatasets();
             // TODO(next): remove all this elipsis handling and make it accept arrays
-            const header = node("thead", {}, node("tr", null, ...["Identifier", "Name", "Created Time", "Size on disk", "Number of rows", "Table schema"].map(
+            const header = node("thead", {}, node("tr", null, ...["Identifier", "Name", "Created Time", "Size (original)", "Size on disk", "Number of rows", "Table schema"].map(
                 column => node("th", null, column)
             )));
             const datasets = Object.values(this.datasets);
@@ -306,6 +306,7 @@
                                 formatTimestamp(ds.created_timestamp)
                                 )
                             ),
+                        node("td", null, formatBytes(ds.size_raw)),
                         node("td", null, formatBytes(ds.size_on_disk)),
                         node("td", null, ds.nrows.toLocaleString()),
                         node("td", null, node("details", {},

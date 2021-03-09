@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/kokes/smda/src/database"
@@ -131,6 +132,13 @@ func handleAutoUpload(db *database.Database) http.HandlerFunc {
 			return
 		}
 		ds.Name = r.URL.Query().Get("name")
+		clength, err := strconv.Atoi(r.Header.Get("Content-Length"))
+		if err != nil {
+			clength = 0
+		}
+		// TODO(next): test this (e.g. if we stream data in)
+		// ARCH: maybe do this in loader.go, will then work for all entrypoints (and for compressed data as well)
+		ds.SizeRaw = int64(clength)
 
 		if err := db.AddDataset(ds); err != nil {
 			http.Error(w, fmt.Sprintf("could not write dataset to database: %v", err), http.StatusInternalServerError)
