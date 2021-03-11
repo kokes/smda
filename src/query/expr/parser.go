@@ -230,7 +230,8 @@ func ParseStringExpr(s string) (*Expression, error) {
 	tr, err := parser.ParseExpr(s2)
 
 	// we are fine with illegal rune literals - because we need e.g. 'ahoy' as literal strings
-	if err != nil && !strings.HasSuffix(err.Error(), "illegal rune literal") {
+	if err != nil && !strings.Contains(err.Error(), "illegal rune literal") {
+		fmt.Printf("parse err: %v\n", err)
 		return nil, err
 	}
 
