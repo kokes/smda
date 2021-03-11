@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/query"
@@ -20,7 +19,8 @@ var assets embed.FS
 func handleRoot(db *database.Database) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// our custom router
-		if r.URL.Path == "/datasets" || r.URL.Path == "/datasets/" || strings.HasPrefix(r.URL.Path, "/explore/") {
+		switch r.URL.Path {
+		case "/datasets", "/datasets/", "/query", "/query/":
 			r.URL.Path = "/"
 		}
 

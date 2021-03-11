@@ -119,11 +119,33 @@
 
         <nav id='panel'>
             <ul>
+                <li><a href='/query'>Query</a></li>
                 <li><a href='/datasets'>Datasets</a></li>
             </ul>
         </nav>
 
         <div id='content'>
+            <form action="/query" name="query">
+                <fieldset>
+                    <legend>Query parameters</legend>
+                    <div>
+                        <label for="dataset_id">Dataset</label>
+                        <input name="dataset" id="dataset_id" />
+                    </div>
+                    <div>
+                        <label for="filter">Filter</label>
+                        <input name="filter" id="filter" />
+                    </div>
+                    <div>
+                        <label for="limit">Limit</label>
+                        <input name="limit" id="limit" type="number" />
+                    </div>
+
+                    <button>Run query</button>
+                </fieldset>
+            </form>
+
+            <div id="query-results"></div>
         </div>
 
         <footer>
@@ -233,17 +255,16 @@
         setupRouter() {
             const that = this;
 
-            const hash = window.location.pathname.slice(1).split("/");
-            switch (hash[0]) {
-                case 'explore':
-                    // TODO(next): this will change into query? or dataset preview?
-                    that.setupExplore(hash[1])
+            const path = window.location.pathname.slice(1).split("/");
+            switch (path[0]) {
+                case 'query':
+                    that.setupQuery()
                     break;
                 case 'datasets':
                     that.setupDatasets();
                     break;
                 default:
-                    console.error(`unexpected route base: "${hash[0]}"`);
+                    console.error(`unexpected route base: "${path[0]}"`);
             }
 
             const currentClass = "current";
@@ -274,15 +295,29 @@
                 }
                 e.target.value = "";
                 e.target.disabled = "";
-                // TODO: refresh explore or do that implicitly via server side events?
             })
         }
-        async setupExplore(datasetID) {
-            const target = document.getElementById('content');
+        async setupQuery() {
+            const qform = document.forms["query"];
+            const params = new URLSearchParams(window.location.search);
+            for (let inp of qform.querySelectorAll("input")) {
+                const fieldName = inp.getAttribute("name");
+                inp.value = params.get(fieldName);
+            }
 
-            // TODO: render metadata as well
-            const data = await this.getDatasetData(datasetID);
+            const target = document.getElementById("query-results");
+            const query = {
+                dataset: qform.dataset.value,
+            };
+            if (qform.filter.value !== "") {
+                query.filter = qform.filter.value;
+            }
+            if (qform.limit.value !== "") {
+                query.limit = parseInt(qform.limit.value, 10);
+            }
+            const data = await this.runQuery(query);
             this.renderTable(data, target);
+
         }
         async setupDatasets() {
             const target = document.getElementById('content');
@@ -298,7 +333,7 @@
             const rows = node("tbody", null, ...datasets.map(
                 ds => {
                     const cols = [
-                        node("td", null, node("a", {"href": `/explore/${ds.id}`}, ds.id)),
+                        node("td", null, node("a", {"href": `/query?dataset=${ds.id}&limit=100`}, ds.id)),
                         node("td", null, ds.name),
                         node("td", null,
                             node("span",
@@ -329,23 +364,21 @@
             const raw = await (await fetch('/api/datasets')).json();
             this.datasets = Object.fromEntries(raw.map(x => [x.id, x]))
         }
-        async getDatasetData(datasetID) {
+        async runQuery(query) {
             await this.loadDatasets();
-            const columns = this.datasets[datasetID].schema.map(x=>x.name)
-            const body = {
+            if (query["select"] === undefined) {
+                const columns = this.datasets[query.dataset].schema.map(x => x.name);
                 // always submit it as quoted if it's not all lowercase,
                 // TODO: are there quotes in the individual names? can there be?
-                select: columns.map(x => x.toLowerCase() === x ? x : `"${x}"`),
-                limit: 25,
-                dataset: datasetID,
-                // aggregate: ['strings', 'bools'],
-                // filter: 'floats != floats_null',
-                // filter: 'strings = strings_null',
+                query["select"] = columns.map(x => x.toLowerCase() === x ? x : `"${x}"`);
+            }
+            if (query["limit"] === undefined) {
+                query["limit"] = 100; // ARCH: safety mechanism
             }
             const req = await fetch('/api/query', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(body),
+                body: JSON.stringify(query),
             })
             return await req.json();
         }
