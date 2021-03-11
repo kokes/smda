@@ -94,6 +94,35 @@
         nav#panel ul li a:hover, nav#panel ul li a.current {
             background: darkslategray;
         }
+
+        form fieldset {
+            padding: 1em;
+            border: 1px solid #ccc;
+        }
+        form fieldset legend {
+            padding: .5em;
+            border: 1px solid darkslategray;
+            background: #eee;
+        }
+        form fieldset > div {
+            margin: .7em 0;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+        }
+        form fieldset > div label {
+            display: block;
+            min-width: 10%;
+            padding-right: 1em;
+        }
+        form fieldset > div input {
+            padding: .3em .5em;
+            min-width: 500px;
+            max-width: 80%;
+        }
+        form fieldset button {
+            padding: .3em 1em;
+        }
     </style>
 <body>
     <div id='container'>
@@ -128,6 +157,12 @@
             <form action="/query" name="query">
                 <fieldset>
                     <legend>Query parameters</legend>
+                    <!--
+                        TODO(next):
+                         - input placeholders
+                         - proper support for multiple select/aggregate expressions
+                         - show names in the dataset dropdown (and allow for autocomplete?)
+                     -->
                     <div>
                         <label for="dataset_id">Dataset</label>
                         <input name="dataset" id="dataset_id" />
@@ -135,6 +170,14 @@
                     <div>
                         <label for="filter">Filter</label>
                         <input name="filter" id="filter" />
+                    </div>
+                    <div>
+                        <label for="aggregate">Aggregate</label>
+                        <input name="aggregate" id="aggregate" />
+                    </div>
+                    <div>
+                        <label for="select">Select</label>
+                        <input name="select" id="select" />
                     </div>
                     <div>
                         <label for="limit">Limit</label>
@@ -311,6 +354,12 @@
             };
             if (qform.filter.value !== "") {
                 query.filter = qform.filter.value;
+            }
+            if (qform.aggregate.value != "") {
+                query.aggregate = qform.aggregate.value.split(","); // TODO(next): support multiple aggregation expressions
+            }
+            if (qform.select.value != "") {
+                query.select = qform.select.value.split(","); // TODO(next): support multiple selection expressions
             }
             if (qform.limit.value !== "") {
                 query.limit = parseInt(qform.limit.value, 10);
