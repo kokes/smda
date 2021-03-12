@@ -99,10 +99,6 @@ func ColumnsUsed(schema database.TableSchema, exprs ...*Expression) []string {
 }
 
 func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, error) {
-	// TODO(next): test this Name: thingy - this was an issue for aggregating expressions - the column name would get lost
-	// it's disabled for now since many tests err now
-	// maybe set it just before returning instead? (since it's now being shadowed in the IsIdentifier case)
-	// schema := column.Schema{Name: expr.String()}
 	schema := column.Schema{}
 	switch {
 	case expr.IsLiteral():
@@ -191,6 +187,9 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 		}
 	default:
 		return schema, fmt.Errorf("expression %v cannot be resolved", expr)
+	}
+	if schema.Name == "" {
+		schema.Name = expr.String()
 	}
 	return schema, nil
 }

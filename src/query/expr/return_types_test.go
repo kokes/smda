@@ -212,7 +212,7 @@ func TestReturnTypes(t *testing.T) {
 		{"1.23", column.Schema{Dtype: column.DtypeFloat}, nil},
 		{"true", column.Schema{Dtype: column.DtypeBool}, nil},
 		{"'ahoy'", column.Schema{Dtype: column.DtypeString}, nil},
-		{"my_int_column", column.Schema{Dtype: column.DtypeInt, Name: "my_int_column"}, nil},
+		{"my_int_column", column.Schema{Dtype: column.DtypeInt}, nil},
 
 		// arithmetics
 		{"1 = 1", column.Schema{Dtype: column.DtypeBool}, nil},
@@ -313,6 +313,7 @@ func TestReturnTypes(t *testing.T) {
 			t.Errorf("expecting ReturnType(%+v) to result in err %+v, got %+v instead", test.rawExpr, test.err, err)
 			continue
 		}
+		retType.Name = "" // resetting the name, we're not comparing it here
 		if !reflect.DeepEqual(retType, test.returnType) {
 			t.Errorf("expecting %+v to return a schema %+v, got %+v instead", test.rawExpr, test.returnType, retType)
 		}

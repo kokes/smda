@@ -293,6 +293,13 @@
         // return (new Date(timestamp * 1000).toISOString());
     }
 
+    // TODO: test: "foo", "foo bar", "Foo", "FOO", "foo32"
+    // TODO: are there quotes in the individual names? can there be?
+    // also, columns with all lowercase but with spaces need to be quoted
+    function quoteIfNeeded(s) {
+        return (s.toLowerCase() === s && !s.includes(" ")) ? s : `"${s}"`;
+    }
+
     // ARCH: this does a bit of UI stuff - maybe separate that out completely, so that
     // this becomes more testable
     class smda {
@@ -432,11 +439,7 @@
             if (query["select"] === undefined) {
                 const columns = this.datasets[query.dataset].schema.map(x => x.name);
                 // always submit it as quoted if it's not all lowercase,
-                // TODO: are there quotes in the individual names? can there be?
-                // also, columns with all lowercase but with spaces need to be quoted
-                // TODO: make this into a robust test harness
-                // it would also be good if trailing spaces were ignored upon ingest in loader.go
-                query["select"] = columns.map(x => (x.toLowerCase() === x && !x.includes(" ")) ? x : `"${x}"`);
+                query["select"] = columns.map(x => quoteIfNeeded(x));
             }
             if (query["limit"] === undefined) {
                 query["limit"] = 100; // ARCH: safety mechanism
