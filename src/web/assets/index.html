@@ -319,18 +319,6 @@
         setupRouter() {
             const that = this;
 
-            const path = window.location.pathname.slice(1).split("/");
-            switch (path[0]) {
-                case 'query':
-                    that.setupQuery()
-                    break;
-                case 'datasets':
-                    that.setupDatasets();
-                    break;
-                default:
-                    console.error(`unexpected route base: "${path[0]}"`);
-            }
-
             const currentClass = "current";
             for (let link of document.querySelectorAll("nav#panel ul li a")) {
                 if (link.classList.contains(currentClass)) {
@@ -339,6 +327,36 @@
                 if (link.getAttribute("href") === window.location.pathname) {
                     link.classList.add(currentClass);
                 }
+            }
+
+            const qform = document.forms["query"];
+            if (qform !== undefined) {
+                const params = new URLSearchParams(window.location.search);
+                for (let inp of qform.querySelectorAll("input")) {
+                    const fieldName = inp.getAttribute("name");
+                    inp.value = params.get(fieldName);
+                }
+                // TODO: this didn't work in all cases (especially when browsing the history), but it's very desirable
+                // qform.querySelector("button").addEventListener("click", e => {
+                //     // ARCH: the idea here is that we hijack this button that would otherwise submit our query form
+                //     // It worked perfectly fine without this, it just blinked a little as it loaded a full new page
+                //     // - can we guarantee it will work without this? We won't ever test not having this... (we do
+                //     // all sorts of weird stuff like History.pushState)
+                //     e.preventDefault();
+                //     this.submitQuery();
+                // })
+            }
+
+            const path = window.location.pathname.slice(1).split("/");
+            switch (path[0]) {
+                case 'query':
+                    that.submitQuery(); // ARCH: automatic submission, maybe too eager?
+                    break;
+                case 'datasets':
+                    that.setupDatasets();
+                    break;
+                default:
+                    console.error(`unexpected route base: "${path[0]}"`);
             }
         }
         setupUI() {
@@ -361,30 +379,36 @@
                 e.target.disabled = "";
             })
         }
-        async setupQuery() {
-            const qform = document.forms["query"];
-            const params = new URLSearchParams(window.location.search);
-            for (let inp of qform.querySelectorAll("input")) {
-                const fieldName = inp.getAttribute("name");
-                inp.value = params.get(fieldName);
-            }
+        async submitQuery() {
+            const url = new URL(window.location);
+            url.search = '';
 
+            const qform = document.forms["query"];
             const target = document.getElementById("query-results");
             const query = {
                 dataset: qform.dataset.value,
             };
+            url.searchParams.set("dataset", qform.dataset.value);
             if (qform.filter.value !== "") {
                 query.filter = qform.filter.value;
+                url.searchParams.set("filter", qform.filter.value);
             }
             if (qform.aggregate.value != "") {
                 query.aggregate = qform.aggregate.value.split(","); // TODO(next): support multiple aggregation expressions
+                url.searchParams.set("aggregate", qform.aggregate.value);
             }
             if (qform.select.value != "") {
                 query.select = qform.select.value.split(","); // TODO(next): support multiple selection expressions
+                url.searchParams.set("select", qform.select.value);
             }
             if (qform.limit.value !== "") {
                 query.limit = parseInt(qform.limit.value, 10);
+                url.searchParams.set("limit", qform.limit.value);
             }
+            // enable this once we do the preventDefault thingy for <button>
+            // if (window.location.search != url.search) {
+            //     window.history.pushState({}, '', url);
+            // }
             const data = await this.runQuery(query);
             this.renderTable(data, target);
 
@@ -486,6 +510,9 @@
     }
 
     const db = new smda();
+    // window.onpopstate = x=>{
+    //     db.setupRouter();
+    // }
 </script>
 
 </body>
