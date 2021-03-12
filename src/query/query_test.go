@@ -34,7 +34,7 @@ func TestBasicQueries(t *testing.T) {
 		}
 	}()
 
-	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
+	data := strings.NewReader("foo,bar,BAZ\n1,2,3\n4,5,6")
 	ds, err := db.LoadDatasetFromReaderAuto(data)
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ func TestBasicQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	limit := 100
-	cols := selectExpr([]string{"foo", "bar", "baz"})
+	cols := selectExpr([]string{"foo", "bar", "\"BAZ\""})
 	q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 
 	qr, err := Run(db, q)
@@ -53,7 +53,7 @@ func TestBasicQueries(t *testing.T) {
 	expschema := database.TableSchema{
 		column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
 		column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
-		column.Schema{Name: "baz", Dtype: column.DtypeInt, Nullable: false},
+		column.Schema{Name: "BAZ", Dtype: column.DtypeInt, Nullable: false},
 	}
 	if !(reflect.DeepEqual(qr.Schema, expschema) && len(qr.Data) == 3) {
 		t.Errorf("expected schema %+v, got %+v instead", expschema, qr.Schema)
@@ -240,6 +240,9 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\n1,2020-01-30 12:34:56\n1,2020-02-20 00:00:00\n1,1979-12-31 19:01:57", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31 19:01:57\n"},
 		{"foo,bar\n1,2020-01-30 12:34:56\n1,1979-12-31 19:01:57.001\n1,1979-12-31 19:01:57.002", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31 19:01:57.001\n"},
 		{"foo,bar\n1,2020-01-30 12:34:56\n1,1979-12-31 19:01:57.001\n1,1979-12-31 19:01:57.0001", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31 19:01:57.0001\n"},
+		// case insensitivity
+		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", []string{"foo"}, []string{"foo", "COUNT()"}, "foo,count()\n1,2\n,3\n"},
+		{"foo,bar\n1,\n13,2\n1,\n", []string{"foo"}, []string{"foo", "MIN(bar)"}, "foo,min(bar)\n1,\n13,2"},
 	}
 
 	for testNo, test := range tests {

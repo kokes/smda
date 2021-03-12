@@ -12,6 +12,7 @@ import (
 var errTypeMismatch = errors.New("expecting compatible types")
 var errNoTypes = errors.New("expecting at least one column")
 var errWrongNumberofArguments = errors.New("wrong number arguments passed to a function")
+var errWrongArgumentType = errors.New("wrong argument type passed to a function")
 
 // should this be in the database package?
 func comparableTypes(t1, t2 column.Dtype) bool {
@@ -98,6 +99,10 @@ func ColumnsUsed(schema database.TableSchema, exprs ...*Expression) []string {
 }
 
 func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, error) {
+	// TODO(next): test this Name: thingy - this was an issue for aggregating expressions - the column name would get lost
+	// it's disabled for now since many tests err now
+	// maybe set it just before returning instead? (since it's now being shadowed in the IsIdentifier case)
+	// schema := column.Schema{Name: expr.String()}
 	schema := column.Schema{}
 	switch {
 	case expr.IsLiteral():
@@ -215,6 +220,10 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 	case "sum":
 		if len(argTypes) != 1 {
 			return schema, errWrongNumberofArguments
+		}
+		// ARCH: isNumericType or something?
+		if argTypes[0].Dtype != column.DtypeFloat && argTypes[0].Dtype != column.DtypeInt {
+			return schema, errWrongArgumentType
 		}
 		schema.Dtype = argTypes[0].Dtype
 		// ARCH: we can't do sum(bool), because a boolean aggregator can't have internal state in ints yet

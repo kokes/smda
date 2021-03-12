@@ -49,6 +49,8 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 	// OPTIM: we could optimise shallow function calls - e.g. `log(foo) > 1` doesn't need
 	// `log(foo)` as a newly allocated chunk, we can compute that on the fly
 	case exprFunCall:
+		// TODO(next): if we do count() or sum(foo) without aggregations, this should
+		// run on the whole dataset - currently triggers this error
 		if expr.evaler == nil {
 			return nil, fmt.Errorf("%w: %s", errFunctionNotImplemented, expr.value)
 		}

@@ -368,10 +368,10 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 			children: children,
 		}, nil
 	case *ast.CallExpr:
-		funName := node.Fun.(*ast.Ident).Name
+		funName := strings.ToLower(node.Fun.(*ast.Ident).Name)
 		ret := &Expression{
 			etype: exprFunCall,
-			value: strings.ToLower(funName),
+			value: funName,
 		}
 
 		var children []*Expression

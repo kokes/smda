@@ -372,6 +372,9 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 				}
 				val := rc.nthValue(j)
 				pos := buckets[j]
+				// TODO: if we have a function that "accepts" strings (or other types) but doesn't have an updater for them...
+				// this will silently ignore the mismatch (e.g. we didn't have type restrictions on SUM in return_types and we
+				// then did a SUM(string) and it silently did nothing)
 				if upd.strings != nil {
 					upd.strings(agg, val, pos)
 				}

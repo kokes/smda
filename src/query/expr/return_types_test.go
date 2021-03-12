@@ -196,6 +196,7 @@ func TestReturnTypes(t *testing.T) {
 		{Name: "my_int_column", Dtype: column.DtypeInt},
 		{Name: "my_float_column", Dtype: column.DtypeFloat},
 		{Name: "my_Float_column", Dtype: column.DtypeInt}, // this is intentionally incorrect
+		{Name: "my_string_column", Dtype: column.DtypeString},
 	})
 	testCases := []struct {
 		rawExpr    string
@@ -291,6 +292,7 @@ func TestReturnTypes(t *testing.T) {
 		{"nullif(my_int_column, 4, 5)", column.Schema{}, errWrongNumberofArguments},
 		{"coalesce()", column.Schema{}, errWrongNumberofArguments},
 
+		{"sum(my_string_column)", column.Schema{}, errWrongArgumentType},
 		// {"NULLIF(my_float_column, 12)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}, nil}, // once we implement case folding...
 
 		// "ahoy", "foo / bar", "2 * foo", "2+3*4", "count(foobar)", "bak = 'my literal'",
