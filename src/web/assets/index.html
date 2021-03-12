@@ -433,7 +433,10 @@
                 const columns = this.datasets[query.dataset].schema.map(x => x.name);
                 // always submit it as quoted if it's not all lowercase,
                 // TODO: are there quotes in the individual names? can there be?
-                query["select"] = columns.map(x => x.toLowerCase() === x ? x : `"${x}"`);
+                // also, columns with all lowercase but with spaces need to be quoted
+                // TODO: make this into a robust test harness
+                // it would also be good if trailing spaces were ignored upon ingest in loader.go
+                query["select"] = columns.map(x => (x.toLowerCase() === x && !x.includes(" ")) ? x : `"${x}"`);
             }
             if (query["limit"] === undefined) {
                 query["limit"] = 100; // ARCH: safety mechanism
