@@ -24,6 +24,8 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		filename    string
 	}{
 		{"foo,bar,baz\n1,2,3", []string{"foo", "bar", "baz"}, compressionNone, "foo.csv"},
+		// leading/trailing whitespace in column names shouldn't matter
+		{"foo ,\" bar\n\",\" baz\t\"\n1,2,3", []string{"foo", "bar", "baz"}, compressionNone, "foo.csv"},
 		{"foo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionNone, "foo.tsv"},
 		{"foo,bar,baz\n1,2,3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.csv.gz"},
 		{"foo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.bin"},                 // filename need not indicate compression

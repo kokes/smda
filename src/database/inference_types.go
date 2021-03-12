@@ -3,6 +3,7 @@ package database
 import (
 	"io"
 	"os"
+	"strings"
 
 	"github.com/kokes/smda/src/column"
 )
@@ -26,8 +27,11 @@ func inferTypes(path string, settings *loadSettings) (TableSchema, error) {
 		// this may trigger an EOF, if the input file is empty - that's fine
 		return nil, err
 	}
-	hd := make([]string, len(row))
-	copy(hd, row) // we're reusing records, so we need to copy here
+	// we're reusing records, so we need to copy here
+	hd := make([]string, 0, len(row))
+	for _, el := range row {
+		hd = append(hd, strings.TrimSpace(el))
+	}
 
 	tgs := make([]*column.TypeGuesser, 0, len(hd))
 	for range hd {

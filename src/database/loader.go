@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/golang/snappy"
 	"github.com/kokes/smda/src/column"
@@ -242,6 +243,7 @@ func (rl *rawLoader) yieldRow() ([]string, error) {
 func (rl *rawLoader) readIntoStripe(maxRows, maxBytes int) (*stripeData, error) {
 	ds := newDataStripe()
 	// if no schema is set, read the header and set it yourself (to be all non-nullable strings)
+	// ARCH: I don't think we're ever in this branch (any more)
 	if rl.settings.schema == nil {
 		hd, err := rl.yieldRow()
 		if err != nil {
@@ -392,7 +394,7 @@ func validateHeaderAgainstSchema(header []string, schema TableSchema) error {
 	}
 
 	for j, el := range header {
-		if el != schema[j].Name {
+		if el != schema[j].Name && strings.TrimSpace(el) != schema[j].Name {
 			return errSchemaMismatch
 		}
 	}
