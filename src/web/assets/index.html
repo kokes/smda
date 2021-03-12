@@ -24,7 +24,13 @@
         }
         header { grid-area: header; }
         nav#panel { grid-area: panel; }
-        div#content { grid-area: content; }
+        div#content {
+            grid-area: content;
+            /*
+                I want to limit it in width (so that we can scroll its children elements... but what's the best way?)
+                max-width: calc(100vw - 250px - 3em);
+            */
+        }
         footer { grid-area: footer; }
 
         header, footer, div#content { padding: 1em; }
@@ -112,7 +118,7 @@
         }
         form fieldset > div label {
             display: block;
-            min-width: 10%;
+            width: 150px;
             padding-right: 1em;
         }
         form fieldset > div input {
@@ -122,6 +128,14 @@
         }
         form fieldset button {
             padding: .3em 1em;
+        }
+
+        div#query-results {
+            /* width: calc(100vw - 250px); */
+            /*
+                this would make the horizontal scrollbar unreachable for long tables... that's kinda impractical
+                overflow-x: scroll;
+            */
         }
     </style>
 <body>
