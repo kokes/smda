@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/golang/snappy"
 )
 
 type compression uint8
@@ -17,11 +19,12 @@ const (
 	compressionNone compression = iota
 	compressionGzip
 	compressionBzip2
+	compressionSnappy
 )
 
 // OPTIM: obvious reasons
 func (c compression) String() string {
-	return []string{"none", "gzip", "bzip2"}[c]
+	return []string{"none", "gzip", "bzip2", "snappy"}[c]
 }
 
 type delimiter uint8
@@ -52,6 +55,7 @@ func inferCompression(buffer []byte) compression {
 	signatures := map[compression][]byte{
 		compressionGzip:  {0x1f, 0x8b},
 		compressionBzip2: {0x42, 0x5A, 0x68},
+		// TODO: support snappy? does it have a unified header (there are multiple formats etc.)
 	}
 
 	for ctype, signature := range signatures {
@@ -73,6 +77,9 @@ func readCompressed(r io.Reader, ctype compression) (io.Reader, error) {
 		return gzip.NewReader(r)
 	case compressionBzip2:
 		return bzip2.NewReader(r), nil
+	case compressionSnappy:
+		// TODO(next): roundtrip tests
+		return snappy.NewReader(r), nil
 	default:
 		return nil, fmt.Errorf("cannot open a file compressed as %v", ctype)
 	}

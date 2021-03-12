@@ -30,7 +30,7 @@ test:
 	CGO_ENABLED=0 $(GORLS) test -timeout 5s -coverprofile=coverage.out ./...
 
 test-docker:
-	docker run --rm -v $(PWD):/smda golang:1.15-alpine sh -c "apk add --no-cache make && cd /smda && make test"
+	docker run --rm -v $(PWD):/smda golang:1.16-alpine sh -c "apk add --no-cache make && cd /smda && make test"
 
 bench:
 	GOMAXPROCS=1 CGO_ENABLED=0 $(GORLS) test -run=NONE -bench=. -benchmem ./...

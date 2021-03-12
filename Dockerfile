@@ -5,7 +5,7 @@ FROM golang:1.16-alpine AS build
 RUN apk --no-cache add make
 RUN mkdir -p /smda/
 WORKDIR /smda/
-COPY Makefile go.mod ./
+COPY Makefile go.mod go.sum ./
 COPY src src
 COPY cmd cmd
 RUN make build

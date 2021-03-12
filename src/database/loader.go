@@ -14,6 +14,7 @@ import (
 	"os"
 	"sort"
 
+	"github.com/golang/snappy"
 	"github.com/kokes/smda/src/column"
 )
 
@@ -146,8 +147,10 @@ func writeCompressed(w io.Writer, ctype compression) (io.WriteCloser, error) {
 	switch ctype {
 	case compressionGzip:
 		return gzip.NewWriter(w), nil
+	case compressionSnappy:
+		return snappy.NewWriter(w), nil
 	}
-	// TODO: snappy, lz4
+	// TODO: lz4, zstd
 	return nil, fmt.Errorf("%w: %v", errCannotWriteCompression, ctype)
 }
 
@@ -485,9 +488,9 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 		readCompression: ctype,
 		delimiter:       dlim,
 		// ARCH: we only set write compression in *Auto calls
-		// OPTIM: make this configurable and optimised
-		// TODO(next): support snappy here by default
-		writeCompression: compressionNone,
+		// TODO/OPTIM: make this configurable and optimised
+		// TODO: make benchmarks compression aware (test for each compression? Or just for uncompressed?)
+		writeCompression: compressionSnappy,
 	}
 
 	schema, err := inferTypes(path, ls)
