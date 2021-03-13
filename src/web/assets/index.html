@@ -243,10 +243,14 @@
         }
     }
 
-    function node(tag, props, ...children) {
+    function node(tag, props, children) {
         const tg = document.createElement(tag);
         Object.keys(props || {}).forEach(k => tg.setAttribute(k, props[k]));
-        children.forEach(child => tg.append(child))
+        if (Array.isArray(children)) {
+            children.forEach(child => tg.append(child));
+        } else {
+            tg.append(children);
+        }
         return tg;
     }
 
@@ -411,13 +415,12 @@
 
             // OPTIM: well, this is uncached in multiple places
             await this.loadDatasets();
-            // TODO(next): remove all this elipsis handling and make it accept arrays
-            const header = node("thead", {}, node("tr", null, ...["Identifier", "Name", "Created Time", "Size (original)", "Size on disk", "Number of rows", "Table schema"].map(
+            const header = node("thead", {}, node("tr", null, ["Identifier", "Name", "Created Time", "Size (original)", "Size on disk", "Number of rows", "Table schema"].map(
                 column => node("th", null, column)
             )));
             const datasets = Object.values(this.datasets);
             datasets.sort((a, b) => b.created_timestamp - a.created_timestamp)
-            const rows = node("tbody", null, ...datasets.map(
+            const rows = node("tbody", null, datasets.map(
                 ds => {
                     const cols = [
                         node("td", null, node("a", {"href": `/query?dataset=${ds.id}&limit=100`}, ds.id)),
@@ -432,16 +435,17 @@
                         node("td", null, formatBytes(ds.size_on_disk)),
                         node("td", null, ds.nrows.toLocaleString()),
                         node("td", null, node("details", {},
+                        [
                             node("summary", {}, `${ds.schema.length} columns`),
-                            node("ul", {}, ...ds.schema.map(
+                            node("ul", {}, ds.schema.map(
                                 col => node("li", {}, `${col.name} (${col.dtype})`)
                             ))
-                        )),
+                        ])),
                     ]
-                    return node("tr", null, ...cols);
+                    return node("tr", null, cols);
                 }
             ));
-            const overview = node("table", {"id": "datasets"}, header, rows);
+            const overview = node("table", {"id": "datasets"}, [header, rows]);
 
             empty(target);
             target.append(overview);
@@ -471,7 +475,7 @@
         async renderTable(data, target) {
             const table = node("table", {"class": "data-view"},
                 node("thead", {},
-                    node("tr", {}, ...data.schema.map((col) => node("th", {}, col.name)))
+                    node("tr", {}, data.schema.map((col) => node("th", {}, col.name)))
                 )
             )
 
@@ -482,7 +486,7 @@
 
             for (let rowNum=0; rowNum < nrows; rowNum++) {
                 const row = node("tr", {},
-                    ...data.schema.map((val, idx) => {
+                    data.schema.map((val, idx) => {
                         return node("td", {}, data.data[idx][rowNum])
                     })
                 )
