@@ -168,41 +168,44 @@
         </nav>
 
         <div id='content'>
-            <form action="/query" name="query">
-                <fieldset>
-                    <legend>Query parameters</legend>
-                    <!--
-                        TODO(next):
-                         - input placeholders
-                         - proper support for multiple select/aggregate expressions
-                         - show names in the dataset dropdown (and allow for autocomplete?)
-                     -->
-                    <div>
-                        <label for="dataset_id">Dataset</label>
-                        <input name="dataset" id="dataset_id" />
-                    </div>
-                    <div>
-                        <label for="filter">Filter</label>
-                        <input name="filter" id="filter" />
-                    </div>
-                    <div>
-                        <label for="aggregate">Aggregate</label>
-                        <input name="aggregate" id="aggregate" />
-                    </div>
-                    <div>
-                        <label for="select">Select</label>
-                        <input name="select" id="select" />
-                    </div>
-                    <div>
-                        <label for="limit">Limit</label>
-                        <input name="limit" id="limit" type="number" />
-                    </div>
+            <div id="route-datasets"></div>
+            <div id="route-query">
+                <form action="/query" name="query">
+                    <fieldset>
+                        <legend>Query parameters</legend>
+                        <!--
+                            TODO(next):
+                            - input placeholders
+                            - proper support for multiple select/aggregate expressions
+                            - show names in the dataset dropdown (and allow for autocomplete?)
+                        -->
+                        <div>
+                            <label for="dataset_id">Dataset</label>
+                            <input name="dataset" id="dataset_id" />
+                        </div>
+                        <div>
+                            <label for="filter">Filter</label>
+                            <input name="filter" id="filter" />
+                        </div>
+                        <div>
+                            <label for="aggregate">Aggregate</label>
+                            <input name="aggregate" id="aggregate" />
+                        </div>
+                        <div>
+                            <label for="select">Select</label>
+                            <input name="select" id="select" />
+                        </div>
+                        <div>
+                            <label for="limit">Limit</label>
+                            <input name="limit" id="limit" type="number" />
+                        </div>
 
-                    <button>Run query</button>
-                </fieldset>
-            </form>
+                        <button>Run query</button>
+                    </fieldset>
+                </form>
 
-            <div id="query-results"></div>
+                <div id="query-results"></div>
+            </div>
         </div>
 
         <footer>
@@ -339,6 +342,11 @@
             }
 
             const path = window.location.pathname.slice(1).split("/");
+            document.querySelectorAll("div#content > div").forEach(x => x.style.display = "none");
+            // ARCH: pass this down to submitQuery/setupDatasets?
+            const target = document.getElementById(`route-${path[0]}`);
+            target.style.display = "block";
+
             switch (path[0]) {
                 case 'query':
                     that.submitQuery(); // ARCH: automatic submission, maybe too eager?
@@ -373,6 +381,11 @@
         async submitQuery() {
             const qform = document.forms["query"];
             const target = document.getElementById("query-results");
+            // if nothing is to be submitted, just remove any leftover query results and exit
+            if (qform.dataset.value === "") {
+                empty(target);
+                return;
+            }
             const query = {
                 dataset: qform.dataset.value,
             };
@@ -389,11 +402,12 @@
                 query.limit = parseInt(qform.limit.value, 10);
             }
             const data = await this.runQuery(query);
+            empty(target)
             this.renderTable(data, target);
 
         }
         async setupDatasets() {
-            const target = document.getElementById('content');
+            const target = document.getElementById('route-datasets');
 
             // OPTIM: well, this is uncached in multiple places
             await this.loadDatasets();
@@ -489,6 +503,38 @@
     }
 
     const db = new smda();
+    // further router setup
+    document.addEventListener("click", e => {
+        // ARCH: input[type=submit]?
+        if (!(e.target.nodeName === "BUTTON" || e.target.nodeName === "A")) {
+            return;
+        }
+        e.preventDefault();
+
+        switch (e.target.nodeName) {
+            case "A":
+                const link = e.target.getAttribute("href");
+                history.pushState({}, "", link);
+                break;
+            case "BUTTON":
+                const url = new URL(window.location);
+                url.search = '';
+                const qform = e.target.closest("form");
+                if (qform.method !== "get") {
+                    throw new Error("cannot submit POST forms yet");
+                }
+                for (let entry of (new FormData(qform)).entries()) {
+                    url.searchParams.set(entry[0], entry[1]);
+                }
+                history.pushState({}, "", url);
+                break;
+        }
+
+        db.setupRouter();
+    });
+    window.onpopstate = e => {
+        db.setupRouter();
+    }
 </script>
 
 </body>
