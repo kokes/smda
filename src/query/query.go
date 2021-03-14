@@ -279,26 +279,25 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		limit = *q.Limit
 	}
 	for stripeIndex, stripe := range ds.Stripes {
+		var filter *bitmap.Bitmap
 		// if no relevant data in this stripe, skip it
 		if bms != nil {
-			filteredLen := bms[stripeIndex].Count()
+			filter = bms[stripeIndex]
+			filteredLen := filter.Count()
 			if filteredLen == 0 {
 				continue
 			}
 			if limit >= 0 && filteredLen > limit {
-				bms[stripeIndex].KeepFirstN(limit)
+				filter.KeepFirstN(limit)
 			}
 			limit -= filteredLen
 		}
-		// prune non-filtered stripes as well (when limit is applied)
-		// ARCH: we used to have a condition on that if (bms == nil), but I don't think
-		// it's needed, revisit it
-		var bmnf *bitmap.Bitmap
-		if limit >= 0 {
+
+		if bms == nil && limit >= 0 {
 			if stripe.Length > limit {
-				bmnf = bitmap.NewBitmap(stripe.Length)
-				bmnf.Invert()
-				bmnf.KeepFirstN(limit)
+				filter = bitmap.NewBitmap(stripe.Length)
+				filter.Invert()
+				filter.KeepFirstN(limit)
 			}
 
 			limit -= stripe.Length
@@ -310,22 +309,11 @@ func Run(db *database.Database, q Query) (*Result, error) {
 				return nil, err
 			}
 
-			// TODO(next): use `if bms != nil { filter = bms[stripeIndex] } and use it here instead of explicit pruning
-			// will be more readable and faster
-			// also remove all that `bmnf` stuff and `if bms` above
-			col, err := expr.Evaluate(colExpr, stripe.Length, columns, nil)
+			col, err := expr.Evaluate(colExpr, stripe.Length, columns, filter)
 			if err != nil {
 				return nil, err
 			}
 
-			// prune when filtering
-			if bms != nil {
-				col = col.Prune(bms[stripeIndex])
-			}
-
-			if bmnf != nil {
-				col = col.Prune(bmnf)
-			}
 			if err := res.Data[j].Append(col); err != nil {
 				return nil, err
 			}
