@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kokes/smda/src/bitmap"
 	"github.com/kokes/smda/src/column"
 )
 
@@ -14,9 +15,10 @@ var errFunctionNotImplemented = errors.New("function not implemented")
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
 // the same tree of operations - this applies not just here, but in projections.go as well - e.g. we know that
 // if we have `intA - intB`, we'll run a function for ints - we don't need to decide that for each stripe
-func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Chunk) (column.Chunk, error) {
+func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Chunk, filter *bitmap.Bitmap) (column.Chunk, error) {
 	// TODO: test this via UpdateAggregator
 	if expr.aggregator != nil {
+		// TODO: assert that filters !== nil?
 		return expr.aggregator.Resolve()
 	}
 	switch expr.etype {
@@ -31,6 +33,9 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 			// we validated the expression, so this should not happen?
 			// perhaps to catch bugs in case folding?
 			return nil, fmt.Errorf("column %v not found", expr.value)
+		}
+		if filter != nil {
+			return col.Prune(filter), nil
 		}
 		return col, nil
 	// since these literals don't interact with any "dense" column chunks, we need
@@ -57,7 +62,7 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		// ARCH: abstract out this `children` construction and use it elsewhere (in exprEquality etc.)
 		children := make([]column.Chunk, 0, len(expr.children))
 		for _, ch := range expr.children {
-			child, err := Evaluate(ch, chunkLength, columnData)
+			child, err := Evaluate(ch, chunkLength, columnData, filter)
 			if err != nil {
 				return nil, err
 			}
@@ -67,11 +72,11 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 	// ARCH: these could all be generalised as FunCalls
 	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,
 		exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprAnd, exprOr:
-		c1, err := Evaluate(expr.children[0], chunkLength, columnData)
+		c1, err := Evaluate(expr.children[0], chunkLength, columnData, filter)
 		if err != nil {
 			return nil, err
 		}
-		c2, err := Evaluate(expr.children[1], chunkLength, columnData)
+		c2, err := Evaluate(expr.children[1], chunkLength, columnData, filter)
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +112,7 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 	}
 }
 
-func UpdateAggregator(expr *Expression, buckets []uint64, ndistinct int, columnData map[string]column.Chunk) error {
+func UpdateAggregator(expr *Expression, buckets []uint64, ndistinct int, columnData map[string]column.Chunk, filter *bitmap.Bitmap) error {
 	// if expr.aggregator == nil {err}
 	// if len(expr.children) != 1 {err}// what about count()?
 
@@ -117,7 +122,7 @@ func UpdateAggregator(expr *Expression, buckets []uint64, ndistinct int, columnD
 	var err error
 	// in case we have e.g. `count()`, we cannot evaluate its children as there are none
 	if len(expr.children) > 0 {
-		child, err = Evaluate(expr.children[0], len(buckets), columnData)
+		child, err = Evaluate(expr.children[0], len(buckets), columnData, filter)
 		if err != nil {
 			return err
 		}

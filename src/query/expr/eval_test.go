@@ -118,7 +118,7 @@ func TestBasicEval(t *testing.T) {
 			continue
 		}
 		// ARCH: we don't have chunk length explicitly, so we're just setting it to the length of our expected output
-		res, err := Evaluate(expr, len(test.outputData), coldata)
+		res, err := Evaluate(expr, len(test.outputData), coldata, nil)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -135,3 +135,4 @@ func TestBasicEval(t *testing.T) {
 }
 
 // UpdateAggregator
+// TODO(next): eval with filters? or leave that to query?

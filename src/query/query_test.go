@@ -363,7 +363,8 @@ func TestAggregationProjectionErrors(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		_, err = aggregate(db, ds, aggexpr, projexpr)
+		// TODO: replace this with Run
+		_, err = aggregate(db, ds, aggexpr, projexpr, nil)
 		if !errors.Is(err, errInvalidProjectionInAggregation) {
 			t.Errorf("expecting projection %+v and aggregation %+v to result in errInvalidProjectionInAggregation, got %+v instead", test.projs, test.aggexpr, err)
 		}
@@ -448,3 +449,5 @@ func TestBasicFiltering(t *testing.T) {
 
 	}
 }
+
+// TODO(next): test groupbys with filters

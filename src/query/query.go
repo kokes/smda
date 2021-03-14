@@ -54,7 +54,7 @@ func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expres
 		if err != nil {
 			return nil, err
 		}
-		fvals, err := expr.Evaluate(filterExpr, stripe.Length, columns)
+		fvals, err := expr.Evaluate(filterExpr, stripe.Length, columns, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +94,7 @@ func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
 // it there if it's not nil
 // OPTIM: if there's GROUPBY+LIMIT (and without ORDERBY), we can shortcircuit the hashing part - once we
 // reach ndistinct == LIMIT, we can stop
-func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
+func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression, bms []*bitmap.Bitmap) ([]column.Chunk, error) {
 	// we need to validate all projections - they either need to be in the groupby clause
 	// or be aggregating (e.g. sum(ints) -> int)
 	// we'll also collect all the aggregating expressions, so that we can feed them individual chunks
@@ -128,7 +128,13 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 	groups := make(map[uint64]uint64)
 	// ARCH: `nrc` and `rcs` are not very descriptive
 	nrc := make([]column.Chunk, len(groupbys))
-	for _, stripe := range ds.Stripes {
+	for ns, stripe := range ds.Stripes {
+		stripeLength := stripe.Length
+		var filter *bitmap.Bitmap
+		if bms != nil {
+			stripeLength = bms[ns].Count()
+			filter = bms[ns]
+		}
 		rcs := make([]column.Chunk, len(groupbys))
 		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripe, columnNames)
 		if err != nil {
@@ -137,14 +143,14 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 
 		// 1) evaluate all the aggregation expressions (those expressions that determine groups, e.g. `country`)
 		for j, expression := range groupbys {
-			rc, err := expr.Evaluate(expression, stripe.Length, columnData)
+			rc, err := expr.Evaluate(expression, stripeLength, columnData, filter)
 			if err != nil {
 				return nil, err
 			}
 			rcs[j] = rc
 		}
-		hashes := make([]uint64, stripe.Length) // preserves unique rows (their hashes); OPTIM: preallocate some place
-		bm := bitmap.NewBitmap(stripe.Length)   // denotes which rows are the unique ones
+		hashes := make([]uint64, stripeLength) // preserves unique rows (their hashes); OPTIM: preallocate some place
+		bm := bitmap.NewBitmap(stripeLength)   // denotes which rows are the unique ones
 		for j, rc := range rcs {
 			rc.Hash(j, hashes)
 		}
@@ -174,7 +180,7 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 			hashes[j] = groups[el]
 		}
 		for _, aggexpr := range aggexprs {
-			if err := expr.UpdateAggregator(aggexpr, hashes, len(groups), columnData); err != nil {
+			if err := expr.UpdateAggregator(aggexpr, hashes, len(groups), columnData, filter); err != nil {
 				return nil, err
 			}
 		}
@@ -197,7 +203,9 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		// we can pass in a nil map, because agg exprs get evaluated first
 		// we can also pass in negative length, because it doesn't matter for resolvers
 		// ARCH: but should we get the chunk length and pass it in, for good measure?
-		agg, err := expr.Evaluate(proj, -1, nil)
+		// TODO/ARCH: shouldn't this call Resolve directly (if we exporter the aggregator)? It's kind
+		// of funky to hide the Resolver under Evaluate
+		agg, err := expr.Evaluate(proj, -1, nil, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -254,7 +262,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 	}
 
 	if q.Aggregate != nil || allAggregations {
-		columns, err := aggregate(db, ds, q.Aggregate, q.Select)
+		columns, err := aggregate(db, ds, q.Aggregate, q.Select, bms)
 		if err != nil {
 			return nil, err
 		}
@@ -302,7 +310,10 @@ func Run(db *database.Database, q Query) (*Result, error) {
 				return nil, err
 			}
 
-			col, err := expr.Evaluate(colExpr, stripe.Length, columns)
+			// TODO(next): use `if bms != nil { filter = bms[stripeIndex] } and use it here instead of explicit pruning
+			// will be more readable and faster
+			// also remove all that `bmnf` stuff and `if bms` above
+			col, err := expr.Evaluate(colExpr, stripe.Length, columns, nil)
 			if err != nil {
 				return nil, err
 			}
