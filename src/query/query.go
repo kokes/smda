@@ -27,6 +27,7 @@ type Query struct {
 	Filter    *expr.Expression   `json:"filter,omitempty"`
 	Aggregate []*expr.Expression `json:"aggregate,omitempty"`
 	Limit     *int               `json:"limit,omitempty"`
+	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
 }
 
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
@@ -94,13 +95,14 @@ func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
 // OPTIM: if there's GROUPBY+LIMIT (and without ORDERBY), we can shortcircuit the hashing part - once we
 // reach ndistinct == LIMIT, we can stop
 func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression) ([]column.Chunk, error) {
-	if len(groupbys) == 0 {
-		return nil, errors.New("cannot aggregate by an empty clause, need at least one expression")
-	}
-
 	// we need to validate all projections - they either need to be in the groupby clause
 	// or be aggregating (e.g. sum(ints) -> int)
 	// we'll also collect all the aggregating expressions, so that we can feed them individual chunks
+	// ARCH/TODO: move this to Run(), we need to do some err checking here, two cases come to mind:
+	// 1. if someone passes a query `select: foo, sum(baz)`, we must tell them early on it doesn't make sense,
+	//    now it redirects to a plain select and says `sum` doesn't exist as a projection
+	// 2. if someone passes a plain `sum(foo)` with no aggregation, we want them to end up here
+	//    (it's monkeypatched for now via `allAggregations`)
 	var aggexprs []*expr.Expression
 	for _, proj := range projs {
 		aggexpr, err := expr.AggExpr(proj)
@@ -222,6 +224,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		return nil, err
 	}
 
+	allAggregations := true
 	for _, col := range q.Select {
 		rschema, err := col.ReturnType(ds.Schema)
 		if err != nil {
@@ -230,6 +233,14 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		res.Schema = append(res.Schema, rschema)
 		// ARCH: this won't be used in aggregation, is that okay?
 		res.Data = append(res.Data, column.NewChunkFromSchema(rschema))
+
+		aggexpr, err := expr.AggExpr(col)
+		if err != nil {
+			return nil, err
+		}
+		if aggexpr == nil {
+			allAggregations = false
+		}
 	}
 
 	var bms []*bitmap.Bitmap
@@ -242,7 +253,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		}
 	}
 
-	if q.Aggregate != nil {
+	if q.Aggregate != nil || allAggregations {
 		columns, err := aggregate(db, ds, q.Aggregate, q.Select)
 		if err != nil {
 			return nil, err

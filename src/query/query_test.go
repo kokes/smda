@@ -165,6 +165,9 @@ func TestLimitsInQueries(t *testing.T) {
 }
 
 func stringsToExprs(raw []string) ([]*expr.Expression, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
 	ret := make([]*expr.Expression, 0, len(raw))
 	for _, el := range raw {
 		parsed, err := expr.ParseStringExpr(el)
@@ -243,6 +246,8 @@ func TestBasicAggregation(t *testing.T) {
 		// case insensitivity
 		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", []string{"foo"}, []string{"foo", "COUNT()"}, "foo,count()\n1,2\n,3\n"},
 		{"foo,bar\n1,\n13,2\n1,\n", []string{"foo"}, []string{"foo", "MIN(bar)"}, "foo,min(bar)\n1,\n13,2"},
+		// no aggregating columns
+		{"foo\n1\n2\n3\n", nil, []string{"sum(foo)", "max(foo)"}, "sum(foo),max(foo)\n6,3\n"},
 	}
 
 	for testNo, test := range tests {
