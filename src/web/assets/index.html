@@ -130,6 +130,10 @@
             padding: .3em 1em;
         }
 
+        form small#elapsed {
+            padding-left: 1em;
+        }
+
         div#query-results {
             /* width: calc(100vw - 250px); */
             /*
@@ -201,6 +205,7 @@
                         </div>
 
                         <button>Run query</button>
+                        <small id="elapsed"></small>
                     </fieldset>
                 </form>
 
@@ -300,6 +305,13 @@
         // return (new Date(timestamp * 1000).toISOString());
     }
 
+    function formatDuration(ms) {
+        if (ms < 1000) {
+            return `${Math.round(ms)} ms`;
+        }
+        return `${(ms/1000).toFixed(2)} seconds`;
+    }
+
     // TODO: test: "foo", "foo bar", "Foo", "FOO", "foo32"
     // TODO: are there quotes in the individual names? can there be?
     // also, columns with all lowercase but with spaces need to be quoted
@@ -384,9 +396,14 @@
         }
         async submitQuery() {
             const qform = document.forms["query"];
+            // TODO(next): we can't disable the button upon submission, because we also
+            // need to do proper error handling to enable it back in case of an exception
+            // const submitButton = qform.querySelector("button");
             const target = document.getElementById("query-results");
+            const elapsed = qform.querySelector("small#elapsed");
             // if nothing is to be submitted, just remove any leftover query results and exit
             if (qform.dataset.value === "") {
+                empty(elapsed);
                 empty(target);
                 return;
             }
@@ -405,7 +422,11 @@
             if (qform.limit.value !== "") {
                 query.limit = parseInt(qform.limit.value, 10);
             }
+
+            const startTime = performance.now();
             const data = await this.runQuery(query);
+            elapsed.textContent = `Elapsed: ${formatDuration(performance.now() - startTime)}`;
+
             empty(target)
             this.renderTable(data, target);
 
