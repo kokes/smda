@@ -37,35 +37,16 @@ type Result struct {
 	Data   []column.Chunk       `json:"data"`
 }
 
-// OPTIM: this filters the whole dataset, but it we may only need to filter a single stripe - e.g. if we have no order or
-// groupby clause and a limit (implicit or explicit)
-func filter(db *database.Database, ds *database.Dataset, filterExpr *expr.Expression) ([]*bitmap.Bitmap, error) {
-	rettype, err := filterExpr.ReturnType(ds.Schema)
+func filterStripe(db *database.Database, ds *database.Dataset, stripe database.Stripe, filterExpr *expr.Expression, colData map[string]column.Chunk) (*bitmap.Bitmap, error) {
+	fvals, err := expr.Evaluate(filterExpr, stripe.Length, colData, nil)
 	if err != nil {
 		return nil, err
 	}
-	if rettype.Dtype != column.DtypeBool {
-		return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", filterExpr, rettype.Dtype)
-	}
-	retval := make([]*bitmap.Bitmap, 0, len(ds.Stripes))
-	colnames := filterExpr.ColumnsUsed(ds.Schema)
-	for _, stripe := range ds.Stripes {
-		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
-		if err != nil {
-			return nil, err
-		}
-		fvals, err := expr.Evaluate(filterExpr, stripe.Length, columns, nil)
-		if err != nil {
-			return nil, err
-		}
-		// it's essential that we clone the bool column here (implicitly in Truths),
-		// because this bitmap may be truncated later on (e.g. in KeepFirstN)
-		// and expr.Evaluate may return a reference, not a clone (e.g. in exprIdent)
-		bm := fvals.(*column.ChunkBools).Truths()
-		retval = append(retval, bm)
-	}
-
-	return retval, nil
+	// it's essential that we clone the bool column here (implicitly in Truths),
+	// because this bitmap may be truncated later on (e.g. in KeepFirstN)
+	// and expr.Evaluate may return a reference, not a clone (e.g. in exprIdent)
+	bm := fvals.(*column.ChunkBools).Truths()
+	return bm, nil
 }
 
 // ARCH/OPTIM: there are a few issues here:
@@ -86,15 +67,9 @@ func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
 // OPTIM: here are some rough calculations from running timers in the stripe loop (the only expensive part)
 // loading data from disk: 133ms, hashing: 55ms, prune bitmaps prep: 23ms, updating aggregators: 28ms
 // everything else is way faster
-// TODO(next): pass in `bms` and handle filters here. Not sure how to do that properly.
-// it's quite easy to do in `rcs` - just prune it by bm[stripeIndex]
-// but what about updateAggregator? Do we implement something in `Evaluate` and `AddChunk`?
-// We could potentially add a filtering bitmap and combine it with the nullability bitmap?
-// perhaps call it a `mask *bitmap.Bitmap` and pass it in many functions (like Evaluate) and use
-// it there if it's not nil
 // OPTIM: if there's GROUPBY+LIMIT (and without ORDERBY), we can shortcircuit the hashing part - once we
 // reach ndistinct == LIMIT, we can stop
-func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression, bms []*bitmap.Bitmap) ([]column.Chunk, error) {
+func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression, filterExpr *expr.Expression) ([]column.Chunk, error) {
 	// we need to validate all projections - they either need to be in the groupby clause
 	// or be aggregating (e.g. sum(ints) -> int)
 	// we'll also collect all the aggregating expressions, so that we can feed them individual chunks
@@ -124,21 +99,29 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		}
 	}
 
-	columnNames := expr.ColumnsUsed(ds.Schema, append(groupbys, projs...)...)
+	var columnNames []string
+	if filterExpr != nil {
+		columnNames = expr.ColumnsUsed(ds.Schema, append(groupbys, append(projs, filterExpr)...)...)
+	} else {
+		columnNames = expr.ColumnsUsed(ds.Schema, append(groupbys, projs...)...)
+	}
 	groups := make(map[uint64]uint64)
 	// ARCH: `nrc` and `rcs` are not very descriptive
 	nrc := make([]column.Chunk, len(groupbys))
-	for ns, stripe := range ds.Stripes {
+	for _, stripe := range ds.Stripes {
 		stripeLength := stripe.Length
 		var filter *bitmap.Bitmap
-		if bms != nil {
-			stripeLength = bms[ns].Count()
-			filter = bms[ns]
-		}
 		rcs := make([]column.Chunk, len(groupbys))
 		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripe, columnNames)
 		if err != nil {
 			return nil, err
+		}
+		if filterExpr != nil {
+			filter, err = filterStripe(db, ds, stripe, filterExpr, columnData)
+			if err != nil {
+				return nil, err
+			}
+			stripeLength = filter.Count()
 		}
 
 		// 1) evaluate all the aggregation expressions (those expressions that determine groups, e.g. `country`)
@@ -251,18 +234,18 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		}
 	}
 
-	var bms []*bitmap.Bitmap
-	// OPTIM: it's quite inefficient to filter outside the aggregator - we might be loading
-	// the same columns in both cases -> double the work
 	if q.Filter != nil {
-		bms, err = filter(db, ds, q.Filter)
+		rettype, err := q.Filter.ReturnType(ds.Schema)
 		if err != nil {
 			return nil, err
+		}
+		if rettype.Dtype != column.DtypeBool {
+			return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", q.Filter, rettype.Dtype)
 		}
 	}
 
 	if q.Aggregate != nil || allAggregations {
-		columns, err := aggregate(db, ds, q.Aggregate, q.Select, bms)
+		columns, err := aggregate(db, ds, q.Aggregate, q.Select, q.Filter)
 		if err != nil {
 			return nil, err
 		}
@@ -278,11 +261,24 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		}
 		limit = *q.Limit
 	}
-	for stripeIndex, stripe := range ds.Stripes {
+	for _, stripe := range ds.Stripes {
 		var filter *bitmap.Bitmap
-		// if no relevant data in this stripe, skip it
-		if bms != nil {
-			filter = bms[stripeIndex]
+		var colnames []string
+		if q.Filter == nil {
+			colnames = expr.ColumnsUsed(ds.Schema, q.Select...)
+		} else {
+			colnames = expr.ColumnsUsed(ds.Schema, append(q.Select, q.Filter)...)
+		}
+		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
+		if err != nil {
+			return nil, err
+		}
+		if q.Filter != nil {
+			filter, err = filterStripe(db, ds, stripe, q.Filter, columns)
+			if err != nil {
+				return nil, err
+			}
+			// if no relevant data in this stripe, skip it
 			filteredLen := filter.Count()
 			if filteredLen == 0 {
 				continue
@@ -291,24 +287,19 @@ func Run(db *database.Database, q Query) (*Result, error) {
 				filter.KeepFirstN(limit)
 			}
 			limit -= filteredLen
-		}
+		} else {
+			// TODO/ARCH: all this limit handling is a bit clunky, simplify it quite a bit
+			if limit >= 0 {
+				if stripe.Length > limit {
+					filter = bitmap.NewBitmap(stripe.Length)
+					filter.Invert()
+					filter.KeepFirstN(limit)
+				}
 
-		if bms == nil && limit >= 0 {
-			if stripe.Length > limit {
-				filter = bitmap.NewBitmap(stripe.Length)
-				filter.Invert()
-				filter.KeepFirstN(limit)
+				limit -= stripe.Length
 			}
-
-			limit -= stripe.Length
 		}
 		for j, colExpr := range q.Select {
-			colnames := colExpr.ColumnsUsed(ds.Schema) // OPTIM: calculated for each stripe, can be cached
-			columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
-			if err != nil {
-				return nil, err
-			}
-
 			col, err := expr.Evaluate(colExpr, stripe.Length, columns, filter)
 			if err != nil {
 				return nil, err
