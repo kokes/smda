@@ -269,8 +269,16 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 		var value string
 		switch node.Kind {
 		case token.STRING:
-			etype = exprIdentifierQuoted
+			etype = exprIdentifier
 			value = node.Value[1 : len(node.Value)-1]
+			for _, char := range value {
+				// only assign the Quoted variant if there's a need for it
+				// TODO/ARCH: what about '-'? In general, what are our rules for quoting?
+				if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
+					etype = exprIdentifierQuoted
+					break
+				}
+			}
 		case token.INT:
 			etype = exprLiteralInt
 			value = node.Value

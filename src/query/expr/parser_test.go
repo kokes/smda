@@ -11,7 +11,9 @@ func TestParsingContents(t *testing.T) {
 		expExpr *Expression
 	}{
 		{"ahoy", &Expression{etype: exprIdentifier, value: "ahoy"}},
-		{"\"ahoy\"", &Expression{etype: exprIdentifierQuoted, value: "ahoy"}},
+		{"\"ahoy\"", &Expression{etype: exprIdentifier, value: "ahoy"}},
+		{"\"ahoy_world\"", &Expression{etype: exprIdentifier, value: "ahoy_world"}},
+		{"\"ahoy62\"", &Expression{etype: exprIdentifier, value: "ahoy62"}},
 		{"\"hello world\"", &Expression{etype: exprIdentifierQuoted, value: "hello world"}},
 		{"\"hello world\"*2", &Expression{etype: exprMultiplication, children: []*Expression{
 			{etype: exprIdentifierQuoted, value: "hello world"},
@@ -22,7 +24,7 @@ func TestParsingContents(t *testing.T) {
 		{"bar < foo < bak", nil},
 		{"2 * \"ahoy\"", &Expression{etype: exprMultiplication, children: []*Expression{
 			{etype: exprLiteralInt, value: "2"},
-			{etype: exprIdentifierQuoted, value: "ahoy"},
+			{etype: exprIdentifier, value: "ahoy"},
 		}}},
 		{"foo / bar", &Expression{etype: exprDivision, children: []*Expression{
 			{etype: exprIdentifier, value: "foo"},
