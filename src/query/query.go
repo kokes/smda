@@ -289,6 +289,7 @@ func Run(db *database.Database, q Query) (*Result, error) {
 			limit -= filteredLen
 		} else {
 			// TODO/ARCH: all this limit handling is a bit clunky, simplify it quite a bit
+			// TODO: `select 4>1 from foo limit N` doesn't respect N, because literals are implemented incorrectly in this path I guess
 			if limit >= 0 {
 				if stripe.Length > limit {
 					filter = bitmap.NewBitmap(stripe.Length)

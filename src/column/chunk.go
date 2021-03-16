@@ -1037,7 +1037,15 @@ func (rc *ChunkInts) Append(tc Chunk) error {
 		rc.nullability.Append(nrc.nullability)
 	}
 
-	rc.data = append(rc.data, nrc.data...)
+	// TODO(next): fix this for all other Appends + test well
+	if nrc.isLiteral {
+		value := nrc.data[0] // TODO/ARCH: nthValue?
+		for j := 0; j < nrc.Len(); j++ {
+			rc.data = append(rc.data, value)
+		}
+	} else {
+		rc.data = append(rc.data, nrc.data...)
+	}
 	rc.length += nrc.length
 
 	return nil
@@ -1087,7 +1095,14 @@ func (rc *ChunkBools) Append(tc Chunk) error {
 		rc.nullability.Append(nrc.nullability)
 	}
 
-	rc.data.Append(nrc.data)
+	if nrc.isLiteral {
+		value := nrc.data.Get(0)
+		for j := 0; j < nrc.Len(); j++ {
+			rc.data.Set(int(rc.length)+j, value)
+		}
+	} else {
+		rc.data.Append(nrc.data)
+	}
 	rc.length += nrc.length
 
 	return nil
