@@ -305,11 +305,11 @@
         // return (new Date(timestamp * 1000).toISOString());
     }
 
-    function formatDuration(ms) {
+    function formatDuration(ms, prefix) {
         if (ms < 1000) {
-            return `${Math.round(ms)} ms`;
+            return `${prefix} ${Math.round(ms)} ms`;
         }
-        return `${(ms/1000).toFixed(2)} seconds`;
+        return `${prefix} ${(ms/1000).toFixed(2)} seconds`;
     }
 
     // TODO: test: "foo", "foo bar", "Foo", "FOO", "foo32"
@@ -351,6 +351,7 @@
             const qform = document.forms["query"];
             if (qform !== undefined) {
                 const params = new URLSearchParams(window.location.search);
+                // TODO(next): populate the input/select for datasets with actual datasets and their names
                 for (let inp of qform.querySelectorAll("input")) {
                     const fieldName = inp.getAttribute("name");
                     inp.value = params.get(fieldName);
@@ -424,8 +425,19 @@
             }
 
             const startTime = performance.now();
-            const data = await this.runQuery(query);
-            elapsed.textContent = `Elapsed: ${formatDuration(performance.now() - startTime)}`;
+            const incrementor = setInterval(() => {
+                elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
+            }, 100)
+
+            let data;
+            try {
+                data = await this.runQuery(query);
+            } catch(e) {
+                // TODO(next): print out errors
+            } finally {
+                clearInterval(incrementor);
+                elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
+            }
 
             empty(target)
             this.renderTable(data, target);
