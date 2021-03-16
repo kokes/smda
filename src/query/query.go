@@ -262,7 +262,6 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		limit = *q.Limit
 	}
 	for _, stripe := range ds.Stripes {
-		var filter *bitmap.Bitmap
 		var colnames []string
 		if q.Filter == nil {
 			colnames = expr.ColumnsUsed(ds.Schema, q.Select...)
@@ -273,35 +272,36 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		if err != nil {
 			return nil, err
 		}
+		var filter *bitmap.Bitmap
+		loadFromStripe := stripe.Length
 		if q.Filter != nil {
 			filter, err = filterStripe(db, ds, stripe, q.Filter, columns)
 			if err != nil {
 				return nil, err
 			}
-			// if no relevant data in this stripe, skip it
-			filteredLen := filter.Count()
-			if filteredLen == 0 {
-				continue
-			}
-			if limit >= 0 && filteredLen > limit {
+			if limit >= 0 && filter.Count() > limit {
 				filter.KeepFirstN(limit)
 			}
-			limit -= filteredLen
 		} else {
 			// TODO/ARCH: all this limit handling is a bit clunky, simplify it quite a bit
-			// TODO: `select 4>1 from foo limit N` doesn't respect N, because literals are implemented incorrectly in this path I guess
-			if limit >= 0 {
-				if stripe.Length > limit {
-					filter = bitmap.NewBitmap(stripe.Length)
-					filter.Invert()
-					filter.KeepFirstN(limit)
-				}
-
-				limit -= stripe.Length
+			if limit >= 0 && stripe.Length > limit {
+				filter = bitmap.NewBitmap(stripe.Length)
+				filter.Invert()
+				filter.KeepFirstN(limit)
 			}
 		}
+		if filter != nil && filter.Count() < loadFromStripe {
+			loadFromStripe = filter.Count()
+		}
+		if limit >= 0 && limit < loadFromStripe {
+			loadFromStripe = limit
+		}
+		if loadFromStripe == 0 {
+			continue
+		}
+		limit -= loadFromStripe
 		for j, colExpr := range q.Select {
-			col, err := expr.Evaluate(colExpr, stripe.Length, columns, filter)
+			col, err := expr.Evaluate(colExpr, loadFromStripe, columns, filter)
 			if err != nil {
 				return nil, err
 			}
