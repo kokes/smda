@@ -140,6 +140,14 @@
                 overflow-x: scroll;
             */
         }
+        div#query-error {
+            padding: 1em;
+            margin: 1em 0 0 0;
+            border: 1px solid red;
+            background-color: lightpink;
+            color: darkred;
+            font-style: italic;
+        }
     </style>
 <body>
     <div id='container'>
@@ -205,6 +213,7 @@
 
                         <button>Run query</button>
                         <small id="elapsed"></small>
+                        <div id="query-error"></div>
                     </fieldset>
                 </form>
 
@@ -405,6 +414,8 @@
             // const submitButton = qform.querySelector("button");
             const target = document.getElementById("query-results");
             const elapsed = qform.querySelector("small#elapsed");
+            const errBox = document.getElementById("query-error");
+            errBox.style.display = "none"; // ARCH: lookup all style.displays here and consider making them into a function
             // if nothing is to be submitted, just remove any leftover query results and exit
             if (qform.dataset.value === "") {
                 empty(elapsed);
@@ -436,7 +447,8 @@
             try {
                 data = await this.runQuery(query);
             } catch(e) {
-                // TODO(next): print out errors
+                errBox.textContent = e;
+                errBox.style.display = "block";
             } finally {
                 clearInterval(incrementor);
                 elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
@@ -506,6 +518,10 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(query),
             })
+            if (req.ok === false) {
+                const error = await req.text();
+                throw new Error(error);
+            }
             return await req.json();
         }
         async renderTable(data, target) {
