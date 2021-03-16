@@ -122,8 +122,10 @@
         }
         form fieldset > div input, form fieldset > div select {
             padding: .3em .5em;
-            min-width: 500px;
+            min-width: 600px;
             max-width: 80%;
+            box-sizing: content-box;
+            border: 1px solid black; /* otherwise the select would be 2px narrower */
         }
         form fieldset button {
             padding: .3em 1em;
