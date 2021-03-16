@@ -10,7 +10,6 @@
         }
         body, table {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: .87em;
         }
         /* layout start */
         div#container {
@@ -121,7 +120,7 @@
             width: 150px;
             padding-right: 1em;
         }
-        form fieldset > div input {
+        form fieldset > div input, form fieldset > div select {
             padding: .3em .5em;
             min-width: 500px;
             max-width: 80%;
@@ -185,7 +184,7 @@
                         -->
                         <div>
                             <label for="dataset_id">Dataset</label>
-                            <input name="dataset" id="dataset_id" />
+                            <select name="dataset" id="dataset_id"></select>
                         </div>
                         <div>
                             <label for="filter">Filter</label>
@@ -335,7 +334,7 @@
         // TODO/ARCH: we could preventDefault on all links and use the History API to handle everything
         // on the client since most links will be served by index.html anyway
         // Probably by addEventListener to all `a`s and then using MutationObserver to monitor new links and buttons
-        setupRouter() {
+        async setupRouter() {
             const that = this;
 
             const currentClass = "current";
@@ -351,8 +350,12 @@
             const qform = document.forms["query"];
             if (qform !== undefined) {
                 const params = new URLSearchParams(window.location.search);
-                // TODO(next): populate the input/select for datasets with actual datasets and their names
-                for (let inp of qform.querySelectorAll("input")) {
+                await this.loadDatasets(); // ARCH: this is the only reason routing is async... and we only need this to get the name of our dataset
+                const dsopt = qform.querySelector("select[name=dataset]");
+                for (let [dsId, val] of Object.entries(this.datasets)) {
+                    dsopt.append(node("option", {"value": dsId}, `${val.name} (${dsId})`));
+                }
+                for (let inp of qform.querySelectorAll("input, select")) {
                     const fieldName = inp.getAttribute("name");
                     inp.value = params.get(fieldName);
                 }
