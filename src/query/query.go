@@ -244,22 +244,32 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		}
 	}
 
-	if q.Aggregate != nil || allAggregations {
-		columns, err := aggregate(db, ds, q.Aggregate, q.Select, q.Filter)
-		if err != nil {
-			return nil, err
-		}
-		res.Data = columns
-		return res, nil
-		// no limit?
-	}
-
 	limit := -1
 	if q.Limit != nil {
 		if *q.Limit < 0 {
 			return nil, fmt.Errorf("%w: %v", errInvalidLimitValue, *q.Limit)
 		}
 		limit = *q.Limit
+	}
+	if q.Aggregate != nil || allAggregations {
+		columns, err := aggregate(db, ds, q.Aggregate, q.Select, q.Filter)
+		if err != nil {
+			return nil, err
+		}
+		// OPTIM: if we push the limit into `aggregate`, we can simplify the aggregation itself
+		//        we will still have to iterate all chunks, but the state will be smaller
+		// TODO(next): test this
+		if limit >= 0 {
+			nrows := columns[0].Len()
+			bm := bitmap.NewBitmap(nrows)
+			bm.Invert()
+			bm.KeepFirstN(limit)
+			for j, col := range columns {
+				columns[j] = col.Prune(bm)
+			}
+		}
+		res.Data = columns
+		return res, nil
 	}
 	for _, stripe := range ds.Stripes {
 		var colnames []string
