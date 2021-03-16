@@ -383,6 +383,9 @@ func TestBasicFiltering(t *testing.T) {
 		// {"foo\na\nb\nc", []string{"foo"}, "foo != foo", "foo"}, // no type inference for our `output`
 		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "foo > bar", "foo\n10"},
 		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "foo >= bar", "foo\n5\n10"},
+		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "4 > 1", "foo\n1\n5\n10"},
+		// TODO(next): make this work
+		// {"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "4 < 1", "foo\n"},
 	}
 
 	for _, test := range tests {

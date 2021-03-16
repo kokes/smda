@@ -453,8 +453,14 @@ func newChunkStringsFromSlice(data []string, nulls *bitmap.Bitmap) *ChunkStrings
 // true values (to select given rows)
 func (rc *ChunkBools) Truths() *bitmap.Bitmap {
 	if rc.isLiteral {
-		// this could be implemented by hydrating the chunk (-> isLiteral = false)
-		panic("truths method not available for literal bool chunks")
+		// ARCH: still assuming literals are not nullable
+		// TODO(next): test here in chunk_test.go?
+		value := rc.data.Get(0)
+		bm := bitmap.NewBitmap(rc.Len())
+		if value {
+			bm.Invert()
+		}
+		return bm
 	}
 	bm := rc.data.Clone()
 	if rc.nullability == nil || rc.nullability.Count() == 0 {

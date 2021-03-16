@@ -52,6 +52,8 @@ func TestBasicEval(t *testing.T) {
 
 		// all literals
 		{"(foo123 > 0) AND (2 >= 1)", column.DtypeBool, []string{"t", "t", "t"}},
+		// TODO(next): make this work
+		// {"4 > 1", column.DtypeBool, []string{"lit:t"}},
 
 		// functions
 		{"nullif(foo123, 5)", column.DtypeInt, []string{"1", "2", "3"}},
