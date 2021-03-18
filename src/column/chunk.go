@@ -1004,15 +1004,24 @@ func (rc *ChunkStrings) Append(tc Chunk) error {
 	if rc.nullability != nil {
 		rc.nullability.Append(nrc.nullability)
 	}
-	rc.data = append(rc.data, nrc.data...)
 	rc.length += nrc.length
 
 	off := uint32(0)
 	if rc.length > 0 {
 		off = rc.offsets[len(rc.offsets)-1]
 	}
-	for _, el := range nrc.offsets[1:] {
-		rc.offsets = append(rc.offsets, el+off)
+
+	if nrc.isLiteral {
+		vlength := nrc.offsets[1]
+		for j := 0; j < nrc.Len(); j++ {
+			rc.data = append(rc.data, nrc.data...)
+			rc.offsets = append(rc.offsets, off+vlength*uint32(j+1))
+		}
+	} else {
+		rc.data = append(rc.data, nrc.data...)
+		for _, el := range nrc.offsets[1:] {
+			rc.offsets = append(rc.offsets, el+off)
+		}
 	}
 
 	return nil
@@ -1037,9 +1046,8 @@ func (rc *ChunkInts) Append(tc Chunk) error {
 		rc.nullability.Append(nrc.nullability)
 	}
 
-	// TODO(next): fix this for all other Appends + test well
 	if nrc.isLiteral {
-		value := nrc.data[0] // TODO/ARCH: nthValue?
+		value := nrc.data[0] // TODO/ARCH: nthValue? (in all implementations here)
 		for j := 0; j < nrc.Len(); j++ {
 			rc.data = append(rc.data, value)
 		}
@@ -1070,7 +1078,14 @@ func (rc *ChunkFloats) Append(tc Chunk) error {
 		rc.nullability.Append(nrc.nullability)
 	}
 
-	rc.data = append(rc.data, nrc.data...)
+	if nrc.isLiteral {
+		value := nrc.data[0]
+		for j := 0; j < nrc.Len(); j++ {
+			rc.data = append(rc.data, value)
+		}
+	} else {
+		rc.data = append(rc.data, nrc.data...)
+	}
 	rc.length += nrc.length
 
 	return nil
@@ -1127,7 +1142,14 @@ func (rc *ChunkDates) Append(tc Chunk) error {
 		rc.nullability.Append(nrc.nullability)
 	}
 
-	rc.data = append(rc.data, nrc.data...)
+	if nrc.isLiteral {
+		value := nrc.data[0]
+		for j := 0; j < nrc.Len(); j++ {
+			rc.data = append(rc.data, value)
+		}
+	} else {
+		rc.data = append(rc.data, nrc.data...)
+	}
 	rc.length += nrc.length
 
 	return nil
@@ -1152,7 +1174,14 @@ func (rc *ChunkDatetimes) Append(tc Chunk) error {
 		rc.nullability.Append(nrc.nullability)
 	}
 
-	rc.data = append(rc.data, nrc.data...)
+	if nrc.isLiteral {
+		value := nrc.data[0]
+		for j := 0; j < nrc.Len(); j++ {
+			rc.data = append(rc.data, value)
+		}
+	} else {
+		rc.data = append(rc.data, nrc.data...)
+	}
 	rc.length += nrc.length
 
 	return nil

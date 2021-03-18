@@ -534,6 +534,38 @@ func TestAppendTypeMismatch(t *testing.T) {
 	}
 }
 
+func TestAppendingLiterals(t *testing.T) {
+	tests := []struct {
+		nrows     int
+		dtype     Dtype
+		a, b, res string
+	}{
+		{3, DtypeInt, "1,2,3", "4,5,6", "1,2,3,4,5,6"}, // first without literals
+		{3, DtypeBool, "t,f,t", "lit:t", "t,f,t,t,t,t"},
+		{3, DtypeInt, "1,2,3", "lit:5", "1,2,3,5,5,5"},
+		{3, DtypeFloat, "1,2,3", "lit:5", "1,2,3,5,5,5"},
+		{3, DtypeString, "foo,bar,baz", "lit:bak", "foo,bar,baz,bak,bak,bak"},
+		{3, DtypeDate, "2020-02-22,2021-01-31,1970-08-05", "lit:1995-08-30", "2020-02-22,2021-01-31,1970-08-05,1995-08-30,1995-08-30,1995-08-30"},
+		{3, DtypeDatetime, "2020-02-22 12:34:56,2021-01-31 12:34:56,1970-08-05 12:34:56", "lit:1995-08-30 00:11:55", "2020-02-22 12:34:56,2021-01-31 12:34:56,1970-08-05 12:34:56,1995-08-30 00:11:55,1995-08-30 00:11:55,1995-08-30 00:11:55"},
+	}
+
+	for _, test := range tests {
+		c1, c2, res, err := prepColumns(test.nrows, test.dtype, test.dtype, test.dtype, test.a, test.b, test.res)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		if err := c1.Append(c2); err != nil {
+			t.Error(err)
+			continue
+		}
+
+		if !ChunksEqual(c1, res) {
+			t.Errorf("expecting that appending %+v to %+v would result in %+v, got %+v instead", test.a, test.b, test.res, c1)
+		}
+	}
+}
+
 func TestHashing(t *testing.T) {
 	tests := []struct {
 		Dtype Dtype
