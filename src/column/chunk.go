@@ -269,6 +269,10 @@ func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
 			baseChunk: bc,
 			data:      []datetime{val},
 		}, nil
+	case DtypeNull:
+		return &ChunkNulls{
+			baseChunk: bc,
+		}, nil
 	default:
 		return nil, fmt.Errorf("%w: invalid typed literal: unsupported type %v", errInvalidTypedLiteral, dtype)
 	}

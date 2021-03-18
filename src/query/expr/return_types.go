@@ -22,6 +22,10 @@ func comparableTypes(t1, t2 column.Dtype) bool {
 	if (t1 == column.DtypeFloat && t2 == column.DtypeInt) || (t2 == column.DtypeFloat && t1 == column.DtypeInt) {
 		return true
 	}
+	// we can compare 1=null or do 4+null
+	if (t1 == column.DtypeNull || t2 == column.DtypeNull) && !(t1 == column.DtypeNull && t2 == column.DtypeNull) {
+		return true
+	}
 	return false
 }
 

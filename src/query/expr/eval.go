@@ -48,9 +48,8 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		return column.NewChunkLiteralTyped(expr.value, column.DtypeInt, chunkLength)
 	case exprLiteralString:
 		return column.NewChunkLiteralTyped(expr.value, column.DtypeString, chunkLength)
-	// null is not a literal type yet
-	// case exprLiteralNull:
-	// 	return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, 0)
+	case exprLiteralNull:
+		return column.NewChunkLiteralTyped("", column.DtypeNull, chunkLength)
 	// OPTIM: we could optimise shallow function calls - e.g. `log(foo) > 1` doesn't need
 	// `log(foo)` as a newly allocated chunk, we can compute that on the fly
 	case exprFunCall:
@@ -79,6 +78,22 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		c2, err := Evaluate(expr.children[1], chunkLength, columnData, filter)
 		if err != nil {
 			return nil, err
+		}
+
+		// TODO(next): test null=null, null>null (in filters, groupbys, selects, wherever)
+		if c1.Dtype() == column.DtypeNull && c2.Dtype() == column.DtypeNull {
+			return nil, errQueryPatternNotSupported // ARCH: wrap?
+		}
+
+		// there are a few cases to consider here:
+		// a) which one is null, if it the first or the second (luckily our key functions are commutative)
+		// b) is this a literal null or a "fat" null? Maybe it doesn't matter...
+		// ARCH: what should `2-NULL` be in terms of types? Is this dtypenull or dtypeint [with all nulls]? Check pg or other engines
+		if c1.Dtype() == column.DtypeNull || c2.Dtype() == column.DtypeNull {
+			// TODO(next): implement this
+			// sadly c1.base is not accessible, so we cannot tell anything about the nullability here
+			// for eq - we could just invert the nullability bitmap (be careful about literal chunks - those will be literal bools then)
+			// for neq... we'll just copy the nullability bitmap to the values bitmap
 		}
 		switch expr.etype {
 		case exprAnd:
