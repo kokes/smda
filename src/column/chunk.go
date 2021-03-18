@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"math"
 	"reflect"
 
 	"github.com/kokes/smda/src/bitmap"
+	"github.com/segmentio/fasthash/fnv1"
 )
 
 var errAppendTypeMismatch = errors.New("cannot append chunks of differing types")
@@ -574,12 +574,8 @@ func (rc *ChunkBools) Hash(position int, hashes []uint64) {
 // Hash hashes this chunk's values into a provded container
 func (rc *ChunkFloats) Hash(position int, hashes []uint64) {
 	mul := positionMultiplier(position)
-	var buf [8]byte
-	hasher := fnv.New64()
 	if rc.isLiteral {
-		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(rc.data[0]))
-		hasher.Write(buf[:])
-		sum := hasher.Sum64() * mul
+		sum := mul * fnv1.HashUint64(math.Float64bits(rc.data[0]))
 
 		for j := range hashes {
 			hashes[j] ^= sum
@@ -591,30 +587,22 @@ func (rc *ChunkFloats) Hash(position int, hashes []uint64) {
 			hashes[j] ^= hashNull * mul
 			continue
 		}
-		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(el))
-		hasher.Write(buf[:])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
+		sum := mul * fnv1.HashUint64(math.Float64bits(el))
+		hashes[j] ^= sum * mul
 	}
 }
 
 // Hash hashes this chunk's values into a provded container
-// OPTIM: maphash might be faster than fnv or maphash? test it and if it is so, implement
-// everywhere, but be careful about the seed (needs to be the same for all chunks)
-// careful about maphash: "The hash value of a given byte sequence is consistent within a single process, but will be different in different processes."
-// oh and I rebenchmarked maphash and fnv and found maphash to be much slower (despite no allocs)
-// also, check this https://github.com/segmentio/fasthash/ (via https://segment.com/blog/allocation-efficiency-in-high-performance-go-services/)
+// OPTIM: check this https://github.com/segmentio/fasthash/ (via https://segment.com/blog/allocation-efficiency-in-high-performance-go-services/)
 // they reimplement fnv using stack allocation only
-//   - we tested it and got a 90% speedup (no allocs, shorter code) - so let's consider it, it's in the fasthash branch
+//   - we tested it and got a 50% speedup (no allocs, shorter code) - about 10 % in real life speedup
+//   - also check if we should use fnv1, fnv1a, or jody
+//   - in `fasthash` branch (will probably go stale soon)
 func (rc *ChunkInts) Hash(position int, hashes []uint64) {
 	mul := positionMultiplier(position)
-	var buf [8]byte
-	hasher := fnv.New64()
 	// ARCH: literal chunks don't have nullability support... should we check for that?
 	if rc.isLiteral {
-		binary.LittleEndian.PutUint64(buf[:], uint64(rc.data[0]))
-		hasher.Write(buf[:])
-		sum := hasher.Sum64() * mul
+		sum := mul * fnv1.HashUint64(uint64(rc.data[0]))
 
 		for j := range hashes {
 			hashes[j] ^= sum
@@ -629,10 +617,8 @@ func (rc *ChunkInts) Hash(position int, hashes []uint64) {
 			hashes[j] ^= hashNull * mul
 			continue
 		}
-		binary.LittleEndian.PutUint64(buf[:], uint64(el)) // int64 always maps to a uint64 value (negatives underflow)
-		hasher.Write(buf[:])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
+		sum := mul * fnv1.HashUint64(uint64(el)) // int64 always maps to a uint64 value (negatives underflow)
+		hashes[j] ^= sum * mul
 	}
 }
 
@@ -646,13 +632,9 @@ func (rc *ChunkNulls) Hash(position int, hashes []uint64) {
 
 func (rc *ChunkDates) Hash(position int, hashes []uint64) {
 	mul := positionMultiplier(position)
-	var buf [8]byte
-	hasher := fnv.New64()
 	// ARCH: literal chunks don't have nullability support... should we check for that?
 	if rc.isLiteral {
-		binary.LittleEndian.PutUint64(buf[:], uint64(rc.data[0]))
-		hasher.Write(buf[:])
-		sum := hasher.Sum64() * mul
+		sum := mul * fnv1.HashUint64(uint64(rc.data[0]))
 
 		for j := range hashes {
 			hashes[j] ^= sum
@@ -664,22 +646,16 @@ func (rc *ChunkDates) Hash(position int, hashes []uint64) {
 			hashes[j] ^= hashNull * mul
 			continue
 		}
-		binary.LittleEndian.PutUint64(buf[:], uint64(el))
-		hasher.Write(buf[:])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
+		sum := mul * fnv1.HashUint64(uint64(el))
+		hashes[j] ^= sum * mul
 	}
 }
 
 func (rc *ChunkDatetimes) Hash(position int, hashes []uint64) {
 	mul := positionMultiplier(position)
-	var buf [8]byte
-	hasher := fnv.New64()
 	// ARCH: literal chunks don't have nullability support... should we check for that?
 	if rc.isLiteral {
-		binary.LittleEndian.PutUint64(buf[:], uint64(rc.data[0]))
-		hasher.Write(buf[:])
-		sum := hasher.Sum64() * mul
+		sum := mul * fnv1.HashUint64(uint64(rc.data[0]))
 
 		for j := range hashes {
 			hashes[j] ^= sum
@@ -691,21 +667,17 @@ func (rc *ChunkDatetimes) Hash(position int, hashes []uint64) {
 			hashes[j] ^= hashNull * mul
 			continue
 		}
-		binary.LittleEndian.PutUint64(buf[:], uint64(el))
-		hasher.Write(buf[:])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
+		sum := mul * fnv1.HashUint64(uint64(el))
+		hashes[j] ^= sum * mul
 	}
 }
 
 // Hash hashes this chunk's values into a provded container
 func (rc *ChunkStrings) Hash(position int, hashes []uint64) {
 	mul := positionMultiplier(position)
-	hasher := fnv.New64()
 	if rc.isLiteral {
 		offsetStart, offsetEnd := rc.offsets[0], rc.offsets[1]
-		hasher.Write(rc.data[offsetStart:offsetEnd])
-		sum := hasher.Sum64() * mul
+		sum := mul * fnv1.HashBytes64(rc.data[offsetStart:offsetEnd])
 
 		for j := range hashes {
 			hashes[j] ^= sum
@@ -720,9 +692,8 @@ func (rc *ChunkStrings) Hash(position int, hashes []uint64) {
 		}
 		offsetStart := rc.offsets[j]
 		offsetEnd := rc.offsets[j+1]
-		hasher.Write(rc.data[offsetStart:offsetEnd])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
+		sum := fnv1.HashBytes64(rc.data[offsetStart:offsetEnd])
+		hashes[j] ^= sum * mul
 	}
 }
 
