@@ -23,7 +23,7 @@
         }
         header { grid-area: header; }
         nav#panel { grid-area: panel; }
-        div#content {
+        main {
             grid-area: content;
             /*
                 I want to limit it in width (so that we can scroll its children elements... but what's the best way?)
@@ -32,7 +32,7 @@
         }
         footer { grid-area: footer; }
 
-        header, footer, div#content { padding: 1em; }
+        header, footer, main { padding: 1em; }
 
         /* we could use some fun colours, check out the generator over at https://coolors.co */
         header, footer {
@@ -52,9 +52,13 @@
             background-color: #086375;
         }
         nav#panel, nav#panel a { color: #CCDBDC; }
-        div#content {
+        main {
             background-color: white;
             /* overflow-x: scroll; */
+        }
+        main > div {
+            /* prevent flickering upon load */
+            display: none;
         }
         /* end layout */
         div#status {
@@ -180,7 +184,7 @@
             </ul>
         </nav>
 
-        <div id='content'>
+        <main>
             <div id="route-datasets"></div>
             <div id="route-query">
                 <form action="/query" name="query">
@@ -221,7 +225,7 @@
 
                 <div id="query-results"></div>
             </div>
-        </div>
+        </main>
 
         <footer>
             <a href='https://github.com/kokes/smda'>github</a>
@@ -373,7 +377,7 @@
             }
 
             const path = window.location.pathname.slice(1).split("/");
-            document.querySelectorAll("div#content > div").forEach(x => x.style.display = "none");
+            document.querySelectorAll("main > div").forEach(x => x.style.display = "none");
             // ARCH: pass this down to submitQuery/setupDatasets?
             const target = document.getElementById(`route-${path[0]}`);
             target.style.display = "block";
