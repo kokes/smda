@@ -297,7 +297,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 			}
 			rc := data.(*ChunkInts)
 			for j, val := range rc.data {
-				if rc.nullability != nil && rc.nullability.Get(j) {
+				if rc.Nullability != nil && rc.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -316,7 +316,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 
 			rc := data.(*ChunkFloats)
 			for j, val := range rc.data {
-				if rc.nullability != nil && rc.nullability.Get(j) {
+				if rc.Nullability != nil && rc.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -333,7 +333,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 
 			rc := data.(*ChunkDates)
 			for j, val := range rc.data {
-				if rc.nullability != nil && rc.nullability.Get(j) {
+				if rc.Nullability != nil && rc.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -350,7 +350,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 
 			rc := data.(*ChunkDatetimes)
 			for j, val := range rc.data {
-				if rc.nullability != nil && rc.nullability.Get(j) {
+				if rc.Nullability != nil && rc.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -367,7 +367,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 
 			rc := data.(*ChunkStrings)
 			for j := 0; j < rc.Len(); j++ {
-				if rc.nullability != nil && rc.nullability.Get(j) {
+				if rc.Nullability != nil && rc.Nullability.Get(j) {
 					continue
 				}
 				val := rc.nthValue(j)

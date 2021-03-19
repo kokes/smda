@@ -14,7 +14,7 @@ func (rc *ChunkInts) cast(dtype Dtype) (Chunk, error) {
 	case DtypeInt:
 		return rc, nil // 1) noop, 2) NOT copying, issue?
 	case DtypeFloat:
-		if rc.isLiteral {
+		if rc.IsLiteral {
 			val := float64(rc.data[0])
 			return newChunkLiteralFloats(val, rc.Len()), nil
 		}
@@ -24,8 +24,8 @@ func (rc *ChunkInts) cast(dtype Dtype) (Chunk, error) {
 		}
 		// ARCH: a case for bitmap.Clone(bm)?
 		var nulls *bitmap.Bitmap
-		if rc.nullability != nil {
-			nulls = rc.nullability.Clone()
+		if rc.Nullability != nil {
+			nulls = rc.Nullability.Clone()
 		}
 		return newChunkFloatsFromSlice(data, nulls), nil
 	default:

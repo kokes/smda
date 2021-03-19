@@ -122,10 +122,10 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 			for j, el := range ctr.data {
 				val := fnc(el)
 				if math.IsNaN(val) || math.IsInf(val, 0) {
-					if ctr.nullability == nil {
-						ctr.nullability = bitmap.NewBitmap(ctr.Len())
+					if ctr.Nullability == nil {
+						ctr.Nullability = bitmap.NewBitmap(ctr.Len())
 					}
-					ctr.nullability.Set(j, true)
+					ctr.Nullability.Set(j, true)
 				}
 				ctr.data[j] = val
 			}
@@ -140,10 +140,10 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 				// Also, note that if we allow for this, we'll have to deal with the JSON
 				// serialisation issue
 				if math.IsNaN(val) || math.IsInf(val, 0) {
-					if ctr.nullability == nil {
-						ctr.nullability = bitmap.NewBitmap(ctr.Len())
+					if ctr.Nullability == nil {
+						ctr.Nullability = bitmap.NewBitmap(ctr.Len())
 					}
-					ctr.nullability.Set(j, true)
+					ctr.Nullability.Set(j, true)
 				}
 				ctr.data[j] = val
 			}

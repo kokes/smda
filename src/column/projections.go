@@ -22,7 +22,7 @@ func boolChunkFromParts(data []uint64, length int, null1, null2 *bitmap.Bitmap) 
 	cdata := newChunkBoolsFromBits(data, length)
 	nulls := bitmap.Or(null1, null2)
 	if nulls != nil {
-		cdata.nullability = nulls
+		cdata.Nullability = nulls
 	}
 	return cdata
 }
@@ -31,7 +31,7 @@ func boolChunkLiteralFromParts(val bool, length int, null1, null2 *bitmap.Bitmap
 	ch := newChunkLiteralBools(val, length)
 	nulls := bitmap.Or(null1, null2)
 	if nulls != nil {
-		ch.nullability = nulls
+		ch.Nullability = nulls
 	}
 	return ch
 }
@@ -47,19 +47,19 @@ func floatChunkFromParts(data []float64, null1, null2 *bitmap.Bitmap) *ChunkFloa
 
 func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, string) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.nthValue(0), c2.nthValue(0))
-		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 	}
 
 	bm := bitmap.NewBitmap(nvals)
 	eval := func(j int) bool { return compFn(c1.nthValue(j), c2.nthValue(j)) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.nthValue(0)
 		eval = func(j int) bool { return compFn(val, c2.nthValue(j)) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.nthValue(0)
 		eval = func(j int) bool { return compFn(c1.nthValue(j), val) }
 	}
@@ -74,7 +74,7 @@ func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, 
 		}
 	}
 
-	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.Nullability, c2.Nullability), nil
 }
 
 // OPTIM: instead of treating literals in a separate tree, we could have data access functions:
@@ -86,19 +86,19 @@ func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, 
 func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
-		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 	}
 
 	bm := bitmap.NewBitmap(nvals)
 	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) bool { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) bool { return compFn(c1.data[j], val) }
 	}
@@ -108,7 +108,7 @@ func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) boo
 			bm.Set(j, true)
 		}
 	}
-	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.Nullability, c2.Nullability), nil
 }
 
 // ARCH: this function is identical to compFactoryInts, so it's probably the first to make use of generics
@@ -116,19 +116,19 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 	nvals := c1.Len()
 	bm := bitmap.NewBitmap(nvals)
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
-		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 
 	}
 
 	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) bool { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) bool { return compFn(c1.data[j], val) }
 	}
@@ -139,7 +139,7 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 		}
 
 	}
-	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.Nullability, c2.Nullability), nil
 }
 
 // ARCH: this is, again, identical to the previous factory functions
@@ -147,19 +147,19 @@ func compFactoryIntsFloats(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, fl
 	nvals := c1.Len()
 	bm := bitmap.NewBitmap(nvals)
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
-		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 
 	}
 
 	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) bool { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) bool { return compFn(c1.data[j], val) }
 	}
@@ -170,7 +170,7 @@ func compFactoryIntsFloats(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, fl
 		}
 
 	}
-	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.Nullability, c2.Nullability), nil
 }
 
 // ARCH: this is, again, identical to the previous factory functions
@@ -178,19 +178,19 @@ func compFactoryFloatsInts(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64, 
 	nvals := c1.Len()
 	bm := bitmap.NewBitmap(nvals)
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
-		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 
 	}
 
 	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) bool { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) bool { return compFn(c1.data[j], val) }
 	}
@@ -201,7 +201,7 @@ func compFactoryFloatsInts(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64, 
 		}
 
 	}
-	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.Nullability, c2.Nullability), nil
 }
 
 const ALL_ZEROS = uint64(0)
@@ -210,7 +210,7 @@ const ALL_ONES = uint64(1<<64 - 1)
 func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64) uint64) (*ChunkBools, error) {
 	nvals := c1.Len()
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data.Data()[0], c2.data.Data()[0])
 		return newChunkLiteralBools(val&1 > 0, nvals), nil // TODO: should this be `boolChunkLiteralFromParts`?
@@ -220,14 +220,14 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 	c1d := c1.data.Data()
 	c2d := c2.data.Data()
 	eval := func(j int) uint64 { return compFn(c1d[j], c2d[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		mask := ALL_ZEROS
 		if c1.data.Get(0) {
 			mask = ALL_ONES
 		}
 		eval = func(j int) uint64 { return compFn(mask, c2d[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		mask := ALL_ZEROS
 		if c2.data.Get(0) {
 			mask = ALL_ONES
@@ -248,26 +248,26 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 		res[len(res)-1] &= mask
 	}
 
-	return boolChunkFromParts(res, nvals, c1.nullability, c2.nullability), nil
+	return boolChunkFromParts(res, nvals, c1.Nullability, c2.Nullability), nil
 }
 
 // ARCH: many if not all of these could be implemented in generics
 func compFactoryDates(c1 *ChunkDates, c2 *ChunkDates, compFn func(date, date) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
-		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 	}
 
 	bm := bitmap.NewBitmap(nvals)
 	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) bool { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) bool { return compFn(c1.data[j], val) }
 	}
@@ -277,25 +277,25 @@ func compFactoryDates(c1 *ChunkDates, c2 *ChunkDates, compFn func(date, date) bo
 			bm.Set(j, true)
 		}
 	}
-	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.Nullability, c2.Nullability), nil
 }
 
 func compFactoryDatetimes(c1 *ChunkDatetimes, c2 *ChunkDatetimes, compFn func(datetime, datetime) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
-		return boolChunkLiteralFromParts(val, nvals, c1.nullability, c2.nullability), nil
+		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 	}
 
 	bm := bitmap.NewBitmap(nvals)
 	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) bool { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) bool { return compFn(c1.data[j], val) }
 	}
@@ -305,7 +305,7 @@ func compFactoryDatetimes(c1 *ChunkDatetimes, c2 *ChunkDatetimes, compFn func(da
 			bm.Set(j, true)
 		}
 	}
-	return boolChunkFromParts(bm.Data(), nvals, c1.nullability, c2.nullability), nil
+	return boolChunkFromParts(bm.Data(), nvals, c1.Nullability, c2.Nullability), nil
 }
 
 type compFuncs struct {
@@ -474,18 +474,18 @@ type algebraFuncs struct {
 func algebraFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) int64) (*ChunkInts, error) {
 	nvals := c1.Len()
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
 		return newChunkLiteralInts(val, nvals), nil
 	}
 	var eval func(j int) int64
 	eval = func(j int) int64 { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) int64 { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) int64 { return compFn(c1.data[j], val) }
 	}
@@ -493,25 +493,25 @@ func algebraFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) 
 	for j := 0; j < nvals; j++ {
 		ret[j] = eval(j)
 	}
-	return intChunkFromParts(ret, c1.nullability, c2.nullability), nil
+	return intChunkFromParts(ret, c1.Nullability, c2.Nullability), nil
 }
 
 // ARCH: this is identical to `algebraFactoryFloats` apart from the compFn signature in the argument
 func algebraFactoryIntsf(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) float64) (*ChunkFloats, error) {
 	nvals := c1.Len()
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
 		return newChunkLiteralFloats(val, nvals), nil
 	}
 	var eval func(j int) float64
 	eval = func(j int) float64 { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) float64 { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) float64 { return compFn(c1.data[j], val) }
 	}
@@ -519,24 +519,24 @@ func algebraFactoryIntsf(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64)
 	for j := 0; j < nvals; j++ {
 		ret[j] = eval(j)
 	}
-	return floatChunkFromParts(ret, c1.nullability, c2.nullability), nil
+	return floatChunkFromParts(ret, c1.Nullability, c2.Nullability), nil
 }
 
 func algebraFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, float64) float64) (*ChunkFloats, error) {
 	nvals := c1.Len()
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
 		return newChunkLiteralFloats(val, nvals), nil
 	}
 	var eval func(j int) float64
 	eval = func(j int) float64 { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) float64 { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) float64 { return compFn(c1.data[j], val) }
 	}
@@ -544,25 +544,25 @@ func algebraFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64,
 	for j := 0; j < nvals; j++ {
 		ret[j] = eval(j)
 	}
-	return floatChunkFromParts(ret, c1.nullability, c2.nullability), nil
+	return floatChunkFromParts(ret, c1.Nullability, c2.Nullability), nil
 }
 
 // ARCH: this is identical to `algebraFactoryFloats` apart from the compFn signature in the argument
 func algebraFactoryIntFloat(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, float64) float64) (*ChunkFloats, error) {
 	nvals := c1.Len()
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
 		return newChunkLiteralFloats(val, nvals), nil
 	}
 	var eval func(j int) float64
 	eval = func(j int) float64 { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) float64 { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) float64 { return compFn(c1.data[j], val) }
 	}
@@ -570,25 +570,25 @@ func algebraFactoryIntFloat(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, f
 	for j := 0; j < nvals; j++ {
 		ret[j] = eval(j)
 	}
-	return floatChunkFromParts(ret, c1.nullability, c2.nullability), nil
+	return floatChunkFromParts(ret, c1.Nullability, c2.Nullability), nil
 }
 
 // ARCH: this is identical to `algebraFactoryFloats` apart from the compFn signature in the argument
 func algebraFactoryFloatInt(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64, int64) float64) (*ChunkFloats, error) {
 	nvals := c1.Len()
 
-	if c1.isLiteral && c2.isLiteral {
+	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
 		val := compFn(c1.data[0], c2.data[0])
 		return newChunkLiteralFloats(val, nvals), nil
 	}
 	var eval func(j int) float64
 	eval = func(j int) float64 { return compFn(c1.data[j], c2.data[j]) }
-	if c1.isLiteral {
+	if c1.IsLiteral {
 		val := c1.data[0]
 		eval = func(j int) float64 { return compFn(val, c2.data[j]) }
 	}
-	if c2.isLiteral {
+	if c2.IsLiteral {
 		val := c2.data[0]
 		eval = func(j int) float64 { return compFn(c1.data[j], val) }
 	}
@@ -596,7 +596,7 @@ func algebraFactoryFloatInt(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64,
 	for j := 0; j < nvals; j++ {
 		ret[j] = eval(j)
 	}
-	return floatChunkFromParts(ret, c1.nullability, c2.nullability), nil
+	return floatChunkFromParts(ret, c1.Nullability, c2.Nullability), nil
 }
 
 func algebraicEval(c1 Chunk, c2 Chunk, commutative bool, cf algebraFuncs) (Chunk, error) {

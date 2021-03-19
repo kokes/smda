@@ -85,15 +85,44 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 			return nil, errQueryPatternNotSupported // ARCH: wrap?
 		}
 
-		// there are a few cases to consider here:
-		// a) which one is null, if it the first or the second (luckily our key functions are commutative)
-		// b) is this a literal null or a "fat" null? Maybe it doesn't matter...
 		// ARCH: what should `2-NULL` be in terms of types? Is this dtypenull or dtypeint [with all nulls]? Check pg or other engines
+		// ARCH: this might fit better in a isNull/isNotNull function, which we might either introduce or we could
+		// rewrite all `x=null` expressions into it during our AST shenanigans
 		if c1.Dtype() == column.DtypeNull || c2.Dtype() == column.DtypeNull {
-			// TODO(next): implement this
-			// sadly c1.base is not accessible, so we cannot tell anything about the nullability here
-			// for eq - we could just invert the nullability bitmap (be careful about literal chunks - those will be literal bools then)
-			// for neq... we'll just copy the nullability bitmap to the values bitmap
+			if !(expr.etype == exprEquality || expr.etype == exprNequality) {
+				return column.NewChunkLiteralTyped("", column.DtypeNull, chunkLength)
+			}
+
+			// there are now three cases to consider for equality/nequality
+			// 1) the non-null column is a literal - we can easily return a bool literal bool a result (since literals cannot be nullable)
+			// 2) the non-null column is not nullable - we can return the same literal bool as above
+			// 3) the non-null column is nullable, we have to take its nullability vector and create a new chunk from it
+			// TODO(next): test all cases thoroughly
+			cdata := c1
+			if c1.Dtype() == column.DtypeNull {
+				cdata = c2
+			}
+			nb := cdata.Base().Nullability
+
+			// literals cannot be null, so a comparison to nulls is simple
+			// this should really be done in constant folding
+			if cdata.Base().IsLiteral || nb == nil {
+				if expr.etype == exprEquality {
+					return column.NewChunkLiteralTyped("false", column.DtypeBool, chunkLength)
+				} else if expr.etype == exprNequality {
+					return column.NewChunkLiteralTyped("true", column.DtypeBool, chunkLength)
+				} else {
+					panic("unreachable")
+				}
+			}
+
+			if expr.etype == exprEquality {
+				panic("TODO(next): take nb and create a chunk from it")
+			} else if expr.etype == exprNequality {
+				panic("TODO(next): take nb, invert it and create a chunk from it")
+			} else {
+				panic("unreachable")
+			}
 		}
 		switch expr.etype {
 		case exprAnd:
