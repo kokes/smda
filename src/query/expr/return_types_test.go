@@ -227,6 +227,14 @@ func TestReturnTypes(t *testing.T) {
 		{"my_float_column > 12.234", column.Schema{Dtype: column.DtypeBool}, nil},
 		{"my_float_column > my_int_column", column.Schema{Dtype: column.DtypeBool}, nil},
 
+		// arithmetics with nulls
+		{"my_float_column = null", column.Schema{Dtype: column.DtypeBool}, nil},
+		{"my_float_column != null", column.Schema{Dtype: column.DtypeBool}, nil},
+		{"my_float_column > null", column.Schema{Dtype: column.DtypeBool}, nil},
+		{"null = my_float_column", column.Schema{Dtype: column.DtypeBool}, nil},
+		{"null != my_float_column", column.Schema{Dtype: column.DtypeBool}, nil},
+		{"null < my_float_column", column.Schema{Dtype: column.DtypeBool}, nil},
+
 		{"1 + 2", column.Schema{Dtype: column.DtypeInt}, nil},
 		{"1 - 2", column.Schema{Dtype: column.DtypeInt}, nil},
 		{"1 * 2", column.Schema{Dtype: column.DtypeInt}, nil},
@@ -234,6 +242,8 @@ func TestReturnTypes(t *testing.T) {
 		{"4 - my_int_column", column.Schema{Dtype: column.DtypeInt}, nil},
 		{"4 / my_int_column", column.Schema{Dtype: column.DtypeFloat}, nil},
 		{"my_float_column / my_int_column", column.Schema{Dtype: column.DtypeFloat}, nil},
+		{"1 + null", column.Schema{Dtype: column.DtypeInt}, nil},
+		{"null + 1", column.Schema{Dtype: column.DtypeInt}, nil},
 
 		// and/or
 		{"my_float_column > 3 AND my_int_column = 4", column.Schema{Dtype: column.DtypeBool}, nil},
