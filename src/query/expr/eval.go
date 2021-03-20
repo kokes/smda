@@ -94,7 +94,10 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 				if expr.IsOperatorMath() {
 					nulls := bitmap.NewBitmap(chunkLength)
 					nulls.Invert()
-					// TODO(next): this is wrong, but let's go with it for now - we'll have to resolve this float/int/bool/none stuff
+					// ARCH: duplicating logic from ReturnTypes
+					if c1.Dtype() == column.DtypeFloat || c2.Dtype() == column.DtypeFloat || expr.etype == exprDivision {
+						return column.NewChunkFloatsFromSlice(make([]float64, chunkLength), nulls), nil
+					}
 					return column.NewChunkIntsFromSlice(make([]int64, chunkLength), nulls), nil
 				} else {
 					// we need to return a boolean chunk, but filled with all nulls

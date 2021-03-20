@@ -27,7 +27,7 @@ func (rc *ChunkInts) cast(dtype Dtype) (Chunk, error) {
 		if rc.Nullability != nil {
 			nulls = rc.Nullability.Clone()
 		}
-		return newChunkFloatsFromSlice(data, nulls), nil
+		return NewChunkFloatsFromSlice(data, nulls), nil
 	default:
 		return nil, fmt.Errorf("%w: %v to %v", errCannotCastToType, rc.Dtype(), dtype)
 	}

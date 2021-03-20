@@ -42,7 +42,7 @@ func intChunkFromParts(data []int64, null1, null2 *bitmap.Bitmap) *ChunkInts {
 }
 func floatChunkFromParts(data []float64, null1, null2 *bitmap.Bitmap) *ChunkFloats {
 	nulls := bitmap.Or(null1, null2)
-	return newChunkFloatsFromSlice(data, nulls)
+	return NewChunkFloatsFromSlice(data, nulls)
 }
 
 func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, string) bool) (*ChunkBools, error) {

@@ -424,7 +424,8 @@ func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 // it uses it as is - the caller might want to clone it aims to mutate it in the future
 func NewChunkBoolsFromBitmap(bm *bitmap.Bitmap) *ChunkBools {
 	return &ChunkBools{
-		data: bm,
+		baseChunk: baseChunk{length: uint32(bm.Cap())},
+		data:      bm,
 	}
 }
 
@@ -435,7 +436,7 @@ func NewChunkIntsFromSlice(data []int64, nulls *bitmap.Bitmap) *ChunkInts {
 		data:      data,
 	}
 }
-func newChunkFloatsFromSlice(data []float64, nulls *bitmap.Bitmap) *ChunkFloats {
+func NewChunkFloatsFromSlice(data []float64, nulls *bitmap.Bitmap) *ChunkFloats {
 	return &ChunkFloats{
 		baseChunk: baseChunk{length: uint32(len(data)), Nullability: nulls},
 		data:      data,
