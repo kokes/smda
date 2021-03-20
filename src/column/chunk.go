@@ -412,6 +412,7 @@ func newChunkLiteralDates(value date, length int) *ChunkDates {
 	}
 }
 
+// TODO/ARCH: consider removing this in favour of NewChunkBoolsFromBitmap
 func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	return &ChunkBools{
 		baseChunk: baseChunk{length: uint32(length)},
@@ -419,8 +420,16 @@ func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	}
 }
 
+// NewChunkBoolsFromBitmap creates a new bool chunk, but in doing so, doesn't clone the incoming bitmap,
+// it uses it as is - the caller might want to clone it aims to mutate it in the future
+func NewChunkBoolsFromBitmap(bm *bitmap.Bitmap) *ChunkBools {
+	return &ChunkBools{
+		data: bm,
+	}
+}
+
 // the next few functions could use some generics
-func newChunkIntsFromSlice(data []int64, nulls *bitmap.Bitmap) *ChunkInts {
+func NewChunkIntsFromSlice(data []int64, nulls *bitmap.Bitmap) *ChunkInts {
 	return &ChunkInts{
 		baseChunk: baseChunk{length: uint32(len(data)), Nullability: nulls},
 		data:      data,

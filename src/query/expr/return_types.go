@@ -150,6 +150,7 @@ func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, erro
 			schema.Dtype = t1.Dtype
 			// for mixed use cases, always resolve it as a float (1 - 2.0 = -1.0)
 			// also division can never result in an integer
+			// TODO(next): this will match for t1=int, t2=null, we don't want that
 			if t1.Dtype != t2.Dtype || expr.etype == exprDivision {
 				schema.Dtype = column.DtypeFloat
 			}

@@ -88,9 +88,21 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		// ARCH: what should `2-NULL` be in terms of types? Is this dtypenull or dtypeint [with all nulls]? Check pg or other engines
 		// ARCH: this might fit better in a isNull/isNotNull function, which we might either introduce or we could
 		// rewrite all `x=null` expressions into it during our AST shenanigans
+		// even though we don't support this evaluation, we need to honor the input types
 		if c1.Dtype() == column.DtypeNull || c2.Dtype() == column.DtypeNull {
 			if !(expr.etype == exprEquality || expr.etype == exprNequality) {
-				return column.NewChunkLiteralTyped("", column.DtypeNull, chunkLength)
+				if expr.IsOperatorMath() {
+					nulls := bitmap.NewBitmap(chunkLength)
+					nulls.Invert()
+					// TODO(next): this is wrong, but let's go with it for now - we'll have to resolve this float/int/bool/none stuff
+					return column.NewChunkIntsFromSlice(make([]int64, chunkLength), nulls), nil
+				} else {
+					// we need to return a boolean chunk, but filled with all nulls
+					ch := column.NewChunkBoolsFromBitmap(bitmap.NewBitmap(chunkLength))
+					ch.Nullability = bitmap.NewBitmap(chunkLength)
+					ch.Nullability.Invert()
+					return ch, nil
+				}
 			}
 
 			// there are now three cases to consider for equality/nequality
@@ -117,9 +129,11 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 			}
 
 			if expr.etype == exprEquality {
-				panic("TODO(next): take nb and create a chunk from it")
+				return column.NewChunkBoolsFromBitmap(nb.Clone()), nil
 			} else if expr.etype == exprNequality {
-				panic("TODO(next): take nb, invert it and create a chunk from it")
+				values := nb.Clone()
+				values.Invert()
+				return column.NewChunkBoolsFromBitmap(values), nil
 			} else {
 				panic("unreachable")
 			}

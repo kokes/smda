@@ -48,7 +48,7 @@ var genericResolvers = resolveFuncs{
 	ints: func(agg *AggState) func() (Chunk, error) {
 		return func() (Chunk, error) {
 			bm := bitmapFromCounts(agg.counts)
-			return newChunkIntsFromSlice(agg.ints, bm), nil
+			return NewChunkIntsFromSlice(agg.ints, bm), nil
 		}
 	},
 	floats: func(agg *AggState) func() (Chunk, error) {
@@ -103,7 +103,7 @@ func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
 			resolvers = resolveFuncs{
 				any: func(agg *AggState) func() (Chunk, error) {
 					return func() (Chunk, error) {
-						return newChunkIntsFromSlice(agg.counts, nil), nil
+						return NewChunkIntsFromSlice(agg.counts, nil), nil
 					}
 				},
 			}

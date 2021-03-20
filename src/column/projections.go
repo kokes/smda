@@ -38,7 +38,7 @@ func boolChunkLiteralFromParts(val bool, length int, null1, null2 *bitmap.Bitmap
 
 func intChunkFromParts(data []int64, null1, null2 *bitmap.Bitmap) *ChunkInts {
 	nulls := bitmap.Or(null1, null2)
-	return newChunkIntsFromSlice(data, nulls)
+	return NewChunkIntsFromSlice(data, nulls)
 }
 func floatChunkFromParts(data []float64, null1, null2 *bitmap.Bitmap) *ChunkFloats {
 	nulls := bitmap.Or(null1, null2)
