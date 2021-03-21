@@ -435,6 +435,7 @@
                 query.filter = qform.filter.value;
             }
             if (qform.aggregate.value != "") {
+                // TODO(next): also revive proper expression parsing - one that takes into account nesting and such (e.g. `round(foo, 2)`)
                 query.aggregate = qform.aggregate.value.split(","); // TODO(next): support multiple aggregation expressions
             }
             if (qform.select.value != "") {
