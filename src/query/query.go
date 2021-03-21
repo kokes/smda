@@ -184,11 +184,9 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 			continue
 		}
 		// we can pass in a nil map, because agg exprs get evaluated first
-		// we can also pass in negative length, because it doesn't matter for resolvers
-		// ARCH: but should we get the chunk length and pass it in, for good measure?
 		// TODO/ARCH: shouldn't this call Resolve directly (if we exporter the aggregator)? It's kind
 		// of funky to hide the Resolver under Evaluate
-		agg, err := expr.Evaluate(proj, -1, nil, nil)
+		agg, err := expr.Evaluate(proj, len(groups), nil, nil)
 		if err != nil {
 			return nil, err
 		}

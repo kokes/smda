@@ -248,6 +248,11 @@ func TestBasicAggregation(t *testing.T) {
 		{"foo,bar\n1,\n13,2\n1,\n", []string{"foo"}, []string{"foo", "MIN(bar)"}, "foo,min(bar)\n1,\n13,2"},
 		// no aggregating columns
 		{"foo\n1\n2\n3\n", nil, []string{"sum(foo)", "max(foo)"}, "sum(foo),max(foo)\n6,3\n"},
+		{"foo\n1\n2\n3\n", nil, []string{"count()"}, "count()\n3\n"},
+		{"foo\n1\n2\n3\n", nil, []string{"count() - 2"}, "count()\n1\n"},
+		{"foo\n1\n2\n3\n", nil, []string{"2-count()"}, "count()\n-1\n"},
+		{"foo\n1\n2\n3\n", nil, []string{"count()*2"}, "count()\n6\n"},
+		{"foo\n1\n2\n3\n", nil, []string{"2*count()"}, "count()\n6\n"},
 	}
 
 	for testNo, test := range tests {
