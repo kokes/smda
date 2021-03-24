@@ -1944,9 +1944,8 @@ func (rc *ChunkDates) MarshalJSON() ([]byte, error) {
 	}
 
 	dt := make([]*string, 0, rc.length)
-	var sval string
 	for j := range rc.data {
-		sval = rc.data[j].String()
+		sval := rc.data[j].String()
 		dt = append(dt, &sval)
 	}
 
@@ -1973,9 +1972,8 @@ func (rc *ChunkDatetimes) MarshalJSON() ([]byte, error) {
 	}
 
 	dt := make([]*string, 0, rc.length)
-	var sval string
 	for j := range rc.data {
-		sval = rc.data[j].String()
+		sval := rc.data[j].String()
 		dt = append(dt, &sval)
 	}
 
