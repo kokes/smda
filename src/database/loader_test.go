@@ -27,6 +27,9 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		// leading/trailing whitespace in column names shouldn't matter
 		{"foo ,\" bar\n\",\" baz\t\"\n1,2,3", []string{"foo", "bar", "baz"}, compressionNone, "foo.csv"},
 		{"foo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionNone, "foo.tsv"},
+		{"foo\tbar\tbaz\n1\t2\t3", []string{"foo", "bar", "baz"}, compressionNone, "foo.tsv"},
+		// in TSVs, we can have bare quotes, because we can't have newlines etc. in fields, TSV is something a lot different from CSV
+		{"foo\tbar\tba\"z\n1\t2\t3", []string{"foo", "bar", "ba\"z"}, compressionNone, "foo.tsv"},
 		{"foo,bar,baz\n1,2,3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.csv.gz"},
 		{"foo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.bin"},                 // filename need not indicate compression
 		{"\xEF\xBB\xBFfoo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionNone, "foo_bom.csv"}, // BOM
@@ -521,7 +524,7 @@ func TestLoadingFromMaps(t *testing.T) {
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 // func (ds *dataStripe) writeToWriter(w io.Writer) error {
 // func (ds *dataStripe) writeToFile(rootDir, datasetID string) error { -- signature has changed, it's now writeStripeToFile
-// func (rl *rawLoader) ReadIntoStripe(maxRows, maxBytes int) (*dataStripe, error) {
+// func newStripeFromReader(rr RowReader, schema TableSchema, maxRows, maxBytes int) (*dataStripe, error) {
 // func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
 // func (db *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {
 // ReadColumnsFromStripeByNames

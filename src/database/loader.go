@@ -101,18 +101,6 @@ func NewRowReader(r io.Reader, settings *loadSettings) (RowReader, error) {
 	if settings == nil {
 		return nil, errInvalidloadSettings
 	}
-	if settings.delimiter == delimiterTab {
-		// TODO(next): create a tsv reader
-	}
-
-	return newCSVReader(r, settings)
-}
-
-type csvReader struct {
-	cr *csv.Reader
-}
-
-func newCSVReader(r io.Reader, settings *loadSettings) (*csvReader, error) {
 	ur, err := readCompressed(r, settings.readCompression)
 	if err != nil {
 		return nil, err
@@ -121,7 +109,19 @@ func newCSVReader(r io.Reader, settings *loadSettings) (*csvReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	cr := csv.NewReader(bl)
+	if settings.delimiter == delimiterTab {
+		return newTSVReader(bl), nil
+	}
+
+	return newCSVReader(bl, settings)
+}
+
+type csvReader struct {
+	cr *csv.Reader
+}
+
+func newCSVReader(r io.Reader, settings *loadSettings) (*csvReader, error) {
+	cr := csv.NewReader(r)
 	cr.ReuseRecord = true
 	if settings.delimiter != delimiterNone {
 		// we purposefully chose a single byte instead of a rune as a delimiter
@@ -140,6 +140,27 @@ func (csvr *csvReader) ReadRow() ([]string, error) {
 		return nil, err
 	}
 	return row, nil
+}
+
+type tsvReader struct {
+	scanner *bufio.Scanner
+}
+
+func newTSVReader(r io.Reader) *tsvReader {
+	scanner := bufio.NewScanner(r)
+	return &tsvReader{scanner: scanner}
+}
+
+func (tsvr *tsvReader) ReadRow() ([]string, error) {
+	if ok := tsvr.scanner.Scan(); !ok {
+		err := tsvr.scanner.Err()
+		if err == nil {
+			return nil, io.EOF
+		}
+
+		return nil, err
+	}
+	return strings.Split(tsvr.scanner.Text(), "\t"), nil
 }
 
 var bomBytes []byte = []byte{0xEF, 0xBB, 0xBF}
@@ -421,6 +442,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 
 	stripes := make([]Stripe, 0)
 	for {
+		// ARCH: this err handling is a bit clunky - can we perhaps not return io.EOF upstream? It doesn't tell us anything here...
 		ds, loadingErr := newStripeFromReader(rr, settings.schema, db.Config.MaxRowsPerStripe, db.Config.MaxBytesPerStripe)
 		if loadingErr != nil && loadingErr != io.EOF {
 			return nil, loadingErr
