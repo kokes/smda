@@ -17,12 +17,12 @@ func inferTypes(path string, settings *loadSettings) (TableSchema, error) {
 		return nil, err
 	}
 	defer f.Close()
-	rl, err := newRawLoader(f, settings)
+	rr, err := NewRowReader(f, settings)
 	if err != nil {
 		return nil, err
 	}
 
-	row, err := rl.yieldRow()
+	row, err := rr.ReadRow()
 	if err != nil {
 		// this may trigger an EOF, if the input file is empty - that's fine
 		return nil, err
@@ -39,7 +39,7 @@ func inferTypes(path string, settings *loadSettings) (TableSchema, error) {
 	}
 
 	for {
-		row, err := rl.yieldRow()
+		row, err := rr.ReadRow()
 		if err != nil {
 			if err == io.EOF {
 				break

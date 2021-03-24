@@ -74,23 +74,72 @@ func CacheIncomingFile(r io.Reader, path string) error {
 	return nil
 }
 
+// ARCH: we might want to separate out there row reader thingies into a separate file,
+// because this loader.go file is more about high level operations (read dataset, read into stripe etc.)
 type loadSettings struct {
+	// ARCH: consider the following
 	// encoding
-	readCompression compression
-	delimiter       delimiter
 	// hasHeader
-	schema TableSchema
 	// discardExtraColumns
 	// allowFewerColumns
+	readCompression  compression
+	delimiter        delimiter
+	schema           TableSchema
 	writeCompression compression
 }
 
-// this might be confuse with `LoadRawDataset`, but they do very different things
-// the former caches stuff, this actually loads data from raw files
-type rawLoader struct {
-	settings *loadSettings
-	// we don't need this CSV pkg to be here, we can put an interface here (we only use Read() ([]string, error))
+type RowReader interface {
+	// ARCH: consider making it a ([]byte, error) as soon as we
+	//       1) have csv.NewReader with []byte support
+	// 		 2) have strconv.ParseXXX with []byte support (will come with generics?)
+	ReadRow() ([]string, error)
+}
+
+// NewRowReader creates a new RowReader based on loadSettings passed in - e.g. if there's
+// a delimiter specified, it will likely create a csvReader etc.
+func NewRowReader(r io.Reader, settings *loadSettings) (RowReader, error) {
+	if settings == nil {
+		return nil, errInvalidloadSettings
+	}
+	if settings.delimiter == delimiterTab {
+		// TODO(next): create a tsv reader
+	}
+
+	return newCSVReader(r, settings)
+}
+
+type csvReader struct {
 	cr *csv.Reader
+}
+
+func newCSVReader(r io.Reader, settings *loadSettings) (*csvReader, error) {
+	ur, err := readCompressed(r, settings.readCompression)
+	if err != nil {
+		return nil, err
+	}
+	bl, err := skipBom(ur)
+	if err != nil {
+		return nil, err
+	}
+	cr := csv.NewReader(bl)
+	cr.ReuseRecord = true
+	if settings.delimiter != delimiterNone {
+		// we purposefully chose a single byte instead of a rune as a delimiter
+		cr.Comma = rune(settings.delimiter)
+	}
+
+	return &csvReader{cr: cr}, nil
+}
+
+func (csvr *csvReader) ReadRow() ([]string, error) {
+	row, err := csvr.cr.Read()
+	// we don't want to trigger the internal ErrFieldCount,
+	// we will handle column counts ourselves
+	// but we'll still return EOFs for the consumer to handle
+	if err != nil && err != csv.ErrFieldCount {
+		return nil, err
+	}
+	return row, nil
 }
 
 var bomBytes []byte = []byte{0xEF, 0xBB, 0xBF}
@@ -109,28 +158,6 @@ func skipBom(r io.Reader) (io.Reader, error) {
 		return r, nil
 	}
 	return io.MultiReader(bytes.NewReader(first[:n]), r), nil
-}
-
-func newRawLoader(r io.Reader, settings *loadSettings) (*rawLoader, error) {
-	if settings == nil {
-		return nil, errInvalidloadSettings
-	}
-	ur, err := readCompressed(r, settings.readCompression)
-	if err != nil {
-		return nil, err
-	}
-	bl, err := skipBom(ur)
-	if err != nil {
-		return nil, err
-	}
-	cr := csv.NewReader(bl)
-	cr.ReuseRecord = true
-	if settings.delimiter != delimiterNone {
-		// we purposefully chose a single byte instead of a rune as a delimiter
-		cr.Comma = rune(settings.delimiter)
-	}
-
-	return &rawLoader{settings: settings, cr: cr}, nil
 }
 
 type stripeData struct {
@@ -227,50 +254,21 @@ func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData, ctype com
 	return nbytes, nil
 }
 
-func (rl *rawLoader) yieldRow() ([]string, error) {
-	row, err := rl.cr.Read()
-	// we don't want to trigger the internal ErrFieldCount,
-	// we will handle column counts ourselves
-	// but we'll still return EOFs for the consumer to handle
-	if err != nil && err != csv.ErrFieldCount {
-		return nil, err
-	}
-	return row, nil
-}
-
 // readIntoStripe reads data from a source file and saves them into a stripe
 // maybe these two arguments can be embedded into rl.settings?
-func (rl *rawLoader) readIntoStripe(maxRows, maxBytes int) (*stripeData, error) {
+func newStripeFromReader(rr RowReader, schema TableSchema, maxRows, maxBytes int) (*stripeData, error) {
 	ds := newDataStripe()
-	// if no schema is set, read the header and set it yourself (to be all non-nullable strings)
-	// ARCH: I don't think we're ever in this branch (any more)
-	if rl.settings.schema == nil {
-		hd, err := rl.yieldRow()
-		if err != nil {
-			// this can trigger an EOF, which would signal that the source if empty
-			return nil, err
-		}
-		// perhaps wrap this in an init function that returns a schema, so that we have less cruft here
-		rl.settings.schema = make(TableSchema, 0, len(hd))
-		for _, val := range hd {
-			rl.settings.schema = append(rl.settings.schema, column.Schema{
-				Name:     val,
-				Dtype:    column.DtypeString,
-				Nullable: false,
-			})
-		}
-	}
 
 	// given a schema, initialise a data stripe
-	ds.columns = make([]column.Chunk, 0, len(rl.settings.schema))
-	for _, col := range rl.settings.schema {
+	ds.columns = make([]column.Chunk, 0, len(schema))
+	for _, col := range schema {
 		ds.columns = append(ds.columns, column.NewChunkFromSchema(col))
 	}
 
 	// now let's finally load some data
 	var bytesLoaded int
 	for {
-		row, err := rl.yieldRow()
+		row, err := rr.ReadRow()
 		if err != nil {
 			if err == io.EOF {
 				return ds, err
@@ -283,7 +281,7 @@ func (rl *rawLoader) readIntoStripe(maxRows, maxBytes int) (*stripeData, error) 
 			// or it really began in yieldRow
 			// https://github.com/golang/go/issues/42429
 			if err := ds.columns[j].AddValue(val); err != nil {
-				return nil, fmt.Errorf("failed to populate column %v: %w", rl.settings.schema[j].Name, err)
+				return nil, fmt.Errorf("failed to populate column %v: %w", schema[j].Name, err)
 			}
 		}
 		ds.meta.Length++
@@ -404,26 +402,26 @@ func validateHeaderAgainstSchema(header []string, schema TableSchema) error {
 // This is how data gets in! This is the main entrypoint
 func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (*Dataset, error) {
 	dataset := NewDataset()
-	rl, err := newRawLoader(r, settings)
+	if settings.schema == nil {
+		return nil, errors.New("cannot load data without a schema")
+	}
+	rr, err := NewRowReader(r, settings)
 	if err != nil {
 		return nil, err
-	}
-	if rl.settings.schema == nil {
-		return nil, errors.New("cannot load data without a schema")
 	}
 	// at this point we're checking all headers, but once we allow for custom schemas (e.g. renaming columns, custom type
 	// declarations etc.), we'll want to have an option that skips this verification
-	header, err := rl.yieldRow()
+	header, err := rr.ReadRow()
 	if err != nil {
 		return nil, err
 	}
-	if err := validateHeaderAgainstSchema(header, rl.settings.schema); err != nil {
+	if err := validateHeaderAgainstSchema(header, settings.schema); err != nil {
 		return nil, err
 	}
 
 	stripes := make([]Stripe, 0)
 	for {
-		ds, loadingErr := rl.readIntoStripe(db.Config.MaxRowsPerStripe, db.Config.MaxBytesPerStripe)
+		ds, loadingErr := newStripeFromReader(rr, settings.schema, db.Config.MaxRowsPerStripe, db.Config.MaxBytesPerStripe)
 		if loadingErr != nil && loadingErr != io.EOF {
 			return nil, loadingErr
 		}
@@ -451,7 +449,7 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 		}
 	}
 
-	dataset.Schema = rl.settings.schema
+	dataset.Schema = settings.schema
 	dataset.Stripes = stripes
 	return dataset, nil
 }
