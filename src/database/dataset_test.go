@@ -64,7 +64,7 @@ func TestInitDB(t *testing.T) {
 	defer os.RemoveAll(dr)
 	for _, path := range []string{"foo", "bar", "baz"} {
 		tdr := filepath.Join(dr, path)
-		if _, err := NewDatabase(&Config{WorkingDirectory: tdr}); err != nil {
+		if _, err := NewDatabase(tdr, nil); err != nil {
 			t.Error(err)
 		}
 	}
@@ -78,12 +78,12 @@ func TestOpenExistingDB(t *testing.T) {
 	defer os.RemoveAll(dr)
 	// first let's initialise a new db
 	tdr := filepath.Join(dr, "new_db")
-	if _, err := NewDatabase(&Config{WorkingDirectory: tdr}); err != nil {
+	if _, err := NewDatabase(tdr, nil); err != nil {
 		t.Fatal(err)
 	}
 	// we should be able to open said db
 	for j := 0; j < 3; j++ {
-		if _, err := NewDatabase(&Config{WorkingDirectory: tdr}); err != nil {
+		if _, err := NewDatabase(tdr, nil); err != nil {
 			t.Errorf("creating a database in an existing directory after it was initialised should not trigger an err, got %+v", err)
 		}
 	}
@@ -91,7 +91,7 @@ func TestOpenExistingDB(t *testing.T) {
 
 func TestInitTempDB(t *testing.T) {
 	for j := 0; j < 10; j++ {
-		db, err := NewDatabase(nil)
+		db, err := NewDatabase("", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -104,7 +104,7 @@ func TestInitTempDB(t *testing.T) {
 }
 
 func TestAddingDatasets(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestAddingDatasets(t *testing.T) {
 }
 
 func TestAddingDatasetsWithRestarts(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestAddingDatasetsWithRestarts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db2, err := NewDatabase(&Config{WorkingDirectory: wdir})
+	db2, err := NewDatabase(wdir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestAddingDatasetsWithRestarts(t *testing.T) {
 }
 
 func TestRemovingDatasets(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestRemovingDatasets(t *testing.T) {
 }
 
 func TestGettingNewDatasets(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

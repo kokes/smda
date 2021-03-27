@@ -41,7 +41,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		d, err := NewDatabase(nil)
+		d, err := NewDatabase("", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -91,7 +91,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 }
 
 func TestReadingFromStripes(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestReadingFromStripes(t *testing.T) {
 
 // note that this measures throughput in terms of the original file size, not the size it takes on the disk
 func BenchmarkReadingFromStripes(b *testing.B) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestColumnSchemaMarshalingRoundtrips(t *testing.T) {
 }
 
 func TestLoadingSampleData(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestLoadingSampleData(t *testing.T) {
 }
 
 func TestLoadingSampleDataErrs(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,7 @@ func TestCacheErrors(t *testing.T) {
 
 // if we flip any single bit in the file - apart from the checksums and version, we should get a checksum error
 func TestChecksumValidation(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +413,7 @@ func TestChecksumValidation(t *testing.T) {
 }
 
 func TestInvalidOffsets(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +470,7 @@ func TestHeaderValidation(t *testing.T) {
 }
 
 func TestLoadingFromMaps(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

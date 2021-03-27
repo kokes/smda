@@ -12,7 +12,7 @@ import (
 )
 
 func TestServerHappyPath(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := database.NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestServerHappyPath(t *testing.T) {
 }
 
 func TestServerClosing(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := database.NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestServerClosing(t *testing.T) {
 }
 
 func TestBusyPort(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := database.NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

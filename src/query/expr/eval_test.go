@@ -81,7 +81,7 @@ func TestBasicEval(t *testing.T) {
 		{"log(floatneg123)", column.DtypeFloat, []string{"", "", ""}},
 	}
 
-	db, err := database.NewDatabase(nil)
+	db, err := database.NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

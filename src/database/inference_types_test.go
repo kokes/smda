@@ -14,7 +14,7 @@ import (
 )
 
 func TestDatasetTypeInference(t *testing.T) {
-	db, err := NewDatabase(nil)
+	db, err := NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

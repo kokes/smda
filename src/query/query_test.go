@@ -24,7 +24,7 @@ func selectExpr(cols []string) []*expr.Expression {
 }
 
 func TestBasicQueries(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := database.NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestBasicQueries(t *testing.T) {
 
 // ARCH: we repeat quite a heavy setup - maybe abstract it out somehow?
 func TestQueryNothing(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := database.NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestQueryNothing(t *testing.T) {
 }
 
 func TestLimitsInQueries(t *testing.T) {
-	db, err := database.NewDatabase(nil)
+	db, err := database.NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestBasicAggregation(t *testing.T) {
 	}
 
 	for testNo, test := range tests {
-		db, err := database.NewDatabase(nil)
+		db, err := database.NewDatabase("", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -343,7 +343,7 @@ func TestAggregationProjectionErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		db, err := database.NewDatabase(nil)
+		db, err := database.NewDatabase("", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -394,7 +394,7 @@ func TestBasicFiltering(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		db, err := database.NewDatabase(nil)
+		db, err := database.NewDatabase("", nil)
 		if err != nil {
 			t.Fatal(err)
 		}

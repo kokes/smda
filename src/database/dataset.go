@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -33,24 +34,55 @@ type Database struct {
 // Config sets some high level properties for a new Database. It's useful for testing or for passing
 // settings based on cli flags.
 type Config struct {
-	WorkingDirectory  string
-	MaxRowsPerStripe  int
-	MaxBytesPerStripe int
+	WorkingDirectory  string `json:"-"` // not exposing this in our json representation as the db can be moved around
+	CreatedTimestamp  int64  `json:"created_timestamp"`
+	DatabaseID        UID    `json:"database_id"`
+	MaxRowsPerStripe  int    `json:"max_rows_per_stripe"`
+	MaxBytesPerStripe int    `json:"max_bytes_per_stripe"`
 }
 
 // NewDatabase initiates a new database object and binds it to a given directory. If the directory
 // doesn't exist, it creates it. If it exists, it loads the data contained within.
-func NewDatabase(config *Config) (*Database, error) {
-	if config == nil {
-		config = &Config{}
-	}
-	if config.WorkingDirectory == "" {
+func NewDatabase(wdir string, overrides *Config) (*Database, error) {
+	// many objects within the database get random IDs assigned, so we better seed at some point
+	// ARCH: might get in the way in testing, we'll deal with it if it happens to be a problem
+	rand.Seed(time.Now().UTC().UnixNano())
+
+	config := &Config{WorkingDirectory: wdir, CreatedTimestamp: time.Now().UTC().Unix()}
+	if wdir == "" {
 		// if no directory supplied, create a database in a temp directory
+		// ARCH: we'll probably do this in $HOME in the future
 		tdir, err := os.MkdirTemp("", "smda_tmp")
 		if err != nil {
 			return nil, err
 		}
 		config.WorkingDirectory = filepath.Join(tdir, "smda_database")
+	}
+
+	abspath, err := filepath.Abs(config.WorkingDirectory)
+	if err != nil {
+		return nil, err
+	}
+	cfgPath := filepath.Join(abspath, "smda_db.json")
+	// TODO: test how we recover these values from a given file, how we can override them etc.
+	if stat, err := os.Stat(abspath); err == nil && stat.IsDir() {
+		f, err := os.Open(cfgPath)
+		if err != nil {
+			return nil, fmt.Errorf("%w: cannot initialise a database in %v (%v)", errPathNotEmpty, abspath, err)
+		}
+
+		if err := json.NewDecoder(f).Decode(&config); err != nil {
+			return nil, err
+		}
+	}
+	// ARCH: allow overrides of database UIDs?
+	if overrides != nil {
+		if overrides.MaxRowsPerStripe != 0 {
+			config.MaxRowsPerStripe = overrides.MaxRowsPerStripe
+		}
+		if overrides.MaxBytesPerStripe != 0 {
+			config.MaxBytesPerStripe = overrides.MaxBytesPerStripe
+		}
 	}
 
 	if config.MaxRowsPerStripe == 0 {
@@ -59,33 +91,25 @@ func NewDatabase(config *Config) (*Database, error) {
 	if config.MaxBytesPerStripe == 0 {
 		config.MaxBytesPerStripe = 10_000_000
 	}
-	abspath, err := filepath.Abs(config.WorkingDirectory)
-	if err != nil {
-		return nil, err
-	}
-	cfgFile := filepath.Join(abspath, "smda_db.json")
-	if stat, err := os.Stat(abspath); err == nil && stat.IsDir() {
-		// TODO(next): check smda_db.json and see if we can leverage it (overwrite Config, or at leaste merge them)
-		// let's assume it's not a directory... fair?
-		if _, err := os.Stat(cfgFile); err != nil {
-			return nil, fmt.Errorf("%w: cannot initialise a database in %v (%v)", errPathNotEmpty, abspath, err)
-		}
-	} else {
-		if err := os.MkdirAll(config.WorkingDirectory, os.ModePerm); err != nil {
-			return nil, err
-		}
-		f, err := os.Create(cfgFile)
-		if err != nil {
-			return nil, err
-		}
-		if err := f.Close(); err != nil {
-			return nil, err
-		}
+	if config.DatabaseID.Otype == OtypeNone {
+		config.DatabaseID = newUID(OtypeDatabase)
 	}
 
-	// many objects within the database get random IDs assigned, so we better seed at some point
-	// ARCH: might get in the way in testing, we'll deal with it if it happens to be a problem
-	rand.Seed(time.Now().UTC().UnixNano())
+	if err := os.MkdirAll(config.WorkingDirectory, os.ModePerm); err != nil {
+		return nil, err
+	}
+	// write this new configuration to a json file (that may have existed already)
+	// ARCH: test if the contents are the same as what we've created and don't write in that case (just to save some mtime confusion)
+	buf := new(bytes.Buffer)
+	enc := json.NewEncoder(buf)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(config); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(cfgPath, buf.Bytes(), os.ModePerm); err != nil {
+		return nil, err
+	}
+
 	db := &Database{
 		Config:   config,
 		Datasets: make([]*Dataset, 0),
@@ -143,6 +167,7 @@ type ObjectType uint8
 // so it's clear what sort of object you're dealing with based on its prefix
 const (
 	OtypeNone ObjectType = iota
+	OtypeDatabase
 	OtypeDataset
 	OtypeStripe
 	// when we start using IDs for columns and jobs and other objects, this will be handy

@@ -20,7 +20,7 @@ import (
 )
 
 func newDatabaseWithRoutes() (*database.Database, error) {
-	db, err := database.NewDatabase(nil)
+	db, err := database.NewDatabase("", nil)
 	if err != nil {
 		return nil, err
 	}

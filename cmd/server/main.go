@@ -26,9 +26,7 @@ func main() {
 }
 
 func run(wdir string, port int, expose bool, loadSamples bool) error {
-	d, err := database.NewDatabase(&database.Config{
-		WorkingDirectory: wdir,
-	})
+	d, err := database.NewDatabase(wdir, nil)
 	if err != nil {
 		return err
 	}
