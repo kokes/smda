@@ -17,7 +17,10 @@ build-ingest:
 	CGO_ENABLED=0 $(GORLS) build ./cmd/ingest/
 
 run:
-	$(GORLS) run cmd/server/main.go -port 8822 -samples -wdir tmp
+	$(GORLS) run cmd/server/main.go -port-http 8822 -samples -wdir tmp
+
+run-tls:
+	$(GORLS) run cmd/server/main.go -port-http 8822 -port-https 8823 -samples -wdir tmp -tls -tls-cert localhost.pem -tls-key localhost-key.pem
 
 run-clean:
 	mkdir -p tmp && rm -r tmp && make run

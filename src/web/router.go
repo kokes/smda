@@ -9,7 +9,7 @@ import (
 	"github.com/kokes/smda/src/database"
 )
 
-func setupRoutes(db *database.Database) {
+func setupRoutes(db *database.Database, useTLS bool, portHTTPS int) http.Handler {
 	mux := http.NewServeMux()
 	// there is a great Mat Ryer talk about not building all the handle* funcs as taking
 	// (w, r) as arguments, but rather returning handlefuncs themselves - this allows for
@@ -22,22 +22,63 @@ func setupRoutes(db *database.Database) {
 	mux.HandleFunc("/upload/auto", handleAutoUpload(db))
 	// mux.HandleFunc("/upload/infer-schema", handleTypeInference(db))
 
-	db.Server = &http.Server{
-		Handler: mux,
+	if !useTLS {
+		return mux
 	}
+	// if we have https enabled, we need to redirect all http traffic - we could have used HSTS or something,
+	// but if https is there, let's use it unconditionally
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil {
+			host, _, err := net.SplitHostPort(r.Host)
+			if err != nil {
+				http.Error(w, "failed to parse URL", http.StatusInternalServerError)
+				return
+			}
+			newURL := r.URL
+			newURL.Host = net.JoinHostPort(host, strconv.Itoa(portHTTPS))
+			newURL.Scheme = "https"
+			// ARCH: redirects are cached, do we want to set some expiration here? Or perhaps use
+			// something other than a 301?
+			http.Redirect(w, r, newURL.String(), http.StatusMovedPermanently)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
 }
 
 // RunWebserver sets up all the necessities for a server to run (namely routes) and launches one
-func RunWebserver(db *database.Database, port int, expose bool) error {
-	setupRoutes(db)
+func RunWebserver(db *database.Database, portHTTP, portHTTPS int, expose, useTLS bool, tlsCert, tlsKey string) error {
+	mux := setupRoutes(db, useTLS, portHTTPS)
 	host := "localhost"
 	if expose {
 		host = ""
 	}
 
-	address := net.JoinHostPort(host, strconv.Itoa(port))
-	db.Server.Addr = address
-	log.Printf("listening on %v", address)
-	// this won't immediately return, only when shut down
-	return db.Server.ListenAndServe()
+	errs := make(chan error)
+
+	// http handling
+	address := net.JoinHostPort(host, strconv.Itoa(portHTTP))
+
+	db.ServerHTTP = &http.Server{
+		Addr:    address,
+		Handler: mux,
+	}
+	log.Printf("listening on http://%v", address)
+	go func() {
+		errs <- db.ServerHTTP.ListenAndServe()
+	}()
+
+	if useTLS {
+		address = net.JoinHostPort(host, strconv.Itoa(portHTTPS))
+		log.Printf("listening on https://%v", address)
+		db.ServerHTTPS = &http.Server{
+			Addr:    address,
+			Handler: mux,
+		}
+
+		go func() {
+			errs <- db.ServerHTTPS.ListenAndServeTLS(tlsCert, tlsKey)
+		}()
+	}
+	return <-errs
 }

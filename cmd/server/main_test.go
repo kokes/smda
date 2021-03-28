@@ -10,13 +10,15 @@ import (
 // ARCH: many of these tests duplicate what's in router_test.go - maybe move some of the
 // router logic to `handlers` (setupRoutes) and the rest to this main.go?
 
+// TODO(next): can we perhaps create certs for testing (on the fly), to test TLS, http->https redirects etc.
+
 func TestRunningServer(t *testing.T) {
 	dirname, err := os.MkdirTemp("", "running_server")
 	if err != nil {
 		t.Fatal(err)
 	}
 	go func() {
-		if err := run(filepath.Join(dirname, "tmp"), 1234, false, false); err != nil {
+		if err := run(filepath.Join(dirname, "tmp"), 1234, 1235, false, false, false, "", ""); err != nil {
 			panic(err)
 		}
 	}()
@@ -30,7 +32,7 @@ func TestLoadingSamples(t *testing.T) {
 		t.Fatal(err)
 	}
 	go func() {
-		if err := run(filepath.Join(dirname, "tmp"), 1236, false, true); err != nil {
+		if err := run(filepath.Join(dirname, "tmp"), 1236, 1237, false, true, false, "", ""); err != nil {
 			panic(err)
 		}
 	}()
@@ -49,7 +51,7 @@ func TestBusyPort(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := run(filepath.Join(dirname, "tmp"), 1235, false, false); err == nil {
+	if err := run(filepath.Join(dirname, "tmp"), 1235, 1236, false, false, false, "", ""); err == nil {
 		t.Fatal("expecting launching with a port busy errs, it did not")
 	}
 }

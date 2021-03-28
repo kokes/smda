@@ -24,7 +24,9 @@ func newDatabaseWithRoutes() (*database.Database, error) {
 	if err != nil {
 		return nil, err
 	}
-	setupRoutes(db)
+	db.ServerHTTP = &http.Server{
+		Handler: setupRoutes(db, false, 1234),
+	}
 	return db, nil
 }
 
@@ -40,7 +42,7 @@ func TestStatusHandling(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/status", srv.URL)
@@ -81,7 +83,7 @@ func TestRootHandling(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 	url := fmt.Sprintf("%s/", srv.URL)
 	resp, err := http.Get(url)
@@ -117,7 +119,7 @@ func TestRootDoesNotHandle404(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 	for _, path := range []string{"foo", "bar", "foo/bar"} {
 		url := fmt.Sprintf("%s/%s", srv.URL, path)
@@ -160,7 +162,7 @@ func TestDatasetListing(t *testing.T) {
 		}
 	}
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/api/datasets", srv.URL)
@@ -216,7 +218,7 @@ func TestDatasetListingNoDatasets(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/api/datasets", srv.URL)
@@ -253,7 +255,7 @@ func TestQueryMethods(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	tests := []struct {
@@ -306,7 +308,7 @@ func TestHandlingQueries(t *testing.T) {
 		dss = append(dss, ds)
 	}
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	for _, ds := range dss {
@@ -381,7 +383,7 @@ func TestInvalidQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/api/query", srv.URL)
@@ -416,7 +418,7 @@ func TestBasicRawUpload(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/upload/raw?name=test_file", srv.URL)
@@ -465,7 +467,7 @@ func TestBasicAutoUpload(t *testing.T) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/upload/auto?name=auto_file", srv.URL)
@@ -537,7 +539,7 @@ func BenchmarkAutoUpload(b *testing.B) {
 		}
 	}()
 
-	srv := httptest.NewServer(db.Server.Handler)
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 	url := fmt.Sprintf("%s/upload/auto", srv.URL)
 

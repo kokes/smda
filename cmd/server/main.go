@@ -15,17 +15,21 @@ var sampleDir embed.FS
 
 func main() {
 	expose := flag.Bool("expose", false, "expose the server on the network, do not run it just locally")
-	port := flag.Int("port", 8822, "port to listen on")
+	portHTTP := flag.Int("port-http", 8822, "port to listen on for http traffic")
+	portHTTPS := flag.Int("port-https", 8823, "port to listen on for https traffic")
 	wdir := flag.String("wdir", "tmp", "working directory for the database")
 	loadSamples := flag.Bool("samples", false, "load sample datasets")
+	useTLS := flag.Bool("tls", false, "use TLS when hosting the server")
+	tlsCert := flag.String("tls-cert", "", "TLS certificate to use")
+	tlsKey := flag.String("tls-key", "", "TLS key to use")
 	flag.Parse()
 
-	if err := run(*wdir, *port, *expose, *loadSamples); err != nil {
+	if err := run(*wdir, *portHTTP, *portHTTPS, *expose, *loadSamples, *useTLS, *tlsCert, *tlsKey); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(wdir string, port int, expose bool, loadSamples bool) error {
+func run(wdir string, portHTTP, portHTTPS int, expose bool, loadSamples, useTLS bool, tlsCert, tlsKey string) error {
 	d, err := database.NewDatabase(wdir, nil)
 	if err != nil {
 		return err
@@ -45,7 +49,7 @@ func run(wdir string, port int, expose bool, loadSamples bool) error {
 		}
 	}
 
-	if err := web.RunWebserver(d, port, expose); err != nil {
+	if err := web.RunWebserver(d, portHTTP, portHTTPS, expose, useTLS, tlsCert, tlsKey); err != nil {
 		return err
 	}
 	return nil

@@ -26,9 +26,10 @@ var errColumnNotFound = errors.New("column not found in schema")
 // Having the webserver here makes it convenient for testing - we can spawn new servers at a moment's notice
 type Database struct {
 	sync.Mutex
-	Datasets []*Dataset
-	Server   *http.Server
-	Config   *Config
+	Datasets    []*Dataset
+	ServerHTTP  *http.Server
+	ServerHTTPS *http.Server
+	Config      *Config
 }
 
 // Config sets some high level properties for a new Database. It's useful for testing or for passing
