@@ -124,12 +124,10 @@
             width: 150px;
             padding-right: 1em;
         }
-        form fieldset > div input, form fieldset > div select {
+        form fieldset > div input {
             padding: .3em .5em;
             min-width: 600px;
             max-width: 80%;
-            box-sizing: content-box;
-            border: 1px solid black; /* otherwise the select would be 2px narrower */
         }
         form fieldset button {
             padding: .3em 1em;
@@ -194,11 +192,12 @@
                             TODO(next):
                             - input placeholders
                             - proper support for multiple select/aggregate expressions
-                            - show names in the dataset dropdown (and allow for autocomplete?)
+                            - show names in the dataset dropdown (it's there, but it's not in the final <input>)
                         -->
                         <div>
-                            <label for="dataset_id">Dataset</label>
-                            <select name="dataset" id="dataset_id"></select>
+                            <label for="dataset">Dataset</label>
+                            <input list="dataset_id" id="dataset" name="dataset" />
+                            <datalist id="dataset_id"></datalist>
                         </div>
                         <div>
                             <label for="filter">Filter</label>
@@ -366,7 +365,8 @@
             if (qform !== undefined) {
                 const params = new URLSearchParams(window.location.search);
                 await this.loadDatasets(); // ARCH: this is the only reason routing is async... and we only need this to get the name of our dataset
-                const dsopt = qform.querySelector("select[name=dataset]");
+                const dsopt = qform.querySelector("datalist[id=dataset_id]");
+                empty(dsopt);
                 for (let [dsId, val] of Object.entries(this.datasets)) {
                     dsopt.append(node("option", {"value": dsId}, `${val.name} (${dsId})`));
                 }
