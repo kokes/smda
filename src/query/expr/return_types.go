@@ -284,6 +284,16 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 		}
 		schema.Dtype = candidate
 		schema.Nullable = nullable
+	case "trim", "lower", "upper":
+		// ARCH: no support for TRIM(foo, 'chars') yet
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
+		if argTypes[0].Dtype != column.DtypeString {
+			return schema, errWrongArgumentType
+		}
+		schema.Dtype = column.DtypeString
+		schema.Nullable = argTypes[0].Nullable
 	default:
 		return schema, fmt.Errorf("unsupported function: %v", funName)
 	}

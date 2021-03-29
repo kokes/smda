@@ -7,6 +7,7 @@ import (
 	"github.com/kokes/smda/src/database"
 )
 
+// TODO(prio): consider moving this to query_test, so that we test return_types evaluation etc.
 func TestBasicEval(t *testing.T) {
 	tests := []struct {
 		expr        string
@@ -79,6 +80,11 @@ func TestBasicEval(t *testing.T) {
 		{"log2(foo123)", column.DtypeFloat, []string{"0", "1", "1.5849625007211563"}},
 		{"log10(float123)", column.DtypeFloat, []string{"0", "0.3010299956639812", "0.4771212547196624"}},
 		{"log(floatneg123)", column.DtypeFloat, []string{"", "", ""}},
+		// string functions
+		// TODO(next): test literals
+		{"trim(names_ws)", column.DtypeString, []string{"joe", "jane", "bob"}},
+		{"lower(names)", column.DtypeString, []string{"joe", "ondřej", "bob"}},
+		{"upper(names)", column.DtypeString, []string{"JOE", "ONDŘEJ", "BOB"}},
 	}
 
 	db, err := database.NewDatabase("", nil)
@@ -100,6 +106,8 @@ func TestBasicEval(t *testing.T) {
 		"bool_tff":        {"t", "f", "f"},
 		"bool_ftf":        {"f", "t", "f"},
 		"str_foo":         {"f", "o", "o"},
+		"names":           {"Joe", "Ondřej", "Bob"},
+		"names_ws": {"		joe ", "jane	", " bob "},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -341,6 +341,19 @@ func newChunkStrings() *ChunkStrings {
 		offsets: offsets,
 	}
 }
+
+func newChunkLiteralStrings(value string, length int) *ChunkStrings {
+	offsets := []uint32{0, uint32(len(value))}
+	return &ChunkStrings{
+		baseChunk: baseChunk{
+			IsLiteral: true,
+			length:    uint32(length),
+		},
+		data:    []byte(value),
+		offsets: offsets,
+	}
+}
+
 func newChunkInts() *ChunkInts {
 	return &ChunkInts{
 		data: make([]int64, 0, defaultChunkCap),

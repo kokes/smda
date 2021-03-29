@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/kokes/smda/src/bitmap"
 )
@@ -38,6 +39,12 @@ var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	"log2":     numFunc(math.Log2),
 	"log10":    numFunc(math.Log10),
 	// TODO: log with arbitrary base
+	// ARCH: these string functions are unicode aware and thus e.g. TRIM removes more than just spaces
+	// OPTIM: consider avoiding some of the UTF penalty (e.g. strings.TrimSpace has optimisations for this)
+	"trim":  stringFunc(strings.TrimSpace),
+	"lower": stringFunc(strings.ToLower),
+	"upper": stringFunc(strings.ToUpper),
+	// TODO(next): all those useful string functions - hashing, left, right, position, split_part, ...
 }
 
 func evalCoalesce(cs ...Chunk) (Chunk, error) {
@@ -151,6 +158,29 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 		default:
 			return nil, fmt.Errorf("%w: func(%v)", errTypeNotSupported, ct.Dtype())
 		}
+	}
+}
+
+// TODO(next): support nullability (e.g. split_part can return nulls) by changing fnc's signature to (string, bool[ok])
+func stringFunc(fnc func(string) string) func(...Chunk) (Chunk, error) {
+	return func(cs ...Chunk) (Chunk, error) {
+		ct := cs[0].(*ChunkStrings)
+		if ct.IsLiteral {
+			newValue := fnc(ct.nthValue(0))
+			return newChunkLiteralStrings(newValue, ct.Len()), nil
+		}
+		ret := newChunkStrings()
+		if ct.Nullability != nil {
+			ret.Nullability = ct.Nullability.Clone()
+		}
+		for j := 0; j < ct.Len(); j++ {
+			newValue := fnc(ct.nthValue(j))
+			if err := ret.AddValue(newValue); err != nil {
+				return nil, err
+			}
+		}
+
+		return ret, nil
 	}
 }
 
