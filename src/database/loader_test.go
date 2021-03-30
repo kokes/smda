@@ -31,8 +31,10 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		// in TSVs, we can have bare quotes, because we can't have newlines etc. in fields, TSV is something a lot different from CSV
 		{"foo\tbar\tba\"z\n1\t2\t3\n", []string{"foo", "bar", "ba\"z"}, compressionNone, "foo.tsv"},
 		{"foo,bar,baz\n1,2,3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.csv.gz"},
-		{"foo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.bin"},                 // filename need not indicate compression
-		{"\xEF\xBB\xBFfoo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionNone, "foo_bom.csv"}, // BOM
+		{"foo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionGzip, "foo.bin"},                         // filename need not indicate compression
+		{"\xEF\xBB\xBFfoo;bar;baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionNone, "foo_bom.csv"},         // BOM
+		{"\xEF\xBB\xBF\"foo\";\"bar\";baz\n1;2;3", []string{"foo", "bar", "baz"}, compressionNone, "foo_bom.csv"}, // BOM messes with delimiter inference
+		{"\"here is my very long quoted column that will get only parsed if we pass in our readers correctly\",f\n1,2\n", []string{"here is my very long quoted column that will get only parsed if we pass in our readers correctly", "f"}, compressionNone, "test.csv"},
 	}
 
 	tdir, err := os.MkdirTemp("", "test_compression")

@@ -129,7 +129,7 @@ func inferCompressionAndDelimiter(path string) (compression, delimiter, error) {
 	defer f.Close()
 	r := bufio.NewReader(f)
 
-	header := make([]byte, 64)
+	header := make([]byte, 32)
 	n, err := r.Read(header)
 	if err != nil && err != io.EOF {
 		return 0, 0, err
@@ -141,11 +141,15 @@ func inferCompressionAndDelimiter(path string) (compression, delimiter, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-
+	dt, err := io.ReadAll(uf)
+	br, err := skipBom(bytes.NewReader(dt))
+	if err != nil {
+		return 0, 0, err
+	}
 	// now read some uncompressed data to determine a delimiter
 	uheader := make([]byte, 64*1024)
-	n, err = uf.Read(uheader)
-	if err != nil && err != io.EOF {
+	n, err = io.ReadFull(br, uheader)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		return 0, 0, err
 	}
 	uheader = uheader[:n]
