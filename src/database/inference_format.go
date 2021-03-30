@@ -90,7 +90,17 @@ func readCompressed(r io.Reader, ctype compression) (io.Reader, error) {
 // in getting the same number of entries per each row, this is our detected delimiter
 // if we fail to find one this way, we try and detect it by looking up the most common character in the buffer
 func inferDelimiter(buf []byte) delimiter {
-	for _, dlim := range []delimiter{delimiterComma, delimiterSemicolon, delimiterTab, delimiterSpace, delimiterPipe} {
+	// TSVs are determined quite differently - there's no CSV specific parsing
+	rows := bytes.SplitN(buf, []byte("\n"), 3)
+	if len(rows) > 2 {
+		tab := []byte("\t")
+		r1c := len(bytes.Split(rows[0], tab))
+		r2c := len(bytes.Split(rows[1], tab))
+		if r1c > 1 && r1c == r2c {
+			return delimiterTab
+		}
+	}
+	for _, dlim := range []delimiter{delimiterComma, delimiterSemicolon, delimiterSpace, delimiterPipe} {
 		br := bytes.NewReader(buf)
 		cr := csv.NewReader(br)
 		cr.Comma = rune(dlim)
@@ -108,25 +118,7 @@ func inferDelimiter(buf []byte) delimiter {
 		}
 	}
 
-	return inferDelimiterByCount(buf)
-}
-
-func inferDelimiterByCount(buf []byte) delimiter {
-	var stats [256]uint32
-	for _, char := range buf {
-		stats[char]++
-	}
-	var mostCommon delimiter
-	occurences := uint32(0)
-	for _, dlim := range []delimiter{delimiterComma, delimiterSemicolon, delimiterTab, delimiterSpace, delimiterPipe} {
-		if stats[dlim] > occurences {
-			occurences = stats[dlim]
-			mostCommon = dlim
-		}
-	}
-
-	// could return delimiterNone! if it could not infer it
-	return mostCommon
+	return delimiterNone
 }
 
 func inferCompressionAndDelimiter(path string) (compression, delimiter, error) {

@@ -64,19 +64,17 @@ func TestInferDelimiterBasic(t *testing.T) {
 		{"hello", delimiterNone},
 		{"hello\n", delimiterNone},
 		{"hello\nworld\nhi\n", delimiterNone},
+		// {"hello\nworld\nhi\n", delimiterNone},
 
-		{"hello,world", delimiterComma},
-		{"hello,;world", delimiterComma}, // there is ordering to deal with ties
-		{"hello;,world", delimiterComma},
-		{"hello;world", delimiterSemicolon},
-		{"hello\tworld", delimiterTab},
-		{"hello|world", delimiterPipe},
+		{"hello,world\n1,2\n", delimiterComma},
+		{"hello;,world\n3,4\n", delimiterComma},
+		{"hello;world\n5;6\n", delimiterSemicolon},
+		{"hello\tworld\n4\t5\n", delimiterTab},
+		{"hello|world\n4|5\n", delimiterPipe},
 
 		{"hello,\"world;other;things\"\n1,2\n", delimiterComma},
 		{"\"my first column\",\"my second column\"\nsome,data\n", delimiterComma},
 		{"\"my first column\";\"my second column\"\nsome;data\n", delimiterSemicolon},
-
-		{"hello,world\n", delimiterComma},
 
 		{"", delimiterNone},
 		{"foo\n", delimiterNone},
