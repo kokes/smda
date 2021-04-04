@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -17,15 +18,21 @@ func TestRunningServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(1)
+	port := 1234
 	go func() {
 		defer wg.Done()
-		if err := run(ctx, filepath.Join(t.TempDir(), "tmp"), 1234, 1235, false, false, false, "", ""); err != nil {
+		if err := run(ctx, filepath.Join(t.TempDir(), "tmp"), port, port+1, false, false, false, "", ""); err != nil {
 			panic(err)
 		}
 	}()
 
 	cancel()
 	wg.Wait()
+	listener, err := net.Listen("tcp", net.JoinHostPort("localhost", strconv.Itoa(port)))
+	if err != nil {
+		t.Fatalf("the port should be free, we should have shut down the server, got %v instead", err)
+	}
+	listener.Close()
 }
 
 func TestLoadingSamples(t *testing.T) {
