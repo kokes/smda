@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -53,17 +54,21 @@ func TestServerClosing(t *testing.T) {
 		}
 	}()
 
-	// TODO: this is a data race - but how can we force close a server, if its launch is blocking?
-	// enable -race in our CI/Makefile once this is fixed
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		time.Sleep(5 * time.Millisecond)
-		if err := db.ServerHTTP.Close(); err != nil {
-			panic(err)
+		defer wg.Done()
+		port := 1234
+		if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
+			panic(fmt.Sprintf("expecting a server to be stopped with a ErrServerClosed, got %+v", err))
 		}
 	}()
-	port := 1234
-	if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
-		t.Fatalf("expecting a server to be stopped with a ErrServerClosed, got %+v", err)
+
+	time.Sleep(50 * time.Millisecond)
+	db.Lock()
+	defer db.Unlock()
+	if err := db.ServerHTTP.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 

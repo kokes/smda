@@ -32,6 +32,10 @@ run-docker: build-docker
 test:
 	CGO_ENABLED=0 $(GORLS) test -timeout 5s -coverprofile=coverage.out ./...
 
+# TODO: enable this in a CI pipeline (once we have it)
+test-race:
+	CGO_ENABLED=1 $(GORLS) test -race -timeout 5s -coverprofile=coverage.out ./...
+
 test-docker:
 	docker run --rm -v $(PWD):/smda golang:1.16-alpine sh -c "apk add --no-cache make && cd /smda && make test"
 

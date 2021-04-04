@@ -60,10 +60,12 @@ func RunWebserver(ctx context.Context, db *database.Database, portHTTP, portHTTP
 	// http handling
 	address := net.JoinHostPort(host, strconv.Itoa(portHTTP))
 
+	db.Lock()
 	db.ServerHTTP = &http.Server{
 		Addr:    address,
 		Handler: mux,
 	}
+	db.Unlock()
 	log.Printf("listening on http://%v", address)
 	go func() {
 		errs <- db.ServerHTTP.ListenAndServe()
@@ -72,10 +74,12 @@ func RunWebserver(ctx context.Context, db *database.Database, portHTTP, portHTTP
 	if useTLS {
 		address = net.JoinHostPort(host, strconv.Itoa(portHTTPS))
 		log.Printf("listening on https://%v", address)
+		db.Lock()
 		db.ServerHTTPS = &http.Server{
 			Addr:    address,
 			Handler: mux,
 		}
+		db.Unlock()
 
 		go func() {
 			errs <- db.ServerHTTPS.ListenAndServeTLS(tlsCert, tlsKey)
