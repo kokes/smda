@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"flag"
 	"io/fs"
@@ -24,12 +25,14 @@ func main() {
 	tlsKey := flag.String("tls-key", "", "TLS key to use")
 	flag.Parse()
 
-	if err := run(*wdir, *portHTTP, *portHTTPS, *expose, *loadSamples, *useTLS, *tlsCert, *tlsKey); err != nil {
+	ctx := context.Background()
+
+	if err := run(ctx, *wdir, *portHTTP, *portHTTPS, *expose, *loadSamples, *useTLS, *tlsCert, *tlsKey); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(wdir string, portHTTP, portHTTPS int, expose bool, loadSamples, useTLS bool, tlsCert, tlsKey string) error {
+func run(ctx context.Context, wdir string, portHTTP, portHTTPS int, expose bool, loadSamples, useTLS bool, tlsCert, tlsKey string) error {
 	d, err := database.NewDatabase(wdir, nil)
 	if err != nil {
 		return err
@@ -49,8 +52,5 @@ func run(wdir string, portHTTP, portHTTPS int, expose bool, loadSamples, useTLS 
 		}
 	}
 
-	if err := web.RunWebserver(d, portHTTP, portHTTPS, expose, useTLS, tlsCert, tlsKey); err != nil {
-		return err
-	}
-	return nil
+	return web.RunWebserver(ctx, d, portHTTP, portHTTPS, expose, useTLS, tlsCert, tlsKey)
 }

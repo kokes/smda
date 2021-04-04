@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -17,13 +19,18 @@ func TestRunningServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		if err := run(filepath.Join(dirname, "tmp"), 1234, 1235, false, false, false, "", ""); err != nil {
+		defer wg.Done()
+		if err := run(ctx, filepath.Join(dirname, "tmp"), 1234, 1235, false, false, false, "", ""); err != nil {
 			panic(err)
 		}
 	}()
-	// ARCH: no explicit server close, resources dangling...
-	// TODO: resolve using context propagation, signal handling, cancellation throughout
+
+	cancel()
+	wg.Wait()
 }
 
 func TestLoadingSamples(t *testing.T) {
@@ -31,12 +38,18 @@ func TestLoadingSamples(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		if err := run(filepath.Join(dirname, "tmp"), 1236, 1237, false, true, false, "", ""); err != nil {
+		defer wg.Done()
+		if err := run(ctx, filepath.Join(dirname, "tmp"), 1236, 1237, false, true, false, "", ""); err != nil {
 			panic(err)
 		}
 	}()
-	// ARCH: no explicit server close, resources dangling...
+
+	cancel()
+	wg.Wait()
 }
 
 func TestBusyPort(t *testing.T) {
@@ -51,7 +64,7 @@ func TestBusyPort(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := run(filepath.Join(dirname, "tmp"), 1235, 1236, false, false, false, "", ""); err == nil {
+	if err := run(context.Background(), filepath.Join(dirname, "tmp"), 1235, 1236, false, false, false, "", ""); err == nil {
 		t.Fatal("expecting launching with a port busy errs, it did not")
 	}
 }

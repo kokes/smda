@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"log"
 	"net"
 	"net/http"
@@ -47,7 +48,7 @@ func setupRoutes(db *database.Database, useTLS bool, portHTTPS int) http.Handler
 }
 
 // RunWebserver sets up all the necessities for a server to run (namely routes) and launches one
-func RunWebserver(db *database.Database, portHTTP, portHTTPS int, expose, useTLS bool, tlsCert, tlsKey string) error {
+func RunWebserver(ctx context.Context, db *database.Database, portHTTP, portHTTPS int, expose, useTLS bool, tlsCert, tlsKey string) error {
 	mux := setupRoutes(db, useTLS, portHTTPS)
 	host := "localhost"
 	if expose {
@@ -80,5 +81,11 @@ func RunWebserver(db *database.Database, portHTTP, portHTTPS int, expose, useTLS
 			errs <- db.ServerHTTPS.ListenAndServeTLS(tlsCert, tlsKey)
 		}()
 	}
-	return <-errs
+	select {
+	case err := <-errs:
+		return err
+	case <-ctx.Done():
+		// ARCH(next): what errors should be returned in case of cancellation?
+		return nil
+	}
 }

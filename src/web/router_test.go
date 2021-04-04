@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -23,7 +24,7 @@ func TestServerHappyPath(t *testing.T) {
 	}()
 	port := 1234
 	go func() {
-		if err := RunWebserver(db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
+		if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
 			panic("unable to start a webserver")
 		}
 	}()
@@ -61,7 +62,7 @@ func TestServerClosing(t *testing.T) {
 		}
 	}()
 	port := 1234
-	if err := RunWebserver(db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
+	if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
 		t.Fatalf("expecting a server to be stopped with a ErrServerClosed, got %+v", err)
 	}
 }
@@ -88,7 +89,7 @@ func TestBusyPort(t *testing.T) {
 			panic(err)
 		}
 	}()
-	if err := RunWebserver(db, port, port+1, false, false, "", ""); err == nil {
+	if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err == nil {
 		t.Error("server started on a busy port with port ensuring should err, got nil")
 	}
 }
