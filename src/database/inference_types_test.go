@@ -60,22 +60,14 @@ func TestDatasetTypeInference(t *testing.T) {
 }
 
 func TestInferTypesNoFile(t *testing.T) {
-	tmpdir, err := os.MkdirTemp("", "infer")
-	if err != nil {
-		t.Fatal(err)
-	}
-	filename := filepath.Join(tmpdir, "does_not_exist.csv")
+	filename := filepath.Join(t.TempDir(), "does_not_exist.csv")
 	if _, err := inferTypes(filename, nil); !os.IsNotExist(err) {
 		t.Errorf("expecting type inference on a non-existent file to throw a file not found error, got: %+v", err)
 	}
 }
 
 func TestInferTypesEmptyFile(t *testing.T) {
-	tmpdir, err := os.MkdirTemp("", "infer")
-	if err != nil {
-		t.Fatal(err)
-	}
-	filename := filepath.Join(tmpdir, "filename.csv")
+	filename := filepath.Join(t.TempDir(), "filename.csv")
 	f, err := os.Create(filename)
 	if err != nil {
 		t.Fatal(err)
@@ -87,11 +79,7 @@ func TestInferTypesEmptyFile(t *testing.T) {
 }
 
 func TestInferTypesInvalidCSV(t *testing.T) {
-	tmpdir, err := os.MkdirTemp("", "infer")
-	if err != nil {
-		t.Fatal(err)
-	}
-	filename := filepath.Join(tmpdir, "filename.csv")
+	filename := filepath.Join(t.TempDir(), "filename.csv")
 	if err := os.WriteFile(filename, []byte("\"ahoy"), os.ModePerm); err != nil {
 		t.Fatal(err)
 	}
@@ -102,11 +90,7 @@ func TestInferTypesInvalidCSV(t *testing.T) {
 }
 
 func TestInferTypesNoloadSettings(t *testing.T) {
-	tmpdir, err := os.MkdirTemp("", "infer")
-	if err != nil {
-		t.Fatal(err)
-	}
-	filename := filepath.Join(tmpdir, "filename.csv")
+	filename := filepath.Join(t.TempDir(), "filename.csv")
 	f, err := os.Create(filename)
 	if err != nil {
 		t.Fatal(err)

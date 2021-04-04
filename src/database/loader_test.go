@@ -37,10 +37,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		{"\"here is my very long quoted column that will get only parsed if we pass in our readers correctly\",f\n1,2\n", []string{"here is my very long quoted column that will get only parsed if we pass in our readers correctly", "f"}, compressionNone, "test.csv"},
 	}
 
-	tdir, err := os.MkdirTemp("", "test_compression")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tdir := t.TempDir()
 
 	for _, test := range tests {
 		d, err := NewDatabase("", nil)
@@ -228,10 +225,7 @@ func TestLoadingSampleData(t *testing.T) {
 		}
 	}()
 
-	tmpdir, err := os.MkdirTemp("", "sample_data")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tmpdir := t.TempDir()
 	// prep some sample data
 	fns := []string{"foo.csv", "bar.tsv", "baz.csv.gz"}
 	for _, fn := range fns {
@@ -289,11 +283,7 @@ func TestLoadingSampleDataErrs(t *testing.T) {
 		}
 	}()
 
-	tmpdir, err := os.MkdirTemp("", "sample_data")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpdir)
+	tmpdir := t.TempDir()
 
 	// now let's write some invalid data and expect it to fail for that reason
 	if err := os.WriteFile(filepath.Join(tmpdir, "sample.csv"), []byte("foo\""), os.ModePerm); err != nil {
@@ -307,11 +297,7 @@ func TestLoadingSampleDataErrs(t *testing.T) {
 }
 
 func TestBasicFileCaching(t *testing.T) {
-	tmpdir, err := os.MkdirTemp("", "caching")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpdir)
+	tmpdir := t.TempDir()
 	for _, size := range []int{0, 1000, 1000_1000} {
 		buf := new(bytes.Buffer)
 		for j := 0; j < size; j++ {
@@ -336,13 +322,7 @@ func TestBasicFileCaching(t *testing.T) {
 }
 
 func TestCacheErrors(t *testing.T) {
-	tmpdir, err := os.MkdirTemp("", "caching")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpdir)
-
-	nopath := filepath.Join(tmpdir, "does_not_exist", "no_file.txt")
+	nopath := filepath.Join(t.TempDir(), "does_not_exist", "no_file.txt")
 
 	data := strings.NewReader("ahoy")
 	if err := CacheIncomingFile(data, nopath); !errors.Is(err, os.ErrNotExist) {

@@ -56,14 +56,9 @@ func TestNewUidDeJSONify(t *testing.T) {
 }
 
 func TestInitDB(t *testing.T) {
-	// REFACTOR: use t.TempDir here and everywhere else (go 1.15+)
-	dr, err := os.MkdirTemp("", "init_db_testing")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dr)
+	dirname := t.TempDir()
 	for _, path := range []string{"foo", "bar", "baz"} {
-		tdr := filepath.Join(dr, path)
+		tdr := filepath.Join(dirname, path)
 		if _, err := NewDatabase(tdr, nil); err != nil {
 			t.Error(err)
 		}
@@ -71,13 +66,8 @@ func TestInitDB(t *testing.T) {
 }
 
 func TestOpenExistingDB(t *testing.T) {
-	dr, err := os.MkdirTemp("", "init_db_testing")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dr)
 	// first let's initialise a new db
-	tdr := filepath.Join(dr, "new_db")
+	tdr := filepath.Join(t.TempDir(), "new_db")
 	if _, err := NewDatabase(tdr, nil); err != nil {
 		t.Fatal(err)
 	}
