@@ -1,0 +1,217 @@
+GOMAXPROCS=1 CGO_ENABLED=0 go test -run=NONE -bench=. -benchmem ./...
+?   	github.com/kokes/smda	[no test files]
+?   	github.com/kokes/smda/cmd/ingest	[no test files]
+PASS
+ok  	github.com/kokes/smda/cmd/server	0.794s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/bitmap
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkBitmapSets 	915439614	         1.308 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/bitmap	1.400s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/column
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkHashingInts       	   11739	    103073 ns/op	 776.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkHashingFloats     	   12733	     95656 ns/op	 836.33 MB/s	       6 B/op	       0 allocs/op
+BenchmarkDateParsing       	 8497708	       141.0 ns/op	 212.80 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/seconds         	 5846202	       204.5 ns/op	 278.76 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/milis           	 5342990	       221.3 ns/op	 311.79 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/micros          	 5203069	       231.3 ns/op	 337.21 MB/s	       0 B/op	       0 allocs/op
+BenchmarkFloatDetection                  	    7846	    142033 ns/op	 128.72 MB/s	   48000 B/op	    1000 allocs/op
+BenchmarkBoolDetection                   	  245106	      4846 ns/op	 923.82 MB/s	       0 B/op	       0 allocs/op
+BenchmarkStringDetection                 	    9111	    134398 ns/op	  43.83 MB/s	   96000 B/op	    2000 allocs/op
+BenchmarkIntDetection                    	   83202	     14847 ns/op	 194.65 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDateDetection                   	    6234	    193971 ns/op	  51.55 MB/s	   96000 B/op	    2000 allocs/op
+BenchmarkDatetimeDetection               	    5180	    246728 ns/op	 105.38 MB/s	   96000 B/op	    2000 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/column	17.603s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/database
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkReadingFromStripes/1         	     525	   2711840 ns/op	   0.01 MB/s	25168540 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/100       	     499	   2469816 ns/op	   0.98 MB/s	25172108 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/1000      	     464	   2678213 ns/op	   8.97 MB/s	25201612 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/1000000   	      16	  77915565 ns/op	 308.03 MB/s	284163008 B/op	     558 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/database	9.638s
+PASS
+ok  	github.com/kokes/smda/src/query	0.714s
+PASS
+ok  	github.com/kokes/smda/src/query/expr	2.894s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/web
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkAutoUpload/short_strings         	       4	 304704938 ns/op	  39.38 MB/s	162816514 B/op	  602102 allocs/op
+BenchmarkAutoUpload/medium_strings        	       2	 508632466 ns/op	  94.37 MB/s	471417184 B/op	  603391 allocs/op
+BenchmarkAutoUpload/small_ints            	       3	 423597193 ns/op	  22.25 MB/s	196115632 B/op	  601340 allocs/op
+BenchmarkAutoUpload/medium_ints           	       3	 481329386 ns/op	  36.71 MB/s	217658533 B/op	  601339 allocs/op
+BenchmarkAutoUpload/large_ints            	       2	 641771383 ns/op	  50.90 MB/s	253774048 B/op	  601346 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/web	19.020s
+GOMAXPROCS=1 CGO_ENABLED=0 go test -run=NONE -bench=. -benchmem ./...
+?   	github.com/kokes/smda	[no test files]
+?   	github.com/kokes/smda/cmd/ingest	[no test files]
+PASS
+ok  	github.com/kokes/smda/cmd/server	4.350s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/bitmap
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkBitmapSets 	929771203	         1.301 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/bitmap	1.408s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/column
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkHashingInts       	   12229	     98280 ns/op	 814.00 MB/s	       0 B/op	       0 allocs/op
+BenchmarkHashingFloats     	   12772	     91265 ns/op	 876.57 MB/s	       6 B/op	       0 allocs/op
+BenchmarkDateParsing       	 8700852	       136.6 ns/op	 219.54 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/seconds         	 5850968	       216.8 ns/op	 262.95 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/milis           	 5356448	       222.8 ns/op	 309.75 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/micros          	 5280925	       226.6 ns/op	 344.17 MB/s	       0 B/op	       0 allocs/op
+BenchmarkFloatDetection                  	    8178	    137322 ns/op	 133.13 MB/s	   48000 B/op	    1000 allocs/op
+BenchmarkBoolDetection                   	  246693	      4754 ns/op	 941.69 MB/s	       0 B/op	       0 allocs/op
+BenchmarkStringDetection                 	    9171	    132633 ns/op	  44.41 MB/s	   96000 B/op	    2000 allocs/op
+BenchmarkIntDetection                    	   82146	     14510 ns/op	 199.18 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDateDetection                   	    6202	    191209 ns/op	  52.30 MB/s	   96000 B/op	    2000 allocs/op
+BenchmarkDatetimeDetection               	    5138	    236487 ns/op	 109.94 MB/s	   96000 B/op	    2000 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/column	17.417s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/database
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkReadingFromStripes/1         	     535	   2500927 ns/op	   0.01 MB/s	25168540 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/100       	     517	   2417230 ns/op	   1.00 MB/s	25172108 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/1000      	     507	   2307807 ns/op	  10.40 MB/s	25201612 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/1000000   	      19	  61980842 ns/op	 387.22 MB/s	284163062 B/op	     558 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/database	7.793s
+PASS
+ok  	github.com/kokes/smda/src/query	0.714s
+PASS
+ok  	github.com/kokes/smda/src/query/expr	0.744s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/web
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkAutoUpload/short_strings         	       4	 272197931 ns/op	  44.09 MB/s	162816514 B/op	  602102 allocs/op
+BenchmarkAutoUpload/medium_strings        	       2	 510081722 ns/op	  94.10 MB/s	471417184 B/op	  603391 allocs/op
+BenchmarkAutoUpload/small_ints            	       3	 397516572 ns/op	  23.70 MB/s	197916154 B/op	  601342 allocs/op
+BenchmarkAutoUpload/medium_ints           	       3	 456596364 ns/op	  38.69 MB/s	218824288 B/op	  601340 allocs/op
+BenchmarkAutoUpload/large_ints            	       2	 701108896 ns/op	  46.59 MB/s	253779296 B/op	  601346 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/web	16.364s
+GOMAXPROCS=1 CGO_ENABLED=0 go test -run=NONE -bench=. -benchmem ./...
+?   	github.com/kokes/smda	[no test files]
+?   	github.com/kokes/smda/cmd/ingest	[no test files]
+PASS
+ok  	github.com/kokes/smda/cmd/server	0.126s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/bitmap
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkBitmapSets 	766786101	         1.339 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/bitmap	1.256s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/column
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkHashingInts       	   11881	    104023 ns/op	 769.06 MB/s	       0 B/op	       0 allocs/op
+BenchmarkHashingFloats     	   12531	     93310 ns/op	 857.35 MB/s	       6 B/op	       0 allocs/op
+BenchmarkDateParsing       	 8774049	       136.9 ns/op	 219.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/seconds         	 5864408	       203.1 ns/op	 280.67 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/milis           	 5401406	       221.4 ns/op	 311.63 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/micros          	 5348937	       225.4 ns/op	 346.06 MB/s	       0 B/op	       0 allocs/op
+BenchmarkFloatDetection                  	    7923	    136331 ns/op	 134.10 MB/s	   48000 B/op	    1000 allocs/op
+BenchmarkBoolDetection                   	  247737	      4768 ns/op	 939.04 MB/s	       0 B/op	       0 allocs/op
+BenchmarkStringDetection                 	    9068	    131868 ns/op	  44.67 MB/s	   96000 B/op	    2000 allocs/op
+BenchmarkIntDetection                    	   83197	     14432 ns/op	 200.25 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDateDetection                   	    6205	    195580 ns/op	  51.13 MB/s	   96000 B/op	    2000 allocs/op
+BenchmarkDatetimeDetection               	    5066	    239006 ns/op	 108.78 MB/s	   96000 B/op	    2000 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/column	17.444s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/database
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkReadingFromStripes/1         	     482	   2667250 ns/op	   0.01 MB/s	25168540 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/100       	     427	   2533249 ns/op	   0.95 MB/s	25172107 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/1000      	     474	   2436418 ns/op	   9.86 MB/s	25201612 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/1000000   	      18	  62154176 ns/op	 386.14 MB/s	284163059 B/op	     558 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/database	6.785s
+PASS
+ok  	github.com/kokes/smda/src/query	0.162s
+PASS
+ok  	github.com/kokes/smda/src/query/expr	0.086s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/web
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkAutoUpload/short_strings         	       4	 272570726 ns/op	  44.03 MB/s	162816518 B/op	  602102 allocs/op
+BenchmarkAutoUpload/medium_strings        	       2	 544771125 ns/op	  88.11 MB/s	471417200 B/op	  603391 allocs/op
+BenchmarkAutoUpload/small_ints            	       3	 396704540 ns/op	  23.75 MB/s	197915968 B/op	  601342 allocs/op
+BenchmarkAutoUpload/medium_ints           	       3	 464957864 ns/op	  38.00 MB/s	218837402 B/op	  601341 allocs/op
+BenchmarkAutoUpload/large_ints            	       2	 559078128 ns/op	  58.43 MB/s	253775128 B/op	  601346 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/web	15.417s
+GOMAXPROCS=1 CGO_ENABLED=0 go test -run=NONE -bench=. -benchmem ./...
+?   	github.com/kokes/smda	[no test files]
+?   	github.com/kokes/smda/cmd/ingest	[no test files]
+PASS
+ok  	github.com/kokes/smda/cmd/server	0.102s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/bitmap
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkBitmapSets 	843307605	         1.317 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/bitmap	1.435s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/column
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkHashingInts       	   12027	     99904 ns/op	 800.77 MB/s	       0 B/op	       0 allocs/op
+BenchmarkHashingFloats     	   13077	     91569 ns/op	 873.66 MB/s	       6 B/op	       0 allocs/op
+BenchmarkDateParsing       	 8783551	       136.1 ns/op	 220.47 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/seconds         	 5853276	       201.9 ns/op	 282.37 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/milis           	 5413873	       219.3 ns/op	 314.61 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDatetimeParsing/micros          	 4792387	       225.2 ns/op	 346.30 MB/s	       0 B/op	       0 allocs/op
+BenchmarkFloatDetection                  	    8250	    135562 ns/op	 134.86 MB/s	   48000 B/op	    1000 allocs/op
+BenchmarkBoolDetection                   	  246424	      4857 ns/op	 921.84 MB/s	       0 B/op	       0 allocs/op
+BenchmarkStringDetection                 	    9225	    133273 ns/op	  44.20 MB/s	   96000 B/op	    2000 allocs/op
+BenchmarkIntDetection                    	   84448	     14427 ns/op	 200.32 MB/s	       0 B/op	       0 allocs/op
+BenchmarkDateDetection                   	    6249	    194990 ns/op	  51.28 MB/s	   96000 B/op	    2000 allocs/op
+BenchmarkDatetimeDetection               	    5288	    239121 ns/op	 108.73 MB/s	   96000 B/op	    2000 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/column	17.451s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/database
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkReadingFromStripes/1         	     492	   2485484 ns/op	   0.01 MB/s	25168540 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/100       	     529	   2398367 ns/op	   1.01 MB/s	25172108 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/1000      	     534	   2405080 ns/op	   9.98 MB/s	25201612 B/op	      55 allocs/op
+BenchmarkReadingFromStripes/1000000   	      18	  62745205 ns/op	 382.50 MB/s	284163079 B/op	     558 allocs/op
+PASS
+ok  	github.com/kokes/smda/src/database	6.962s
+PASS
+ok  	github.com/kokes/smda/src/query	0.085s
+PASS
+ok  	github.com/kokes/smda/src/query/expr	0.081s
+goos: darwin
+goarch: amd64
+pkg: github.com/kokes/smda/src/web
+cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+BenchmarkAutoUpload/short_strings         	       4	 269747365 ns/op	  44.49 MB/s	162816510 B/op	  602102 allocs/op
+BenchmarkAutoUpload/medium_strings        	       3	 500530589 ns/op	  95.90 MB/s	470017978 B/op	  603385 allocs/op
+BenchmarkAutoUpload/small_ints            	       3	 398369640 ns/op	  23.65 MB/s	197918584 B/op	  601339 allocs/op
+BenchmarkAutoUpload/medium_ints           	       3	 442859897 ns/op	  39.89 MB/s	218852498 B/op	  601338 allocs/op
