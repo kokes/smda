@@ -6,6 +6,8 @@ import (
 	"flag"
 	"io/fs"
 	"log"
+	"os"
+	"os/signal"
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/web"
@@ -25,7 +27,22 @@ func main() {
 	tlsKey := flag.String("tls-key", "", "TLS key to use")
 	flag.Parse()
 
-	ctx := context.Background()
+	log.Printf("starting up process %v", os.Getpid())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, os.Interrupt)
+		defer signal.Stop(signals)
+
+		select {
+		case s := <-signals:
+			log.Printf("signal %v received, aborting", s)
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 
 	if err := run(ctx, *wdir, *portHTTP, *portHTTPS, *expose, *loadSamples, *useTLS, *tlsCert, *tlsKey); err != nil {
 		log.Fatal(err)

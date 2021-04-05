@@ -91,11 +91,13 @@ func RunWebserver(ctx context.Context, db *database.Database, portHTTP, portHTTP
 	case <-ctx.Done():
 		// ARCH(next): what errors should be returned in case of cancellation?
 		if db.ServerHTTP != nil {
+			log.Println("http webserver shutting down")
 			if err := db.ServerHTTP.Shutdown(ctx); err != nil {
 				return err
 			}
 		}
 		if db.ServerHTTPS != nil {
+			log.Println("https webserver shutting down")
 			if err := db.ServerHTTPS.Shutdown(ctx); err != nil {
 				return err
 			}
