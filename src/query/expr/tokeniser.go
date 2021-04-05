@@ -121,9 +121,7 @@ func newTokenScanner(s []byte) *tokenScanner {
 }
 
 func newTokenScannerFromString(s string) *tokenScanner {
-	return &tokenScanner{
-		code: []byte(s),
-	}
+	return newTokenScanner([]byte(s))
 }
 
 func tokeniseString(s string) (tokList, error) {

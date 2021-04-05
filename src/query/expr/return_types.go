@@ -274,7 +274,7 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 			// OPTIM: we can prune all the arguments that come after the first non-nullable
 			// we can't prune it just yet - we could have an invalid call (e.g. coalesce(int, float, string))
 			// but we can note the position of the first non-nullable arg
-			if el.Nullable == false {
+			if !el.Nullable {
 				nullable = false
 			}
 		}

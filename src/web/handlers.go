@@ -34,7 +34,6 @@ func handleRoot(db *database.Database) http.HandlerFunc {
 			panic(err)
 		}
 		http.FileServer(http.FS(root)).ServeHTTP(w, r)
-		return
 	}
 }
 

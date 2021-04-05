@@ -24,8 +24,9 @@ import (
 // 	stripeOnDiskFormatVersion = 1
 // )
 
+// var errIncompatibleOnDiskFormat = errors.New("cannot open data stripes with a version different from the one supported")
+
 var errIncorrectChecksum = errors.New("could not validate data on disk: incorrect checksum")
-var errIncompatibleOnDiskFormat = errors.New("cannot open data stripes with a version different from the one supported")
 var errInvalidloadSettings = errors.New("expecting load settings for a rawLoader, got nil")
 var errInvalidOffsetData = errors.New("invalid offset data")
 var errSchemaMismatch = errors.New("dataset does not conform to the schema provided")
@@ -197,7 +198,7 @@ func writeCompressed(w io.Writer, ctype compression) (io.WriteCloser, error) {
 	case compressionGzip:
 		return gzip.NewWriter(w), nil
 	case compressionSnappy:
-		return snappy.NewWriter(w), nil
+		return snappy.NewBufferedWriter(w), nil
 	}
 	// TODO: lz4, zstd
 	return nil, fmt.Errorf("%w: %v", errCannotWriteCompression, ctype)
@@ -229,6 +230,7 @@ func (ds *stripeData) writeToWriter(w io.Writer, ctype compression) (nbytes int6
 				return 0, nil, err
 			}
 			if _, err := column.WriteTo(cw); err != nil {
+				// TODO: are we leaking resources by not closing the writer here?
 				return 0, nil, err
 			}
 			if err := cw.Close(); err != nil {

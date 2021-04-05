@@ -142,6 +142,9 @@ func inferCompressionAndDelimiter(path string) (compression, delimiter, error) {
 		return 0, 0, err
 	}
 	dt, err := io.ReadAll(uf)
+	if err != nil {
+		return 0, 0, err
+	}
 	br, err := skipBom(bytes.NewReader(dt))
 	if err != nil {
 		return 0, 0, err
