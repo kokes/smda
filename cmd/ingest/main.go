@@ -44,7 +44,7 @@ func run() error {
 	if stat.IsDir() {
 		files, err := os.ReadDir(arg)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		for _, file := range files {
@@ -79,5 +79,11 @@ func publish(r io.Reader, name string, port int) error {
 	}
 	defer resp.Body.Close()
 	_, err = io.Copy(os.Stdout, resp.Body)
-	return err
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status when submitting %v: %v", name, resp.Status)
+	}
+	return nil
 }

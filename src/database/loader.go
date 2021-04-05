@@ -507,6 +507,10 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 	if err != nil {
 		return nil, err
 	}
+	// TODO(next): test this
+	if dlim == delimiterNone {
+		return nil, errors.New("could not detect the right CSV delimiter")
+	}
 
 	ls := &loadSettings{
 		readCompression: ctype,
