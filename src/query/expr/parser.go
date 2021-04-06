@@ -240,8 +240,7 @@ func ParseStringExpr(s string) (*Expression, error) {
 
 	// we are fine with illegal rune literals - because we need e.g. 'ahoy' as literal strings
 	if err != nil && !strings.Contains(err.Error(), "illegal rune literal") {
-		fmt.Printf("parse err: %v\n", err)
-		return nil, err
+		return nil, fmt.Errorf("parse error: %w", err)
 	}
 
 	tree, err := convertAstExprToOwnExpr(tr)
