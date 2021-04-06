@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 func main() {
@@ -70,10 +73,17 @@ func publishFile(path string, port int) error {
 }
 
 func publish(r io.Reader, name string, port int) error {
-	url := fmt.Sprintf("http://localhost:%d/upload/auto?name=%s", port, name)
+	kv := url.Values{}
+	kv.Set("name", name)
+	turl := url.URL{
+		Scheme:   "http",
+		Host:     net.JoinHostPort("localhost", strconv.Itoa(port)),
+		Path:     "/upload/auto",
+		RawQuery: kv.Encode(),
+	}
 	br := bufio.NewReader(r)
 
-	resp, err := http.Post(url, "encoding/csv", br)
+	resp, err := http.Post(turl.String(), "encoding/csv", br)
 	if err != nil {
 		return err
 	}
