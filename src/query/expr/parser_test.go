@@ -103,7 +103,7 @@ func TestParsingContents(t *testing.T) {
 		{"sum(foo <= 3)", nil},
 		{"2 * (1 - foo)", &Expression{etype: exprMultiplication, children: []*Expression{
 			{etype: exprLiteralInt, value: "2"},
-			{etype: exprSubtraction, children: []*Expression{
+			{etype: exprSubtraction, parens: true, children: []*Expression{
 				{etype: exprLiteralInt, value: "1"},
 				{etype: exprIdentifier, value: "foo"},
 			}},
@@ -141,7 +141,7 @@ func TestParsingContents(t *testing.T) {
 		}}},
 		{"-(foo*bar)", &Expression{etype: exprMultiplication, children: []*Expression{
 			{etype: exprLiteralInt, value: "-1"},
-			{etype: exprMultiplication, children: []*Expression{
+			{etype: exprMultiplication, parens: true, children: []*Expression{
 				{etype: exprIdentifier, value: "foo"},
 				{etype: exprIdentifier, value: "bar"},
 			}},
@@ -215,6 +215,31 @@ func TestAggExpr(t *testing.T) {
 	}
 }
 
+func TestExprStringer(t *testing.T) {
+	tests := []struct {
+		raw      string
+		expected string
+	}{
+		{"1+2+ 3", "1+2+3"},
+		{"1+(2+ 3)", "1+(2+3)"},
+		{"max( foo) - 3", "max(foo)-3"},
+		{"2 * (foo-BAR)", "2*(foo-bar)"},
+		{"(foo-BAR)*2", "(foo-bar)*2"},
+		{"(foo-(3-BAR))*2", "(foo-(3-bar))*2"},
+		{"foo = 'bar'", "foo='bar'"},
+	}
+
+	for _, test := range tests {
+		parsed, err := ParseStringExpr(test.raw)
+		if err != nil {
+			t.Fatalf("expression %+v failed: %v", test.raw, err)
+			continue
+		}
+		if parsed.String() != test.expected {
+			t.Errorf("expecting %s to parse and then stringify into %s, got %s instead", test.raw, test.expected, parsed.String())
+		}
+	}
+}
+
 // func (expr *Expression) UnmarshalJSON(data []byte) error {
-// expr.stringer
 // MarshalJSON

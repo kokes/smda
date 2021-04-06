@@ -116,6 +116,7 @@ type Expression struct {
 	etype             exprType
 	children          []*Expression
 	value             string
+	parens            bool
 	evaler            func(...column.Chunk) (column.Chunk, error)
 	aggregator        *column.AggState
 	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
@@ -161,31 +162,39 @@ func AggExpr(expr *Expression) ([]*Expression, error) {
 }
 
 func (expr *Expression) String() string {
+	var rval string
 	switch expr.etype {
 	case exprInvalid:
-		return "invalid_expression"
+		rval = "invalid_expression"
 	case exprIdentifier:
-		return expr.value
+		rval = expr.value
 	case exprIdentifierQuoted:
-		return fmt.Sprintf("\"%s\"", expr.value)
+		rval = fmt.Sprintf("\"%s\"", expr.value)
 	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
 		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
-		return fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
-	case exprLiteralInt, exprLiteralFloat, exprLiteralBool, exprLiteralString:
-		return expr.value
+		rval = fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
+	case exprLiteralInt, exprLiteralFloat, exprLiteralBool:
+		rval = expr.value
+	case exprLiteralString:
+		// TODO: what about literals with apostrophes in them? escape them
+		rval = fmt.Sprintf("'%s'", expr.value)
 	case exprLiteralNull:
-		return "NULL"
+		rval = "NULL"
 	case exprFunCall:
 		args := make([]string, 0, len(expr.children))
 		for _, ch := range expr.children {
 			args = append(args, ch.String())
 		}
 
-		return fmt.Sprintf("%s(%s)", expr.value, strings.Join(args, ", "))
+		rval = fmt.Sprintf("%s(%s)", expr.value, strings.Join(args, ", "))
 	default:
 		// we need to panic, because we use this stringer for expression comparison
 		panic(fmt.Sprintf("unsupported expression type: %v", expr.etype))
 	}
+	if expr.parens {
+		return fmt.Sprintf("(%s)", rval)
+	}
+	return rval
 }
 
 func (expr *Expression) UnmarshalJSON(data []byte) error {
@@ -408,9 +417,12 @@ func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
 
 		return ret, nil
 	case *ast.ParenExpr:
-		// I think we can just take what's in it and treat it as a node - since our evaluation/encapsulation
-		// treats it as a paren expression anyway, right?
-		return convertAstExprToOwnExpr(node.X)
+		within, err := convertAstExprToOwnExpr(node.X)
+		if err != nil {
+			return nil, err
+		}
+		within.parens = true
+		return within, nil
 	default:
 		fmt.Println(reflect.TypeOf(expr))
 		fset := token.NewFileSet() // positions are relative to fset
