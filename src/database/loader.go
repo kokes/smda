@@ -33,6 +33,7 @@ var errSchemaMismatch = errors.New("dataset does not conform to the schema provi
 var errNoMapData = errors.New("cannot load data from a map with no data")
 var errLengthMismatch = errors.New("column length mismatch")
 var errCannotWriteCompression = errors.New("cannot write data compressed by this compression")
+var errCouldNotDetectDelimiter = errors.New("could not detect the right CSV delimiter")
 
 // LoadSampleData reads all CSVs from a given directory and loads them up into the database
 // using default settings
@@ -507,9 +508,10 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 	if err != nil {
 		return nil, err
 	}
-	// TODO(next): test this
+
+	// fallback to comma delimited files (eeek?)
 	if dlim == delimiterNone {
-		return nil, errors.New("could not detect the right CSV delimiter")
+		dlim = delimiterComma
 	}
 
 	ls := &loadSettings{

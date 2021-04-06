@@ -241,6 +241,8 @@ func funCallReturnType(funName string, argTypes []column.Schema) (column.Schema,
 		if len(argTypes) != 1 {
 			return schema, errWrongNumberofArguments
 		}
+		// TODO(next): check arg for a numeric type (and fix where we mention "isNumericType")
+		// and do this for sin/cos etc.
 		schema.Dtype = column.DtypeFloat // average of integers will be a float
 		schema.Nullable = argTypes[0].Nullable
 	case "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "sqrt", "exp", "exp2", "log", "log2", "log10":
