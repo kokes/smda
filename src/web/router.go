@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -72,6 +73,10 @@ func RunWebserver(ctx context.Context, db *database.Database, portHTTP, portHTTP
 	}()
 
 	if useTLS {
+		if tlsCert == "" || tlsKey == "" {
+			return fmt.Errorf("if you enable TLS, you need to submit both a key and a cert")
+		}
+
 		address = net.JoinHostPort(host, strconv.Itoa(portHTTPS))
 		log.Printf("listening on https://%v", address)
 		db.Lock()
@@ -90,18 +95,19 @@ func RunWebserver(ctx context.Context, db *database.Database, portHTTP, portHTTP
 		return err
 	case <-ctx.Done():
 		// ARCH(next): what errors should be returned in case of cancellation?
+		var rval error
 		if db.ServerHTTP != nil {
 			log.Println("http webserver shutting down")
-			if err := db.ServerHTTP.Shutdown(ctx); err != nil {
-				return err
+			if err := db.ServerHTTP.Shutdown(ctx); err != nil && err != context.Canceled {
+				rval = err
 			}
 		}
 		if db.ServerHTTPS != nil {
 			log.Println("https webserver shutting down")
-			if err := db.ServerHTTPS.Shutdown(ctx); err != nil {
-				return err
+			if err := db.ServerHTTPS.Shutdown(ctx); err != nil && err != context.Canceled {
+				rval = err
 			}
 		}
-		return nil
+		return rval
 	}
 }

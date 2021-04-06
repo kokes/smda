@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"strconv"
@@ -23,10 +24,10 @@ func TestServerHappyPath(t *testing.T) {
 			panic(err)
 		}
 	}()
-	port := 1234
+	port := 1000 + rand.Intn(1000)
 	go func() {
 		if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
-			panic("unable to start a webserver")
+			panic(fmt.Sprintf("unable to start a webserver: %v", err))
 		}
 	}()
 	defer func() {
@@ -36,7 +37,7 @@ func TestServerHappyPath(t *testing.T) {
 	}()
 
 	// we need for the webserver to launch - we don't have a channel to notify us
-	time.Sleep(5 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	address := net.JoinHostPort("localhost", strconv.Itoa(port))
 	if _, err := http.Get(fmt.Sprintf("http://%v/status", address)); err != nil {
 		t.Fatal(err)
@@ -58,7 +59,7 @@ func TestServerClosing(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		port := 1234
+		port := 1000 + rand.Intn(1000)
 		if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
 			panic(fmt.Sprintf("expecting a server to be stopped with a ErrServerClosed, got %+v", err))
 		}
@@ -83,7 +84,7 @@ func TestBusyPort(t *testing.T) {
 		}
 	}()
 
-	port := 1234
+	port := 1000 + rand.Intn(1000)
 	address := net.JoinHostPort("localhost", strconv.Itoa(port))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
