@@ -332,6 +332,100 @@
         return (s.toLowerCase() === s && !s.includes(" ")) ? s : `"${s}"`;
     }
 
+    function split_expressions(s) {
+        let nested = []; // stack
+        let exprs = [];
+        let current_expr = [];
+        let idx = 0;
+        while (true) {
+            if (idx >= s.length) {
+                break;
+            }
+            const char = s[idx];
+            switch (char) {
+                case ',':
+                    if (nested.length === 0) {
+                        exprs.push(current_expr.join(''));
+                        current_expr = [];
+                        idx++;
+                        continue;
+                    }
+                    break;
+                case ' ':
+                    idx++;
+                    continue;
+                case '\n':
+                    idx++;
+                    continue;
+                case '(':
+                    nested.push(char);
+                    break;
+                case ')':
+                    if (nested.pop() !== '(') {
+                        throw Error('unexpected closing bracket')
+                    }
+                    break;
+                // strings and identifiers (', ")
+                case '\'':
+                case '\"':
+                    let j = 0;
+                    nested.push(char); // this will force unclosed strings to result in remainders
+                    for (j = idx + 1; j < s.length; j++) {
+                        const ch = s[j];
+                        if (ch === '\\') {
+                            // TODO: what if this is the last char
+                            j++; // escaped char means that the following char should be skipped too
+                            continue;
+                        }
+                        if (ch === char) {
+                            nested.pop();
+                            break;
+                        }
+                    }
+                    current_expr = current_expr.concat(s.slice(idx, j+1).split(''));
+                    idx = j + 1; // include the end quote, but don't fall through to the `.push(char)` below
+                    continue;
+            }
+            current_expr.push(char);
+            idx++;
+        }
+        let remains = null;
+        const valid = nested.length === 0;
+        if (current_expr.length > 0) {
+            const val = current_expr.join("");
+            if (valid) {
+                exprs.push(val);
+            } else {
+                remains = val;
+            }
+        }
+        return {
+            expressions: exprs,
+            remainder: remains,
+            valid: valid,
+        };
+    }
+
+    // tests for split_expressions
+    // console.log('result')
+    // const inputs = [
+    //     '',
+    //     '"',
+    //     '\'',
+    //     'foo',
+    //     'bar, baz',
+    //     'sum("hello")',
+    //     'sum("hello world")',
+    //     '"hello ',
+    //     'sum("hello, world"), nullif(baz, \'some ) string\')',
+    //     'sum("hello world"), nullif(baz, \'some\\\' string\')',
+    //     'foo, bar, baz, sum(bak),\n avg(nullif(foo, 3)), avg("BAU WAU"), sum(foo',
+    // ]
+
+    // for (let input of inputs) {
+    //     console.log(split_expressions(input));
+    // }
+
     // ARCH: this does a bit of UI stuff - maybe separate that out completely, so that
     // this becomes more testable
     class smda {
@@ -431,27 +525,34 @@
             const query = {
                 dataset: qform.dataset.value,
             };
-            if (qform.filter.value !== "") {
-                query.filter = qform.filter.value;
-            }
-            if (qform.aggregate.value != "") {
-                // TODO(next): also revive proper expression parsing - one that takes into account nesting and such (e.g. `round(foo, 2)`)
-                query.aggregate = qform.aggregate.value.split(","); // TODO(next): support multiple aggregation expressions
-            }
-            if (qform.select.value != "") {
-                query.select = qform.select.value.split(","); // TODO(next): support multiple selection expressions
-            }
-            if (qform.limit.value !== "") {
-                query.limit = parseInt(qform.limit.value, 10);
-            }
-
-            const startTime = performance.now();
-            const incrementor = setInterval(() => {
-                elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
-            }, 100)
-
-            let data;
+            let data, incrementor, startTime;
             try {
+                if (qform.filter.value !== "") {
+                    query.filter = qform.filter.value;
+                }
+                if (qform.aggregate.value != "") {
+                    const exprs = split_expressions(qform.aggregate.value);
+                    if (!exprs.valid) {
+                        throw new Error(`invalid aggregating expression: ${qform.aggregate.value}`)
+                    }
+                    query.aggregate = exprs.expressions;
+                }
+                if (qform.select.value != "") {
+                    const exprs = split_expressions(qform.select.value);
+                    if (!exprs.valid) {
+                        throw new Error(`invalid select expression: ${qform.select.value}`)
+                    }
+                    query.select = exprs.expressions;
+                }
+                if (qform.limit.value !== "") {
+                    query.limit = parseInt(qform.limit.value, 10);
+                }
+
+                startTime = performance.now();
+                incrementor = setInterval(() => {
+                    elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
+                }, 100)
+         
                 data = await this.runQuery(query);
             } catch(e) {
                 errBox.textContent = e;
