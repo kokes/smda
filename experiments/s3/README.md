@@ -33,3 +33,12 @@ works quite well, it's fairly fast (200M+/s), but... seems to be rate limited
 ```
 
 anywho, in frankfurt, i'm getting 300 MB/s and 10-15 ms latency
+
+
+### aside: minio
+
+this will be quite good for (integration) testing
+
+sadly, I couldn't make the minio server talk to the aws sdk v2 properly (it would list buckets, but it would not retrieve any files - said the bucket did not exist)
+
+latency... around a milisecond, tput limited by the local disk... so pretty nice
