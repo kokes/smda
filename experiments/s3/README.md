@@ -20,3 +20,16 @@ More notes:
 - we can always merge contiguous chunk ranges - if we get a request for 0-100 and 100-200, we can grab both at the same time, save request latency... but, we lose paralelism... so the cost based optimiser might end up quite complicated
 
 I'd start by cloning the whole chunk to begin with and we'll see what we come up with later. It might be loading ranges in parallel, the whole chunk in parts in parallel, joining ranges, ... who knows.
+
+
+### aside: DO
+
+tried digital ocean to see what's what - it should support aws sdk
+
+works quite well, it's fairly fast (200M+/s), but... seems to be rate limited
+
+```
+2021/04/08 11:24:09 operation error S3: GetObject, exceeded maximum number of attempts, 3, https response error StatusCode: 503, RequestID: , HostID: , api error SlowDown: Reduce your request rate.
+```
+
+anywho, in frankfurt, i'm getting 300 MB/s and 10-15 ms latency
