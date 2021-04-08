@@ -110,7 +110,8 @@ resource "aws_s3_bucket" "bucket" {
 
 resource "aws_instance" "s3_ranges" {
   ami                         = data.aws_ami.ubuntu.id
-  instance_type               = "c5.large"
+  # 8 cores for parallelism
+  instance_type               = "c5.2xlarge"
   key_name                    = "okokes_personal"
   associate_public_ip_address = true
 
