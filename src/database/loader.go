@@ -383,10 +383,8 @@ func (sr *StripeReader) ReadColumn(nthColumn int) (column.Chunk, error) {
 	return column.Deserialize(cr, sr.schema[nthColumn].Dtype)
 }
 
-// ReadColumnsFromStripeByNames repeatedly calls ReadColumnFromStripeByName, so it's just a helper method
-// OPTIM: here we could use a stripe reader (or a ReadColumsFromStripe([]idx))
-// OPTIM: we could find out if the columns are contiguous and just read them in one go
-//        what if they are not ordered in the right way?
+// OPTIM: perhaps reorder the column requests, so that they are contiguous, or at least in order
+//        also add a benchmark that reads columns in reverse and see if we get any benefits from this
 func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) (map[string]column.Chunk, error) {
 	cols := make(map[string]column.Chunk, len(columns))
 	sr, err := NewStripeReader(db, ds, stripe)
