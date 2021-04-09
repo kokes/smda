@@ -38,7 +38,9 @@ func run() error {
 		return err
 	}
 	fmt.Printf("got this region: %v\n", cfg.Region)
-	svc := s3.NewFromConfig(cfg)
+	svc := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
 	ctx := context.Background()
 
 	input := &s3.GetObjectInput{
