@@ -11,6 +11,11 @@ func TestParsingContents(t *testing.T) {
 		expExpr *Expression
 	}{
 		{"ahoy", &Expression{etype: exprIdentifier, value: "ahoy"}},
+		{"type", &Expression{etype: exprIdentifier, value: "type"}},
+		{"for", &Expression{etype: exprIdentifier, value: "for"}},
+		{"struct", &Expression{etype: exprIdentifier, value: "struct"}},
+		{"break", &Expression{etype: exprIdentifier, value: "break"}},
+		{"func", &Expression{etype: exprIdentifier, value: "func"}},
 		{"\"ahoy\"", &Expression{etype: exprIdentifier, value: "ahoy"}},
 		{"\"ahoy_world\"", &Expression{etype: exprIdentifier, value: "ahoy_world"}},
 		{"\"ahoy62\"", &Expression{etype: exprIdentifier, value: "ahoy62"}},
@@ -151,8 +156,7 @@ func TestParsingContents(t *testing.T) {
 	for _, test := range tests {
 		parsed, err := ParseStringExpr(test.raw)
 		if err != nil {
-			t.Errorf("expression %+v failed: %w", test.raw, err)
-			t.Fail()
+			t.Errorf("expression %+v failed: %v", test.raw, err)
 			continue
 		}
 		// we skip equality tests for nil cases (essentially placeholders, perhaps too complex)

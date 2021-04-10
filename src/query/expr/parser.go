@@ -213,6 +213,16 @@ func (expr *Expression) MarshalJSON() ([]byte, error) {
 	return json.Marshal(expr.String())
 }
 
+// https://golang.org/ref/spec#Keywords
+var goKeywords = map[string]struct{}{
+	"break": {}, "default": {}, "func": {}, "interface": {},
+	"select": {}, "case": {}, "defer": {}, "go": {},
+	"map": {}, "struct": {}, "chan": {}, "else": {},
+	"goto": {}, "package": {}, "switch": {}, "const": {},
+	"fallthrough": {}, "if": {}, "range": {}, "type": {},
+	"continue": {}, "for": {}, "import": {}, "return": {}, "var": {},
+}
+
 // limitations:
 // - cannot use this for full query parsing, just expressions
 // - cannot do count(*) and other syntactically problematic expressions (also ::)
@@ -236,11 +246,19 @@ func ParseStringExpr(s string) (*Expression, error) {
 	// doesn't work well with SQL-like expressions
 	// we won't need this as soon as we have a custom parser
 	s2 := tokens.String()
-	tr, err := parser.ParseExpr(s2)
 
-	// we are fine with illegal rune literals - because we need e.g. 'ahoy' as literal strings
-	if err != nil && !strings.Contains(err.Error(), "illegal rune literal") {
-		return nil, fmt.Errorf("parse error: %w", err)
+	// TODO(parser): once we get a custom parser, we won't have to deal with this
+	// essentially, we want to avoid Go builtin keywords being parsed as such, especially
+	// if the whole expression is a keyword (e.g. a column name "type")
+	var tr ast.Expr
+	if _, ok := goKeywords[s2]; ok {
+		tr = &ast.Ident{Name: s2}
+	} else {
+		tr, err = parser.ParseExpr(s2)
+		// we are fine with illegal rune literals - because we need e.g. 'ahoy' as literal strings
+		if err != nil && !strings.Contains(err.Error(), "illegal rune literal") {
+			return nil, fmt.Errorf("parse error: %w", err)
+		}
 	}
 
 	tree, err := convertAstExprToOwnExpr(tr)
