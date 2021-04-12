@@ -389,8 +389,7 @@ func TestBasicFiltering(t *testing.T) {
 		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "foo > bar", "foo\n10"},
 		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "foo >= bar", "foo\n5\n10"},
 		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "4 > 1", "foo\n1\n5\n10"},
-		// TODO(next): enable this once we finish our null comparison work
-		// {"foo,bar\n,4\n5,5\n,6", []string{"bar"}, "foo = null", "bar\n4\n6"},
+		{"foo,bar\n,4\n5,5\n,6", []string{"bar"}, "foo = null", "bar\n4\n6"},
 	}
 
 	for _, test := range tests {

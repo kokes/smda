@@ -41,6 +41,10 @@ func setupRoutes(db *database.Database, useTLS bool, portHTTPS int) http.Handler
 			newURL.Scheme = "https"
 			// ARCH: redirects are cached, do we want to set some expiration here? Or perhaps use
 			// something other than a 301?
+			// TODO: I think there's a bug here - the intention here is if we e.g. GET http://foo/
+			// this will get redirected to GET https://foo/
+			// BUT, this fails for POST http://foo/upload/auto, which gets redirected to GET for some reason
+			// but maybe that's fine, maybe this is just for browsers...
 			http.Redirect(w, r, newURL.String(), http.StatusMovedPermanently)
 			return
 		}

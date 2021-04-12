@@ -22,7 +22,6 @@ func main() {
 }
 
 func run() error {
-	// TODO(next): support tls
 	port := flag.Int("port", 8822, "port where the smda server is running")
 	flag.Parse()
 	arg := flag.Arg(0)

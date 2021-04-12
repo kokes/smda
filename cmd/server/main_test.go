@@ -25,7 +25,7 @@ func TestRunningServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(1)
-	port := 1000 + rand.Intn(1000)
+	port := 10000 + rand.Intn(1000)
 	go func() {
 		defer wg.Done()
 		if err := run(ctx, filepath.Join(t.TempDir(), "tmp"), port, port+1, false, false, false, "", ""); err != nil {
@@ -75,7 +75,7 @@ func TestRunningHTTP(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(1)
-	port := 1000 + rand.Intn(1000)
+	port := 10000 + rand.Intn(1000)
 	go func() {
 		defer wg.Done()
 		if err := run(ctx, filepath.Join(t.TempDir(), "tmp"), port, port+1, false, false, false, "", ""); err != nil {
@@ -108,7 +108,7 @@ func TestRunningHTTPS(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(1)
-	port := 1000 + rand.Intn(1000)
+	port := 10000 + rand.Intn(1000)
 	portHttps := port + 1
 
 	tlsKeyPath := "testdata/localhost-key.pem"
