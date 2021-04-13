@@ -39,8 +39,10 @@ func setupRoutes(db *database.Database, useTLS bool, portHTTPS int) http.Handler
 			newURL := r.URL
 			newURL.Host = net.JoinHostPort(host, strconv.Itoa(portHTTPS))
 			newURL.Scheme = "https"
-			// ARCH: redirects are cached, do we want to set some expiration here? Or perhaps use
-			// something other than a 301?
+			// redirects are cached, so we need to expire these in case we turn off TLS
+			// this way if we try the HTTP endpoint a minute later (for some reason), the redirect
+			// will be handled here, not by the browser
+			w.Header().Set("Cache-Control", "max-age=60")
 			// TODO: I think there's a bug here - the intention here is if we e.g. GET http://foo/
 			// this will get redirected to GET https://foo/
 			// BUT, this fails for POST http://foo/upload/auto, which gets redirected to GET for some reason
