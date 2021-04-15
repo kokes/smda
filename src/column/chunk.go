@@ -25,7 +25,7 @@ type Chunk interface {
 	AddValue(string) error
 	AddValues([]string) error // consider merging AddValues and AddValue (using varargs)
 	WriteTo(io.Writer) (int64, error)
-	MarshalJSON() ([]byte, error)
+	MarshalJSON() ([]byte, error) // ARCH: consider moving these implementations (together with writeto, csv etc.) to chunk_io.go or something
 	Prune(*bitmap.Bitmap) Chunk
 	Append(Chunk) error
 	Hash(int, []uint64)

@@ -341,8 +341,8 @@ func TestHandlingQueries(t *testing.T) {
 		defer resp.Body.Close()
 
 		var respBody struct {
-			Schema database.TableSchema `json:"schema"`
-			Data   [][]int              `json:"data"`
+			Schema column.TableSchema `json:"schema"`
+			Data   [][]int            `json:"data"`
 		}
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&respBody); err != nil {
@@ -352,7 +352,7 @@ func TestHandlingQueries(t *testing.T) {
 			t.Fatal("body cannot contain multiple JSON objects")
 		}
 
-		expSchema := database.TableSchema{
+		expSchema := column.TableSchema{
 			column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
 			column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
 		}
@@ -502,7 +502,7 @@ func TestBasicAutoUpload(t *testing.T) {
 	if dec.Schema == nil {
 		t.Error("expecting a schema to be present, got a nil")
 	}
-	es := database.TableSchema{{Name: "foo", Dtype: column.DtypeInt, Nullable: false}, {Name: "bar", Dtype: column.DtypeInt, Nullable: true}, {Name: "baz", Dtype: column.DtypeBool, Nullable: false}}
+	es := column.TableSchema{{Name: "foo", Dtype: column.DtypeInt, Nullable: false}, {Name: "bar", Dtype: column.DtypeInt, Nullable: true}, {Name: "baz", Dtype: column.DtypeBool, Nullable: false}}
 	if !reflect.DeepEqual(dec.Schema, es) {
 		t.Errorf("expecting the schema to be inferred as %+v, got %+v", es, dec.Schema)
 	}

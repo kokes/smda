@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/kokes/smda/src/column"
-	"github.com/kokes/smda/src/database"
 )
 
 var errNoNestedAggregations = errors.New("cannot nest aggregations (e.g. sum(min(a)))")
@@ -122,7 +121,7 @@ type Expression struct {
 	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
 }
 
-func (expr *Expression) InitAggregator(schema database.TableSchema) error {
+func (expr *Expression) InitAggregator(schema column.TableSchema) error {
 	var rtypes []column.Dtype
 	for _, ch := range expr.children {
 		rtype, err := ch.ReturnType(schema)

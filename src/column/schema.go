@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 )
+
+var errColumnNotFound = errors.New("column not found in schema")
 
 // Dtype denotes the data type of a given object (e.g. int or string)
 type Dtype uint8
@@ -71,6 +74,39 @@ type Schema struct {
 	Name     string `json:"name"`
 	Dtype    Dtype  `json:"dtype"`
 	Nullable bool   `json:"nullable"`
+}
+
+// TableSchema is a collection of column schemas
+type TableSchema []Schema
+
+// LocateColumn returns a column within a schema - its position and definition; error is
+// triggered if this column is not found or the schema is nil
+func (schema *TableSchema) LocateColumn(s string) (int, Schema, error) {
+	if schema != nil {
+		for j, col := range []Schema(*schema) {
+			if col.Name == s {
+				return j, col, nil
+			}
+		}
+	}
+	return 0, Schema{}, fmt.Errorf("%w: %v", errColumnNotFound, s)
+}
+
+// LocateColumnCaseInsensitive works just like LocateColumn, but it ignores casing
+// ARCH: we could have used strings.EqualFold, but a) we have one static input (s), so we can
+//       amortise the case lowering, b) the extra correctness in EqualFold is irrelevant here,
+//		 because of our column naming restrictions
+func (schema *TableSchema) LocateColumnCaseInsensitive(s string) (int, Schema, error) {
+	s = strings.ToLower(s)
+	if schema != nil {
+		for j, col := range []Schema(*schema) {
+			// ARCH: this might be wrong - if we have a column "SomeColumn", we don't want "somecolumn" to match it, do we?
+			if strings.ToLower(col.Name) == s {
+				return j, col, nil
+			}
+		}
+	}
+	return 0, Schema{}, fmt.Errorf("%w: %v", errColumnNotFound, s)
 }
 
 func isNull(s string) bool {

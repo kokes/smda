@@ -33,8 +33,8 @@ type Query struct {
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
 // a Result to be a Dataset of its own (for better interoperability, persistence, caching etc.)
 type Result struct {
-	Schema database.TableSchema `json:"schema"`
-	Data   []column.Chunk       `json:"data"`
+	Schema column.TableSchema `json:"schema"`
+	Data   []column.Chunk     `json:"data"`
 }
 
 func filterStripe(db *database.Database, ds *database.Dataset, stripe database.Stripe, filterExpr *expr.Expression, colData map[string]column.Chunk) (*bitmap.Bitmap, error) {

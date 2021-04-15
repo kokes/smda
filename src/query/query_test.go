@@ -50,7 +50,7 @@ func TestBasicQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expschema := database.TableSchema{
+	expschema := column.TableSchema{
 		column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
 		column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
 		column.Schema{Name: "BAZ", Dtype: column.DtypeInt, Nullable: false},
@@ -144,7 +144,7 @@ func TestLimitsInQueries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expschema := database.TableSchema{
+		expschema := column.TableSchema{
 			column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
 			column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
 			column.Schema{Name: "baz", Dtype: column.DtypeInt, Nullable: false},

@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	"github.com/kokes/smda/src/column"
-	"github.com/kokes/smda/src/database"
 )
 
 var errTypeMismatch = errors.New("expecting compatible types")
@@ -72,7 +71,7 @@ func dedupeSortedStrings(s []string) []string {
 // ARCH: this panics when a given column is not in the schema, but since we already validated
 // this schema during the ReturnType call, we should be fine. It's still a bit worrying that
 // we might panic though.
-func (expr *Expression) ColumnsUsed(schema database.TableSchema) (cols []string) {
+func (expr *Expression) ColumnsUsed(schema column.TableSchema) (cols []string) {
 	if expr.IsIdentifier() {
 		var lookup func(string) (int, column.Schema, error)
 		lookup = schema.LocateColumnCaseInsensitive
@@ -93,7 +92,7 @@ func (expr *Expression) ColumnsUsed(schema database.TableSchema) (cols []string)
 	return dedupeSortedStrings(cols) // so that e.g. a*b - a will yield [a, b]
 }
 
-func ColumnsUsed(schema database.TableSchema, exprs ...*Expression) []string {
+func ColumnsUsed(schema column.TableSchema, exprs ...*Expression) []string {
 	var cols []string
 	for _, expr := range exprs {
 		cols = append(cols, expr.ColumnsUsed(schema)...)
@@ -102,7 +101,7 @@ func ColumnsUsed(schema database.TableSchema, exprs ...*Expression) []string {
 	return dedupeSortedStrings(cols)
 }
 
-func (expr *Expression) ReturnType(ts database.TableSchema) (column.Schema, error) {
+func (expr *Expression) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	schema := column.Schema{}
 	switch {
 	case expr.IsLiteral():

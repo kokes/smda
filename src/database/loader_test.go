@@ -441,7 +441,7 @@ func TestHeaderValidation(t *testing.T) {
 		{[]string{"foo", "bar"}, []string{"foo", "bar "}, errSchemaMismatch},
 	}
 	for _, test := range tests {
-		schema := make(TableSchema, 0, len(test.schemaNames))
+		schema := make(column.TableSchema, 0, len(test.schemaNames))
 		for _, el := range test.schemaNames {
 			schema = append(schema, column.Schema{Name: el})
 		}
@@ -506,7 +506,7 @@ func TestLoadingFromMaps(t *testing.T) {
 // func newRawLoader(r io.Reader, settings loadSettings) (*rawLoader, error) {
 // func (ds *dataStripe) writeToWriter(w io.Writer) error {
 // func (ds *dataStripe) writeToFile(rootDir, datasetID string) error { -- signature has changed, it's now writeStripeToFile
-// func newStripeFromReader(rr RowReader, schema TableSchema, maxRows, maxBytes int) (*dataStripe, error) {
+// func newStripeFromReader(rr RowReader, schema column.TableSchema, maxRows, maxBytes int) (*dataStripe, error) {
 // func (db *Database) loadDatasetFromReader(r io.Reader, settings loadSettings) (*Dataset, error) {
 // func (db *Database) loadDatasetFromLocalFile(path string, settings loadSettings) (*Dataset, error) {
 // ReadColumnsFromStripeByNames

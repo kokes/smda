@@ -85,7 +85,7 @@ type loadSettings struct {
 	// allowFewerColumns
 	readCompression  compression
 	delimiter        delimiter
-	schema           TableSchema
+	schema           column.TableSchema
 	writeCompression compression
 }
 
@@ -279,7 +279,7 @@ func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData, ctype com
 
 // readIntoStripe reads data from a source file and saves them into a stripe
 // maybe these two arguments can be embedded into rl.settings?
-func newStripeFromReader(rr RowReader, schema TableSchema, maxRows, maxBytes int) (*stripeData, error) {
+func newStripeFromReader(rr RowReader, schema column.TableSchema, maxRows, maxBytes int) (*stripeData, error) {
 	ds := newDataStripe()
 
 	// given a schema, initialise a data stripe
@@ -322,7 +322,7 @@ type StripeReader struct {
 	// if we read columns sequentially, we don't need to seek at all
 	pos     int
 	offsets []uint32
-	schema  TableSchema
+	schema  column.TableSchema
 	buffer  *bytes.Buffer
 }
 
@@ -407,7 +407,7 @@ func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, col
 	return cols, nil
 }
 
-func validateHeaderAgainstSchema(header []string, schema TableSchema) error {
+func validateHeaderAgainstSchema(header []string, schema column.TableSchema) error {
 	if len(header) != len(schema) {
 		return errSchemaMismatch
 	}

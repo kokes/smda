@@ -8,8 +8,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/kokes/smda/src/column"
 )
 
 func TestNewUidStringify(t *testing.T) {
@@ -222,52 +220,5 @@ func TestGettingNewDatasets(t *testing.T) {
 	}
 	if ds2 != ds {
 		t.Errorf("did not get the same dataset back")
-	}
-}
-
-func TestLocateColumn(t *testing.T) {
-	tests := []struct {
-		caseSensitive bool
-		cols          []string
-		lookup        string
-		expectedIdx   int
-		err           error
-	}{
-		// case insensitive
-		{false, []string{"foo", "bar", "baz"}, "bar", 1, nil},
-		{false, []string{"foo", "bar", "baz"}, "foo", 0, nil},
-		{false, []string{"foo", "bar", "baz"}, "boo", 0, errColumnNotFound}, // the idx doesn't matter here
-		{false, []string{}, "bar", 0, errColumnNotFound},
-		// case sensitive
-		{true, []string{}, "bar", 0, errColumnNotFound},
-		{true, []string{"foo", "bar", "baz"}, "bar", 1, nil},
-		{true, []string{"foo", "bar", "baz"}, "baz", 2, nil},
-		{true, []string{"foo", "bar", "baz"}, "BAz", 2, nil},
-		{true, []string{"foo", "bar", "baz"}, "BAR", 1, nil},
-		{true, []string{"foo", "BAR", "baz"}, "BAR", 1, nil},
-		{true, []string{"foo", "BAr", "baz"}, "bAR", 1, nil},
-	}
-
-	for _, test := range tests {
-		var schema TableSchema
-		for _, col := range test.cols {
-			schema = append(schema, column.Schema{Name: col})
-		}
-		var (
-			idx int
-			err error
-		)
-		if test.caseSensitive {
-			idx, _, err = schema.LocateColumnCaseInsensitive(test.lookup)
-		} else {
-			idx, _, err = schema.LocateColumn(test.lookup)
-		}
-		if !errors.Is(err, test.err) {
-			t.Errorf("expected looking up %+v in %+v to return %+v, got %+v instead", test.lookup, test.cols, test.err, err)
-			continue
-		}
-		if idx != test.expectedIdx {
-			t.Errorf("expected looking up %+v in %+v to return idx %+v, got %+v instead", test.lookup, test.cols, test.expectedIdx, idx)
-		}
 	}
 }

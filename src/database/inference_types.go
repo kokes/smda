@@ -11,7 +11,7 @@ import (
 // inferTypes loads a file from a path and tries to determine the schema of said file.
 // This is only about the schema, not the file format (delimiter, BOM, compression, ...), all
 // of that is within the loadSettings struct
-func inferTypes(path string, settings *loadSettings) (TableSchema, error) {
+func inferTypes(path string, settings *loadSettings) (column.TableSchema, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func inferTypes(path string, settings *loadSettings) (TableSchema, error) {
 			tgs[j].AddValue(val)
 		}
 	}
-	ret := make(TableSchema, len(tgs))
+	ret := make(column.TableSchema, len(tgs))
 	for j, tg := range tgs {
 		ret[j] = tg.InferredType()
 		ret[j].Name = hd[j]

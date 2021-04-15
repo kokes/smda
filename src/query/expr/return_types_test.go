@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/kokes/smda/src/column"
-	"github.com/kokes/smda/src/database"
 )
 
 func TestStringDedup(t *testing.T) {
@@ -34,7 +33,7 @@ func TestStringDedup(t *testing.T) {
 	}
 }
 
-func dummySchema(cols ...string) (schema database.TableSchema) {
+func dummySchema(cols ...string) (schema column.TableSchema) {
 	for _, col := range cols {
 		schema = append(schema, column.Schema{Name: col})
 	}
@@ -142,7 +141,7 @@ func TestColumnsUsedVarargs(t *testing.T) {
 }
 
 func TestValidity(t *testing.T) {
-	schema := database.TableSchema([]column.Schema{
+	schema := column.TableSchema([]column.Schema{
 		{Name: "my_int_column", Dtype: column.DtypeInt},
 		{Name: "my_float_column", Dtype: column.DtypeFloat},
 	})
@@ -165,7 +164,7 @@ func TestValidity(t *testing.T) {
 }
 
 func TestValiditySadPaths(t *testing.T) {
-	schema := database.TableSchema([]column.Schema{
+	schema := column.TableSchema([]column.Schema{
 		{Name: "my_int_column", Dtype: column.DtypeInt},
 		{Name: "my_float_column", Dtype: column.DtypeFloat},
 		{Name: "my_bool_column", Dtype: column.DtypeBool},
@@ -192,7 +191,7 @@ func TestValiditySadPaths(t *testing.T) {
 }
 
 func TestReturnTypes(t *testing.T) {
-	schema := database.TableSchema([]column.Schema{
+	schema := column.TableSchema([]column.Schema{
 		{Name: "my_int_column", Dtype: column.DtypeInt},
 		{Name: "my_float_column", Dtype: column.DtypeFloat},
 		{Name: "my_Float_column", Dtype: column.DtypeInt}, // this is intentionally incorrect
