@@ -15,6 +15,8 @@ var errInvalidString = errors.New("invalid string literal")
 var errInvalidIdentifier = errors.New("invalid identifier")
 
 type tokenType uint8
+
+// TODO(PR): consider renaming this to `token` now that we don't use go/token any more
 type tok struct {
 	ttype tokenType
 	value []byte
@@ -57,9 +59,9 @@ func (tok tok) String() string {
 	case tokenComment:
 		return fmt.Sprintf("-- %v\n", tok.value)
 	case tokenAnd:
-		return "&&" // we might change this to AND (and || to OR) to do this SQL compatibility thing
+		return "AND"
 	case tokenOr:
-		return "||"
+		return "OR"
 	case tokenAdd:
 		return "+"
 	case tokenSub:
@@ -69,7 +71,7 @@ func (tok tok) String() string {
 	case tokenQuo:
 		return "/"
 	case tokenEq:
-		return "==" // TODO: this is a compatibility thing, will need to revert this to '=' eventually
+		return "="
 	case tokenNeq:
 		return "!="
 	case tokenGt:
@@ -242,6 +244,8 @@ func (ts *tokenScanner) scan() (tok, error) {
 		// at this point we only care about and/or, because we need to convert them
 		// before we remove this SQL compatibility layer (we use Go's ast/parser, so we
 		// can't just use AND and OR as operators)
+		// TODO(PR): identify keywords: and, or, null, as, case?
+		// lowercase this identifier and look it up in a map
 		ident, err := ts.consumeIdentifier()
 		if err != nil {
 			return tok{}, err

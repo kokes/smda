@@ -4,10 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"reflect"
 	"strings"
 
 	"github.com/kokes/smda/src/column"
@@ -61,7 +57,7 @@ func (expr *Expression) IsLiteral() bool {
 	return expr.etype >= exprLiteralInt && expr.etype <= exprLiteralNull
 }
 
-// ARCH: is this used anywhere? (partially in the Expression stringer)
+// ARCH: is this used anywhere? (partially in the Expression stringer, partially in error reporting in parser_test.go)
 func (etype exprType) String() string {
 	switch etype {
 	case exprInvalid:
@@ -71,9 +67,9 @@ func (etype exprType) String() string {
 	case exprIdentifierQuoted:
 		return "QuotedIdentifier"
 	case exprAnd:
-		return "&&"
+		return "AND"
 	case exprOr:
-		return "||"
+		return "OR"
 	case exprAddition:
 		return "+"
 	case exprSubtraction:
@@ -171,7 +167,7 @@ func (expr *Expression) String() string {
 		rval = fmt.Sprintf("\"%s\"", expr.value)
 	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
 		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
-		rval = fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
+		rval = fmt.Sprintf("%s %s %s", expr.children[0], expr.etype, expr.children[1])
 	case exprLiteralInt, exprLiteralFloat, exprLiteralBool:
 		rval = expr.value
 	case exprLiteralString:
@@ -212,17 +208,7 @@ func (expr *Expression) MarshalJSON() ([]byte, error) {
 	return json.Marshal(expr.String())
 }
 
-// https://golang.org/ref/spec#Keywords
-var goKeywords = map[string]struct{}{
-	"break": {}, "default": {}, "func": {}, "interface": {},
-	"select": {}, "case": {}, "defer": {}, "go": {},
-	"map": {}, "struct": {}, "chan": {}, "else": {},
-	"goto": {}, "package": {}, "switch": {}, "const": {},
-	"fallthrough": {}, "if": {}, "range": {}, "type": {},
-	"continue": {}, "for": {}, "import": {}, "return": {}, "var": {},
-}
-
-// limitations:
+// limitations (fix this for the custom_parser - TODO(PR)):
 // - cannot use this for full query parsing, just expressions
 // - cannot do count(*) and other syntactically problematic expressions (also ::)
 // - limited use of = - we might use '==' for all equality for now and later switch to SQL's '='
@@ -241,208 +227,9 @@ func ParseStringExpr(s string) (*Expression, error) {
 	if err != nil {
 		return nil, err
 	}
-	// we could have used ParseExpr directly, but we need to sanitise it first, because Go's parser
-	// doesn't work well with SQL-like expressions
-	// we won't need this as soon as we have a custom parser
-	s2 := tokens.String()
+	// TODO(PR)
+	_ = tokens
+	tree := &Expression{}
 
-	// TODO(parser): once we get a custom parser, we won't have to deal with this
-	// essentially, we want to avoid Go builtin keywords being parsed as such, especially
-	// if the whole expression is a keyword (e.g. a column name "type")
-	var tr ast.Expr
-	if _, ok := goKeywords[s2]; ok {
-		tr = &ast.Ident{Name: s2}
-	} else {
-		tr, err = parser.ParseExpr(s2)
-		// we are fine with illegal rune literals - because we need e.g. 'ahoy' as literal strings
-		if err != nil && !strings.Contains(err.Error(), "illegal rune literal") {
-			return nil, fmt.Errorf("parse error: %w", err)
-		}
-	}
-
-	tree, err := convertAstExprToOwnExpr(tr)
-
-	return tree, err
-}
-
-func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
-	switch node := expr.(type) {
-	case *ast.Ident:
-		// TODO: what if this a reserved keyword? (we don't have any just yet)
-		value := node.Name
-
-		// not the same set of values as in parseBool, because we only want true/false (upper/lower) in literal expressions
-		if value == "true" || value == "TRUE" || value == "false" || value == "FALSE" {
-			return &Expression{
-				etype: exprLiteralBool,
-				value: fmt.Sprintf("%v", value == "true" || value == "TRUE"),
-			}, nil
-		}
-		if value == "null" || value == "NULL" {
-			return &Expression{
-				etype: exprLiteralNull,
-			}, nil
-		}
-
-		return &Expression{
-			etype: exprIdentifier,
-			value: strings.ToLower(value), // unquoted identifiers are case insensitive, so we'll lowercase them
-		}, nil
-	case *ast.BasicLit:
-		// TODO: do we need to recheck this with our own type parsers?
-		var etype exprType
-		var value string
-		switch node.Kind {
-		case token.STRING:
-			etype = exprIdentifier
-			value = node.Value[1 : len(node.Value)-1]
-			for _, char := range value {
-				// only assign the Quoted variant if there's a need for it
-				// TODO/ARCH: what about '-'? In general, what are our rules for quoting?
-				if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
-					etype = exprIdentifierQuoted
-					break
-				}
-			}
-		case token.INT:
-			etype = exprLiteralInt
-			value = node.Value
-		case token.FLOAT:
-			etype = exprLiteralFloat
-			value = node.Value
-		case token.CHAR:
-			etype = exprLiteralString
-			value = node.Value[1 : len(node.Value)-1] // trim apostrophes
-			value = strings.ReplaceAll(value, "\\'", "'")
-		default:
-			return nil, fmt.Errorf("unsupported token: %v", node.Kind)
-		}
-		return &Expression{
-			etype: etype,
-			value: value,
-		}, nil
-	case *ast.UnaryExpr:
-		if node.Op == token.ADD {
-			return convertAstExprToOwnExpr(node.X)
-		}
-		if node.Op != token.SUB {
-			return nil, fmt.Errorf("unsupported op: %s", node.Op)
-		}
-
-		// simple -1 or -2.4 should be converted into a literal
-		if x, ok := node.X.(*ast.BasicLit); ok {
-			var etype exprType
-			switch x.Kind {
-			case token.INT:
-				etype = exprLiteralInt
-			case token.FLOAT:
-				etype = exprLiteralFloat
-			default:
-				return nil, fmt.Errorf("unsupported token for unary expressions: %v", x.Kind)
-			}
-			return &Expression{
-				etype: etype,
-				value: fmt.Sprintf("-%s", x.Value),
-			}, nil
-		}
-
-		// all the other unary expressions, e.g. -foo, -(2 - bar) should be extended to (-1)*something
-		ch, err := convertAstExprToOwnExpr(node.X)
-		if err != nil {
-			return nil, err
-		}
-		return &Expression{
-			etype: exprMultiplication,
-			children: []*Expression{
-				{etype: exprLiteralInt, value: "-1"},
-				ch,
-			},
-		}, nil
-	case *ast.BinaryExpr:
-		var ntype exprType
-		switch node.Op {
-		case token.LAND:
-			ntype = exprAnd
-		case token.LOR:
-			ntype = exprOr
-		case token.ADD:
-			ntype = exprAddition
-		case token.SUB:
-			ntype = exprSubtraction
-		case token.MUL:
-			ntype = exprMultiplication
-		case token.QUO:
-			ntype = exprDivision
-		case token.EQL:
-			ntype = exprEquality
-		case token.NEQ:
-			ntype = exprNequality
-		case token.LSS:
-			ntype = exprLessThan
-		case token.LEQ:
-			ntype = exprLessThanEqual
-		case token.GTR:
-			ntype = exprGreaterThan
-		case token.GEQ:
-			ntype = exprGreaterThanEqual
-		default:
-			return nil, fmt.Errorf("unrecognised operation: %v", node.Op)
-		}
-		children := make([]*Expression, 2)
-		for j, ex := range []ast.Expr{node.X, node.Y} {
-			ch, err := convertAstExprToOwnExpr(ex)
-			if err != nil {
-				return nil, err
-			}
-			children[j] = ch
-		}
-		return &Expression{
-			etype:    ntype,
-			children: children,
-		}, nil
-	case *ast.CallExpr:
-		funName := strings.ToLower(node.Fun.(*ast.Ident).Name)
-		ret := &Expression{
-			etype: exprFunCall,
-			value: funName,
-		}
-
-		var children []*Expression
-		for _, arg := range node.Args {
-			newc, err := convertAstExprToOwnExpr(arg)
-			if err != nil {
-				return nil, err
-			}
-			children = append(children, newc)
-		}
-		ret.children = children
-
-		fncp, ok := column.FuncProj[funName]
-		if ok {
-			ret.evaler = fncp
-			return ret, nil
-		}
-		// if it's not a projection, it must be an aggregator
-		// ARCH: cannot initialise the aggregator here, because we don't know
-		// the types that go in (and we're already using static dispatch here)
-		aggfac, err := column.NewAggregator(funName)
-		if err != nil {
-			return nil, err
-		}
-		ret.aggregatorFactory = aggfac
-
-		return ret, nil
-	case *ast.ParenExpr:
-		within, err := convertAstExprToOwnExpr(node.X)
-		if err != nil {
-			return nil, err
-		}
-		within.parens = true
-		return within, nil
-	default:
-		fmt.Println(reflect.TypeOf(expr))
-		fset := token.NewFileSet() // positions are relative to fset
-		ast.Print(fset, expr)
-		return nil, fmt.Errorf("unsupported expression: %v", reflect.TypeOf(expr))
-	}
+	return tree, nil
 }
