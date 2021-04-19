@@ -2,6 +2,7 @@ package column
 
 import (
 	"encoding/binary"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -2092,4 +2093,21 @@ func (rc *ChunkStrings) Clone() Chunk {
 		data:      data,
 		offsets:   offsets,
 	}
+}
+
+// ARCH: at this point this is modelled after what's returned from Query, but over time,
+// we'll want more streaming query results, so we'll have to adapt this as well
+func WriteCSV(w io.Writer, ts TableSchema, chunks []Chunk) error {
+	row := make([]string, 0, len(ts))
+	cw := csv.NewWriter(w)
+	for _, col := range ts {
+		row = append(row, col.Name)
+	}
+	if err := cw.Write(row); err != nil {
+		return err
+	}
+	// TODO(next): finish this
+
+	cw.Flush()
+	return nil
 }

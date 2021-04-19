@@ -62,6 +62,16 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 			http.Error(w, "only POST requests allowed for /api/query", http.StatusMethodNotAllowed)
 			return
 		}
+
+		format := r.URL.Query().Get("format")
+		if format == "" {
+			format = "json"
+		}
+		if !(format == "json" || format == "csv") {
+			// http.Error(w, "can only submit `format` equal to \"json\" or \"csv\"", http.StatusBadRequest)
+			// return
+		}
+
 		var qr query.Query
 		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
@@ -79,11 +89,20 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 			http.Error(w, fmt.Sprintf("failed this query: %v", err), http.StatusInternalServerError)
 			return
 		}
-		resp, err := json.Marshal(res)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to serialise query results: %v", err), http.StatusInternalServerError)
+		switch format {
+		case "json":
+			resp, err := json.Marshal(res)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to serialise query results: %v", err), http.StatusInternalServerError)
+			}
+			w.Write(resp)
+		case "csv":
+			// TODO(PR)
+			_ = res.Schema
+			_ = res.Data
+		default:
+			panic("unreachable")
 		}
-		w.Write(resp)
 	}
 }
 
