@@ -12,6 +12,23 @@ const (
 	CALL        // myFunction(X)
 )
 
+type Parser struct {
+	tokens   tokList
+	position int
+	// infix/postfix functions
+}
+
+func NewParser(s string) (*Parser, error) {
+	// OPTIM: walk it here without materialising it... but it shouldn't really matter for our use cases
+	tokens, err := tokeniseString(s)
+	if err != nil {
+		return nil, err
+	}
+	return &Parser{
+		tokens: tokens,
+	}, nil
+}
+
 // limitations (fix this for the custom_parser - TODO(PR)):
 // - cannot use this for full query parsing, just expressions
 // - cannot do count(*) and other syntactically problematic expressions (also ::)
@@ -27,16 +44,12 @@ const (
 // isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
 //  - then build an expression parser with precedence built in
 func ParseStringExpr(s string) (*Expression, error) {
-	tokens, err := tokeniseString(s)
+	p, err := NewParser(s)
 	if err != nil {
 		return nil, err
 	}
 	// TODO(PR)
-	pos := 0
-	for pos < len(tokens) {
-
-		pos++ // just so it doesn't explode
-	}
+	_ = p
 	// func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 	// 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
