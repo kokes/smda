@@ -28,8 +28,22 @@ const (
 	tokenIdentifier
 	tokenIdentifierQuoted
 	tokenComment
+	// keywords:
 	tokenAnd
 	tokenOr
+	tokenAs
+	tokenTrue
+	tokenFalse
+	tokenNull
+	tokenIn
+	tokenLike
+	tokenIlike
+	tokenIs
+	tokenNot
+	tokenCase
+	tokenWhen
+	tokenEnd
+	// keywords end
 	tokenAdd
 	tokenSub
 	tokenMul
@@ -50,6 +64,24 @@ const (
 	// potential additions: || (string concatenation), :: (casting), &|^ (bitwise operations), ** (power)
 )
 
+var keywords = map[string]tokenType{
+	"and":   tokenAnd,
+	"or":    tokenOr,
+	"as":    tokenAs,
+	"true":  tokenTrue,
+	"false": tokenFalse,
+	"null":  tokenNull,
+	"in":    tokenIn,
+	"like":  tokenLike,
+	"ilike": tokenIlike,
+	"is":    tokenIs,
+	"not":   tokenNot,
+	"case":  tokenCase,
+	"when":  tokenWhen,
+	"end":   tokenEnd,
+}
+
+// ARCH: it might be useful to just use .value in most cases here
 func (tok tok) String() string {
 	switch tok.ttype {
 	case tokenIdentifier:
@@ -62,6 +94,30 @@ func (tok tok) String() string {
 		return "AND"
 	case tokenOr:
 		return "OR"
+	case tokenAs:
+		return "AS"
+	case tokenTrue:
+		return "TRUE"
+	case tokenFalse:
+		return "FALSE"
+	case tokenNull:
+		return "NULL"
+	case tokenIn:
+		return "IN"
+	case tokenLike:
+		return "LIKE"
+	case tokenIlike:
+		return "ILIKE"
+	case tokenIs:
+		return "IS"
+	case tokenNot:
+		return "NOT"
+	case tokenCase:
+		return "CASE"
+	case tokenWhen:
+		return "WHEN"
+	case tokenEnd:
+		return "END"
 	case tokenAdd:
 		return "+"
 	case tokenSub:
@@ -241,21 +297,15 @@ func (ts *tokenScanner) scan() (tok, error) {
 		return ts.consumeStringLiteral()
 	default:
 		// doesn't have to be an identifier, could be a keyword
-		// at this point we only care about and/or, because we need to convert them
-		// before we remove this SQL compatibility layer (we use Go's ast/parser, so we
-		// can't just use AND and OR as operators)
-		// TODO(PR): identify keywords: and, or, null, as, case?
-		// lowercase this identifier and look it up in a map
 		ident, err := ts.consumeIdentifier()
 		if err != nil {
 			return tok{}, err
 		}
-		if bytes.Equal(ident.value, []byte("and")) || bytes.Equal(ident.value, []byte("AND")) {
-			return tok{ttype: tokenAnd}, nil
+		identl := strings.ToLower(string(ident.value))
+		if kw, ok := keywords[identl]; ok {
+			return tok{ttype: kw}, nil
 		}
-		if bytes.Equal(ident.value, []byte("or")) || bytes.Equal(ident.value, []byte("OR")) {
-			return tok{ttype: tokenOr}, nil
-		}
+
 		return ident, nil
 	}
 }

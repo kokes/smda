@@ -102,6 +102,7 @@ func TestTokenisationWithValues(t *testing.T) {
 		{"'ah'' '' '' '' ''oy'*", []tok{{tokenLiteralString, []byte("ah' ' ' ' 'oy")}, {tokenMul, nil}}},
 		{"ahoy", []tok{{tokenIdentifier, []byte("ahoy")}}},
 		{"hello_world", []tok{{tokenIdentifier, []byte("hello_world")}}},
+		{"foo as bar", []tok{{tokenIdentifier, []byte("foo")}, {tokenAs, nil}, {tokenIdentifier, []byte("bar")}}},
 		{"\"ahoy\"", []tok{{tokenIdentifierQuoted, []byte("ahoy")}}},
 		{"+\"ahoy\"+", []tok{{tokenAdd, nil}, {tokenIdentifierQuoted, []byte("ahoy")}, {tokenAdd, nil}}},
 		{"-- here is my comment\n1", []tok{{tokenComment, []byte(" here is my comment")}, {tokenLiteralInt, []byte("1")}}},
@@ -126,6 +127,9 @@ func TestTokenisationInvariants(t *testing.T) {
 		{"2\t/1234", "2/1234"},
 		{"2\n3", "2 3"},
 		{"", "\t\n "},
+		{"foo is bar", "foo Is bar"},
+		{"foo is bar", "foo IS bar"},
+		{"foo is NUll", "foo IS NULL"},
 	}
 
 	for _, test := range tt {
@@ -188,6 +192,10 @@ func TestTokenisationStringer(t *testing.T) {
 		{"1 + 3/2", "1 + 3 / 2"},
 		// ARCH: maybe consider not printing whitespace after `(`` and before `)` (also see the coalesce test)
 		{" ( a+b) ", "( a + b )"},
+		{"foo and bar", "foo AND bar"},
+		{"foo as bar", "foo AS bar"},
+		{"foo is true", "foo IS TRUE"},
+		{"Bar is not False", "Bar IS NOT FALSE"},
 		{"foo", "foo"},
 		{"foo-bar*2", "foo - bar * 2"},
 		{"Foo+Bar", "Foo + Bar"},
