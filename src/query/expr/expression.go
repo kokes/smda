@@ -17,6 +17,8 @@ const (
 	exprInvalid exprType = iota
 	exprIdentifier
 	exprIdentifierQuoted
+	// TODO(PR): what about all our new keyword tokens? Where do they go? Things like CASE, AS, NULL, ...
+	exprPrefixOperator
 	exprAnd
 	exprOr
 	exprAddition
@@ -50,6 +52,7 @@ func (expr *Expression) IsOperatorComparison() bool {
 	return expr.etype >= exprEquality && expr.etype <= exprGreaterThanEqual
 }
 
+// TODO(PR): what about `exprPrefixOperator`... does that go here?
 func (expr *Expression) IsOperator() bool {
 	return expr.IsOperatorBoolean() || expr.IsOperatorMath() || expr.IsOperatorComparison()
 }
@@ -66,6 +69,8 @@ func (etype exprType) String() string {
 		return "Identifier"
 	case exprIdentifierQuoted:
 		return "QuotedIdentifier"
+	case exprPrefixOperator:
+		return "PrefixOperator"
 	case exprAnd:
 		return "AND"
 	case exprOr:
@@ -165,6 +170,9 @@ func (expr *Expression) String() string {
 		rval = expr.value
 	case exprIdentifierQuoted:
 		rval = fmt.Sprintf("\"%s\"", expr.value)
+	case exprPrefixOperator:
+		// TODO(PR): the book (page 61) says we should enclose the contents in brackets? should we?
+		rval = fmt.Sprintf("%s%s", expr.value, expr.children[0])
 	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
 		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
 		rval = fmt.Sprintf("%s %s %s", expr.children[0], expr.etype, expr.children[1])

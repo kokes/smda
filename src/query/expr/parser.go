@@ -38,11 +38,15 @@ func NewParser(s string) (*Parser, error) {
 		return nil, err
 	}
 	p := &Parser{tokens: tokens}
-	pf := make(map[tokenType]prefixParseFn)
-	pf[tokenIdentifier] = p.parseIdentifer
-	pf[tokenIdentifierQuoted] = p.parseIdentiferQuoted
+	p.prefixParseFns = map[tokenType]prefixParseFn{
+		tokenIdentifier:       p.parseIdentifer,
+		tokenIdentifierQuoted: p.parseIdentiferQuoted,
+		tokenLiteralInt:       p.parseLiteralInteger,
+		tokenLiteralFloat:     p.parseLiteralFloat,
+		tokenSub:              p.parsePrefixExpression,
+		tokenNot:              p.parsePrefixExpression,
+	}
 
-	p.prefixParseFns = pf
 	return p, nil
 }
 
@@ -67,10 +71,37 @@ func (p *Parser) parseIdentiferQuoted() *Expression {
 
 	return &Expression{etype: etype, value: string(val)}
 }
+func (p *Parser) parseLiteralInteger() *Expression {
+	val := p.tokens[p.position].value
+	// TODO(PR): validate using strconv
+	return &Expression{etype: exprLiteralInt, value: string(val)}
+}
+func (p *Parser) parseLiteralFloat() *Expression {
+	val := p.tokens[p.position].value
+	// TODO(PR): validate using strconv
+	return &Expression{etype: exprLiteralFloat, value: string(val)}
+}
+func (p *Parser) parsePrefixExpression() *Expression {
+	token := p.tokens[p.position]
+	expr := &Expression{
+		etype: exprPrefixOperator,
+		// TODO: should we use token.value instead? We don't set it now...
+		// also, this will make it quite clunky to match on
+		value: token.String(),
+	}
+
+	p.position++
+
+	right := p.parseExpression(PREFIX)
+	expr.children = append(expr.children, right)
+
+	return expr
+}
 
 func (p *Parser) parseExpression(precedence int) *Expression {
 	prefix := p.prefixParseFns[p.tokens[p.position].ttype]
 	if prefix == nil {
+		// TODO(PR): proper error reporting? (like `p.errors` in the book)
 		log.Fatalf("tried %v", p.tokens[p.position]) // TODO(PR): remove, just for debugging now
 		return nil
 	}
