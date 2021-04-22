@@ -1,6 +1,12 @@
 package expr
 
+import (
+	"bytes"
+	"log"
+)
+
 // thank you, Thorsten
+// TODO(PR): retype?
 const (
 	_ int = iota
 	LOWEST
@@ -12,10 +18,17 @@ const (
 	CALL        // myFunction(X)
 )
 
+type (
+	prefixParseFn func() *Expression
+	infixParseFn  func(*Expression) *Expression
+)
+
 type Parser struct {
 	tokens   tokList
 	position int
-	// infix/postfix functions
+
+	prefixParseFns map[tokenType]prefixParseFn
+	infixParseFns  map[tokenType]infixParseFn
 }
 
 func NewParser(s string) (*Parser, error) {
@@ -24,16 +37,62 @@ func NewParser(s string) (*Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Parser{
-		tokens: tokens,
-	}, nil
+	p := &Parser{tokens: tokens}
+	pf := make(map[tokenType]prefixParseFn)
+	pf[tokenIdentifier] = p.parseIdentifer
+	pf[tokenIdentifierQuoted] = p.parseIdentiferQuoted
+
+	p.prefixParseFns = pf
+	return p, nil
 }
 
+// TODO(PR): maybe don't build these as method but as functions (taking in Parser) and have them globally in a slice,
+// not in a map for each parser
+func (p *Parser) parseIdentifer() *Expression {
+	val := p.tokens[p.position].value
+	val = bytes.ToLower(val) // unquoted identifiers are case insensitive, so we can lowercase them
+	return &Expression{etype: exprIdentifier, value: string(val)}
+}
+func (p *Parser) parseIdentiferQuoted() *Expression {
+	val := p.tokens[p.position].value
+	etype := exprIdentifier
+	// only assign the Quoted variant if there's a need for it
+	// TODO/ARCH: what about '-'? In general, what are our rules for quoting?
+	for _, char := range val {
+		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
+			etype = exprIdentifierQuoted
+			break
+		}
+	}
+
+	return &Expression{etype: etype, value: string(val)}
+}
+
+func (p *Parser) parseExpression(precedence int) *Expression {
+	prefix := p.prefixParseFns[p.tokens[p.position].ttype]
+	if prefix == nil {
+		log.Fatalf("tried %v", p.tokens[p.position]) // TODO(PR): remove, just for debugging now
+		return nil
+	}
+
+	return prefix()
+}
+
+func ParseStringExpr(s string) (*Expression, error) {
+	p, err := NewParser(s)
+	if err != nil {
+		return nil, err
+	}
+	// TODO(PR)
+	ret := p.parseExpression(LOWEST)
+
+	return ret, nil
+}
+
+// TODO(PR): reflect these notes on ParseStringExpr in tests:
 // limitations (fix this for the custom_parser - TODO(PR)):
 // - cannot use this for full query parsing, just expressions
 // - cannot do count(*) and other syntactically problematic expressions (also ::)
-// - limited use of = - we might use '==' for all equality for now and later switch to SQL's '='
-//   - or we might silently promote any '=' to '==' (but only outside of strings...)
 // - we cannot use escaped apostrophes in string literals (because Go can't parse that) - unless we sanitise that during tokenisation
 // normal process: 1) tokenise, 2) build an ast, // 3) (optional) optimise the ast
 // our process: 1) tokenise, 2) edit some of these tokens, 3) stringify and build an ast using a 3rd party, 4) optimise
@@ -43,31 +102,3 @@ func NewParser(s string) (*Parser, error) {
 // when building our own parser, consider:
 // isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
 //  - then build an expression parser with precedence built in
-func ParseStringExpr(s string) (*Expression, error) {
-	p, err := NewParser(s)
-	if err != nil {
-		return nil, err
-	}
-	// TODO(PR)
-	_ = p
-	// func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
-	// 	stmt := &ast.ExpressionStatement{Token: p.curToken}
-
-	// 	stmt.Expression = p.parseExpression(LOWEST)
-	// 	if p.peekTokenIs(token.SEMICOLON) {
-	// 		p.nextToken()
-	// 	}
-	// 	return stmt
-	// }
-
-	return &Expression{}, nil
-}
-
-// func (p *Parser) parseExpression(precedence int) ast.Expression {
-// 	prefix := p.prefixParseFns[p.curToken.Type]
-// 	if prefix == nil {
-// 		return nil
-// 	}
-// 	leftExp := prefix()
-// 	return leftExp
-// }
