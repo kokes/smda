@@ -43,7 +43,7 @@ bench:
 	GOMAXPROCS=1 CGO_ENABLED=0 $(GORLS) test -run=NONE -bench=. -benchmem ./...
 
 bench-many:
-	for i in {1..10}; do make bench; done | tee $(shell eval git rev-parse --abbrev-ref HEAD).txt
+	for i in {1..10}; do make bench; done | tee $(shell eval git rev-parse --abbrev-ref HEAD)_$(GORLS).txt
 
 coverstats:
 	CGO_ENABLED=0 $(GORLS) tool cover -func=coverage.out
