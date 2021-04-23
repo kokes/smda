@@ -46,11 +46,17 @@ func TestParsingContents(t *testing.T) {
 		// 		{etype: exprIdentifier, value: "bar"},
 		// 	}},
 
+		// infix operators
+		{"4 * 2", &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprLiteralInt, value: "2"},
+		}}},
+		{"4 + foo", &Expression{etype: exprAddition, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+
 		// TODO(PR): uncomment all this
-		// {"\"hello world\"*2", &Expression{etype: exprMultiplication, children: []*Expression{
-		// 	{etype: exprIdentifierQuoted, value: "hello world"},
-		// 	{etype: exprLiteralInt, value: "2"},
-		// }}},
 		// {"foo = 'bar' AND bak = 'bar'", nil},
 		// {"1 < foo < 3", nil},
 		// {"bar < foo < bak", nil},

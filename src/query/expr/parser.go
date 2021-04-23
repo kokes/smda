@@ -2,6 +2,7 @@ package expr
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 )
 
@@ -12,11 +13,23 @@ const (
 	LOWEST
 	EQUALS      // ==
 	LESSGREATER // > or <
-	SUM         // +
+	SUM         // +, TODO(PR): rename to ADDITION?
 	PRODUCT     // *
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
 )
+
+var precedences = map[tokenType]int{
+	tokenEq:  EQUALS,
+	tokenNeq: EQUALS,
+	tokenLt:  LESSGREATER,
+	tokenGt:  LESSGREATER, // TODO(PR): LTE, GTE?
+	tokenAdd: SUM,
+	tokenSub: SUM,
+	tokenQuo: PRODUCT,
+	tokenMul: PRODUCT,
+	// TODO(PR): tokenIs, tokenAnd, tokenOr (look up Go code and their precedence tables)
+}
 
 type (
 	prefixParseFn func() *Expression
@@ -43,11 +56,30 @@ func NewParser(s string) (*Parser, error) {
 		tokenIdentifierQuoted: p.parseIdentiferQuoted,
 		tokenLiteralInt:       p.parseLiteralInteger,
 		tokenLiteralFloat:     p.parseLiteralFloat,
-		tokenSub:              p.parsePrefixExpression,
+		tokenSub:              p.parsePrefixExpression, // TODO(PR)/ARCH: maybe have a method for Sub and Not separate?
 		tokenNot:              p.parsePrefixExpression,
+	}
+	p.infixParseFns = map[tokenType]infixParseFn{
+		tokenAdd: p.parseInfixExpression,
+		tokenSub: p.parseInfixExpression,
+		tokenQuo: p.parseInfixExpression,
+		tokenMul: p.parseInfixExpression,
+		tokenEq:  p.parseInfixExpression,
+		tokenNeq: p.parseInfixExpression,
+		tokenLt:  p.parseInfixExpression,
+		tokenGt:  p.parseInfixExpression,
+		// TODO(PR): is, lte, gte
 	}
 
 	return p, nil
+}
+
+func (p *Parser) peekPrecedence() int {
+	if p.position >= len(p.tokens)-1 {
+		return LOWEST
+	}
+	peekToken := p.tokens[p.position+1]
+	return precedences[peekToken.ttype]
 }
 
 // TODO(PR): maybe don't build these as method but as functions (taking in Parser) and have them globally in a slice,
@@ -98,6 +130,29 @@ func (p *Parser) parsePrefixExpression() *Expression {
 	return expr
 }
 
+func (p *Parser) parseInfixExpression(left *Expression) *Expression {
+	var etype exprType
+	curToken := p.tokens[p.position]
+	switch curToken.ttype {
+	case tokenAdd:
+		etype = exprAddition
+	case tokenSub:
+		etype = exprSubtraction
+	case tokenMul:
+		etype = exprMultiplication
+	default:
+		panic("TODO(PR)" + fmt.Sprintf("%v AND %v", left, curToken))
+	}
+	expr := &Expression{etype: etype}
+	precedence := precedences[p.tokens[p.position].ttype] // TODO(PR): consider moving all this to curPrecedence?
+	p.position++
+	right := p.parseExpression(precedence)
+
+	expr.children = []*Expression{left, right}
+
+	return expr
+}
+
 func (p *Parser) parseExpression(precedence int) *Expression {
 	prefix := p.prefixParseFns[p.tokens[p.position].ttype]
 	if prefix == nil {
@@ -106,7 +161,18 @@ func (p *Parser) parseExpression(precedence int) *Expression {
 		return nil
 	}
 
-	return prefix()
+	left := prefix()
+
+	for precedence < p.peekPrecedence() {
+		nextToken := p.tokens[p.position+1]
+		infix := p.infixParseFns[nextToken.ttype]
+		if infix == nil {
+			return left
+		}
+		p.position++
+		left = infix(left)
+	}
+	return left
 }
 
 func ParseStringExpr(s string) (*Expression, error) {
@@ -116,6 +182,8 @@ func ParseStringExpr(s string) (*Expression, error) {
 	}
 	// TODO(PR)
 	ret := p.parseExpression(LOWEST)
+
+	// TODO(PR): err if p.position != len(p.tokens) - 1?
 
 	return ret, nil
 }
