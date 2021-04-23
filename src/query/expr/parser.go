@@ -56,8 +56,11 @@ func NewParser(s string) (*Parser, error) {
 		tokenIdentifierQuoted: p.parseIdentiferQuoted,
 		tokenLiteralInt:       p.parseLiteralInteger,
 		tokenLiteralFloat:     p.parseLiteralFloat,
-		tokenSub:              p.parsePrefixExpression, // TODO(PR)/ARCH: maybe have a method for Sub and Not separate?
-		tokenNot:              p.parsePrefixExpression,
+		// TODO(PR)/ARCH: maybe have a method for Sub and Not separate?
+		// also, it will make sense to have to expr types (exprUnaryMinus, exprNot), because
+		// it will make it way easier to evaluate
+		tokenSub: p.parsePrefixExpression,
+		tokenNot: p.parsePrefixExpression,
 	}
 	p.infixParseFns = map[tokenType]infixParseFn{
 		tokenAdd: p.parseInfixExpression,
@@ -140,6 +143,8 @@ func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 		etype = exprSubtraction
 	case tokenMul:
 		etype = exprMultiplication
+	case tokenQuo:
+		etype = exprDivision
 	default:
 		panic("TODO(PR)" + fmt.Sprintf("%v AND %v", left, curToken))
 	}

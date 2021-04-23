@@ -55,6 +55,27 @@ func TestParsingContents(t *testing.T) {
 			{etype: exprLiteralInt, value: "4"},
 			{etype: exprIdentifier, value: "foo"},
 		}}},
+		{"4 - foo", &Expression{etype: exprSubtraction, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"4 / foo", &Expression{etype: exprDivision, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"4 + 3 + 2", &Expression{etype: exprAddition, children: []*Expression{
+			{etype: exprAddition, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralInt, value: "2"},
+		}}},
+
+		// prefix and infix
+		{"-4 / foo", &Expression{etype: exprDivision, children: []*Expression{
+			{etype: exprPrefixOperator, value: "-", children: []*Expression{{etype: exprLiteralInt, value: "4"}}},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
 
 		// TODO(PR): uncomment all this
 		// {"foo = 'bar' AND bak = 'bar'", nil},
