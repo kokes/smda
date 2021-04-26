@@ -165,20 +165,42 @@ func TestParsingContents(t *testing.T) {
 		}}},
 
 		// boolean operators
-		// {"foo and bar", &Expression{etype: exprAnd, children: []*Expression{
-		// 	{etype: exprIdentifier, value: "foo"},
-		// 	{etype: exprIdentifier, value: "bar"},
-		// }}},
-		// {"4 > 3 AND 5 = 1", &Expression{etype: exprAnd, children: []*Expression{
-		// 	{etype: exprGreaterThan, children: []*Expression{
-		// 		{etype: exprLiteralInt, value: "4"},
-		// 		{etype: exprLiteralInt, value: "3"},
-		// 	}},
-		// 	{etype: exprEquality, children: []*Expression{
-		// 		{etype: exprLiteralInt, value: "5"},
-		// 		{etype: exprLiteralInt, value: "1"},
-		// 	}},
-		// }}},
+		{"foo and bar", &Expression{etype: exprAnd, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+			{etype: exprIdentifier, value: "bar"},
+		}}},
+		{"4 > 3 AND 5 = 1", &Expression{etype: exprAnd, children: []*Expression{
+			{etype: exprGreaterThan, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprEquality, children: []*Expression{
+				{etype: exprLiteralInt, value: "5"},
+				{etype: exprLiteralInt, value: "1"},
+			}},
+		}}},
+		{"foo = 2 AND 3 = bar", &Expression{etype: exprAnd, children: []*Expression{
+			{etype: exprEquality, children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprLiteralInt, value: "2"},
+			}},
+			{etype: exprEquality, children: []*Expression{
+				{etype: exprLiteralInt, value: "3"},
+				{etype: exprIdentifier, value: "bar"},
+			}},
+		}}},
+		{"foo > 3 OR -2 <= bar", &Expression{etype: exprOr, children: []*Expression{
+			{etype: exprGreaterThan, children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLessThanEqual, children: []*Expression{
+				{etype: exprPrefixOperator, value: "-", children: []*Expression{
+					{etype: exprLiteralInt, value: "2"},
+				}},
+				{etype: exprIdentifier, value: "bar"},
+			}},
+		}}},
 
 		// parentheses
 		{"2 * (4 + 3)", &Expression{etype: exprMultiplication, children: []*Expression{
@@ -196,10 +218,15 @@ func TestParsingContents(t *testing.T) {
 			}},
 		}}},
 
-		// TODO(PR): uncomment all this
-		// {"foo = 'bar' AND bak = 'bar'", nil},
-		// {"1 < foo < 3", nil},
-		// {"bar < foo < bak", nil},
+		// just testing the parser, not checking the output
+		{"foo = 'bar' AND bak = 'bar'", nil},
+		{"1 < foo < 3", nil},
+		{"bar < foo < bak", nil},
+
+		// TODO(PR): function calls
+		// {"sum(foo < 3)", nil},
+		// {"sum(foo >= 3)", nil},
+		// {"sum(foo <= 3)", nil},
 		// {"count(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
 		// 	{etype: exprIdentifier, value: "foobar"},
 		// }}},
@@ -244,30 +271,6 @@ func TestParsingContents(t *testing.T) {
 		// 		{etype: exprIdentifier, value: "foo"},
 		// 		{etype: exprLiteralInt, value: "3"},
 		// 	}},
-		// }}},
-		// {"sum(foo < 3)", nil},
-		// {"sum(foo >= 3)", nil},
-		// {"sum(foo <= 3)", nil},
-		// {"foo = 2 AND 3 = bar", &Expression{etype: exprAnd, children: []*Expression{
-		// 	{etype: exprEquality, children: []*Expression{
-		// 		{etype: exprIdentifier, value: "foo"},
-		// 		{etype: exprLiteralInt, value: "2"},
-		// 	}},
-		// 	{etype: exprEquality, children: []*Expression{
-		// 		{etype: exprLiteralInt, value: "3"},
-		// 		{etype: exprIdentifier, value: "bar"},
-		// 	}},
-		// }}},
-		// {"foo > 3 OR -2 <= bar", &Expression{etype: exprOr, children: []*Expression{
-		// 	{etype: exprGreaterThan, children: []*Expression{
-		// 		{etype: exprIdentifier, value: "foo"},
-		// 		{etype: exprLiteralInt, value: "3"},
-		// 	}},
-		// 	{etype: exprLessThanEqual, children: []*Expression{
-		// 		{etype: exprLiteralInt, value: "-2"},
-		// 		{etype: exprIdentifier, value: "bar"},
-		// 	}},
-		// }}},
 		// }}},
 	}
 

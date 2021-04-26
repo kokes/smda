@@ -11,7 +11,7 @@ import (
 const (
 	_ int = iota
 	LOWEST
-	// BOOL_AND_OR // TODO(PR): i think it goes here
+	BOOL_AND_OR // TODO(PR): is it really that AND and OR have the same precedence?
 	EQUALS      // ==
 	LESSGREATER // > or <
 	SUM         // +, TODO(PR): rename to ADDITION?
@@ -21,6 +21,8 @@ const (
 )
 
 var precedences = map[tokenType]int{
+	tokenAnd: BOOL_AND_OR,
+	tokenOr:  BOOL_AND_OR,
 	tokenEq:  EQUALS,
 	tokenNeq: EQUALS,
 	tokenLt:  LESSGREATER,
@@ -71,6 +73,8 @@ func NewParser(s string) (*Parser, error) {
 		tokenNot: p.parsePrefixExpression,
 	}
 	p.infixParseFns = map[tokenType]infixParseFn{
+		tokenAnd: p.parseInfixExpression,
+		tokenOr:  p.parseInfixExpression,
 		tokenAdd: p.parseInfixExpression,
 		tokenSub: p.parseInfixExpression,
 		tokenQuo: p.parseInfixExpression,
@@ -181,6 +185,10 @@ func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 	// TODO(PR)/ARCH: this could be done in a map[tokenType]exprType?
 	// or maybe, in the future, we could have an exprOperator? That would house all of these?
 	switch curToken.ttype {
+	case tokenAnd:
+		etype = exprAnd
+	case tokenOr:
+		etype = exprOr
 	case tokenAdd:
 		etype = exprAddition
 	case tokenSub:
@@ -200,7 +208,7 @@ func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 	case tokenLt:
 		etype = exprLessThan
 	case tokenLte:
-		etype = exprGreaterThanEqual
+		etype = exprLessThanEqual
 	default:
 		panic("TODO(PR)" + fmt.Sprintf("%v AND %v", left, curToken))
 	}
