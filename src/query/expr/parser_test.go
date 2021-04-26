@@ -224,22 +224,37 @@ func TestParsingContents(t *testing.T) {
 		{"bar < foo < bak", nil},
 
 		// TODO(PR): function calls
-		// {"sum(foo < 3)", nil},
-		// {"sum(foo >= 3)", nil},
-		// {"sum(foo <= 3)", nil},
-		// {"count(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
-		// 	{etype: exprIdentifier, value: "foobar"},
-		// }}},
-		// // case insensitivity of function names
-		// {"COUNT(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
-		// 	{etype: exprIdentifier, value: "foobar"},
-		// }}},
-		// {"Count(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
-		// 	{etype: exprIdentifier, value: "foobar"},
-		// }}},
-		// {"counT(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
-		// 	{etype: exprIdentifier, value: "foobar"},
-		// }}},
+		{"sum(foo < 3)", nil},
+		{"sum(foo >= 3)", nil},
+		{"sum(foo <= 3)", nil},
+		{"count()", &Expression{etype: exprFunCall, value: "count"}},
+		{"count(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprIdentifier, value: "foobar"},
+		}}},
+		{"count(1, 2, 3)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprLiteralInt, value: "1"},
+			{etype: exprLiteralInt, value: "2"},
+			{etype: exprLiteralInt, value: "3"},
+		}}},
+		{"count(1, 2*3, 3)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprLiteralInt, value: "1"},
+			{etype: exprMultiplication, children: []*Expression{
+				{etype: exprLiteralInt, value: "2"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralInt, value: "3"},
+		}}},
+		// case insensitivity of function names
+		{"COUNT(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprIdentifier, value: "foobar"},
+		}}},
+		{"Count(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprIdentifier, value: "foobar"},
+		}}},
+		{"counT(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprIdentifier, value: "foobar"},
+		}}},
+		// TODO(PR): unparsed ending
 		// {"coalesce(foo, bar, 1) - 4", &Expression{etype: exprSubtraction, children: []*Expression{
 		// 	{etype: exprFunCall, value: "coalesce", children: []*Expression{
 		// 		{etype: exprIdentifier, value: "foo"},
@@ -248,30 +263,30 @@ func TestParsingContents(t *testing.T) {
 		// 	}},
 		// 	{etype: exprLiteralInt, value: "4"},
 		// }}},
-		// {"nullif(baz, 'foo')", &Expression{etype: exprFunCall, value: "nullif", children: []*Expression{
-		// 	{etype: exprIdentifier, value: "baz"},
-		// 	{etype: exprLiteralString, value: "foo"},
-		// }}},
-		// {"nullif(bak, 103)", &Expression{etype: exprFunCall, value: "nullif", children: []*Expression{
-		// 	{etype: exprIdentifier, value: "bak"},
-		// 	{etype: exprLiteralInt, value: "103"},
-		// }}},
-		// {"round(1.234, 2)", &Expression{etype: exprFunCall, value: "round", children: []*Expression{
-		// 	{etype: exprLiteralFloat, value: "1.234"},
-		// 	{etype: exprLiteralInt, value: "2"},
-		// }}},
-		// {"count(foo = true)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
-		// 	{etype: exprEquality, children: []*Expression{
-		// 		{etype: exprIdentifier, value: "foo"},
-		// 		{etype: exprLiteralBool, value: "true"},
-		// 	}},
-		// }}},
-		// {"sum(foo > 3)", &Expression{etype: exprFunCall, value: "sum", children: []*Expression{
-		// 	{etype: exprGreaterThan, children: []*Expression{
-		// 		{etype: exprIdentifier, value: "foo"},
-		// 		{etype: exprLiteralInt, value: "3"},
-		// 	}},
-		// }}},
+		{"nullif(baz, 'foo')", &Expression{etype: exprFunCall, value: "nullif", children: []*Expression{
+			{etype: exprIdentifier, value: "baz"},
+			{etype: exprLiteralString, value: "foo"},
+		}}},
+		{"nullif(bak, 103)", &Expression{etype: exprFunCall, value: "nullif", children: []*Expression{
+			{etype: exprIdentifier, value: "bak"},
+			{etype: exprLiteralInt, value: "103"},
+		}}},
+		{"round(1.234, 2)", &Expression{etype: exprFunCall, value: "round", children: []*Expression{
+			{etype: exprLiteralFloat, value: "1.234"},
+			{etype: exprLiteralInt, value: "2"},
+		}}},
+		{"count(foo = true)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprEquality, children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprLiteralBool, value: "TRUE"},
+			}},
+		}}},
+		{"sum(foo > 3)", &Expression{etype: exprFunCall, value: "sum", children: []*Expression{
+			{etype: exprGreaterThan, children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+		}}},
 	}
 
 	for _, test := range tests {

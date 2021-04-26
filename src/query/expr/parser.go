@@ -21,18 +21,19 @@ const (
 )
 
 var precedences = map[tokenType]int{
-	tokenAnd: BOOL_AND_OR,
-	tokenOr:  BOOL_AND_OR,
-	tokenEq:  EQUALS,
-	tokenNeq: EQUALS,
-	tokenLt:  LESSGREATER,
-	tokenGt:  LESSGREATER,
-	tokenLte: LESSGREATER,
-	tokenGte: LESSGREATER,
-	tokenAdd: SUM,
-	tokenSub: SUM,
-	tokenQuo: PRODUCT,
-	tokenMul: PRODUCT,
+	tokenAnd:    BOOL_AND_OR,
+	tokenOr:     BOOL_AND_OR,
+	tokenEq:     EQUALS,
+	tokenNeq:    EQUALS,
+	tokenLt:     LESSGREATER,
+	tokenGt:     LESSGREATER,
+	tokenLte:    LESSGREATER,
+	tokenGte:    LESSGREATER,
+	tokenAdd:    SUM,
+	tokenSub:    SUM,
+	tokenQuo:    PRODUCT,
+	tokenMul:    PRODUCT,
+	tokenLparen: CALL,
 	// TODO(PR): tokenIs, tokenAnd, tokenOr (look up Go code and their precedence tables)
 }
 
@@ -73,19 +74,20 @@ func NewParser(s string) (*Parser, error) {
 		tokenNot: p.parsePrefixExpression,
 	}
 	p.infixParseFns = map[tokenType]infixParseFn{
-		tokenAnd: p.parseInfixExpression,
-		tokenOr:  p.parseInfixExpression,
-		tokenAdd: p.parseInfixExpression,
-		tokenSub: p.parseInfixExpression,
-		tokenQuo: p.parseInfixExpression,
-		tokenMul: p.parseInfixExpression,
-		tokenEq:  p.parseInfixExpression,
-		tokenNeq: p.parseInfixExpression,
-		tokenLt:  p.parseInfixExpression,
-		tokenGt:  p.parseInfixExpression,
-		tokenLte: p.parseInfixExpression,
-		tokenGte: p.parseInfixExpression,
-		// TODO(PR): is, lte, gte
+		tokenAnd:    p.parseInfixExpression,
+		tokenOr:     p.parseInfixExpression,
+		tokenAdd:    p.parseInfixExpression,
+		tokenSub:    p.parseInfixExpression,
+		tokenQuo:    p.parseInfixExpression,
+		tokenMul:    p.parseInfixExpression,
+		tokenEq:     p.parseInfixExpression,
+		tokenNeq:    p.parseInfixExpression,
+		tokenLt:     p.parseInfixExpression,
+		tokenGt:     p.parseInfixExpression,
+		tokenLte:    p.parseInfixExpression,
+		tokenGte:    p.parseInfixExpression,
+		tokenLparen: p.parseCallExpression,
+		// TODO(PR): is
 	}
 
 	return p, nil
@@ -179,6 +181,28 @@ func (p *Parser) parsePrefixExpression() *Expression {
 	return expr
 }
 
+func (p *Parser) parseCallExpression(left *Expression) *Expression {
+	expr := &Expression{etype: exprFunCall, value: left.value}
+
+	if p.peekToken().ttype == tokenRparen {
+		p.position++
+		return expr
+	}
+	p.position++
+	expr.children = append(expr.children, p.parseExpression(LOWEST))
+
+	for p.peekToken().ttype == tokenComma {
+		p.position += 2
+		expr.children = append(expr.children, p.parseExpression(LOWEST))
+	}
+
+	if p.peekToken().ttype != tokenRparen {
+		// TODO(PR): error reporting
+		return nil
+	}
+
+	return expr
+}
 func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 	var etype exprType
 	curToken := p.tokens[p.position]
@@ -249,7 +273,6 @@ func ParseStringExpr(s string) (*Expression, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO(PR)
 	ret := p.parseExpression(LOWEST)
 
 	// TODO(PR): err if p.position != len(p.tokens) - 1?
