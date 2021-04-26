@@ -210,6 +210,16 @@ func TestParsingContents(t *testing.T) {
 				{etype: exprLiteralInt, value: "3"},
 			}},
 		}}},
+		{"(4 + 3) - 2*3", &Expression{etype: exprSubtraction, children: []*Expression{
+			{etype: exprAddition, parens: true, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprMultiplication, children: []*Expression{
+				{etype: exprLiteralInt, value: "2"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+		}}},
 		{"2 * (1 - foo)", &Expression{etype: exprMultiplication, children: []*Expression{
 			{etype: exprLiteralInt, value: "2"},
 			{etype: exprSubtraction, parens: true, children: []*Expression{
