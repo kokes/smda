@@ -56,6 +56,8 @@ func NewParser(s string) (*Parser, error) {
 		tokenIdentifierQuoted: p.parseIdentiferQuoted,
 		tokenLiteralInt:       p.parseLiteralInteger,
 		tokenLiteralFloat:     p.parseLiteralFloat,
+		tokenTrue:             p.parseLiteralBool,
+		tokenFalse:            p.parseLiteralBool,
 		// TODO(PR)/ARCH: maybe have a method for Sub and Not separate?
 		// also, it will make sense to have to expr types (exprUnaryMinus, exprNot), because
 		// it will make it way easier to evaluate
@@ -116,6 +118,10 @@ func (p *Parser) parseLiteralFloat() *Expression {
 	// TODO(PR): validate using strconv
 	return &Expression{etype: exprLiteralFloat, value: string(val)}
 }
+func (p *Parser) parseLiteralBool() *Expression {
+	val := p.tokens[p.position]
+	return &Expression{etype: exprLiteralBool, value: val.String()}
+}
 func (p *Parser) parsePrefixExpression() *Expression {
 	token := p.tokens[p.position]
 	expr := &Expression{
@@ -136,6 +142,8 @@ func (p *Parser) parsePrefixExpression() *Expression {
 func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 	var etype exprType
 	curToken := p.tokens[p.position]
+	// TODO(PR)/ARCH: this could be done in a map[tokenType]exprType?
+	// or maybe, in the future, we could have an exprOperator? That would house all of these?
 	switch curToken.ttype {
 	case tokenAdd:
 		etype = exprAddition
@@ -145,6 +153,18 @@ func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 		etype = exprMultiplication
 	case tokenQuo:
 		etype = exprDivision
+	case tokenEq:
+		etype = exprEquality
+	case tokenNeq:
+		etype = exprNequality
+	case tokenGt:
+		etype = exprGreaterThan
+	case tokenGte:
+		etype = exprGreaterThanEqual
+	case tokenLt:
+		etype = exprLessThan
+	case tokenLte:
+		etype = exprGreaterThanEqual
 	default:
 		panic("TODO(PR)" + fmt.Sprintf("%v AND %v", left, curToken))
 	}
@@ -189,6 +209,7 @@ func ParseStringExpr(s string) (*Expression, error) {
 	ret := p.parseExpression(LOWEST)
 
 	// TODO(PR): err if p.position != len(p.tokens) - 1?
+	// also if len(p.errors) > 0 ...
 
 	return ret, nil
 }

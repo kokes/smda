@@ -23,15 +23,23 @@ func TestParsingContents(t *testing.T) {
 		{"\"hello world\"", &Expression{etype: exprIdentifierQuoted, value: "hello world"}},
 		{"254", &Expression{etype: exprLiteralInt, value: "254"}},
 		{"254.678", &Expression{etype: exprLiteralFloat, value: "254.678"}},
-		// TODO(PR): test standalone bools and strings?
+		{"true", &Expression{etype: exprLiteralBool, value: "TRUE"}},
+		{"TRUE", &Expression{etype: exprLiteralBool, value: "TRUE"}},
+		{"True", &Expression{etype: exprLiteralBool, value: "TRUE"}},
+		{"false", &Expression{etype: exprLiteralBool, value: "FALSE"}},
+		{"FALSE", &Expression{etype: exprLiteralBool, value: "FALSE"}},
+		// TODO(PR): test standalone strings and NULLs?
 
-		// prefix operators, TODO(PR): NOT?
+		// prefix operators
 		// TODO(PR): test just "-" - to see if advancing tokens will fail our parser
 		{"-2", &Expression{etype: exprPrefixOperator, value: "-", children: []*Expression{
 			{etype: exprLiteralInt, value: "2"},
 		}}},
 		{"NOT foo", &Expression{etype: exprPrefixOperator, value: "NOT", children: []*Expression{
 			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"NOT true", &Expression{etype: exprPrefixOperator, value: "NOT", children: []*Expression{
+			{etype: exprLiteralBool, value: "TRUE"},
 		}}},
 		// {"-2.4", &Expression{etype: exprLiteralFloat, value: "-2.4"}}, // unary expressions
 		// {"+foo", &Expression{etype: exprIdentifier, value: "foo"}},
@@ -70,11 +78,34 @@ func TestParsingContents(t *testing.T) {
 			}},
 			{etype: exprLiteralInt, value: "2"},
 		}}},
+		{"4 + 3 * 2", &Expression{etype: exprAddition, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprMultiplication, children: []*Expression{
+				{etype: exprLiteralInt, value: "3"},
+				{etype: exprLiteralInt, value: "2"},
+			}},
+		}}},
 
 		// prefix and infix
 		{"-4 / foo", &Expression{etype: exprDivision, children: []*Expression{
 			{etype: exprPrefixOperator, value: "-", children: []*Expression{{etype: exprLiteralInt, value: "4"}}},
 			{etype: exprIdentifier, value: "foo"},
+		}}},
+
+		// operators
+		{"4 + 3 > 5", &Expression{etype: exprGreaterThan, children: []*Expression{
+			{etype: exprAddition, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralInt, value: "5"},
+		}}},
+		{"4 > 3 = true", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprGreaterThan, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralBool, value: "TRUE"},
 		}}},
 
 		// TODO(PR): uncomment all this
