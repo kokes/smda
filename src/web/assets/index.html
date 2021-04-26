@@ -329,7 +329,12 @@
     // TODO: are there quotes in the individual names? can there be?
     // also, columns with all lowercase but with spaces need to be quoted
     function quoteIfNeeded(s) {
-        return (s.toLowerCase() === s && !s.includes(" ")) ? s : `"${s}"`;
+        for (let char of s) {
+            if (!((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || (char == '_'))) {
+                return `"${s}"`;
+            }
+        }
+        return s;
     }
 
     function split_expressions(s) {
