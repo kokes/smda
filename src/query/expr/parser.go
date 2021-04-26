@@ -57,8 +57,10 @@ func NewParser(s string) (*Parser, error) {
 		tokenIdentifierQuoted: p.parseIdentiferQuoted,
 		tokenLiteralInt:       p.parseLiteralInteger,
 		tokenLiteralFloat:     p.parseLiteralFloat,
+		tokenLiteralString:    p.parseLiteralString,
 		tokenTrue:             p.parseLiteralBool,
 		tokenFalse:            p.parseLiteralBool,
+		tokenNull:             p.parseLiteralNULL,
 		// TODO(PR)/ARCH: maybe have a method for Sub and Not separate?
 		// also, it will make sense to have to expr types (exprUnaryMinus, exprNot), because
 		// it will make it way easier to evaluate
@@ -125,6 +127,13 @@ func (p *Parser) parseLiteralFloat() *Expression {
 	val := p.tokens[p.position].value
 	// TODO(PR): validate using strconv
 	return &Expression{etype: exprLiteralFloat, value: string(val)}
+}
+func (p *Parser) parseLiteralString() *Expression {
+	val := p.tokens[p.position].value
+	return &Expression{etype: exprLiteralString, value: string(val)}
+}
+func (p *Parser) parseLiteralNULL() *Expression {
+	return &Expression{etype: exprLiteralNull}
 }
 func (p *Parser) parseLiteralBool() *Expression {
 	val := p.tokens[p.position]
