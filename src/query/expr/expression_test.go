@@ -23,6 +23,9 @@ func TestAggExpr(t *testing.T) {
 		err      error
 	}{
 		{"1", nil, nil},
+		{"nullif(foo)", nil, nil},
+		{"2*nullif(foo)", nil, nil},
+		{"nullif(foo)*2", nil, nil},
 		{"1 + nullif(foo) - bar", nil, nil},
 		{"min(a)", []string{"min(a)"}, nil},
 		{"min(a) + min(b)", []string{"min(a)", "min(b)"}, nil},

@@ -185,7 +185,8 @@ func (p *Parser) parsePrefixExpression() *Expression {
 }
 
 func (p *Parser) parseCallExpression(left *Expression) *Expression {
-	expr := &Expression{etype: exprFunCall, value: left.value}
+	funName := left.value
+	expr := &Expression{etype: exprFunCall, value: funName}
 
 	if p.peekToken().ttype == tokenRparen {
 		p.position++
@@ -286,6 +287,10 @@ func ParseStringExpr(s string) (*Expression, error) {
 	}
 
 	// TODO(PR): also if len(p.errors) > 0 ...
+
+	if err := ret.InitFunctionCalls(); err != nil {
+		return nil, err
+	}
 
 	return ret, nil
 }

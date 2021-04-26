@@ -122,6 +122,37 @@ type Expression struct {
 	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
 }
 
+func (expr *Expression) InitFunctionCalls() error {
+	for _, ch := range expr.children {
+		if err := ch.InitFunctionCalls(); err != nil {
+			return err
+		}
+	}
+
+	if expr.etype != exprFunCall {
+		return nil
+	}
+
+	funName := expr.value
+	fncp, ok := column.FuncProj[funName]
+	if ok {
+		expr.evaler = fncp
+	} else {
+		// if it's not a projection, it must be an aggregator
+		// ARCH: cannot initialise the aggregator here, because we don't know
+		// the types that go in (and we're already using static dispatch here)
+		// TODO/ARCH: but since we've decoupled this from the parser, we might have the schema at hand already!
+		//            we just need to remove this `InitFunctionCalls` from ParseStringExpr
+		aggfac, err := column.NewAggregator(funName)
+		if err != nil {
+			return err
+		}
+		expr.aggregatorFactory = aggfac
+	}
+
+	return nil
+}
+
 func (expr *Expression) InitAggregator(schema column.TableSchema) error {
 	var rtypes []column.Dtype
 	for _, ch := range expr.children {
@@ -142,7 +173,8 @@ func (expr *Expression) InitAggregator(schema column.TableSchema) error {
 func AggExpr(expr *Expression) ([]*Expression, error) {
 	var ret []*Expression
 	found := false
-	if expr.etype == exprFunCall && expr.evaler == nil {
+	// ARCH: we used to test `expr.evaler == nil` in the second condition... better?
+	if expr.etype == exprFunCall && expr.aggregatorFactory != nil {
 		ret = append(ret, expr)
 		found = true
 	}
@@ -175,7 +207,7 @@ func (expr *Expression) String() string {
 		rval = fmt.Sprintf("%s%s", expr.value, expr.children[0])
 	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
 		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
-		rval = fmt.Sprintf("%s %s %s", expr.children[0], expr.etype, expr.children[1])
+		rval = fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
 	case exprLiteralInt, exprLiteralFloat, exprLiteralBool:
 		rval = expr.value
 	case exprLiteralString:
