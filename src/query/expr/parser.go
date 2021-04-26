@@ -162,6 +162,9 @@ func (p *Parser) parseParentheses() *Expression {
 	}
 	expr.parens = true
 
+	// TODO(PR): I don't think it's in the book, but I think it needs to be there (e.g. `(foo-bar) + 3`)
+	p.position++
+
 	return expr
 }
 func (p *Parser) parsePrefixExpression() *Expression {
@@ -200,6 +203,8 @@ func (p *Parser) parseCallExpression(left *Expression) *Expression {
 		// TODO(PR): error reporting
 		return nil
 	}
+	// TODO(PR): this is not in the book... but I think it has to be there to allow for `foo(bar) - something`
+	p.position++
 
 	return expr
 }
@@ -275,8 +280,12 @@ func ParseStringExpr(s string) (*Expression, error) {
 	}
 	ret := p.parseExpression(LOWEST)
 
-	// TODO(PR): err if p.position != len(p.tokens) - 1?
-	// also if len(p.errors) > 0 ...
+	if p.position != len(p.tokens)-1 {
+		// TODO(PR)/ARCH: standardise and wrap error
+		return nil, fmt.Errorf("unparsed bit: %v", p.tokens[p.position:])
+	}
+
+	// TODO(PR): also if len(p.errors) > 0 ...
 
 	return ret, nil
 }

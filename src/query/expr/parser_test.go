@@ -254,15 +254,14 @@ func TestParsingContents(t *testing.T) {
 		{"counT(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
 			{etype: exprIdentifier, value: "foobar"},
 		}}},
-		// TODO(PR): unparsed ending
-		// {"coalesce(foo, bar, 1) - 4", &Expression{etype: exprSubtraction, children: []*Expression{
-		// 	{etype: exprFunCall, value: "coalesce", children: []*Expression{
-		// 		{etype: exprIdentifier, value: "foo"},
-		// 		{etype: exprIdentifier, value: "bar"},
-		// 		{etype: exprLiteralInt, value: "1"},
-		// 	}},
-		// 	{etype: exprLiteralInt, value: "4"},
-		// }}},
+		{"coalesce(foo, bar, 1) - 4", &Expression{etype: exprSubtraction, children: []*Expression{
+			{etype: exprFunCall, value: "coalesce", children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprIdentifier, value: "bar"},
+				{etype: exprLiteralInt, value: "1"},
+			}},
+			{etype: exprLiteralInt, value: "4"},
+		}}},
 		{"nullif(baz, 'foo')", &Expression{etype: exprFunCall, value: "nullif", children: []*Expression{
 			{etype: exprIdentifier, value: "baz"},
 			{etype: exprLiteralString, value: "foo"},
