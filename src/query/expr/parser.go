@@ -11,6 +11,7 @@ import (
 const (
 	_ int = iota
 	LOWEST
+	// BOOL_AND_OR // TODO(PR): i think it goes here
 	EQUALS      // ==
 	LESSGREATER // > or <
 	SUM         // +, TODO(PR): rename to ADDITION?
@@ -23,7 +24,9 @@ var precedences = map[tokenType]int{
 	tokenEq:  EQUALS,
 	tokenNeq: EQUALS,
 	tokenLt:  LESSGREATER,
-	tokenGt:  LESSGREATER, // TODO(PR): LTE, GTE?
+	tokenGt:  LESSGREATER,
+	tokenLte: LESSGREATER,
+	tokenGte: LESSGREATER,
 	tokenAdd: SUM,
 	tokenSub: SUM,
 	tokenQuo: PRODUCT,
@@ -76,6 +79,8 @@ func NewParser(s string) (*Parser, error) {
 		tokenNeq: p.parseInfixExpression,
 		tokenLt:  p.parseInfixExpression,
 		tokenGt:  p.parseInfixExpression,
+		tokenLte: p.parseInfixExpression,
+		tokenGte: p.parseInfixExpression,
 		// TODO(PR): is, lte, gte
 	}
 

@@ -125,6 +125,13 @@ func TestParsingContents(t *testing.T) {
 			}},
 			{etype: exprLiteralInt, value: "5"},
 		}}},
+		{"4 + 3 >= 5", &Expression{etype: exprGreaterThanEqual, children: []*Expression{
+			{etype: exprAddition, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralInt, value: "5"},
+		}}},
 		{"4 > 3 = true", &Expression{etype: exprEquality, children: []*Expression{
 			{etype: exprGreaterThan, children: []*Expression{
 				{etype: exprLiteralInt, value: "4"},
