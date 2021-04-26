@@ -52,6 +52,7 @@ func NewParser(s string) (*Parser, error) {
 	}
 	p := &Parser{tokens: tokens}
 	p.prefixParseFns = map[tokenType]prefixParseFn{
+		tokenLparen:           p.parseParentheses,
 		tokenIdentifier:       p.parseIdentifer,
 		tokenIdentifierQuoted: p.parseIdentiferQuoted,
 		tokenLiteralInt:       p.parseLiteralInteger,
@@ -79,12 +80,19 @@ func NewParser(s string) (*Parser, error) {
 	return p, nil
 }
 
-func (p *Parser) peekPrecedence() int {
+func (p *Parser) peekToken() tok {
 	if p.position >= len(p.tokens)-1 {
+		return tok{}
+	}
+	return p.tokens[p.position+1]
+}
+
+func (p *Parser) peekPrecedence() int {
+	pt := p.peekToken()
+	if pt.ttype == tokenInvalid {
 		return LOWEST
 	}
-	peekToken := p.tokens[p.position+1]
-	return precedences[peekToken.ttype]
+	return precedences[pt.ttype]
 }
 
 // TODO(PR): maybe don't build these as method but as functions (taking in Parser) and have them globally in a slice,
@@ -121,6 +129,20 @@ func (p *Parser) parseLiteralFloat() *Expression {
 func (p *Parser) parseLiteralBool() *Expression {
 	val := p.tokens[p.position]
 	return &Expression{etype: exprLiteralBool, value: val.String()}
+}
+
+func (p *Parser) parseParentheses() *Expression {
+	p.position++
+	expr := p.parseExpression(LOWEST)
+
+	peek := p.peekToken()
+	if peek.ttype != tokenRparen {
+		// TODO(PR): error reporting (or upstream?)
+		return nil
+	}
+	expr.parens = true
+
+	return expr
 }
 func (p *Parser) parsePrefixExpression() *Expression {
 	token := p.tokens[p.position]

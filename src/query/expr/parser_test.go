@@ -41,18 +41,18 @@ func TestParsingContents(t *testing.T) {
 		{"NOT true", &Expression{etype: exprPrefixOperator, value: "NOT", children: []*Expression{
 			{etype: exprLiteralBool, value: "TRUE"},
 		}}},
+		{"-(foo*bar)", &Expression{etype: exprPrefixOperator, value: "-", children: []*Expression{
+			{etype: exprMultiplication, parens: true, children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprIdentifier, value: "bar"},
+			}},
+		}}},
 		// {"-2.4", &Expression{etype: exprLiteralFloat, value: "-2.4"}}, // unary expressions
 		// {"+foo", &Expression{etype: exprIdentifier, value: "foo"}},
 		// {"-foo", &Expression{etype: exprMultiplication, children: []*Expression{
 		// 	{etype: exprLiteralInt, value: "-1"},
 		// 	{etype: exprIdentifier, value: "foo"},
 		// }}},
-		// {"-(foo*bar)", &Expression{etype: exprMultiplication, children: []*Expression{
-		// 	{etype: exprLiteralInt, value: "-1"},
-		// 	{etype: exprMultiplication, parens: true, children: []*Expression{
-		// 		{etype: exprIdentifier, value: "foo"},
-		// 		{etype: exprIdentifier, value: "bar"},
-		// 	}},
 
 		// infix operators
 		{"4 * 2", &Expression{etype: exprMultiplication, children: []*Expression{
@@ -106,6 +106,22 @@ func TestParsingContents(t *testing.T) {
 				{etype: exprLiteralInt, value: "3"},
 			}},
 			{etype: exprLiteralBool, value: "TRUE"},
+		}}},
+
+		// parentheses
+		{"2 * (4 + 3)", &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprLiteralInt, value: "2"},
+			{etype: exprAddition, parens: true, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+		}}},
+		{"2 * (1 - foo)", &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprLiteralInt, value: "2"},
+			{etype: exprSubtraction, parens: true, children: []*Expression{
+				{etype: exprLiteralInt, value: "1"},
+				{etype: exprIdentifier, value: "foo"},
+			}},
 		}}},
 
 		// TODO(PR): uncomment all this
@@ -191,13 +207,6 @@ func TestParsingContents(t *testing.T) {
 		// {"sum(foo < 3)", nil},
 		// {"sum(foo >= 3)", nil},
 		// {"sum(foo <= 3)", nil},
-		// {"2 * (1 - foo)", &Expression{etype: exprMultiplication, children: []*Expression{
-		// 	{etype: exprLiteralInt, value: "2"},
-		// 	{etype: exprSubtraction, parens: true, children: []*Expression{
-		// 		{etype: exprLiteralInt, value: "1"},
-		// 		{etype: exprIdentifier, value: "foo"},
-		// 	}},
-		// }}},
 		// {"foo = true", &Expression{etype: exprEquality, children: []*Expression{
 		// 	{etype: exprIdentifier, value: "foo"},
 		// 	{etype: exprLiteralBool, value: "true"},
