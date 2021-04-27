@@ -302,17 +302,3 @@ func ParseStringExpr(s string) (*Expression, error) {
 
 	return ret, nil
 }
-
-// TODO(PR): reflect these notes on ParseStringExpr in tests:
-// limitations (fix this for the custom_parser - TODO(PR)):
-// - cannot use this for full query parsing, just expressions
-// - cannot do count(*) and other syntactically problematic expressions (also ::)
-// - we cannot use escaped apostrophes in string literals (because Go can't parse that) - unless we sanitise that during tokenisation
-// normal process: 1) tokenise, 2) build an ast, // 3) (optional) optimise the ast
-// our process: 1) tokenise, 2) edit some of these tokens, 3) stringify and build an ast using a 3rd party, 4) optimise
-// this is due to the fact that we don't have our own parser, we're using go's go/parser from the standard
-// library - but we're leveraging our own tokeniser, because we need to "fix" some tokens before passing them
-// to go/parser, because that parser is used for code parsing, not SQL expressions parsing
-// when building our own parser, consider:
-// isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
-//  - then build an expression parser with precedence built in
