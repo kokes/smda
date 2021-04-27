@@ -163,6 +163,16 @@ func TestParsingContents(t *testing.T) {
 			{etype: exprIdentifier, value: "foo"},
 			{etype: exprLiteralBool, value: "TRUE"},
 		}}},
+		{"foo is true", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+			{etype: exprLiteralBool, value: "TRUE"},
+		}}},
+		{"foo is not true", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+			{etype: exprNot, children: []*Expression{
+				{etype: exprLiteralBool, value: "TRUE"},
+			}},
+		}}},
 
 		// boolean operators
 		{"foo and bar", &Expression{etype: exprAnd, children: []*Expression{
@@ -233,11 +243,13 @@ func TestParsingContents(t *testing.T) {
 		{"1 < foo < 3", nil},
 		{"bar < foo < bak", nil},
 
-		// TODO(PR): function calls
 		{"sum(foo < 3)", nil},
 		{"sum(foo >= 3)", nil},
 		{"sum(foo <= 3)", nil},
 		{"count()", &Expression{etype: exprFunCall, value: "count"}},
+		// TODO: make this work at some point - even in other places (e.g. `select foo, *, bar from ...`)
+		//       think about ways to implement it without it being super hacky
+		// {"count(*)", &Expression{etype: exprFunCall, value: "count"}},
 		{"count(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
 			{etype: exprIdentifier, value: "foobar"},
 		}}},

@@ -12,11 +12,12 @@ const (
 	_ int = iota
 	LOWEST
 	BOOL_AND_OR // TODO(PR): is it really that AND and OR have the same precedence?
-	EQUALS      // ==
-	LESSGREATER // > or <
-	SUM         // +, TODO(PR): rename to ADDITION?
+	EQUALS      // ==, !=
+	// TODO(next): IN clause?
+	LESSGREATER // >, <, <=, >=
+	ADDITION    // +
 	PRODUCT     // *
-	PREFIX      // -X or !X
+	PREFIX      // -X or NOT X
 	CALL        // myFunction(X)
 )
 
@@ -24,17 +25,17 @@ var precedences = map[tokenType]int{
 	tokenAnd:    BOOL_AND_OR,
 	tokenOr:     BOOL_AND_OR,
 	tokenEq:     EQUALS,
+	tokenIs:     EQUALS,
 	tokenNeq:    EQUALS,
 	tokenLt:     LESSGREATER,
 	tokenGt:     LESSGREATER,
 	tokenLte:    LESSGREATER,
 	tokenGte:    LESSGREATER,
-	tokenAdd:    SUM,
-	tokenSub:    SUM,
+	tokenAdd:    ADDITION,
+	tokenSub:    ADDITION,
 	tokenQuo:    PRODUCT,
 	tokenMul:    PRODUCT,
 	tokenLparen: CALL,
-	// TODO(PR): tokenIs, tokenAnd, tokenOr (look up Go code and their precedence tables)
 }
 
 type (
@@ -78,13 +79,13 @@ func NewParser(s string) (*Parser, error) {
 		tokenQuo:    p.parseInfixExpression,
 		tokenMul:    p.parseInfixExpression,
 		tokenEq:     p.parseInfixExpression,
+		tokenIs:     p.parseInfixExpression,
 		tokenNeq:    p.parseInfixExpression,
 		tokenLt:     p.parseInfixExpression,
 		tokenGt:     p.parseInfixExpression,
 		tokenLte:    p.parseInfixExpression,
 		tokenGte:    p.parseInfixExpression,
 		tokenLparen: p.parseCallExpression,
-		// TODO(PR): is
 	}
 
 	return p, nil
@@ -95,6 +96,10 @@ func (p *Parser) peekToken() tok {
 		return tok{}
 	}
 	return p.tokens[p.position+1]
+}
+
+func (p *Parser) curPrecedence() int {
+	return precedences[p.tokens[p.position].ttype]
 }
 
 func (p *Parser) peekPrecedence() int {
@@ -230,6 +235,8 @@ func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 		etype = exprDivision
 	case tokenEq:
 		etype = exprEquality
+	case tokenIs:
+		etype = exprEquality
 	case tokenNeq:
 		etype = exprNequality
 	case tokenGt:
@@ -244,7 +251,7 @@ func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 		panic("TODO(PR)" + fmt.Sprintf("%v AND %v", left, curToken))
 	}
 	expr := &Expression{etype: etype}
-	precedence := precedences[p.tokens[p.position].ttype] // TODO(PR): consider moving all this to curPrecedence?
+	precedence := p.curPrecedence()
 	p.position++
 	right := p.parseExpression(precedence)
 
