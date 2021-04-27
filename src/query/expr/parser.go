@@ -10,8 +10,6 @@ var errUnparsedBit = errors.New("parsing incomplete")
 var errNoClosingBracket = errors.New("no closing bracket after an opening one")
 var errUnsupportedPrefixToken = errors.New("unsupported prefix token")
 
-// thank you, Thorsten
-// TODO(PR): retype?
 const (
 	_ int = iota
 	LOWEST
@@ -40,6 +38,22 @@ var precedences = map[tokenType]int{
 	tokenQuo:    PRODUCT,
 	tokenMul:    PRODUCT,
 	tokenLparen: CALL,
+}
+
+var infixMapping = map[tokenType]exprType{
+	tokenAnd: exprAnd,
+	tokenOr:  exprOr,
+	tokenAdd: exprAddition,
+	tokenSub: exprSubtraction,
+	tokenMul: exprMultiplication,
+	tokenQuo: exprDivision,
+	tokenEq:  exprEquality,
+	tokenIs:  exprEquality,
+	tokenNeq: exprNequality,
+	tokenGt:  exprGreaterThan,
+	tokenGte: exprGreaterThanEqual,
+	tokenLt:  exprLessThan,
+	tokenLte: exprLessThanEqual,
 }
 
 type (
@@ -227,39 +241,11 @@ func (p *Parser) parseCallExpression(left *Expression) *Expression {
 	return expr
 }
 func (p *Parser) parseInfixExpression(left *Expression) *Expression {
-	var etype exprType
 	curToken := p.curToken()
-	// TODO(PR)/ARCH: this could be done in a map[tokenType]exprType?
-	// or maybe, in the future, we could have an exprOperator? That would house all of these?
-	switch curToken.ttype {
-	case tokenAnd:
-		etype = exprAnd
-	case tokenOr:
-		etype = exprOr
-	case tokenAdd:
-		etype = exprAddition
-	case tokenSub:
-		etype = exprSubtraction
-	case tokenMul:
-		etype = exprMultiplication
-	case tokenQuo:
-		etype = exprDivision
-	case tokenEq:
-		etype = exprEquality
-	case tokenIs:
-		etype = exprEquality
-	case tokenNeq:
-		etype = exprNequality
-	case tokenGt:
-		etype = exprGreaterThan
-	case tokenGte:
-		etype = exprGreaterThanEqual
-	case tokenLt:
-		etype = exprLessThan
-	case tokenLte:
-		etype = exprLessThanEqual
-	default:
-		panic("TODO(PR)" + fmt.Sprintf("%v AND %v", left, curToken))
+	etype, ok := infixMapping[curToken.ttype]
+	if !ok {
+		p.errors = append(p.errors, fmt.Errorf("unsupported infix operator: %v", curToken.ttype))
+		return nil
 	}
 	expr := &Expression{etype: etype}
 	precedence := p.curPrecedence()
