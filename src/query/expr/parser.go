@@ -2,9 +2,13 @@ package expr
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"log"
 )
+
+var errUnparsedBit = errors.New("parsing incomplete")
+var errNoClosingBracket = errors.New("no closing bracket after an opening one")
+var errUnsupportedPrefixToken = errors.New("unsupported prefix token")
 
 // thank you, Thorsten
 // TODO(PR): retype?
@@ -46,6 +50,7 @@ type (
 type Parser struct {
 	tokens   tokList
 	position int
+	errors   []error
 
 	prefixParseFns map[tokenType]prefixParseFn
 	infixParseFns  map[tokenType]infixParseFn
@@ -91,6 +96,13 @@ func NewParser(s string) (*Parser, error) {
 	return p, nil
 }
 
+func (p *Parser) curToken() tok {
+	if p.position >= len(p.tokens) {
+		return tok{}
+	}
+	return p.tokens[p.position]
+}
+
 func (p *Parser) peekToken() tok {
 	if p.position >= len(p.tokens)-1 {
 		return tok{}
@@ -99,7 +111,7 @@ func (p *Parser) peekToken() tok {
 }
 
 func (p *Parser) curPrecedence() int {
-	return precedences[p.tokens[p.position].ttype]
+	return precedences[p.curToken().ttype]
 }
 
 func (p *Parser) peekPrecedence() int {
@@ -113,12 +125,12 @@ func (p *Parser) peekPrecedence() int {
 // TODO(PR): maybe don't build these as method but as functions (taking in Parser) and have them globally in a slice,
 // not in a map for each parser
 func (p *Parser) parseIdentifer() *Expression {
-	val := p.tokens[p.position].value
+	val := p.curToken().value
 	val = bytes.ToLower(val) // unquoted identifiers are case insensitive, so we can lowercase them
 	return &Expression{etype: exprIdentifier, value: string(val)}
 }
 func (p *Parser) parseIdentiferQuoted() *Expression {
-	val := p.tokens[p.position].value
+	val := p.curToken().value
 	etype := exprIdentifier
 	// only assign the Quoted variant if there's a need for it
 	// TODO/ARCH: what about '-'? In general, what are our rules for quoting?
@@ -132,24 +144,23 @@ func (p *Parser) parseIdentiferQuoted() *Expression {
 	return &Expression{etype: etype, value: string(val)}
 }
 func (p *Parser) parseLiteralInteger() *Expression {
-	val := p.tokens[p.position].value
-	// TODO(PR): validate using strconv
-	return &Expression{etype: exprLiteralInt, value: string(val)}
+	val := string(p.curToken().value)
+	// we don't need to do strconv validation - the tokeniser has done so already
+	return &Expression{etype: exprLiteralInt, value: val}
 }
 func (p *Parser) parseLiteralFloat() *Expression {
-	val := p.tokens[p.position].value
-	// TODO(PR): validate using strconv
-	return &Expression{etype: exprLiteralFloat, value: string(val)}
+	val := string(p.curToken().value)
+	return &Expression{etype: exprLiteralFloat, value: val}
 }
 func (p *Parser) parseLiteralString() *Expression {
-	val := p.tokens[p.position].value
+	val := p.curToken().value
 	return &Expression{etype: exprLiteralString, value: string(val)}
 }
 func (p *Parser) parseLiteralNULL() *Expression {
 	return &Expression{etype: exprLiteralNull}
 }
 func (p *Parser) parseLiteralBool() *Expression {
-	val := p.tokens[p.position]
+	val := p.curToken()
 	return &Expression{etype: exprLiteralBool, value: val.String()}
 }
 
@@ -159,7 +170,7 @@ func (p *Parser) parseParentheses() *Expression {
 
 	peek := p.peekToken()
 	if peek.ttype != tokenRparen {
-		// TODO(PR): error reporting (or upstream?)
+		p.errors = append(p.errors, errNoClosingBracket)
 		return nil
 	}
 	p.position++
@@ -168,7 +179,7 @@ func (p *Parser) parseParentheses() *Expression {
 	return expr
 }
 func (p *Parser) parsePrefixExpression() *Expression {
-	token := p.tokens[p.position]
+	token := p.curToken()
 	var etype exprType
 	switch token.ttype {
 	case tokenSub:
@@ -176,7 +187,7 @@ func (p *Parser) parsePrefixExpression() *Expression {
 	case tokenNot:
 		etype = exprNot
 	default:
-		// TODO(PR): error reporting
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnsupportedPrefixToken, token.ttype))
 		return nil
 	}
 	expr := &Expression{
@@ -208,7 +219,7 @@ func (p *Parser) parseCallExpression(left *Expression) *Expression {
 	}
 
 	if p.peekToken().ttype != tokenRparen {
-		// TODO(PR): error reporting
+		p.errors = append(p.errors, errNoClosingBracket)
 		return nil
 	}
 	p.position++
@@ -217,7 +228,7 @@ func (p *Parser) parseCallExpression(left *Expression) *Expression {
 }
 func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 	var etype exprType
-	curToken := p.tokens[p.position]
+	curToken := p.curToken()
 	// TODO(PR)/ARCH: this could be done in a map[tokenType]exprType?
 	// or maybe, in the future, we could have an exprOperator? That would house all of these?
 	switch curToken.ttype {
@@ -261,17 +272,17 @@ func (p *Parser) parseInfixExpression(left *Expression) *Expression {
 }
 
 func (p *Parser) parseExpression(precedence int) *Expression {
-	prefix := p.prefixParseFns[p.tokens[p.position].ttype]
+	curToken := p.curToken()
+	prefix := p.prefixParseFns[curToken.ttype]
 	if prefix == nil {
-		// TODO(PR): proper error reporting? (like `p.errors` in the book)
-		log.Fatalf("tried %v", p.tokens[p.position]) // TODO(PR): remove, just for debugging now
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnsupportedPrefixToken, curToken))
 		return nil
 	}
 
 	left := prefix()
 
 	for precedence < p.peekPrecedence() {
-		nextToken := p.tokens[p.position+1]
+		nextToken := p.peekToken()
 		infix := p.infixParseFns[nextToken.ttype]
 		if infix == nil {
 			return left
@@ -290,11 +301,13 @@ func ParseStringExpr(s string) (*Expression, error) {
 	ret := p.parseExpression(LOWEST)
 
 	if p.position != len(p.tokens)-1 {
-		// TODO(PR)/ARCH: standardise and wrap error
-		return nil, fmt.Errorf("unparsed bit: %v", p.tokens[p.position:])
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnparsedBit, p.tokens[p.position:]))
 	}
 
-	// TODO(PR): also if len(p.errors) > 0 ...
+	// ARCH: abstract this into p.Err()? Will be useful if we do additional parsing (multiple expressions, select queries etc.)
+	if len(p.errors) > 0 {
+		return nil, fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
+	}
 
 	if err := ret.InitFunctionCalls(); err != nil {
 		return nil, err

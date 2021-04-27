@@ -1,6 +1,7 @@
 package expr
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -326,6 +327,27 @@ func TestParsingContents(t *testing.T) {
 		}
 		if test.expExpr != nil && !reflect.DeepEqual(parsed, test.expExpr) {
 			t.Errorf("expecting %s to parse into %+v, got %+v instead", test.raw, test.expExpr, parsed)
+		}
+	}
+}
+
+func TestParsingErrors(t *testing.T) {
+	tests := []struct {
+		raw string
+		err error
+	}{
+		{"123123123131231231312312313123", errInvalidInteger},
+		{"1e12312312323", errInvalidFloat},
+		{"2 * (3-foo", errNoClosingBracket},
+		{"foo + sum(bar", errNoClosingBracket},
+		{"foo + sum(bar, ", errUnsupportedPrefixToken}, // ARCH: this is errNoClosingBracket, but we got to EOF first
+		{"+123", errUnsupportedPrefixToken},
+		{"foo as bar", errUnparsedBit},
+	}
+
+	for _, test := range tests {
+		if _, err := ParseStringExpr(test.raw); !errors.Is(err, test.err) {
+			t.Errorf("expecting %v case to fail with %v, it returned %v", test.raw, test.err, err)
 		}
 	}
 }

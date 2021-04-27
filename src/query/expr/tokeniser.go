@@ -151,6 +151,8 @@ func (tok tok) String() string {
 	case tokenLiteralString:
 		escaped := bytes.ReplaceAll(tok.value, []byte("'"), []byte("\\'"))
 		return fmt.Sprintf("'%s'", escaped)
+	case tokenInvalid:
+		return "invalid_token"
 	default:
 		panic(fmt.Sprintf("unknown token type: %v", tok.ttype))
 	}
