@@ -66,6 +66,8 @@ func TestExprStringer(t *testing.T) {
 		{"(foo-BAR)*2", "(foo-bar)*2"},
 		{"(foo-(3-BAR))*2", "(foo-(3-bar))*2"},
 		{"foo = 'bar'", "foo='bar'"},
+		{"not true", "NOT TRUE"},
+		{"not  (1+2+ 3)", "NOT (1+2+3)"},
 	}
 
 	for _, test := range tests {

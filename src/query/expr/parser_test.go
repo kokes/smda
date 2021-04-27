@@ -37,22 +37,22 @@ func TestParsingContents(t *testing.T) {
 
 		// prefix operators
 		// TODO(PR): test just "-" - to see if advancing tokens will fail our parser
-		{"-2", &Expression{etype: exprPrefixOperator, value: "-", children: []*Expression{
+		{"-2", &Expression{etype: exprUnaryMinus, children: []*Expression{
 			{etype: exprLiteralInt, value: "2"},
 		}}},
-		{"-foo", &Expression{etype: exprPrefixOperator, value: "-", children: []*Expression{
+		{"-foo", &Expression{etype: exprUnaryMinus, children: []*Expression{
 			{etype: exprIdentifier, value: "foo"},
 		}}},
-		{"-\"Some column\"", &Expression{etype: exprPrefixOperator, value: "-", children: []*Expression{
+		{"-\"Some column\"", &Expression{etype: exprUnaryMinus, children: []*Expression{
 			{etype: exprIdentifierQuoted, value: "Some column"},
 		}}},
-		{"NOT foo", &Expression{etype: exprPrefixOperator, value: "NOT", children: []*Expression{
+		{"NOT foo", &Expression{etype: exprNot, children: []*Expression{
 			{etype: exprIdentifier, value: "foo"},
 		}}},
-		{"NOT true", &Expression{etype: exprPrefixOperator, value: "NOT", children: []*Expression{
+		{"NOT true", &Expression{etype: exprNot, children: []*Expression{
 			{etype: exprLiteralBool, value: "TRUE"},
 		}}},
-		{"-(foo*bar)", &Expression{etype: exprPrefixOperator, value: "-", children: []*Expression{
+		{"-(foo*bar)", &Expression{etype: exprUnaryMinus, children: []*Expression{
 			{etype: exprMultiplication, parens: true, children: []*Expression{
 				{etype: exprIdentifier, value: "foo"},
 				{etype: exprIdentifier, value: "bar"},
@@ -113,7 +113,7 @@ func TestParsingContents(t *testing.T) {
 
 		// prefix and infix
 		{"-4 / foo", &Expression{etype: exprDivision, children: []*Expression{
-			{etype: exprPrefixOperator, value: "-", children: []*Expression{{etype: exprLiteralInt, value: "4"}}},
+			{etype: exprUnaryMinus, children: []*Expression{{etype: exprLiteralInt, value: "4"}}},
 			{etype: exprIdentifier, value: "foo"},
 		}}},
 
@@ -195,7 +195,7 @@ func TestParsingContents(t *testing.T) {
 				{etype: exprLiteralInt, value: "3"},
 			}},
 			{etype: exprLessThanEqual, children: []*Expression{
-				{etype: exprPrefixOperator, value: "-", children: []*Expression{
+				{etype: exprUnaryMinus, children: []*Expression{
 					{etype: exprLiteralInt, value: "2"},
 				}},
 				{etype: exprIdentifier, value: "bar"},

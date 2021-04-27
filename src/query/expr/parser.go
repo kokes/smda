@@ -67,11 +67,8 @@ func NewParser(s string) (*Parser, error) {
 		tokenTrue:             p.parseLiteralBool,
 		tokenFalse:            p.parseLiteralBool,
 		tokenNull:             p.parseLiteralNULL,
-		// TODO(PR)/ARCH: maybe have a method for Sub and Not separate?
-		// also, it will make sense to have to expr types (exprUnaryMinus, exprNot), because
-		// it will make it way easier to evaluate
-		tokenSub: p.parsePrefixExpression,
-		tokenNot: p.parsePrefixExpression,
+		tokenSub:              p.parsePrefixExpression,
+		tokenNot:              p.parsePrefixExpression,
 	}
 	p.infixParseFns = map[tokenType]infixParseFn{
 		tokenAnd:    p.parseInfixExpression,
@@ -160,20 +157,25 @@ func (p *Parser) parseParentheses() *Expression {
 		// TODO(PR): error reporting (or upstream?)
 		return nil
 	}
-	expr.parens = true
-
-	// TODO(PR): I don't think it's in the book, but I think it needs to be there (e.g. `(foo-bar) + 3`)
 	p.position++
+	expr.parens = true
 
 	return expr
 }
 func (p *Parser) parsePrefixExpression() *Expression {
 	token := p.tokens[p.position]
+	var etype exprType
+	switch token.ttype {
+	case tokenSub:
+		etype = exprUnaryMinus
+	case tokenNot:
+		etype = exprNot
+	default:
+		// TODO(PR): error reporting
+		return nil
+	}
 	expr := &Expression{
-		etype: exprPrefixOperator,
-		// TODO: should we use token.value instead? We don't set it now...
-		// also, this will make it quite clunky to match on
-		value: token.String(),
+		etype: etype,
 	}
 
 	p.position++
@@ -204,7 +206,6 @@ func (p *Parser) parseCallExpression(left *Expression) *Expression {
 		// TODO(PR): error reporting
 		return nil
 	}
-	// TODO(PR): this is not in the book... but I think it has to be there to allow for `foo(bar) - something`
 	p.position++
 
 	return expr
