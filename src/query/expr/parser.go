@@ -62,7 +62,7 @@ type (
 )
 
 type Parser struct {
-	tokens   tokList
+	tokens   tokenList
 	position int
 	errors   []error
 
@@ -110,16 +110,16 @@ func NewParser(s string) (*Parser, error) {
 	return p, nil
 }
 
-func (p *Parser) curToken() tok {
+func (p *Parser) curToken() token {
 	if p.position >= len(p.tokens) {
-		return tok{}
+		return token{}
 	}
 	return p.tokens[p.position]
 }
 
-func (p *Parser) peekToken() tok {
+func (p *Parser) peekToken() token {
 	if p.position >= len(p.tokens)-1 {
-		return tok{}
+		return token{}
 	}
 	return p.tokens[p.position+1]
 }
@@ -193,15 +193,15 @@ func (p *Parser) parseParentheses() *Expression {
 	return expr
 }
 func (p *Parser) parsePrefixExpression() *Expression {
-	token := p.curToken()
+	curToken := p.curToken()
 	var etype exprType
-	switch token.ttype {
+	switch curToken.ttype {
 	case tokenSub:
 		etype = exprUnaryMinus
 	case tokenNot:
 		etype = exprNot
 	default:
-		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnsupportedPrefixToken, token.ttype))
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnsupportedPrefixToken, curToken.ttype))
 		return nil
 	}
 	expr := &Expression{

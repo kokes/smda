@@ -17,7 +17,6 @@ const (
 	exprInvalid exprType = iota
 	exprIdentifier
 	exprIdentifierQuoted
-	// TODO(PR): what about all our new keyword tokens? Where do they go? Things like CASE, AS, ...
 	exprUnaryMinus
 	exprNot
 	exprAnd
@@ -196,7 +195,6 @@ func AggExpr(expr *Expression) ([]*Expression, error) {
 	return ret, nil
 }
 
-// TODO(PR): `NOT foo` stringified as `NOTfoo`
 func (expr *Expression) String() string {
 	var rval string
 	switch expr.etype {

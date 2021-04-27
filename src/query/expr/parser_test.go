@@ -37,7 +37,6 @@ func TestParsingContents(t *testing.T) {
 		{"NULl", &Expression{etype: exprLiteralNull}},
 
 		// prefix operators
-		// TODO(PR): test just "-" - to see if advancing tokens will fail our parser
 		{"-2", &Expression{etype: exprUnaryMinus, children: []*Expression{
 			{etype: exprLiteralInt, value: "2"},
 		}}},
@@ -59,7 +58,9 @@ func TestParsingContents(t *testing.T) {
 				{etype: exprIdentifier, value: "bar"},
 			}},
 		}}},
-		// TODO(PR): unary plus? Just eliminate the plus entirely?
+		// TODO(PR): unary plus? Just eliminate the plus entirely? (tests are in place already)
+		// {"+2", &Expression{etype: exprLiteralInt, value: "2"}},
+		// {"+2.4", &Expression{etype: exprLiteralFloat, value: "2.4"}},
 
 		// infix operators
 		{"4 * 2", &Expression{etype: exprMultiplication, children: []*Expression{
@@ -336,6 +337,7 @@ func TestParsingErrors(t *testing.T) {
 		raw string
 		err error
 	}{
+		{"-", errUnsupportedPrefixToken}, // ARCH: is this right?
 		{"123123123131231231312312313123", errInvalidInteger},
 		{"1e12312312323", errInvalidFloat},
 		{"2 * (3-foo", errNoClosingBracket},
