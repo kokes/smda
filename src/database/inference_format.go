@@ -78,7 +78,6 @@ func readCompressed(r io.Reader, ctype compression) (io.Reader, error) {
 	case compressionBzip2:
 		return bzip2.NewReader(r), nil
 	case compressionSnappy:
-		// TODO(next): roundtrip tests
 		return snappy.NewReader(r), nil
 	default:
 		return nil, fmt.Errorf("cannot open a file compressed as %v", ctype)

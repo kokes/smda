@@ -5,6 +5,8 @@ import (
 	"compress/gzip"
 	"io"
 	"testing"
+
+	"github.com/golang/snappy"
 )
 
 func TestBasicCompressionInference(t *testing.T) {
@@ -30,6 +32,26 @@ func TestGzippedFile(t *testing.T) {
 		return
 	}
 }
+
+// ARCH: I mean... this doesn't work, because last time I checked, determining if a file is
+// snappy compressed wasn't straightforward as there were multiple sub-formats... but we may
+// want to revisit this at some point
+// func TestSnappyFile(t *testing.T) {
+// 	file := new(bytes.Buffer)
+// 	sw := snappy.NewWriter(file)
+// 	if _, err := io.WriteString(sw, "a,b,c\n1,2,3"); err != nil {
+// 		t.Error(err)
+// 		return
+// 	}
+// 	if err := sw.Close(); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	ctype := inferCompression(file.Bytes())
+// 	if ctype != compressionSnappy {
+// 		t.Error("expecting a snappy file to be recognised as such")
+// 		return
+// 	}
+// }
 
 // go doesn't have a bzip2 writer, only a reader
 // so I wrote this python script to generate some bzip data
@@ -98,6 +120,7 @@ func TestCompressionStringer(t *testing.T) {
 		{compressionNone, "none"},
 		{compressionGzip, "gzip"},
 		{compressionBzip2, "bzip2"},
+		{compressionSnappy, "snappy"},
 	}
 	for _, test := range tests {
 		if test.cmp.String() != test.str {
@@ -152,6 +175,30 @@ func TestWrappingGzippedData(t *testing.T) {
 
 	data := bytes.NewReader(gdata.Bytes())
 	newReader, err := readCompressed(data, compressionGzip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newData, err := io.ReadAll(newReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(raw, newData) {
+		t.Fatalf("expected %+v, got %+v", raw, newData)
+	}
+}
+func TestWrappingSnappyData(t *testing.T) {
+	raw := []byte("foobarbaz")
+	gdata := new(bytes.Buffer)
+	gw := snappy.NewWriter(gdata)
+	if _, err := io.Copy(gw, bytes.NewReader(raw)); err != nil {
+		t.Fatal(err)
+	}
+	// gw.Flush()
+	gw.Close()
+
+	data := bytes.NewReader(gdata.Bytes())
+	newReader, err := readCompressed(data, compressionSnappy)
 	if err != nil {
 		t.Fatal(err)
 	}
