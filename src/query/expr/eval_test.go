@@ -37,12 +37,13 @@ func TestBasicEval(t *testing.T) {
 		{"1.1 < float123", column.DtypeBool, []string{"f", "t", "t"}},
 		{"2.2 >= float123", column.DtypeBool, []string{"t", "t", "f"}},
 
-		// infix operators
-		// TODO(PR): make this work
+		// prefix operators
 		// {"not bool_tff", column.DtypeBool, []string{"f", "t", "t"}},
+		// {"not (not bool_tff)", column.DtypeBool, []string{"t", "f", "f"}},
 		{"-float123", column.DtypeFloat, []string{"-1", "-2", "-3"}},
-		// {"-foo123", column.DtypeInt, []string{"-1", "-2", "-3"}},
+		{"-foo123", column.DtypeInt, []string{"-1", "-2", "-3"}},
 
+		// infix operators
 		{"bool_tff = true", column.DtypeBool, []string{"t", "f", "f"}},
 		{"bool_tff != true", column.DtypeBool, []string{"f", "t", "t"}},
 		{"bool_tff = false", column.DtypeBool, []string{"f", "t", "t"}},

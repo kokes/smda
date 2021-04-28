@@ -58,7 +58,7 @@ func TestParsingContents(t *testing.T) {
 				{etype: exprIdentifier, value: "bar"},
 			}},
 		}}},
-		// TODO(PR): unary plus? Just eliminate the plus entirely? (tests are in place already)
+		// TODO(next): unary plus? Just eliminate the plus entirely? (tests are in place already)
 		// {"+2", &Expression{etype: exprLiteralInt, value: "2"}},
 		// {"+2.4", &Expression{etype: exprLiteralFloat, value: "2.4"}},
 

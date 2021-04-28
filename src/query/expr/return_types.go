@@ -117,6 +117,17 @@ func (expr *Expression) ReturnType(ts column.TableSchema) (column.Schema, error)
 
 		schema.Dtype = ch.Dtype
 		schema.Nullable = ch.Nullable
+	case expr.etype == exprNot:
+		ch, err := expr.children[0].ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		if ch.Dtype != column.DtypeBool {
+			return schema, errTypeMismatch
+		}
+
+		schema.Dtype = ch.Dtype
+		schema.Nullable = ch.Nullable
 	case expr.IsLiteral():
 		schema.Nullable = false // ARCH: still no consensus whether null columns are nullable
 		switch expr.etype {

@@ -52,7 +52,6 @@ func (expr *Expression) IsOperatorComparison() bool {
 	return expr.etype >= exprEquality && expr.etype <= exprGreaterThanEqual
 }
 
-// TODO(PR): what about `exprUnaryMinus` and `exprNot`... does that go here?
 func (expr *Expression) IsOperator() bool {
 	return expr.IsOperatorBoolean() || expr.IsOperatorMath() || expr.IsOperatorComparison()
 }

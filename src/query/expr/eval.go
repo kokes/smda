@@ -29,6 +29,9 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 			expr.children[0],
 		}}
 		return Evaluate(newExpr, chunkLength, columnData, filter)
+	case exprNot:
+		// TODO(next): figure out how best to support this (a simple test case is ready)
+		return nil, errQueryPatternNotSupported
 	// ARCH: perhaps use expr.IsIdentifier?
 	case exprIdentifier, exprIdentifierQuoted:
 		lookupValue := expr.value
