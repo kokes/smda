@@ -256,6 +256,8 @@ func Run(db *database.Database, q Query) (*Result, error) {
 		}
 		// OPTIM: if we push the limit into `aggregate`, we can simplify the aggregation itself
 		//        we will still have to iterate all chunks, but the state will be smaller
+		//        This will be an excellent optimisation for larger datasets - think queries
+		//        like `select user_id, count() from activity group by user_id limit 100`
 		// TODO(next): test this
 		if limit >= 0 {
 			nrows := columns[0].Len()

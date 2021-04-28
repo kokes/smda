@@ -19,8 +19,6 @@ import (
 // ARCH: many of these tests duplicate what's in router_test.go - maybe move some of the
 // router logic to `handlers` (setupRoutes) and the rest to this main.go?
 
-// TODO(next): can we perhaps create certs for testing (on the fly), to test TLS, http->https redirects etc.
-
 func TestRunningServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
