@@ -13,7 +13,7 @@ var errUnsupportedPrefixToken = errors.New("unsupported prefix token")
 const (
 	_ int = iota
 	LOWEST
-	BOOL_AND_OR // TODO(PR): is it really that AND and OR have the same precedence?
+	BOOL_AND_OR // TODO(next): is it really that AND and OR have the same precedence?
 	EQUALS      // ==, !=
 	// TODO(next): IN clause?
 	LESSGREATER // >, <, <=, >=
@@ -136,7 +136,7 @@ func (p *Parser) peekPrecedence() int {
 	return precedences[pt.ttype]
 }
 
-// TODO(PR): maybe don't build these as method but as functions (taking in Parser) and have them globally in a slice,
+// ARCH: maybe don't build these as method but as functions (taking in Parser) and have them globally in a slice,
 // not in a map for each parser
 func (p *Parser) parseIdentifer() *Expression {
 	val := p.curToken().value
