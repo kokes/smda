@@ -213,6 +213,11 @@ func TestReturnTypes(t *testing.T) {
 		{"'ahoy'", column.Schema{Dtype: column.DtypeString}, nil},
 		{"my_int_column", column.Schema{Dtype: column.DtypeInt}, nil},
 
+		// unary/prefix
+		{"-my_int_column", column.Schema{Dtype: column.DtypeInt}, nil},
+		{"-my_float_column", column.Schema{Dtype: column.DtypeFloat}, nil},
+		{"-my_string_column", column.Schema{}, errTypeMismatch},
+
 		// arithmetics
 		{"1 = 1", column.Schema{Dtype: column.DtypeBool}, nil},
 		{"1 != 1", column.Schema{Dtype: column.DtypeBool}, nil},

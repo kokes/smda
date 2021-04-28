@@ -22,6 +22,13 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		return expr.aggregator.Resolve()
 	}
 	switch expr.etype {
+	case exprUnaryMinus:
+		// OPTIM: this whole block will benefit from constant folding, especially if the child is a literal int/float
+		newExpr := &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprLiteralInt, value: "-1"},
+			expr.children[0],
+		}}
+		return Evaluate(newExpr, chunkLength, columnData, filter)
 	// ARCH: perhaps use expr.IsIdentifier?
 	case exprIdentifier, exprIdentifierQuoted:
 		lookupValue := expr.value

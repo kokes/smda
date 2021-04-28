@@ -40,7 +40,7 @@ func TestBasicEval(t *testing.T) {
 		// infix operators
 		// TODO(PR): make this work
 		// {"not bool_tff", column.DtypeBool, []string{"f", "t", "t"}},
-		// {"-float123", column.DtypeFloat, []string{"-1", "-2", "-3"}},
+		{"-float123", column.DtypeFloat, []string{"-1", "-2", "-3"}},
 		// {"-foo123", column.DtypeInt, []string{"-1", "-2", "-3"}},
 
 		{"bool_tff = true", column.DtypeBool, []string{"t", "f", "f"}},
