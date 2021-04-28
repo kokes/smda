@@ -12,6 +12,7 @@ var errTypeMismatch = errors.New("expecting compatible types")
 var errNoTypes = errors.New("expecting at least one column")
 var errWrongNumberofArguments = errors.New("wrong number arguments passed to a function")
 var errWrongArgumentType = errors.New("wrong argument type passed to a function")
+var errReturnTypeNotInferred = errors.New("cannot infer return type of expression")
 
 // should this be in the database package?
 func comparableTypes(t1, t2 column.Dtype) bool {
@@ -104,6 +105,29 @@ func ColumnsUsed(schema column.TableSchema, exprs ...*Expression) []string {
 func (expr *Expression) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	schema := column.Schema{}
 	switch {
+	case expr.etype == exprUnaryMinus:
+		ch, err := expr.children[0].ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		// TODO/ARCH: we check for numerical types in various places, unify it
+		if !(ch.Dtype == column.DtypeInt || ch.Dtype == column.DtypeFloat) {
+			return schema, errTypeMismatch
+		}
+
+		schema.Dtype = ch.Dtype
+		schema.Nullable = ch.Nullable
+	case expr.etype == exprNot:
+		ch, err := expr.children[0].ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		if ch.Dtype != column.DtypeBool {
+			return schema, errTypeMismatch
+		}
+
+		schema.Dtype = ch.Dtype
+		schema.Nullable = ch.Nullable
 	case expr.IsLiteral():
 		schema.Nullable = false // ARCH: still no consensus whether null columns are nullable
 		switch expr.etype {
@@ -192,7 +216,7 @@ func (expr *Expression) ReturnType(ts column.TableSchema) (column.Schema, error)
 			Nullable: col.Nullable,
 		}
 	default:
-		return schema, fmt.Errorf("expression %v cannot be resolved", expr)
+		return schema, fmt.Errorf("%w: expression %v cannot be resolved", errReturnTypeNotInferred, expr)
 	}
 	if schema.Name == "" {
 		schema.Name = expr.String()

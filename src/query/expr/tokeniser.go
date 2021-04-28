@@ -15,19 +15,34 @@ var errInvalidString = errors.New("invalid string literal")
 var errInvalidIdentifier = errors.New("invalid identifier")
 
 type tokenType uint8
-type tok struct {
+
+type token struct {
 	ttype tokenType
 	value []byte
 }
-type tokList []tok
+type tokenList []token
 
 const (
 	tokenInvalid tokenType = iota
 	tokenIdentifier
 	tokenIdentifierQuoted
 	tokenComment
+	// keywords:
 	tokenAnd
 	tokenOr
+	tokenAs
+	tokenTrue
+	tokenFalse
+	tokenNull
+	tokenIn
+	tokenLike
+	tokenIlike
+	tokenIs
+	tokenNot
+	tokenCase
+	tokenWhen
+	tokenEnd
+	// keywords end
 	tokenAdd
 	tokenSub
 	tokenMul
@@ -48,7 +63,25 @@ const (
 	// potential additions: || (string concatenation), :: (casting), &|^ (bitwise operations), ** (power)
 )
 
-func (tok tok) String() string {
+var keywords = map[string]tokenType{
+	"and":   tokenAnd,
+	"or":    tokenOr,
+	"as":    tokenAs,
+	"true":  tokenTrue,
+	"false": tokenFalse,
+	"null":  tokenNull,
+	"in":    tokenIn,
+	"like":  tokenLike,
+	"ilike": tokenIlike,
+	"is":    tokenIs,
+	"not":   tokenNot,
+	"case":  tokenCase,
+	"when":  tokenWhen,
+	"end":   tokenEnd,
+}
+
+// ARCH: it might be useful to just use .value in most cases here
+func (tok token) String() string {
 	switch tok.ttype {
 	case tokenIdentifier:
 		return string(tok.value)
@@ -57,9 +90,33 @@ func (tok tok) String() string {
 	case tokenComment:
 		return fmt.Sprintf("-- %v\n", tok.value)
 	case tokenAnd:
-		return "&&" // we might change this to AND (and || to OR) to do this SQL compatibility thing
+		return "AND"
 	case tokenOr:
-		return "||"
+		return "OR"
+	case tokenAs:
+		return "AS"
+	case tokenTrue:
+		return "TRUE"
+	case tokenFalse:
+		return "FALSE"
+	case tokenNull:
+		return "NULL"
+	case tokenIn:
+		return "IN"
+	case tokenLike:
+		return "LIKE"
+	case tokenIlike:
+		return "ILIKE"
+	case tokenIs:
+		return "IS"
+	case tokenNot:
+		return "NOT"
+	case tokenCase:
+		return "CASE"
+	case tokenWhen:
+		return "WHEN"
+	case tokenEnd:
+		return "END"
 	case tokenAdd:
 		return "+"
 	case tokenSub:
@@ -69,7 +126,7 @@ func (tok tok) String() string {
 	case tokenQuo:
 		return "/"
 	case tokenEq:
-		return "==" // TODO: this is a compatibility thing, will need to revert this to '=' eventually
+		return "="
 	case tokenNeq:
 		return "!="
 	case tokenGt:
@@ -93,12 +150,14 @@ func (tok tok) String() string {
 	case tokenLiteralString:
 		escaped := bytes.ReplaceAll(tok.value, []byte("'"), []byte("\\'"))
 		return fmt.Sprintf("'%s'", escaped)
+	case tokenInvalid:
+		return "invalid_token"
 	default:
 		panic(fmt.Sprintf("unknown token type: %v", tok.ttype))
 	}
 }
 
-func (tokens tokList) String() string {
+func (tokens tokenList) String() string {
 	var sb strings.Builder
 	for j, tok := range tokens {
 		sb.WriteString(tok.String())
@@ -124,9 +183,9 @@ func newTokenScannerFromString(s string) *tokenScanner {
 	return newTokenScanner([]byte(s))
 }
 
-func tokeniseString(s string) (tokList, error) {
+func tokeniseString(s string) (tokenList, error) {
 	scanner := newTokenScannerFromString(s)
-	var tokens []tok
+	var tokens []token
 	for {
 		tok, err := scanner.scan()
 		if err != nil {
@@ -155,9 +214,9 @@ func (ts *tokenScanner) peekOne() byte {
 	return ts.peek(1)[0]
 }
 
-func (ts *tokenScanner) scan() (tok, error) {
+func (ts *tokenScanner) scan() (token, error) {
 	if ts.position >= len(ts.code) {
-		return tok{tokenEOF, nil}, nil
+		return token{tokenEOF, nil}, nil
 	}
 	char := ts.code[ts.position]
 	switch char {
@@ -166,10 +225,10 @@ func (ts *tokenScanner) scan() (tok, error) {
 		return ts.scan()
 	case ',':
 		ts.position++
-		return tok{tokenComma, nil}, nil
+		return token{tokenComma, nil}, nil
 	case '+':
 		ts.position++
-		return tok{tokenAdd, nil}, nil
+		return token{tokenAdd, nil}, nil
 	case '-':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("--")) {
@@ -181,82 +240,78 @@ func (ts *tokenScanner) scan() (tok, error) {
 			}
 			ret := ts.code[ts.position+2 : endpos]
 			ts.position += endpos - ts.position + 1
-			return tok{tokenComment, ret}, nil
+			return token{tokenComment, ret}, nil
 		}
 		ts.position++
-		return tok{tokenSub, nil}, nil
+		return token{tokenSub, nil}, nil
 	case '*':
 		ts.position++
-		return tok{tokenMul, nil}, nil
+		return token{tokenMul, nil}, nil
 	case '/':
 		ts.position++
-		return tok{tokenQuo, nil}, nil
+		return token{tokenQuo, nil}, nil
 	case '=':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("==")) {
 			ts.position++
-			return tok{}, errUnknownToken
+			return token{}, errUnknownToken
 		}
 		ts.position++
-		return tok{tokenEq, nil}, nil
+		return token{tokenEq, nil}, nil
 	case '(':
 		ts.position++
-		return tok{tokenLparen, nil}, nil
+		return token{tokenLparen, nil}, nil
 	case ')':
 		ts.position++
-		return tok{tokenRparen, nil}, nil
+		return token{tokenRparen, nil}, nil
 	case '>':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte(">=")) {
 			ts.position += 2
-			return tok{tokenGte, nil}, nil
+			return token{tokenGte, nil}, nil
 		}
 		ts.position++
-		return tok{tokenGt, nil}, nil
+		return token{tokenGt, nil}, nil
 	case '!':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("!=")) {
 			ts.position += 2
-			return tok{tokenNeq, nil}, nil
+			return token{tokenNeq, nil}, nil
 		}
 		ts.position++ // we need to advance the position, so that we don't get stuck
-		return tok{}, errUnknownToken
+		return token{}, errUnknownToken
 	case '<':
 		next := ts.peek(2)
 		if bytes.Equal(next, []byte("<=")) {
 			ts.position += 2
-			return tok{tokenLte, nil}, nil
+			return token{tokenLte, nil}, nil
 		}
 		if bytes.Equal(next, []byte("<>")) {
 			ts.position += 2
-			return tok{tokenNeq, nil}, nil
+			return token{tokenNeq, nil}, nil
 		}
 		ts.position++
-		return tok{tokenLt, nil}, nil
+		return token{tokenLt, nil}, nil
 	case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		return ts.consumeNumber()
 	case '\'': // string literal
 		return ts.consumeStringLiteral()
 	default:
 		// doesn't have to be an identifier, could be a keyword
-		// at this point we only care about and/or, because we need to convert them
-		// before we remove this SQL compatibility layer (we use Go's ast/parser, so we
-		// can't just use AND and OR as operators)
 		ident, err := ts.consumeIdentifier()
 		if err != nil {
-			return tok{}, err
+			return token{}, err
 		}
-		if bytes.Equal(ident.value, []byte("and")) || bytes.Equal(ident.value, []byte("AND")) {
-			return tok{ttype: tokenAnd}, nil
+		identl := strings.ToLower(string(ident.value))
+		if kw, ok := keywords[identl]; ok {
+			return token{ttype: kw}, nil
 		}
-		if bytes.Equal(ident.value, []byte("or")) || bytes.Equal(ident.value, []byte("OR")) {
-			return tok{ttype: tokenOr}, nil
-		}
+
 		return ident, nil
 	}
 }
 
-func (ts *tokenScanner) consumeNumber() (tok, error) {
+func (ts *tokenScanner) consumeNumber() (token, error) {
 	var (
 		seenDecPoint bool
 		seenExp      bool
@@ -307,19 +362,19 @@ scan:
 
 	if seenDecPoint || seenExp {
 		if _, err := strconv.ParseFloat(string(val), 64); err != nil {
-			return tok{}, errInvalidFloat
+			return token{}, errInvalidFloat
 		}
-		return tok{tokenLiteralFloat, val}, nil
+		return token{tokenLiteralFloat, val}, nil
 	}
 	if _, err := strconv.ParseInt(string(val), 10, 64); err != nil {
-		return tok{}, errInvalidInteger
+		return token{}, errInvalidInteger
 	}
-	return tok{tokenLiteralInt, val}, nil
+	return token{tokenLiteralInt, val}, nil
 }
 
 // OPTIM: use a function with inequalities instead of this linear scan
-func (ts *tokenScanner) consumeIdentifier() (tok, error) {
-	ttoken := tok{ttype: tokenIdentifier}
+func (ts *tokenScanner) consumeIdentifier() (token, error) {
+	ttoken := token{ttype: tokenIdentifier}
 	if ts.peekOne() == '"' {
 		// TODO: quoted identifier should allow for more characters - basically anything
 		// but a newline of a quote - unless preceded by a quote - should be fair game
@@ -330,13 +385,13 @@ func (ts *tokenScanner) consumeIdentifier() (tok, error) {
 		quotepos := bytes.IndexByte(ts.code[ts.position:], '"')
 		nlinepos := bytes.IndexByte(ts.code[ts.position:], '\n')
 		if quotepos == -1 {
-			return tok{}, fmt.Errorf("%w: no matching quote in quoted identifier", errInvalidIdentifier)
+			return token{}, fmt.Errorf("%w: no matching quote in quoted identifier", errInvalidIdentifier)
 		}
 		if quotepos == 0 {
-			return tok{}, fmt.Errorf("%w: identifiers cannot be empty", errInvalidIdentifier)
+			return token{}, fmt.Errorf("%w: identifiers cannot be empty", errInvalidIdentifier)
 		}
 		if nlinepos > -1 && nlinepos < quotepos {
-			return tok{}, fmt.Errorf("%w: newline in quoted identifier", errInvalidIdentifier)
+			return token{}, fmt.Errorf("%w: newline in quoted identifier", errInvalidIdentifier)
 		}
 		ttoken.value = ts.code[ts.position : ts.position+quotepos]
 		ts.position += quotepos + 1
@@ -351,7 +406,7 @@ func (ts *tokenScanner) consumeIdentifier() (tok, error) {
 		// this actually means there's nothing identifier-like here
 		// a good way to check would be to see if the first char is one of those a-zA-Z_0-9 and if not, fallthrough to invalididentifier
 		ts.position++
-		return tok{}, errInvalidIdentifier
+		return token{}, errInvalidIdentifier
 	}
 
 	return ttoken, nil
@@ -359,34 +414,34 @@ func (ts *tokenScanner) consumeIdentifier() (tok, error) {
 
 const apostrophe = '\''
 
-func (ts *tokenScanner) consumeStringLiteral() (tok, error) {
-	token := tok{tokenLiteralString, nil}
-	token.value = make([]byte, 0)
+func (ts *tokenScanner) consumeStringLiteral() (token, error) {
+	ret := token{tokenLiteralString, nil}
+	ret.value = make([]byte, 0)
 	for {
 		idx := bytes.IndexByte(ts.code[ts.position+1:], apostrophe)
 		if idx == -1 {
 			ts.position++
-			return tok{}, errInvalidString
+			return token{}, errInvalidString
 		}
 		chunk := ts.code[ts.position+1 : ts.position+idx+1]
 		if bytes.IndexByte(chunk, '\n') > -1 {
 			ts.position++
-			return tok{}, fmt.Errorf("a string literal cannot contain a newline: %w", errInvalidString)
+			return token{}, fmt.Errorf("a string literal cannot contain a newline: %w", errInvalidString)
 		}
-		token.value = append(token.value, chunk...)
+		ret.value = append(ret.value, chunk...)
 		ts.position += idx + 1
 		next := ts.peek(2)
 		// apostrophes can be in string literals, but they need to be escaped by another apostrophe
 		if bytes.Equal(next, []byte("''")) {
 			ts.position++
-			token.value = append(token.value, apostrophe)
+			ret.value = append(ret.value, apostrophe)
 		} else {
 			break
 		}
 	}
 
 	ts.position++
-	return token, nil
+	return ret, nil
 }
 
 // slice a given input as long as all the bytes are within the chars slice

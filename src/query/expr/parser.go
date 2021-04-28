@@ -1,448 +1,303 @@
 package expr
 
 import (
-	"encoding/json"
+	"bytes"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"reflect"
-	"strings"
-
-	"github.com/kokes/smda/src/column"
 )
 
-var errNoNestedAggregations = errors.New("cannot nest aggregations (e.g. sum(min(a)))")
-
-type exprType uint8
+var errUnparsedBit = errors.New("parsing incomplete")
+var errNoClosingBracket = errors.New("no closing bracket after an opening one")
+var errUnsupportedPrefixToken = errors.New("unsupported prefix token")
 
 const (
-	exprInvalid exprType = iota
-	exprIdentifier
-	exprIdentifierQuoted
-	exprAnd
-	exprOr
-	exprAddition
-	exprSubtraction
-	exprMultiplication
-	exprDivision
-	exprEquality
-	exprNequality
-	exprLessThan
-	exprLessThanEqual
-	exprGreaterThan
-	exprGreaterThanEqual
-	exprLiteralInt
-	exprLiteralFloat
-	exprLiteralBool
-	exprLiteralString
-	exprLiteralNull
-	exprFunCall
+	_ int = iota
+	LOWEST
+	BOOL_AND_OR // TODO(next): is it really that AND and OR have the same precedence?
+	EQUALS      // ==, !=
+	// TODO(next): IN clause?
+	LESSGREATER // >, <, <=, >=
+	ADDITION    // +
+	PRODUCT     // *
+	PREFIX      // -X or NOT X
+	CALL        // myFunction(X)
 )
 
-func (expr *Expression) IsIdentifier() bool {
-	return expr.etype == exprIdentifier || expr.etype == exprIdentifierQuoted
-}
-func (expr *Expression) IsOperatorBoolean() bool {
-	return expr.etype == exprAnd || expr.etype == exprOr
-}
-func (expr *Expression) IsOperatorMath() bool {
-	return expr.etype >= exprAddition && expr.etype <= exprDivision
-}
-func (expr *Expression) IsOperatorComparison() bool {
-	return expr.etype >= exprEquality && expr.etype <= exprGreaterThanEqual
-}
-
-func (expr *Expression) IsOperator() bool {
-	return expr.IsOperatorBoolean() || expr.IsOperatorMath() || expr.IsOperatorComparison()
-}
-func (expr *Expression) IsLiteral() bool {
-	return expr.etype >= exprLiteralInt && expr.etype <= exprLiteralNull
+var precedences = map[tokenType]int{
+	tokenAnd:    BOOL_AND_OR,
+	tokenOr:     BOOL_AND_OR,
+	tokenEq:     EQUALS,
+	tokenIs:     EQUALS,
+	tokenNeq:    EQUALS,
+	tokenLt:     LESSGREATER,
+	tokenGt:     LESSGREATER,
+	tokenLte:    LESSGREATER,
+	tokenGte:    LESSGREATER,
+	tokenAdd:    ADDITION,
+	tokenSub:    ADDITION,
+	tokenQuo:    PRODUCT,
+	tokenMul:    PRODUCT,
+	tokenLparen: CALL,
 }
 
-// ARCH: is this used anywhere? (partially in the Expression stringer)
-func (etype exprType) String() string {
-	switch etype {
-	case exprInvalid:
-		return "Invalid"
-	case exprIdentifier:
-		return "Identifier"
-	case exprIdentifierQuoted:
-		return "QuotedIdentifier"
-	case exprAnd:
-		return "&&"
-	case exprOr:
-		return "||"
-	case exprAddition:
-		return "+"
-	case exprSubtraction:
-		return "-"
-	case exprMultiplication:
-		return "*"
-	case exprDivision:
-		return "/"
-	case exprEquality:
-		return "="
-	case exprNequality:
-		return "!="
-	case exprLessThan:
-		return "<"
-	case exprLessThanEqual:
-		return "<="
-	case exprGreaterThan:
-		return ">"
-	case exprGreaterThanEqual:
-		return ">="
-	case exprLiteralInt:
-		return "LiteralInt"
-	case exprLiteralFloat:
-		return "LiteralFloat"
-	case exprLiteralBool:
-		return "LiteralBool"
-	case exprLiteralString:
-		return "LiteralString"
-	case exprLiteralNull:
-		return "LiteralNull"
-	case exprFunCall:
-		return "FunCall"
-	default:
-		return "unknown_expression"
-	}
+var infixMapping = map[tokenType]exprType{
+	tokenAnd: exprAnd,
+	tokenOr:  exprOr,
+	tokenAdd: exprAddition,
+	tokenSub: exprSubtraction,
+	tokenMul: exprMultiplication,
+	tokenQuo: exprDivision,
+	tokenEq:  exprEquality,
+	tokenIs:  exprEquality,
+	tokenNeq: exprNequality,
+	tokenGt:  exprGreaterThan,
+	tokenGte: exprGreaterThanEqual,
+	tokenLt:  exprLessThan,
+	tokenLte: exprLessThanEqual,
 }
 
-type Expression struct {
-	etype             exprType
-	children          []*Expression
-	value             string
-	parens            bool
-	evaler            func(...column.Chunk) (column.Chunk, error)
-	aggregator        *column.AggState
-	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
+type (
+	prefixParseFn func() *Expression
+	infixParseFn  func(*Expression) *Expression
+)
+
+type Parser struct {
+	tokens   tokenList
+	position int
+	errors   []error
+
+	prefixParseFns map[tokenType]prefixParseFn
+	infixParseFns  map[tokenType]infixParseFn
 }
 
-func (expr *Expression) InitAggregator(schema column.TableSchema) error {
-	var rtypes []column.Dtype
-	for _, ch := range expr.children {
-		rtype, err := ch.ReturnType(schema)
-		if err != nil {
-			return err
-		}
-		rtypes = append(rtypes, rtype.Dtype)
-	}
-	aggregator, err := expr.aggregatorFactory(rtypes...)
-	if err != nil {
-		return err
-	}
-	expr.aggregator = aggregator
-	return nil
-}
-
-func AggExpr(expr *Expression) ([]*Expression, error) {
-	var ret []*Expression
-	found := false
-	if expr.etype == exprFunCall && expr.evaler == nil {
-		ret = append(ret, expr)
-		found = true
-	}
-	for _, ch := range expr.children {
-		ach, err := AggExpr(ch)
-		if err != nil {
-			return nil, err
-		}
-		if ach != nil {
-			if found {
-				return nil, errNoNestedAggregations
-			}
-			ret = append(ret, ach...)
-		}
-	}
-	return ret, nil
-}
-
-func (expr *Expression) String() string {
-	var rval string
-	switch expr.etype {
-	case exprInvalid:
-		rval = "invalid_expression"
-	case exprIdentifier:
-		rval = expr.value
-	case exprIdentifierQuoted:
-		rval = fmt.Sprintf("\"%s\"", expr.value)
-	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
-		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
-		rval = fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
-	case exprLiteralInt, exprLiteralFloat, exprLiteralBool:
-		rval = expr.value
-	case exprLiteralString:
-		// TODO: what about literals with apostrophes in them? escape them
-		rval = fmt.Sprintf("'%s'", expr.value)
-	case exprLiteralNull:
-		rval = "NULL"
-	case exprFunCall:
-		args := make([]string, 0, len(expr.children))
-		for _, ch := range expr.children {
-			args = append(args, ch.String())
-		}
-
-		rval = fmt.Sprintf("%s(%s)", expr.value, strings.Join(args, ", "))
-	default:
-		// we need to panic, because we use this stringer for expression comparison
-		panic(fmt.Sprintf("unsupported expression type: %v", expr.etype))
-	}
-	if expr.parens {
-		return fmt.Sprintf("(%s)", rval)
-	}
-	return rval
-}
-
-func (expr *Expression) UnmarshalJSON(data []byte) error {
-	var raw string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	ex, err := ParseStringExpr(raw)
-	if ex != nil {
-		*expr = *ex
-	}
-	return err
-}
-
-func (expr *Expression) MarshalJSON() ([]byte, error) {
-	return json.Marshal(expr.String())
-}
-
-// https://golang.org/ref/spec#Keywords
-var goKeywords = map[string]struct{}{
-	"break": {}, "default": {}, "func": {}, "interface": {},
-	"select": {}, "case": {}, "defer": {}, "go": {},
-	"map": {}, "struct": {}, "chan": {}, "else": {},
-	"goto": {}, "package": {}, "switch": {}, "const": {},
-	"fallthrough": {}, "if": {}, "range": {}, "type": {},
-	"continue": {}, "for": {}, "import": {}, "return": {}, "var": {},
-}
-
-// limitations:
-// - cannot use this for full query parsing, just expressions
-// - cannot do count(*) and other syntactically problematic expressions (also ::)
-// - limited use of = - we might use '==' for all equality for now and later switch to SQL's '='
-//   - or we might silently promote any '=' to '==' (but only outside of strings...)
-// - we cannot use escaped apostrophes in string literals (because Go can't parse that) - unless we sanitise that during tokenisation
-// normal process: 1) tokenise, 2) build an ast, // 3) (optional) optimise the ast
-// our process: 1) tokenise, 2) edit some of these tokens, 3) stringify and build an ast using a 3rd party, 4) optimise
-// this is due to the fact that we don't have our own parser, we're using go's go/parser from the standard
-// library - but we're leveraging our own tokeniser, because we need to "fix" some tokens before passing them
-// to go/parser, because that parser is used for code parsing, not SQL expressions parsing
-// when building our own parser, consider:
-// isPrecedence: get inspired: https://golang.org/src/go/token/token.go?s=4316:4348#L253
-//  - then build an expression parser with precedence built in
-func ParseStringExpr(s string) (*Expression, error) {
+func NewParser(s string) (*Parser, error) {
+	// OPTIM: walk it here without materialising it... but it shouldn't really matter for our use cases
 	tokens, err := tokeniseString(s)
 	if err != nil {
 		return nil, err
 	}
-	// we could have used ParseExpr directly, but we need to sanitise it first, because Go's parser
-	// doesn't work well with SQL-like expressions
-	// we won't need this as soon as we have a custom parser
-	s2 := tokens.String()
-
-	// TODO(parser): once we get a custom parser, we won't have to deal with this
-	// essentially, we want to avoid Go builtin keywords being parsed as such, especially
-	// if the whole expression is a keyword (e.g. a column name "type")
-	var tr ast.Expr
-	if _, ok := goKeywords[s2]; ok {
-		tr = &ast.Ident{Name: s2}
-	} else {
-		tr, err = parser.ParseExpr(s2)
-		// we are fine with illegal rune literals - because we need e.g. 'ahoy' as literal strings
-		if err != nil && !strings.Contains(err.Error(), "illegal rune literal") {
-			return nil, fmt.Errorf("parse error: %w", err)
-		}
+	p := &Parser{tokens: tokens}
+	p.prefixParseFns = map[tokenType]prefixParseFn{
+		tokenLparen:           p.parseParentheses,
+		tokenIdentifier:       p.parseIdentifer,
+		tokenIdentifierQuoted: p.parseIdentiferQuoted,
+		tokenLiteralInt:       p.parseLiteralInteger,
+		tokenLiteralFloat:     p.parseLiteralFloat,
+		tokenLiteralString:    p.parseLiteralString,
+		tokenTrue:             p.parseLiteralBool,
+		tokenFalse:            p.parseLiteralBool,
+		tokenNull:             p.parseLiteralNULL,
+		tokenSub:              p.parsePrefixExpression,
+		tokenNot:              p.parsePrefixExpression,
+	}
+	p.infixParseFns = map[tokenType]infixParseFn{
+		tokenAnd:    p.parseInfixExpression,
+		tokenOr:     p.parseInfixExpression,
+		tokenAdd:    p.parseInfixExpression,
+		tokenSub:    p.parseInfixExpression,
+		tokenQuo:    p.parseInfixExpression,
+		tokenMul:    p.parseInfixExpression,
+		tokenEq:     p.parseInfixExpression,
+		tokenIs:     p.parseInfixExpression,
+		tokenNeq:    p.parseInfixExpression,
+		tokenLt:     p.parseInfixExpression,
+		tokenGt:     p.parseInfixExpression,
+		tokenLte:    p.parseInfixExpression,
+		tokenGte:    p.parseInfixExpression,
+		tokenLparen: p.parseCallExpression,
 	}
 
-	tree, err := convertAstExprToOwnExpr(tr)
-
-	return tree, err
+	return p, nil
 }
 
-func convertAstExprToOwnExpr(expr ast.Expr) (*Expression, error) {
-	switch node := expr.(type) {
-	case *ast.Ident:
-		// TODO: what if this a reserved keyword? (we don't have any just yet)
-		value := node.Name
-
-		// not the same set of values as in parseBool, because we only want true/false (upper/lower) in literal expressions
-		if value == "true" || value == "TRUE" || value == "false" || value == "FALSE" {
-			return &Expression{
-				etype: exprLiteralBool,
-				value: fmt.Sprintf("%v", value == "true" || value == "TRUE"),
-			}, nil
-		}
-		if value == "null" || value == "NULL" {
-			return &Expression{
-				etype: exprLiteralNull,
-			}, nil
-		}
-
-		return &Expression{
-			etype: exprIdentifier,
-			value: strings.ToLower(value), // unquoted identifiers are case insensitive, so we'll lowercase them
-		}, nil
-	case *ast.BasicLit:
-		// TODO: do we need to recheck this with our own type parsers?
-		var etype exprType
-		var value string
-		switch node.Kind {
-		case token.STRING:
-			etype = exprIdentifier
-			value = node.Value[1 : len(node.Value)-1]
-			for _, char := range value {
-				// only assign the Quoted variant if there's a need for it
-				// TODO/ARCH: what about '-'? In general, what are our rules for quoting?
-				if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
-					etype = exprIdentifierQuoted
-					break
-				}
-			}
-		case token.INT:
-			etype = exprLiteralInt
-			value = node.Value
-		case token.FLOAT:
-			etype = exprLiteralFloat
-			value = node.Value
-		case token.CHAR:
-			etype = exprLiteralString
-			value = node.Value[1 : len(node.Value)-1] // trim apostrophes
-			value = strings.ReplaceAll(value, "\\'", "'")
-		default:
-			return nil, fmt.Errorf("unsupported token: %v", node.Kind)
-		}
-		return &Expression{
-			etype: etype,
-			value: value,
-		}, nil
-	case *ast.UnaryExpr:
-		if node.Op == token.ADD {
-			return convertAstExprToOwnExpr(node.X)
-		}
-		if node.Op != token.SUB {
-			return nil, fmt.Errorf("unsupported op: %s", node.Op)
-		}
-
-		// simple -1 or -2.4 should be converted into a literal
-		if x, ok := node.X.(*ast.BasicLit); ok {
-			var etype exprType
-			switch x.Kind {
-			case token.INT:
-				etype = exprLiteralInt
-			case token.FLOAT:
-				etype = exprLiteralFloat
-			default:
-				return nil, fmt.Errorf("unsupported token for unary expressions: %v", x.Kind)
-			}
-			return &Expression{
-				etype: etype,
-				value: fmt.Sprintf("-%s", x.Value),
-			}, nil
-		}
-
-		// all the other unary expressions, e.g. -foo, -(2 - bar) should be extended to (-1)*something
-		ch, err := convertAstExprToOwnExpr(node.X)
-		if err != nil {
-			return nil, err
-		}
-		return &Expression{
-			etype: exprMultiplication,
-			children: []*Expression{
-				{etype: exprLiteralInt, value: "-1"},
-				ch,
-			},
-		}, nil
-	case *ast.BinaryExpr:
-		var ntype exprType
-		switch node.Op {
-		case token.LAND:
-			ntype = exprAnd
-		case token.LOR:
-			ntype = exprOr
-		case token.ADD:
-			ntype = exprAddition
-		case token.SUB:
-			ntype = exprSubtraction
-		case token.MUL:
-			ntype = exprMultiplication
-		case token.QUO:
-			ntype = exprDivision
-		case token.EQL:
-			ntype = exprEquality
-		case token.NEQ:
-			ntype = exprNequality
-		case token.LSS:
-			ntype = exprLessThan
-		case token.LEQ:
-			ntype = exprLessThanEqual
-		case token.GTR:
-			ntype = exprGreaterThan
-		case token.GEQ:
-			ntype = exprGreaterThanEqual
-		default:
-			return nil, fmt.Errorf("unrecognised operation: %v", node.Op)
-		}
-		children := make([]*Expression, 2)
-		for j, ex := range []ast.Expr{node.X, node.Y} {
-			ch, err := convertAstExprToOwnExpr(ex)
-			if err != nil {
-				return nil, err
-			}
-			children[j] = ch
-		}
-		return &Expression{
-			etype:    ntype,
-			children: children,
-		}, nil
-	case *ast.CallExpr:
-		funName := strings.ToLower(node.Fun.(*ast.Ident).Name)
-		ret := &Expression{
-			etype: exprFunCall,
-			value: funName,
-		}
-
-		var children []*Expression
-		for _, arg := range node.Args {
-			newc, err := convertAstExprToOwnExpr(arg)
-			if err != nil {
-				return nil, err
-			}
-			children = append(children, newc)
-		}
-		ret.children = children
-
-		fncp, ok := column.FuncProj[funName]
-		if ok {
-			ret.evaler = fncp
-			return ret, nil
-		}
-		// if it's not a projection, it must be an aggregator
-		// ARCH: cannot initialise the aggregator here, because we don't know
-		// the types that go in (and we're already using static dispatch here)
-		aggfac, err := column.NewAggregator(funName)
-		if err != nil {
-			return nil, err
-		}
-		ret.aggregatorFactory = aggfac
-
-		return ret, nil
-	case *ast.ParenExpr:
-		within, err := convertAstExprToOwnExpr(node.X)
-		if err != nil {
-			return nil, err
-		}
-		within.parens = true
-		return within, nil
-	default:
-		fmt.Println(reflect.TypeOf(expr))
-		fset := token.NewFileSet() // positions are relative to fset
-		ast.Print(fset, expr)
-		return nil, fmt.Errorf("unsupported expression: %v", reflect.TypeOf(expr))
+func (p *Parser) curToken() token {
+	if p.position >= len(p.tokens) {
+		return token{}
 	}
+	return p.tokens[p.position]
+}
+
+func (p *Parser) peekToken() token {
+	if p.position >= len(p.tokens)-1 {
+		return token{}
+	}
+	return p.tokens[p.position+1]
+}
+
+func (p *Parser) curPrecedence() int {
+	return precedences[p.curToken().ttype]
+}
+
+func (p *Parser) peekPrecedence() int {
+	pt := p.peekToken()
+	if pt.ttype == tokenInvalid {
+		return LOWEST
+	}
+	return precedences[pt.ttype]
+}
+
+// ARCH: maybe don't build these as method but as functions (taking in Parser) and have them globally in a slice,
+// not in a map for each parser
+func (p *Parser) parseIdentifer() *Expression {
+	val := p.curToken().value
+	val = bytes.ToLower(val) // unquoted identifiers are case insensitive, so we can lowercase them
+	return &Expression{etype: exprIdentifier, value: string(val)}
+}
+func (p *Parser) parseIdentiferQuoted() *Expression {
+	val := p.curToken().value
+	etype := exprIdentifier
+	// only assign the Quoted variant if there's a need for it
+	// TODO/ARCH: what about '-'? In general, what are our rules for quoting?
+	for _, char := range val {
+		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
+			etype = exprIdentifierQuoted
+			break
+		}
+	}
+
+	return &Expression{etype: etype, value: string(val)}
+}
+func (p *Parser) parseLiteralInteger() *Expression {
+	val := string(p.curToken().value)
+	// we don't need to do strconv validation - the tokeniser has done so already
+	return &Expression{etype: exprLiteralInt, value: val}
+}
+func (p *Parser) parseLiteralFloat() *Expression {
+	val := string(p.curToken().value)
+	return &Expression{etype: exprLiteralFloat, value: val}
+}
+func (p *Parser) parseLiteralString() *Expression {
+	val := p.curToken().value
+	return &Expression{etype: exprLiteralString, value: string(val)}
+}
+func (p *Parser) parseLiteralNULL() *Expression {
+	return &Expression{etype: exprLiteralNull}
+}
+func (p *Parser) parseLiteralBool() *Expression {
+	val := p.curToken()
+	return &Expression{etype: exprLiteralBool, value: val.String()}
+}
+
+func (p *Parser) parseParentheses() *Expression {
+	p.position++
+	expr := p.parseExpression(LOWEST)
+
+	peek := p.peekToken()
+	if peek.ttype != tokenRparen {
+		p.errors = append(p.errors, errNoClosingBracket)
+		return nil
+	}
+	p.position++
+	expr.parens = true
+
+	return expr
+}
+func (p *Parser) parsePrefixExpression() *Expression {
+	curToken := p.curToken()
+	var etype exprType
+	switch curToken.ttype {
+	case tokenSub:
+		etype = exprUnaryMinus
+	case tokenNot:
+		etype = exprNot
+	default:
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnsupportedPrefixToken, curToken.ttype))
+		return nil
+	}
+	expr := &Expression{
+		etype: etype,
+	}
+
+	p.position++
+
+	right := p.parseExpression(PREFIX)
+	expr.children = append(expr.children, right)
+
+	return expr
+}
+
+func (p *Parser) parseCallExpression(left *Expression) *Expression {
+	funName := left.value
+	expr := &Expression{etype: exprFunCall, value: funName}
+
+	if p.peekToken().ttype == tokenRparen {
+		p.position++
+		return expr
+	}
+	p.position++
+	expr.children = append(expr.children, p.parseExpression(LOWEST))
+
+	for p.peekToken().ttype == tokenComma {
+		p.position += 2
+		expr.children = append(expr.children, p.parseExpression(LOWEST))
+	}
+
+	if p.peekToken().ttype != tokenRparen {
+		p.errors = append(p.errors, errNoClosingBracket)
+		return nil
+	}
+	p.position++
+
+	return expr
+}
+func (p *Parser) parseInfixExpression(left *Expression) *Expression {
+	curToken := p.curToken()
+	etype, ok := infixMapping[curToken.ttype]
+	if !ok {
+		p.errors = append(p.errors, fmt.Errorf("unsupported infix operator: %v", curToken.ttype))
+		return nil
+	}
+	expr := &Expression{etype: etype}
+	precedence := p.curPrecedence()
+	p.position++
+	right := p.parseExpression(precedence)
+
+	expr.children = []*Expression{left, right}
+
+	return expr
+}
+
+func (p *Parser) parseExpression(precedence int) *Expression {
+	curToken := p.curToken()
+	prefix := p.prefixParseFns[curToken.ttype]
+	if prefix == nil {
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnsupportedPrefixToken, curToken))
+		return nil
+	}
+
+	left := prefix()
+
+	for precedence < p.peekPrecedence() {
+		nextToken := p.peekToken()
+		infix := p.infixParseFns[nextToken.ttype]
+		if infix == nil {
+			return left
+		}
+		p.position++
+		left = infix(left)
+	}
+	return left
+}
+
+func ParseStringExpr(s string) (*Expression, error) {
+	p, err := NewParser(s)
+	if err != nil {
+		return nil, err
+	}
+	ret := p.parseExpression(LOWEST)
+
+	if p.position != len(p.tokens)-1 {
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnparsedBit, p.tokens[p.position:]))
+	}
+
+	// ARCH: abstract this into p.Err()? Will be useful if we do additional parsing (multiple expressions, select queries etc.)
+	if len(p.errors) > 0 {
+		return nil, fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
+	}
+
+	if err := ret.InitFunctionCalls(); err != nil {
+		return nil, err
+	}
+
+	return ret, nil
 }

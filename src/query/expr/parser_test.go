@@ -1,6 +1,7 @@
 package expr
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -10,6 +11,7 @@ func TestParsingContents(t *testing.T) {
 		raw     string
 		expExpr *Expression
 	}{
+		// standalone expressions and literals
 		{"ahoy", &Expression{etype: exprIdentifier, value: "ahoy"}},
 		{"type", &Expression{etype: exprIdentifier, value: "type"}},
 		{"for", &Expression{etype: exprIdentifier, value: "for"}},
@@ -20,13 +22,77 @@ func TestParsingContents(t *testing.T) {
 		{"\"ahoy_world\"", &Expression{etype: exprIdentifier, value: "ahoy_world"}},
 		{"\"ahoy62\"", &Expression{etype: exprIdentifier, value: "ahoy62"}},
 		{"\"hello world\"", &Expression{etype: exprIdentifierQuoted, value: "hello world"}},
-		{"\"hello world\"*2", &Expression{etype: exprMultiplication, children: []*Expression{
-			{etype: exprIdentifierQuoted, value: "hello world"},
+		{"254", &Expression{etype: exprLiteralInt, value: "254"}},
+		{"254.678", &Expression{etype: exprLiteralFloat, value: "254.678"}},
+		{"true", &Expression{etype: exprLiteralBool, value: "TRUE"}},
+		{"TRUE", &Expression{etype: exprLiteralBool, value: "TRUE"}},
+		{"True", &Expression{etype: exprLiteralBool, value: "TRUE"}},
+		{"false", &Expression{etype: exprLiteralBool, value: "FALSE"}},
+		{"FALSE", &Expression{etype: exprLiteralBool, value: "FALSE"}},
+		{"'foo'", &Expression{etype: exprLiteralString, value: "foo"}},
+		{"'foo bar'", &Expression{etype: exprLiteralString, value: "foo bar"}},
+		{"'foo'' bar'", &Expression{etype: exprLiteralString, value: "foo' bar"}},
+		{"null", &Expression{etype: exprLiteralNull}},
+		{"NULL", &Expression{etype: exprLiteralNull}},
+		{"NULl", &Expression{etype: exprLiteralNull}},
+
+		// prefix operators
+		{"-2", &Expression{etype: exprUnaryMinus, children: []*Expression{
 			{etype: exprLiteralInt, value: "2"},
 		}}},
-		{"foo = 'bar' AND bak = 'bar'", nil},
-		{"1 < foo < 3", nil},
-		{"bar < foo < bak", nil},
+		{"-foo", &Expression{etype: exprUnaryMinus, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"-\"Some column\"", &Expression{etype: exprUnaryMinus, children: []*Expression{
+			{etype: exprIdentifierQuoted, value: "Some column"},
+		}}},
+		{"NOT foo", &Expression{etype: exprNot, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"NOT true", &Expression{etype: exprNot, children: []*Expression{
+			{etype: exprLiteralBool, value: "TRUE"},
+		}}},
+		{"-(foo*bar)", &Expression{etype: exprUnaryMinus, children: []*Expression{
+			{etype: exprMultiplication, parens: true, children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprIdentifier, value: "bar"},
+			}},
+		}}},
+		// TODO(next): unary plus? Just eliminate the plus entirely? (tests are in place already)
+		// {"+2", &Expression{etype: exprLiteralInt, value: "2"}},
+		// {"+2.4", &Expression{etype: exprLiteralFloat, value: "2.4"}},
+
+		// infix operators
+		{"4 * 2", &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprLiteralInt, value: "2"},
+		}}},
+		{"4 + foo", &Expression{etype: exprAddition, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"4 - foo", &Expression{etype: exprSubtraction, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"4 / foo", &Expression{etype: exprDivision, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"4 + 3 + 2", &Expression{etype: exprAddition, children: []*Expression{
+			{etype: exprAddition, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralInt, value: "2"},
+		}}},
+		{"4 + 3 * 2", &Expression{etype: exprAddition, children: []*Expression{
+			{etype: exprLiteralInt, value: "4"},
+			{etype: exprMultiplication, children: []*Expression{
+				{etype: exprLiteralInt, value: "3"},
+				{etype: exprLiteralInt, value: "2"},
+			}},
+		}}},
 		{"2 * \"ahoy\"", &Expression{etype: exprMultiplication, children: []*Expression{
 			{etype: exprLiteralInt, value: "2"},
 			{etype: exprIdentifier, value: "ahoy"},
@@ -46,8 +112,161 @@ func TestParsingContents(t *testing.T) {
 				{etype: exprLiteralInt, value: "4"},
 			}},
 		}}},
+
+		// prefix and infix
+		{"-4 / foo", &Expression{etype: exprDivision, children: []*Expression{
+			{etype: exprUnaryMinus, children: []*Expression{{etype: exprLiteralInt, value: "4"}}},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+
+		// operators
+		{"4 + 3 > 5", &Expression{etype: exprGreaterThan, children: []*Expression{
+			{etype: exprAddition, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralInt, value: "5"},
+		}}},
+		{"4 + 3 >= 5", &Expression{etype: exprGreaterThanEqual, children: []*Expression{
+			{etype: exprAddition, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralInt, value: "5"},
+		}}},
+		{"4 > 3 = true", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprGreaterThan, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralBool, value: "TRUE"},
+		}}},
+		{"foo = 'bar'", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+			{etype: exprLiteralString, value: "bar"},
+		}}},
+		{"'bar' = foo", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprLiteralString, value: "bar"},
+			{etype: exprIdentifier, value: "foo"},
+		}}},
+		{"3 != bak", &Expression{etype: exprNequality, children: []*Expression{
+			{etype: exprLiteralInt, value: "3"},
+			{etype: exprIdentifier, value: "bak"},
+		}}},
+		{"bak = 'my_literal'", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprIdentifier, value: "bak"},
+			{etype: exprLiteralString, value: "my_literal"},
+		}}},
+		{"bak = 'my_li''ter''al'", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprIdentifier, value: "bak"},
+			{etype: exprLiteralString, value: "my_li'ter'al"},
+		}}},
+		{"foo = true", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+			{etype: exprLiteralBool, value: "TRUE"},
+		}}},
+		{"foo is true", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+			{etype: exprLiteralBool, value: "TRUE"},
+		}}},
+		{"foo is not true", &Expression{etype: exprEquality, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+			{etype: exprNot, children: []*Expression{
+				{etype: exprLiteralBool, value: "TRUE"},
+			}},
+		}}},
+
+		// boolean operators
+		{"foo and bar", &Expression{etype: exprAnd, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+			{etype: exprIdentifier, value: "bar"},
+		}}},
+		{"4 > 3 AND 5 = 1", &Expression{etype: exprAnd, children: []*Expression{
+			{etype: exprGreaterThan, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprEquality, children: []*Expression{
+				{etype: exprLiteralInt, value: "5"},
+				{etype: exprLiteralInt, value: "1"},
+			}},
+		}}},
+		{"foo = 2 AND 3 = bar", &Expression{etype: exprAnd, children: []*Expression{
+			{etype: exprEquality, children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprLiteralInt, value: "2"},
+			}},
+			{etype: exprEquality, children: []*Expression{
+				{etype: exprLiteralInt, value: "3"},
+				{etype: exprIdentifier, value: "bar"},
+			}},
+		}}},
+		{"foo > 3 OR -2 <= bar", &Expression{etype: exprOr, children: []*Expression{
+			{etype: exprGreaterThan, children: []*Expression{
+				{etype: exprIdentifier, value: "foo"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLessThanEqual, children: []*Expression{
+				{etype: exprUnaryMinus, children: []*Expression{
+					{etype: exprLiteralInt, value: "2"},
+				}},
+				{etype: exprIdentifier, value: "bar"},
+			}},
+		}}},
+
+		// parentheses
+		{"2 * (4 + 3)", &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprLiteralInt, value: "2"},
+			{etype: exprAddition, parens: true, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+		}}},
+		{"(4 + 3) - 2*3", &Expression{etype: exprSubtraction, children: []*Expression{
+			{etype: exprAddition, parens: true, children: []*Expression{
+				{etype: exprLiteralInt, value: "4"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprMultiplication, children: []*Expression{
+				{etype: exprLiteralInt, value: "2"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+		}}},
+		{"2 * (1 - foo)", &Expression{etype: exprMultiplication, children: []*Expression{
+			{etype: exprLiteralInt, value: "2"},
+			{etype: exprSubtraction, parens: true, children: []*Expression{
+				{etype: exprLiteralInt, value: "1"},
+				{etype: exprIdentifier, value: "foo"},
+			}},
+		}}},
+
+		// just testing the parser, not checking the output
+		{"foo = 'bar' AND bak = 'bar'", nil},
+		{"1 < foo < 3", nil},
+		{"bar < foo < bak", nil},
+
+		{"sum(foo < 3)", nil},
+		{"sum(foo >= 3)", nil},
+		{"sum(foo <= 3)", nil},
+		{"count()", &Expression{etype: exprFunCall, value: "count"}},
+		// TODO: make this work at some point - even in other places (e.g. `select foo, *, bar from ...`)
+		//       think about ways to implement it without it being super hacky
+		// {"count(*)", &Expression{etype: exprFunCall, value: "count"}},
 		{"count(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
 			{etype: exprIdentifier, value: "foobar"},
+		}}},
+		{"count(1, 2, 3)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprLiteralInt, value: "1"},
+			{etype: exprLiteralInt, value: "2"},
+			{etype: exprLiteralInt, value: "3"},
+		}}},
+		{"count(1, 2*3, 3)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
+			{etype: exprLiteralInt, value: "1"},
+			{etype: exprMultiplication, children: []*Expression{
+				{etype: exprLiteralInt, value: "2"},
+				{etype: exprLiteralInt, value: "3"},
+			}},
+			{etype: exprLiteralInt, value: "3"},
 		}}},
 		// case insensitivity of function names
 		{"COUNT(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
@@ -58,14 +277,6 @@ func TestParsingContents(t *testing.T) {
 		}}},
 		{"counT(foobar)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
 			{etype: exprIdentifier, value: "foobar"},
-		}}},
-		{"bak = 'my_literal'", &Expression{etype: exprEquality, children: []*Expression{
-			{etype: exprIdentifier, value: "bak"},
-			{etype: exprLiteralString, value: "my_literal"},
-		}}},
-		{"bak = 'my_li''ter''al'", &Expression{etype: exprEquality, children: []*Expression{
-			{etype: exprIdentifier, value: "bak"},
-			{etype: exprLiteralString, value: "my_li'ter'al"},
 		}}},
 		{"coalesce(foo, bar, 1) - 4", &Expression{etype: exprSubtraction, children: []*Expression{
 			{etype: exprFunCall, value: "coalesce", children: []*Expression{
@@ -90,65 +301,13 @@ func TestParsingContents(t *testing.T) {
 		{"count(foo = true)", &Expression{etype: exprFunCall, value: "count", children: []*Expression{
 			{etype: exprEquality, children: []*Expression{
 				{etype: exprIdentifier, value: "foo"},
-				{etype: exprLiteralBool, value: "true"},
+				{etype: exprLiteralBool, value: "TRUE"},
 			}},
-		}}},
-		{"3 != bak", &Expression{etype: exprNequality, children: []*Expression{
-			{etype: exprLiteralInt, value: "3"},
-			{etype: exprIdentifier, value: "bak"},
 		}}},
 		{"sum(foo > 3)", &Expression{etype: exprFunCall, value: "sum", children: []*Expression{
 			{etype: exprGreaterThan, children: []*Expression{
 				{etype: exprIdentifier, value: "foo"},
 				{etype: exprLiteralInt, value: "3"},
-			}},
-		}}},
-		{"sum(foo < 3)", nil},
-		{"sum(foo >= 3)", nil},
-		{"sum(foo <= 3)", nil},
-		{"2 * (1 - foo)", &Expression{etype: exprMultiplication, children: []*Expression{
-			{etype: exprLiteralInt, value: "2"},
-			{etype: exprSubtraction, parens: true, children: []*Expression{
-				{etype: exprLiteralInt, value: "1"},
-				{etype: exprIdentifier, value: "foo"},
-			}},
-		}}},
-		{"foo = true", &Expression{etype: exprEquality, children: []*Expression{
-			{etype: exprIdentifier, value: "foo"},
-			{etype: exprLiteralBool, value: "true"},
-		}}},
-		{"-2", &Expression{etype: exprLiteralInt, value: "-2"}},
-		{"-2.4", &Expression{etype: exprLiteralFloat, value: "-2.4"}}, // unary expressions
-		{"foo = 2 AND 3 = bar", &Expression{etype: exprAnd, children: []*Expression{
-			{etype: exprEquality, children: []*Expression{
-				{etype: exprIdentifier, value: "foo"},
-				{etype: exprLiteralInt, value: "2"},
-			}},
-			{etype: exprEquality, children: []*Expression{
-				{etype: exprLiteralInt, value: "3"},
-				{etype: exprIdentifier, value: "bar"},
-			}},
-		}}},
-		{"foo > 3 OR -2 <= bar", &Expression{etype: exprOr, children: []*Expression{
-			{etype: exprGreaterThan, children: []*Expression{
-				{etype: exprIdentifier, value: "foo"},
-				{etype: exprLiteralInt, value: "3"},
-			}},
-			{etype: exprLessThanEqual, children: []*Expression{
-				{etype: exprLiteralInt, value: "-2"},
-				{etype: exprIdentifier, value: "bar"},
-			}},
-		}}},
-		{"+foo", &Expression{etype: exprIdentifier, value: "foo"}},
-		{"-foo", &Expression{etype: exprMultiplication, children: []*Expression{
-			{etype: exprLiteralInt, value: "-1"},
-			{etype: exprIdentifier, value: "foo"},
-		}}},
-		{"-(foo*bar)", &Expression{etype: exprMultiplication, children: []*Expression{
-			{etype: exprLiteralInt, value: "-1"},
-			{etype: exprMultiplication, parens: true, children: []*Expression{
-				{etype: exprIdentifier, value: "foo"},
-				{etype: exprIdentifier, value: "bar"},
 			}},
 		}}},
 	}
@@ -168,82 +327,29 @@ func TestParsingContents(t *testing.T) {
 			ch.evaler, ch.aggregatorFactory = nil, nil
 		}
 		if test.expExpr != nil && !reflect.DeepEqual(parsed, test.expExpr) {
-			t.Errorf("expecting %s to parse into %s, got %s instead", test.raw, test.expExpr, parsed)
+			t.Errorf("expecting %s to parse into %+v, got %+v instead", test.raw, test.expExpr, parsed)
 		}
 	}
 }
 
-func stringifySlice(exprs []*Expression) []string {
-	if len(exprs) == 0 {
-		return nil
-	}
-	ret := make([]string, 0, len(exprs))
-	for _, expr := range exprs {
-		ret = append(ret, expr.String())
-	}
-	return ret
-}
-
-func TestAggExpr(t *testing.T) {
+func TestParsingErrors(t *testing.T) {
 	tests := []struct {
-		raw      string
-		expected []string
-		err      error
+		raw string
+		err error
 	}{
-		{"1", nil, nil},
-		{"1 + nullif(foo) - bar", nil, nil},
-		{"min(a)", []string{"min(a)"}, nil},
-		{"min(a) + min(b)", []string{"min(a)", "min(b)"}, nil},
-		{"4*min(a) + 3-min(b)", []string{"min(a)", "min(b)"}, nil},
-		{"2*nullif(min(a) + 3*min(b))", []string{"min(a)", "min(b)"}, nil},
-		{"min(a)*min(b)*min(c)", []string{"min(a)", "min(b)", "min(c)"}, nil},
-		// nested aggexprs
-		{"min(5*min(a))", nil, errNoNestedAggregations},
-		{"sum(max(b))", nil, errNoNestedAggregations},
-		{"1-sum(nullif(foo, max(bar)))", nil, errNoNestedAggregations},
-	}
-	for _, test := range tests {
-		expr, err := ParseStringExpr(test.raw)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		res, err := AggExpr(expr)
-		if err != test.err {
-			t.Errorf("expecting %s to result in error %+v, got %+v instead", test.raw, test.err, err)
-		}
-		ress := stringifySlice(res)
-		if !reflect.DeepEqual(ress, test.expected) {
-			t.Errorf("expected %+v to have %+v as aggregating expressions, got %+v instead", test.raw, test.expected, ress)
-		}
-	}
-}
-
-func TestExprStringer(t *testing.T) {
-	tests := []struct {
-		raw      string
-		expected string
-	}{
-		{"1+2+ 3", "1+2+3"},
-		{"1+(2+ 3)", "1+(2+3)"},
-		{"max( foo) - 3", "max(foo)-3"},
-		{"2 * (foo-BAR)", "2*(foo-bar)"},
-		{"(foo-BAR)*2", "(foo-bar)*2"},
-		{"(foo-(3-BAR))*2", "(foo-(3-bar))*2"},
-		{"foo = 'bar'", "foo='bar'"},
+		{"-", errUnsupportedPrefixToken}, // ARCH: is this right?
+		{"123123123131231231312312313123", errInvalidInteger},
+		{"1e12312312323", errInvalidFloat},
+		{"2 * (3-foo", errNoClosingBracket},
+		{"foo + sum(bar", errNoClosingBracket},
+		{"foo + sum(bar, ", errUnsupportedPrefixToken}, // ARCH: this is errNoClosingBracket, but we got to EOF first
+		{"+123", errUnsupportedPrefixToken},
+		{"foo as bar", errUnparsedBit},
 	}
 
 	for _, test := range tests {
-		parsed, err := ParseStringExpr(test.raw)
-		if err != nil {
-			t.Fatalf("expression %+v failed: %v", test.raw, err)
-			continue
-		}
-		if parsed.String() != test.expected {
-			t.Errorf("expecting %s to parse and then stringify into %s, got %s instead", test.raw, test.expected, parsed.String())
+		if _, err := ParseStringExpr(test.raw); !errors.Is(err, test.err) {
+			t.Errorf("expecting %v case to fail with %v, it returned %v", test.raw, test.err, err)
 		}
 	}
 }
-
-// func (expr *Expression) UnmarshalJSON(data []byte) error {
-// MarshalJSON

@@ -192,6 +192,7 @@ func TestValiditySadPaths(t *testing.T) {
 
 func TestReturnTypes(t *testing.T) {
 	schema := column.TableSchema([]column.Schema{
+		{Name: "my_bool_column", Dtype: column.DtypeBool},
 		{Name: "my_int_column", Dtype: column.DtypeInt},
 		{Name: "my_float_column", Dtype: column.DtypeFloat},
 		{Name: "my_Float_column", Dtype: column.DtypeInt}, // this is intentionally incorrect
@@ -212,6 +213,15 @@ func TestReturnTypes(t *testing.T) {
 		{"true", column.Schema{Dtype: column.DtypeBool}, nil},
 		{"'ahoy'", column.Schema{Dtype: column.DtypeString}, nil},
 		{"my_int_column", column.Schema{Dtype: column.DtypeInt}, nil},
+
+		// unary/prefix
+		{"-my_int_column", column.Schema{Dtype: column.DtypeInt}, nil},
+		{"-my_float_column", column.Schema{Dtype: column.DtypeFloat}, nil},
+		{"-my_string_column", column.Schema{}, errTypeMismatch},
+		{"not my_bool_column", column.Schema{Dtype: column.DtypeBool}, nil},
+		{"not (my_int_column > 3)", column.Schema{Dtype: column.DtypeBool}, nil},
+		{"not my_string_column", column.Schema{}, errTypeMismatch},
+		{"not my_int_column", column.Schema{}, errTypeMismatch},
 
 		// arithmetics
 		{"1 = 1", column.Schema{Dtype: column.DtypeBool}, nil},
