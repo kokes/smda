@@ -43,7 +43,7 @@ func TestBasicQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	limit := 100
-	cols := selectExpr([]string{"foo", "bar", "\"BAZ\""})
+	cols := selectExpr([]string{"foo", "bar", "baz"})
 	q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 
 	qr, err := Run(db, q)
@@ -53,7 +53,7 @@ func TestBasicQueries(t *testing.T) {
 	expschema := column.TableSchema{
 		column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
 		column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
-		column.Schema{Name: "BAZ", Dtype: column.DtypeInt, Nullable: false},
+		column.Schema{Name: "baz", Dtype: column.DtypeInt, Nullable: false},
 	}
 	if !(reflect.DeepEqual(qr.Schema, expschema) && len(qr.Data) == 3) {
 		t.Errorf("expected schema %+v, got %+v instead", expschema, qr.Schema)

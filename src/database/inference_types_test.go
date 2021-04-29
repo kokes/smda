@@ -13,6 +13,45 @@ import (
 	"github.com/kokes/smda/src/column"
 )
 
+func TestColumnCleanup(t *testing.T) {
+	tests := []struct {
+		// both are pipe delimited strings to avoid clunky slice syntax
+		input    string
+		expected string
+	}{
+		{"foo|bar|baz", "foo|bar|baz"},
+		{"foo | bar | baz", "foo|bar|baz"},
+		{"foo |	bar	|	baz", "foo|bar|baz"},
+		{"foo\n|	bar	|	baz", "foo|bar|baz"},
+		{"||", "column_01|column_02|column_03"},
+		{"foo|bar|foo", "foo|bar|foo_01"},
+		{"Foo|bar", "foo|bar"},
+		{"FOO|bar", "foo|bar"},
+		{"ščě|bar", "column_01|bar"},
+		{"|bar", "column_01|bar"},
+		{"foo 23|bar", "foo_23|bar"},
+		{"foo  - 23|bar", "foo_23|bar"},
+		{"foo  ! 23|bar", "foo_23|bar"},
+		{"a|b", "a|b"},
+		{"a___b|b", "a_b|b"},
+		{"a____b|b", "a_b|b"},
+		{"a____b|a_b", "a_b|a_b_01"},
+		{"a____b|a___b", "a_b|a_b_01"},
+		// camel casing
+		{"fooID", "foo_id"},
+		{"fooId", "foo_id"},
+		{"fooIdBarBaz", "foo_id_bar_baz"},
+	}
+
+	for _, test := range tests {
+		clean := cleanupColumns(strings.Split(test.input, "|"))
+		expected := strings.Split(test.expected, "|")
+		if !reflect.DeepEqual(clean, expected) {
+			t.Errorf("expected columns %v to be cleaned up into %v, got %v instead", test.input, expected, clean)
+		}
+	}
+}
+
 func TestDatasetTypeInference(t *testing.T) {
 	db, err := NewDatabase("", nil)
 	if err != nil {

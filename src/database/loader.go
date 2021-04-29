@@ -83,6 +83,7 @@ type loadSettings struct {
 	// hasHeader
 	// discardExtraColumns
 	// allowFewerColumns
+	cleanupColumns   bool
 	readCompression  compression
 	delimiter        delimiter
 	schema           column.TableSchema
@@ -436,6 +437,9 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 	if err != nil {
 		return nil, err
 	}
+	if settings.cleanupColumns {
+		header = cleanupColumns(header)
+	}
 	if err := validateHeaderAgainstSchema(header, settings.schema); err != nil {
 		return nil, err
 	}
@@ -514,6 +518,7 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 	ls := &loadSettings{
 		readCompression: ctype,
 		delimiter:       dlim,
+		cleanupColumns:  true,
 		// ARCH: we only set write compression in *Auto calls
 		// TODO/OPTIM: make this configurable and optimised
 		// TODO: make benchmarks compression aware (test for each compression? Or just for uncompressed?)
