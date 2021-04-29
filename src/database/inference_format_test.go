@@ -38,7 +38,7 @@ func TestGzippedFile(t *testing.T) {
 // want to revisit this at some point
 // func TestSnappyFile(t *testing.T) {
 // 	file := new(bytes.Buffer)
-// 	sw := snappy.NewWriter(file)
+// 	sw := snappy.NewBufferedWriter(file)
 // 	if _, err := io.WriteString(sw, "a,b,c\n1,2,3"); err != nil {
 // 		t.Error(err)
 // 		return
@@ -190,7 +190,7 @@ func TestWrappingGzippedData(t *testing.T) {
 func TestWrappingSnappyData(t *testing.T) {
 	raw := []byte("foobarbaz")
 	gdata := new(bytes.Buffer)
-	gw := snappy.NewWriter(gdata)
+	gw := snappy.NewBufferedWriter(gdata)
 	if _, err := io.Copy(gw, bytes.NewReader(raw)); err != nil {
 		t.Fatal(err)
 	}
