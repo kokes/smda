@@ -6,40 +6,36 @@ import (
 	"testing"
 )
 
-func prepColumns(nrows int, dtype1, dtype2, dtype3 Dtype, rawData1, rawData2, rawData3 string) (Chunk, Chunk, Chunk, error) {
-	litPrefix := "lit:"
-	c1, c2, expected := NewChunkFromSchema(Schema{Dtype: dtype1}), NewChunkFromSchema(Schema{Dtype: dtype2}), NewChunkFromSchema(Schema{Dtype: dtype3})
-	var err error
-	if strings.HasPrefix(rawData1, litPrefix) {
-		c1, err = NewChunkLiteralTyped(strings.TrimPrefix(rawData1, litPrefix), dtype1, nrows)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-	} else {
-		if err := c1.AddValues(strings.Split(rawData1, ",")); err != nil {
-			return nil, nil, nil, err
-		}
-	}
-	if strings.HasPrefix(rawData2, litPrefix) {
-		c2, err = NewChunkLiteralTyped(strings.TrimPrefix(rawData2, litPrefix), dtype2, nrows)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-	} else {
-		if err := c2.AddValues(strings.Split(rawData2, ",")); err != nil {
-			return nil, nil, nil, err
-		}
-	}
+var litPrefix = "lit:"
 
-	if strings.HasPrefix(rawData3, litPrefix) {
-		expected, err = NewChunkLiteralTyped(strings.TrimPrefix(rawData3, litPrefix), dtype3, nrows)
+func prepColumn(nrows int, dtype Dtype, rawData string) (Chunk, error) {
+	c := NewChunkFromSchema(Schema{Dtype: dtype})
+	var err error
+	if strings.HasPrefix(rawData, litPrefix) {
+		c, err = NewChunkLiteralTyped(strings.TrimPrefix(rawData, litPrefix), dtype, nrows)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 	} else {
-		if err := expected.AddValues(strings.Split(rawData3, ",")); err != nil {
-			return nil, nil, nil, err
+		if err := c.AddValues(strings.Split(rawData, ",")); err != nil {
+			return nil, err
 		}
+	}
+	return c, err
+}
+
+func prepColumns(nrows int, dtype1, dtype2, dtype3 Dtype, rawData1, rawData2, rawData3 string) (Chunk, Chunk, Chunk, error) {
+	c1, err := prepColumn(nrows, dtype1, rawData1)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	c2, err := prepColumn(nrows, dtype2, rawData2)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	expected, err := prepColumn(nrows, dtype3, rawData3)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	return c1, c2, expected, nil
 }
