@@ -104,6 +104,7 @@ func TestBasicFloatColumn(t *testing.T) {
 		{"nan", "NAN"},
 		{},
 		{"", "", ""}, // -> nulls
+		{"inf", "INF", "-inf"},
 		{"1", "", "1.2"},
 	}
 	for _, vals := range tt {
@@ -258,6 +259,8 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		{Schema{"", DtypeInt, true}, []string{"1", "", "3"}},
 		{Schema{"", DtypeFloat, false}, []string{"1", "2", "3"}},
 		{Schema{"", DtypeFloat, true}, []string{"1", "", "3"}},
+		{Schema{"", DtypeFloat, true}, []string{"1", "inf", "3"}},
+		{Schema{"", DtypeFloat, true}, []string{"1", "-inf", "3"}},
 		{Schema{"", DtypeBool, false}, []string{"t", "f", "t"}},
 		{Schema{"", DtypeBool, true}, []string{"t", "", "f"}},
 		{Schema{"", DtypeDate, true}, []string{"2020-02-22", "", "2030-12-31"}},
@@ -317,7 +320,7 @@ func TestJSONMarshaling(t *testing.T) {
 		{newChunkFloats(), []string{"123.456", "456.789"}, "[123.456,456.789]"},
 		{newChunkFloats(), []string{"123", "", "456"}, "[123,null,456]"},
 		{newChunkFloats(), []string{"123", "", "nan"}, "[123,null,null]"},
-		// {newColumnFloats(true), []string{"123", "+infty", "-infty"}, "[123,+infty,-infty]"}, // no infty support yet
+		{newChunkFloats(), []string{"123", "+inf", "-inf"}, "[123,null,null]"}, // infty -> null
 		{newChunkStrings(), []string{}, "[]"},
 		{newChunkStrings(), []string{}, "[]"},
 		{newChunkStrings(), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},

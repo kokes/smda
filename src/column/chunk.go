@@ -229,6 +229,9 @@ func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid typed literal: %v", errInvalidTypedLiteral, s)
 		}
+		if math.IsNaN(val) || math.IsInf(val, 0) {
+			return nil, fmt.Errorf("cannot set %v as a literal float value", s)
+		}
 		return &ChunkFloats{
 			baseChunk: bc,
 			data:      []float64{val},
@@ -818,7 +821,7 @@ func (rc *ChunkFloats) AddValue(s string) error {
 			return err
 		}
 	}
-	if math.IsNaN(val) {
+	if math.IsNaN(val) || math.IsInf(val, 0) {
 		if rc.Nullability == nil {
 			rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
 		}
