@@ -392,3 +392,24 @@ testloop:
 		}
 	}
 }
+
+func TestParsingSQL(t *testing.T) {
+	tests := []struct {
+		raw string // TODO(PR): roundtrips?
+		// individual []string
+		err error
+	}{
+		// {"WITH foo", errSQLOnlySelects},
+		// {"SELECT 1", nil}, // TODO(next): support dataset-less selects
+		{"SELECT foo FROM bar", nil},
+	}
+
+	for _, test := range tests {
+		parsed, err := ParseQuerySQL(test.raw)
+		if !errors.Is(err, test.err) {
+			t.Errorf("when parsing SQL query %v encountered %v, expected %v", test.raw, err, test.err)
+			continue
+		}
+		_ = parsed // TODO(PR)
+	}
+}

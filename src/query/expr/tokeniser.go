@@ -28,6 +28,20 @@ const (
 	tokenIdentifierQuoted
 	tokenComment
 	// keywords:
+	tokenSelect
+	tokenFrom
+	tokenWhere
+	// tokenJoin
+	// tokenOn
+	// tokenLeft
+	// tokenRight
+	// tokenInner
+	// tokenOuter
+	// tokenFull
+	tokenGroup
+	tokenBy
+	tokenLimit
+	// non-select keywords:
 	tokenAnd
 	tokenOr
 	tokenAs
@@ -64,20 +78,26 @@ const (
 )
 
 var keywords = map[string]tokenType{
-	"and":   tokenAnd,
-	"or":    tokenOr,
-	"as":    tokenAs,
-	"true":  tokenTrue,
-	"false": tokenFalse,
-	"null":  tokenNull,
-	"in":    tokenIn,
-	"like":  tokenLike,
-	"ilike": tokenIlike,
-	"is":    tokenIs,
-	"not":   tokenNot,
-	"case":  tokenCase,
-	"when":  tokenWhen,
-	"end":   tokenEnd,
+	"and":    tokenAnd,
+	"or":     tokenOr,
+	"as":     tokenAs,
+	"true":   tokenTrue,
+	"false":  tokenFalse,
+	"null":   tokenNull,
+	"in":     tokenIn,
+	"like":   tokenLike,
+	"ilike":  tokenIlike,
+	"is":     tokenIs,
+	"not":    tokenNot,
+	"case":   tokenCase,
+	"when":   tokenWhen,
+	"end":    tokenEnd,
+	"select": tokenSelect,
+	"from":   tokenFrom,
+	"where":  tokenWhere,
+	"group":  tokenGroup,
+	"by":     tokenBy,
+	"limit":  tokenLimit,
 }
 
 // ARCH: it might be useful to just use .value in most cases here
@@ -117,6 +137,18 @@ func (tok token) String() string {
 		return "WHEN"
 	case tokenEnd:
 		return "END"
+	case tokenSelect:
+		return "SELECT"
+	case tokenFrom:
+		return "FROM"
+	case tokenWhere:
+		return "WHERE"
+	case tokenGroup:
+		return "GROUP"
+	case tokenBy:
+		return "BY"
+	case tokenLimit:
+		return "LIMIT"
 	case tokenAdd:
 		return "+"
 	case tokenSub:

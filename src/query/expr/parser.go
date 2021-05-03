@@ -9,6 +9,7 @@ import (
 var errUnparsedBit = errors.New("parsing incomplete")
 var errNoClosingBracket = errors.New("no closing bracket after an opening one")
 var errUnsupportedPrefixToken = errors.New("unsupported prefix token")
+var errSQLOnlySelects = errors.New("only SELECT queries supported")
 
 const (
 	_ int = iota
@@ -112,14 +113,14 @@ func NewParser(s string) (*Parser, error) {
 
 func (p *Parser) curToken() token {
 	if p.position >= len(p.tokens) {
-		return token{}
+		return token{ttype: tokenEOF}
 	}
 	return p.tokens[p.position]
 }
 
 func (p *Parser) peekToken() token {
 	if p.position >= len(p.tokens)-1 {
-		return token{}
+		return token{ttype: tokenEOF}
 	}
 	return p.tokens[p.position+1]
 }
@@ -341,4 +342,62 @@ func ParseStringExprs(s string) (ExpressionList, error) {
 	}
 
 	return ret, nil
+}
+
+// type Query struct {
+// 	Select    ExpressionList `json:"select,omitempty"`
+// 	Dataset   database.UID   `json:"dataset"`
+// 	Filter    *Expression    `json:"filter,omitempty"`
+// 	Aggregate ExpressionList `json:"aggregate,omitempty"`
+// 	Limit     *int           `json:"limit,omitempty"`
+// }
+// TODO(PR): finish this
+func ParseQuerySQL(s string) (Query, error) {
+	var q Query
+	p, err := NewParser(s)
+	if err != nil {
+		return q, err
+	}
+	if p.curToken().ttype != tokenSelect {
+		return q, errSQLOnlySelects
+	}
+	p.position++
+
+	// parse expressions until we get to FROM (and eat commas between them)
+exprlist:
+	for {
+		expr := p.parseExpression(LOWEST)
+		// ARCH: abstract this into p.Err()? Will be useful if we do additional parsing (multiple expressions, select queries etc.)
+		if len(p.errors) > 0 {
+			return q, fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
+		}
+		q.Select = append(q.Select, expr)
+
+		ntype := p.peekToken().ttype
+		switch ntype {
+		case tokenComma:
+			p.position += 2
+		case tokenFrom:
+			p.position++
+			break exprlist
+		case tokenEOF:
+			break exprlist
+		default:
+			return q, fmt.Errorf("unexpected token in expression list: %v", ntype)
+		}
+	}
+
+	if p.curToken().ttype != tokenFrom {
+		// this will be for queries without a FROM clause, e.g. SELECT 1`
+		panic("TODO(PR): at least serve a proper error here")
+	}
+
+	// TODO/ARCH: this is repeated in multiple places, make it implicit?
+	// for _, expr := range q.Select {
+	// 	if err := expr.InitFunctionCalls(); err != nil {
+	// 		return q, err
+	// 	}
+	// }
+
+	return q, nil
 }

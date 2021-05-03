@@ -15,7 +15,6 @@ import (
 
 	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
-	"github.com/kokes/smda/src/query"
 	"github.com/kokes/smda/src/query/expr"
 )
 
@@ -322,7 +321,7 @@ func TestHandlingQueries(t *testing.T) {
 			}
 			cols = append(cols, colExpr)
 		}
-		qr := query.Query{Select: cols, Dataset: ds.ID, Limit: &limit}
+		qr := expr.Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 		body, err := json.Marshal(qr)
 		if err != nil {
 			t.Fatal(err)

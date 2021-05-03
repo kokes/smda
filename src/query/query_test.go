@@ -44,7 +44,7 @@ func TestBasicQueries(t *testing.T) {
 	}
 	limit := 100
 	cols := selectExpr([]string{"foo", "bar", "baz"})
-	q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
+	q := expr.Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 
 	qr, err := Run(db, q)
 	if err != nil {
@@ -87,7 +87,7 @@ func TestQueryNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	cols := selectExpr(nil)
-	q := Query{Select: cols, Dataset: ds.ID}
+	q := expr.Query{Select: cols, Dataset: ds.ID}
 
 	if _, err := Run(db, q); err != errNoProjection {
 		t.Errorf("expected that selecting nothing will yield %v, got %v instead", errNoProjection, err)
@@ -116,7 +116,7 @@ func TestLimitsInQueries(t *testing.T) {
 
 	firstColRaw := []string{"1", "4", "7"}
 	cols := selectExpr([]string{"foo", "bar", "baz"})
-	q := Query{Select: cols, Dataset: ds.ID}
+	q := expr.Query{Select: cols, Dataset: ds.ID}
 
 	// limit omitted
 	qr, err := Run(db, q)
@@ -292,7 +292,7 @@ func TestBasicAggregation(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		query := Query{
+		query := expr.Query{
 			Select:    projexpr,
 			Aggregate: aggexpr,
 			Dataset:   ds.ID,
@@ -429,7 +429,7 @@ func TestBasicFiltering(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		q := Query{
+		q := expr.Query{
 			Select:  sel,
 			Dataset: input.ID,
 			Filter:  filter,

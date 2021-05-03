@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/kokes/smda/src/column"
+	"github.com/kokes/smda/src/database"
 )
 
 var errNoNestedAggregations = errors.New("cannot nest aggregations (e.g. sum(min(a)))")
@@ -125,6 +126,22 @@ type Expression struct {
 }
 
 type ExpressionList []*Expression
+
+// Query describes what we want to retrieve from a given dataset
+// There are basically four places you need to edit (and test!) in order to extend this:
+// 1) The engine itself needs to support this functionality (usually a method on Dataset or column.Chunk)
+// 2) The query method has to be able to translate query parameters to the engine
+// 3) The query endpoint handler needs to be able to process the incoming body
+//    to the Query struct (the Unmarshaler should mostly take care of this)
+// 4) The HTML/JS frontend needs to incorporate this in some way
+type Query struct {
+	Select    ExpressionList `json:"select,omitempty"`
+	Dataset   database.UID   `json:"dataset"`
+	Filter    *Expression    `json:"filter,omitempty"`
+	Aggregate ExpressionList `json:"aggregate,omitempty"`
+	Limit     *int           `json:"limit,omitempty"`
+	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
+}
 
 func (expr *Expression) InitFunctionCalls() error {
 	for _, ch := range expr.children {
