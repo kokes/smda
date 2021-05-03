@@ -1,6 +1,7 @@
 package expr
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -122,6 +123,8 @@ type Expression struct {
 	aggregator        *column.AggState
 	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
 }
+
+type ExpressionList []*Expression
 
 func (expr *Expression) InitFunctionCalls() error {
 	for _, ch := range expr.children {
@@ -248,4 +251,33 @@ func (expr *Expression) UnmarshalJSON(data []byte) error {
 
 func (expr *Expression) MarshalJSON() ([]byte, error) {
 	return json.Marshal(expr.String())
+}
+
+// ARCH: this is a bit contentious - our []*Expression aka ExpressionList (un)marshals
+// as a "expr, expr2", NOT as "[]*Expression{expr, expr2}"
+func (exprs *ExpressionList) UnmarshalJSON(data []byte) error {
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	ex, err := ParseStringExprs(raw)
+	if ex != nil {
+		*exprs = ex
+	}
+	return err
+}
+
+func (exprs ExpressionList) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	for j, expr := range exprs {
+		if _, err := buf.WriteString(expr.String()); err != nil {
+			return nil, err
+		}
+		if j < len(exprs)-1 {
+			if _, err := buf.WriteString(", "); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return json.Marshal(buf.String())
 }

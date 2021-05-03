@@ -301,3 +301,44 @@ func ParseStringExpr(s string) (*Expression, error) {
 
 	return ret, nil
 }
+
+func ParseStringExprs(s string) (ExpressionList, error) {
+	var ret []*Expression
+	p, err := NewParser(s)
+	if err != nil {
+		return nil, err
+	}
+
+	// parse expressions until we get to EOF (and eat commas between them)
+	for {
+		expr := p.parseExpression(LOWEST)
+		// ARCH: abstract this into p.Err()? Will be useful if we do additional parsing (multiple expressions, select queries etc.)
+		if len(p.errors) > 0 {
+			return nil, fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
+		}
+		ret = append(ret, expr)
+
+		// ARCH/TODO: get EOF instead?
+		if p.position >= len(p.tokens)-1 {
+			break
+		}
+		ntype := p.peekToken().ttype
+		switch ntype {
+		case tokenComma:
+			p.position += 2
+		default:
+			return nil, fmt.Errorf("unexpected token in expression list: %v", ntype)
+		}
+	}
+
+	for _, expr := range ret {
+		if err := expr.InitFunctionCalls(); err != nil {
+			return nil, err
+		}
+	}
+	if p.position != len(p.tokens)-1 {
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnparsedBit, p.tokens[p.position:]))
+	}
+
+	return ret, nil
+}

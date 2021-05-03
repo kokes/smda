@@ -126,3 +126,51 @@ func TestJSONMarshaling(t *testing.T) {
 		}
 	}
 }
+
+func TestJSONMarshalingLists(t *testing.T) {
+	tests := []struct {
+		rawExpr  string
+		jsonRepr string
+	}{
+		{"1", `"1"`},
+		{"1-2", `"1-2"`},
+		{"foo, bar", `"foo, bar"`},
+		{"1 + 2, foo, bar*bak", `"1+2, foo, bar*bak"`},
+		{"1 + 2, (foo - bar)/4+3, bar*bak", `"1+2, (foo-bar)/4+3, bar*bak"`},
+	}
+	for _, test := range tests {
+		exprs, err := ParseStringExprs(test.rawExpr)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		ret, err := json.Marshal(exprs)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		if !reflect.DeepEqual(string(ret), test.jsonRepr) {
+			t.Errorf("expected %v to be parsed and JSON marshaled as %v, got %s instead", test.rawExpr, test.jsonRepr, ret)
+		}
+
+		var roundtripped ExpressionList
+		if err := json.Unmarshal(ret, &roundtripped); err != nil {
+			t.Error(err)
+			continue
+		}
+		if len(exprs) != len(roundtripped) {
+			t.Errorf("expected %d elements, got %d", len(exprs), len(roundtripped))
+			continue
+		}
+		// resetting some functions to make these comparable
+		for j := range exprs {
+			exprs[j].evaler = nil
+			exprs[j].aggregatorFactory = nil
+			roundtripped[j].evaler = nil
+			roundtripped[j].aggregatorFactory = nil
+		}
+		if !reflect.DeepEqual(exprs, roundtripped) {
+			t.Errorf("expression %v failed our JSON roundtrip - expected %v, got %v", test.rawExpr, exprs, roundtripped)
+		}
+	}
+}

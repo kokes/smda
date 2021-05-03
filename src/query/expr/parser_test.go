@@ -355,3 +355,40 @@ func TestParsingErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestListParsingContents(t *testing.T) {
+	tests := []struct {
+		list       string
+		individual []string
+	}{
+		{"foo", []string{"foo"}},
+		{"123", []string{"123"}},
+		{"1+23", []string{"1+23"}},
+		{"foo, bar", []string{"foo", "bar"}},
+		{"foo, bar,baz,bak", []string{"foo", "bar", "baz", "bak"}},
+		{"1+2, 3+4, foo + 3, 5*(1-foo)", []string{"1+2", "3+4", "foo+3", "5*(1-foo)"}},
+	}
+
+testloop:
+	for _, test := range tests {
+		parsed, err := ParseStringExprs(test.list)
+		if err != nil {
+			t.Errorf("expression list %+v failed: %v", test.list, err)
+			continue
+		}
+
+		var ip ExpressionList
+		for _, expr := range test.individual {
+			iparsed, err := ParseStringExpr(expr)
+			if err != nil {
+				t.Error(err)
+				continue testloop
+			}
+			ip = append(ip, iparsed)
+		}
+
+		if !reflect.DeepEqual(parsed, ip) {
+			t.Errorf("expecting %s to parse the same way as %s, got %v instead", test.list, test.individual, parsed)
+		}
+	}
+}

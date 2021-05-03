@@ -22,11 +22,11 @@ var errInvalidProjectionInAggregation = errors.New("selections in aggregating ex
 //    to the Query struct (the Unmarshaler should mostly take care of this)
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
-	Select    []*expr.Expression `json:"select,omitempty"`
-	Dataset   database.UID       `json:"dataset"`
-	Filter    *expr.Expression   `json:"filter,omitempty"`
-	Aggregate []*expr.Expression `json:"aggregate,omitempty"`
-	Limit     *int               `json:"limit,omitempty"`
+	Select    expr.ExpressionList `json:"select,omitempty"`
+	Dataset   database.UID        `json:"dataset"`
+	Filter    *expr.Expression    `json:"filter,omitempty"`
+	Aggregate expr.ExpressionList `json:"aggregate,omitempty"`
+	Limit     *int                `json:"limit,omitempty"`
 	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
 }
 
