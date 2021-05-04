@@ -113,7 +113,15 @@ func TestTokenisationWithValues(t *testing.T) {
 		// (here 020485a2686b8d38fe) cannot be tokenised properly with our current rules in place
 		// we're experimenting with vID here
 		{"select foo from v020485a2686b8d38fe", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("v020485a2686b8d38fe")}}},
-		// TODO(PR): add where, group by, limit
+		{"select foo from v020485a2686b8d38fe where foo > 1", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("v020485a2686b8d38fe")},
+			{tokenWhere, nil}, {tokenIdentifier, []byte("foo")}, {tokenGt, nil}, {tokenLiteralInt, []byte("1")},
+		}},
+		{"select foo from v020485a2686b8d38fe group by foo, bar", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("v020485a2686b8d38fe")},
+			{tokenGroup, nil}, {tokenBy, nil}, {tokenIdentifier, []byte("foo")}, {tokenComma, nil}, {tokenIdentifier, []byte("bar")},
+		}},
+		{"select foo from v020485a2686b8d38fe limit 123", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("v020485a2686b8d38fe")},
+			{tokenLimit, nil}, {tokenLiteralInt, []byte("123")},
+		}},
 	}
 
 	for _, test := range tt {
