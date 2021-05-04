@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
+
+	"github.com/kokes/smda/src/database"
 )
 
 var errUnparsedBit = errors.New("parsing incomplete")
@@ -280,6 +283,27 @@ func (p *Parser) parseExpression(precedence int) *Expression {
 	return left
 }
 
+// parse expressions separated by commas
+func (p *Parser) parseExpressions() (ExpressionList, error) {
+	var ret ExpressionList
+	for {
+		expr := p.parseExpression(LOWEST)
+		// ARCH: abstract this into p.Err()? Will be useful if we do additional parsing (multiple expressions, select queries etc.)
+		if len(p.errors) > 0 {
+			return nil, fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
+		}
+		ret = append(ret, expr)
+
+		ntype := p.peekToken().ttype
+		switch ntype {
+		case tokenComma:
+			p.position += 2
+		default:
+			return ret, nil
+		}
+	}
+}
+
 func ParseStringExpr(s string) (*Expression, error) {
 	p, err := NewParser(s)
 	if err != nil {
@@ -304,35 +328,18 @@ func ParseStringExpr(s string) (*Expression, error) {
 }
 
 func ParseStringExprs(s string) (ExpressionList, error) {
-	var ret []*Expression
+	// var ret []*Expression
 	p, err := NewParser(s)
 	if err != nil {
 		return nil, err
 	}
 
-	// parse expressions until we get to EOF (and eat commas between them)
-	for {
-		expr := p.parseExpression(LOWEST)
-		// ARCH: abstract this into p.Err()? Will be useful if we do additional parsing (multiple expressions, select queries etc.)
-		if len(p.errors) > 0 {
-			return nil, fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
-		}
-		ret = append(ret, expr)
-
-		// ARCH/TODO: get EOF instead?
-		if p.position >= len(p.tokens)-1 {
-			break
-		}
-		ntype := p.peekToken().ttype
-		switch ntype {
-		case tokenComma:
-			p.position += 2
-		default:
-			return nil, fmt.Errorf("unexpected token in expression list: %v", ntype)
-		}
+	exprs, err := p.parseExpressions()
+	if err != nil {
+		return nil, err
 	}
 
-	for _, expr := range ret {
+	for _, expr := range exprs {
 		if err := expr.InitFunctionCalls(); err != nil {
 			return nil, err
 		}
@@ -341,7 +348,7 @@ func ParseStringExprs(s string) (ExpressionList, error) {
 		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnparsedBit, p.tokens[p.position:]))
 	}
 
-	return ret, nil
+	return exprs, nil
 }
 
 // type Query struct {
@@ -363,36 +370,78 @@ func ParseQuerySQL(s string) (Query, error) {
 	}
 	p.position++
 
-	// parse expressions until we get to FROM (and eat commas between them)
-exprlist:
-	for {
-		expr := p.parseExpression(LOWEST)
-		// ARCH: abstract this into p.Err()? Will be useful if we do additional parsing (multiple expressions, select queries etc.)
-		if len(p.errors) > 0 {
-			return q, fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
-		}
-		q.Select = append(q.Select, expr)
-
-		ntype := p.peekToken().ttype
-		switch ntype {
-		case tokenComma:
-			p.position += 2
-		case tokenFrom:
-			p.position++
-			break exprlist
-		case tokenEOF:
-			break exprlist
-		default:
-			return q, fmt.Errorf("unexpected token in expression list: %v", ntype)
-		}
+	q.Select, err = p.parseExpressions()
+	if err != nil {
+		return q, err
 	}
 
-	if p.curToken().ttype != tokenFrom {
+	// ARCH: we didn't increment position and used peekToken... elsewhere we use walk+curToken
+	if p.peekToken().ttype != tokenFrom {
 		// this will be for queries without a FROM clause, e.g. SELECT 1`
 		panic("TODO(PR): at least serve a proper error here")
 	}
 
+	p.position += 2
+
+	// TODO(next): sanitise dataset names by default + put guards in place do not allow anything non-ascii etc.
+
+	// ARCH: allow for quoted identifiers? will depend on our rules on dataset names
+	if p.curToken().ttype != tokenIdentifier {
+		return q, fmt.Errorf("expecting dataset name, got %v", p.curToken())
+	}
+	dsn := p.curToken().value
+	if len(dsn) == 0 || dsn[0] != 'v' {
+		return q, fmt.Errorf("invalid dataset version, got %s", dsn)
+	}
+	q.Dataset, err = database.UIDFromHex(dsn[1:])
+	if err != nil {
+		return q, err
+	}
+
+	p.position++
+
+	if p.curToken().ttype == tokenWhere {
+		p.position++
+		clause := p.parseExpression(LOWEST)
+		// TODO(next): replace all p.errors with p.Err()
+		if len(p.errors) > 0 {
+			panic("TODO(PR)")
+		}
+		q.Filter = clause
+		p.position++
+	}
+	if p.curToken().ttype == tokenGroup {
+		p.position++
+		if p.curToken().ttype != tokenBy {
+			panic("TODO(PR)")
+		}
+		p.position++
+		q.Aggregate, err = p.parseExpressions()
+		if err != nil {
+			return q, err
+		}
+		p.position++
+	}
+
+	if p.curToken().ttype == tokenLimit {
+		p.position++
+		if p.curToken().ttype != tokenLiteralInt {
+			panic("TODO(PR): cannot limit by..." + p.curToken().String())
+		}
+		limit, err := strconv.Atoi(string(p.curToken().value))
+		if err != nil {
+			return q, err
+		}
+		q.Limit = &limit
+	}
+
+	// ARCH: using '<' to avoid issues with walking past the end (when using p.position++ instead of peekToken)
+	if p.position < len(p.tokens)-1 {
+		panic("TODO(PR): UNPARSED BIT: " + p.tokens.String())
+	}
+
 	// TODO/ARCH: this is repeated in multiple places, make it implicit?
+	// also do this for all the Query fields that need this
 	// for _, expr := range q.Select {
 	// 	if err := expr.InitFunctionCalls(); err != nil {
 	// 		return q, err

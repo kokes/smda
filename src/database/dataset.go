@@ -202,24 +202,35 @@ func (uid UID) MarshalJSON() ([]byte, error) {
 	return ret, nil
 }
 
+// ARCH: test this instead the Unmarshal? Or both?
+func UIDFromHex(data []byte) (UID, error) {
+	var uid UID
+	unhexed := make([]byte, 9)
+	dec, err := hex.Decode(unhexed, data)
+	if err != nil {
+		return uid, err
+	}
+	if dec != len(unhexed) {
+		return uid, errors.New("failed to decode UID")
+	}
+
+	uid.Otype = ObjectType(unhexed[0])
+	uid.oid = binary.LittleEndian.Uint64(unhexed[1:9])
+	return uid, nil
+}
+
 // UnmarshalJSON satisfies the Unmarshaler interface
 // (we need a pointer here, because we'll be writing to it)
 func (uid *UID) UnmarshalJSON(data []byte) error {
 	if len(data) != 20 {
 		return errors.New("unexpected byte array used for UIDs")
 	}
-	data = data[1:19] // strip quotes
-	unhexed := make([]byte, 9)
-	dec, err := hex.Decode(unhexed, data)
+	id, err := UIDFromHex(data[1:19]) // strip quotes first
 	if err != nil {
 		return err
 	}
-	if dec != len(unhexed) {
-		return errors.New("failed to decode UID")
-	}
+	*uid = id
 
-	uid.Otype = ObjectType(unhexed[0])
-	uid.oid = binary.LittleEndian.Uint64(unhexed[1:9])
 	return nil
 }
 

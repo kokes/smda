@@ -401,7 +401,18 @@ func TestParsingSQL(t *testing.T) {
 	}{
 		// {"WITH foo", errSQLOnlySelects},
 		// {"SELECT 1", nil}, // TODO(next): support dataset-less selects
-		{"SELECT foo FROM bar", nil},
+		// TODO(PR/next): we're currently using `select foo from v02fdb3...`, but we'll likely use something
+		// like `select froo from bar@v02fdb3...`
+		{"SELECT foo FROM v020485a2686b8d38fe", nil},
+		{"SELECT foo FROM v020485a2686b8d38fe WHERE 1=1", nil},
+		{"SELECT foo FROM v020485a2686b8d38fe WHERE 1=1 and foo > bar", nil},
+		{"SELECT foo FROM v020485a2686b8d38fe WHERE 1=1 and foo > bar GROUP BY foo", nil},
+		{"SELECT foo FROM v020485a2686b8d38fe GROUP BY foo", nil},
+		{"SELECT foo FROM v020485a2686b8d38fe GROUP BY foo LIMIT 2", nil},
+		{"SELECT foo FROM v020485a2686b8d38fe LIMIT 200", nil},
+		// TODO(PR): error reporting:
+		// {"SELECT foo FROM v020485a2686b8d38fe GROUP BY foo LIMIT foo", nil},
+		// {"SELECT foo FROM v020485a2686b8d38fe GROUP on foo", nil},
 	}
 
 	for _, test := range tests {

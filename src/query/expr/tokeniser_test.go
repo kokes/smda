@@ -107,6 +107,13 @@ func TestTokenisationWithValues(t *testing.T) {
 		{"+\"ahoy\"+", []token{{tokenAdd, nil}, {tokenIdentifierQuoted, []byte("ahoy")}, {tokenAdd, nil}}},
 		{"-- here is my comment\n1", []token{{tokenComment, []byte(" here is my comment")}, {tokenLiteralInt, []byte("1")}}},
 		{"--here is my comment\n1", []token{{tokenComment, []byte("here is my comment")}, {tokenLiteralInt, []byte("1")}}},
+		{"select foo from bar", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("bar")}}},
+		{"select foo, bar from baz", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenComma, nil}, {tokenIdentifier, []byte("bar")}, {tokenFrom, nil}, {tokenIdentifier, []byte("baz")}}},
+		// we cannot select from versioned datasets, because their versions
+		// (here 020485a2686b8d38fe) cannot be tokenised properly with our current rules in place
+		// we're experimenting with vID here
+		{"select foo from v020485a2686b8d38fe", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("v020485a2686b8d38fe")}}},
+		// TODO(PR): add where, group by, limit
 	}
 
 	for _, test := range tt {

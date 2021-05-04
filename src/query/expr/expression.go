@@ -143,6 +143,8 @@ type Query struct {
 	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
 }
 
+// TODO(PR): stringer for this (with tests)
+
 func (expr *Expression) InitFunctionCalls() error {
 	for _, ch := range expr.children {
 		if err := ch.InitFunctionCalls(); err != nil {
