@@ -102,11 +102,12 @@ func TestAddingDatasets(t *testing.T) {
 		}
 	}()
 	ds := NewDataset()
+	ds.Name = "foobar"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
 
-	ds2, err := db.GetDataset(ds.ID)
+	ds2, err := db.GetDataset(DatasetIdentifier{Name: ds.Name, Latest: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,6 +128,7 @@ func TestAddingDatasetsWithRestarts(t *testing.T) {
 		}
 	}()
 	ds := NewDataset()
+	ds.Name = "foobar"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +138,7 @@ func TestAddingDatasetsWithRestarts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ds2, err := db2.GetDataset(ds.ID)
+	ds2, err := db2.GetDataset(DatasetIdentifier{Name: ds.Name, Latest: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +167,7 @@ func TestRemovingDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ds.Name = "foobar"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +183,7 @@ func TestRemovingDatasets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = db.GetDataset(ds.ID)
+	_, err = db.GetDataset(DatasetIdentifier{Name: ds.Name, Latest: true})
 	if !errors.Is(err, errDatasetNotFound) {
 		t.Error("should not be able to retrieve a deleted dataset")
 	}
@@ -211,10 +214,11 @@ func TestGettingNewDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ds.Name = "foobar"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
-	ds2, err := db.GetDataset(ds.ID)
+	ds2, err := db.GetDataset(DatasetIdentifier{Name: ds.Name, Latest: true})
 	if err != nil {
 		t.Fatal(err)
 	}

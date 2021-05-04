@@ -135,11 +135,11 @@ type ExpressionList []*Expression
 //    to the Query struct (the Unmarshaler should mostly take care of this)
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
-	Select    ExpressionList `json:"select,omitempty"`
-	Dataset   database.UID   `json:"dataset"`
-	Filter    *Expression    `json:"filter,omitempty"`
-	Aggregate ExpressionList `json:"aggregate,omitempty"`
-	Limit     *int           `json:"limit,omitempty"`
+	Select    ExpressionList             `json:"select,omitempty"`
+	Dataset   database.DatasetIdentifier `json:"dataset"`
+	Filter    *Expression                `json:"filter,omitempty"`
+	Aggregate ExpressionList             `json:"aggregate,omitempty"`
+	Limit     *int                       `json:"limit,omitempty"`
 	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
 }
 

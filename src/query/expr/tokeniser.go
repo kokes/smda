@@ -30,6 +30,7 @@ const (
 	// keywords:
 	tokenSelect
 	tokenFrom
+	tokenAt
 	tokenWhere
 	// tokenJoin
 	// tokenOn
@@ -141,6 +142,8 @@ func (tok token) String() string {
 		return "SELECT"
 	case tokenFrom:
 		return "FROM"
+	case tokenAt:
+		return "@"
 	case tokenWhere:
 		return "WHERE"
 	case tokenGroup:
@@ -326,6 +329,9 @@ func (ts *tokenScanner) scan() (token, error) {
 		return token{tokenLt, nil}, nil
 	case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		return ts.consumeNumber()
+	case '@':
+		ts.position++
+		return token{tokenAt, nil}, nil
 	case '\'': // string literal
 		return ts.consumeStringLiteral()
 	default:

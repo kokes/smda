@@ -259,6 +259,14 @@ type Dataset struct {
 	Stripes []Stripe `json:"stripes"`
 }
 
+// DatasetIdentifier contains fields needed for a dataset/version lookup
+type DatasetIdentifier struct {
+	Name    string `json:"name"`
+	Version UID    `json:"id"`
+	// Latest can be used to avoid using Version (e.g. if it's unknown)
+	Latest bool `json:"latest"`
+}
+
 // NewDataset creates a new empty dataset
 func NewDataset() *Dataset {
 	return &Dataset{ID: newUID(OtypeDataset), Created: time.Now().Unix()}
@@ -278,13 +286,24 @@ func (db *Database) stripePath(ds *Dataset, stripe Stripe) string {
 // OPTIM: not efficient in this implementation, but we don't have a map-like structure
 // to store our datasets - we keep them in a slice, so that we have predictable order
 // -> we need a sorted map
-func (db *Database) GetDataset(datasetID UID) (*Dataset, error) {
+// TODO(next): test thouroughly all these cases
+func (db *Database) GetDataset(did DatasetIdentifier) (*Dataset, error) {
+	var found *Dataset
 	for _, dataset := range db.Datasets {
-		if dataset.ID == datasetID {
+		if dataset.Name != did.Name {
+			continue
+		}
+		if did.Latest && (found == nil || dataset.Created > found.Created) {
+			found = dataset
+		}
+		if !did.Latest && dataset.ID == did.Version {
 			return dataset, nil
 		}
 	}
-	return nil, fmt.Errorf("dataset %v not found: %w", datasetID, errDatasetNotFound)
+	if found == nil {
+		return nil, fmt.Errorf("dataset %v not found: %w", did.Name, errDatasetNotFound)
+	}
+	return found, nil
 }
 
 // AddDataset adds a Dataset to a Database

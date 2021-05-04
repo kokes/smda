@@ -389,14 +389,27 @@ func ParseQuerySQL(s string) (Query, error) {
 	if p.curToken().ttype != tokenIdentifier {
 		return q, fmt.Errorf("expecting dataset name, got %v", p.curToken())
 	}
-	dsn := p.curToken().value
-	if len(dsn) == 0 || dsn[0] != 'v' {
-		return q, fmt.Errorf("invalid dataset version, got %s", dsn)
+	datasetID := database.DatasetIdentifier{
+		Name:    string(p.curToken().value),
+		Version: database.UID{},
+		Latest:  true,
 	}
-	q.Dataset, err = database.UIDFromHex(dsn[1:])
-	if err != nil {
-		return q, err
+	if p.peekToken().ttype == tokenAt {
+		p.position += 2
+		if p.curToken().ttype != tokenIdentifier {
+			panic("TODO(PR): invalid version")
+		}
+		dsn := p.curToken().value
+		if len(dsn) == 0 || dsn[0] != 'v' {
+			return q, fmt.Errorf("invalid dataset version, got %s", dsn)
+		}
+		datasetID.Version, err = database.UIDFromHex(dsn[1:])
+		if err != nil {
+			return q, err
+		}
+		datasetID.Latest = false
 	}
+	q.Dataset = datasetID
 
 	p.position++
 

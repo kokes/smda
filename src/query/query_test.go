@@ -39,12 +39,13 @@ func TestBasicQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
 	limit := 100
 	cols := selectExpr([]string{"foo", "bar", "baz"})
-	q := expr.Query{Select: cols, Dataset: ds.ID, Limit: &limit}
+	q := expr.Query{Select: cols, Dataset: database.DatasetIdentifier{Name: ds.Name, Latest: true}, Limit: &limit}
 
 	qr, err := Run(db, q)
 	if err != nil {
@@ -83,11 +84,12 @@ func TestQueryNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
 	cols := selectExpr(nil)
-	q := expr.Query{Select: cols, Dataset: ds.ID}
+	q := expr.Query{Select: cols, Dataset: database.DatasetIdentifier{Name: ds.Name, Latest: true}}
 
 	if _, err := Run(db, q); err != errNoProjection {
 		t.Errorf("expected that selecting nothing will yield %v, got %v instead", errNoProjection, err)
@@ -110,13 +112,14 @@ func TestLimitsInQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
 
 	firstColRaw := []string{"1", "4", "7"}
 	cols := selectExpr([]string{"foo", "bar", "baz"})
-	q := expr.Query{Select: cols, Dataset: ds.ID}
+	q := expr.Query{Select: cols, Dataset: database.DatasetIdentifier{Name: ds.Name, Latest: true}}
 
 	// limit omitted
 	qr, err := Run(db, q)
@@ -270,6 +273,7 @@ func TestBasicAggregation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		ds.Name = "fooinput"
 		if err := db.AddDataset(ds); err != nil {
 			t.Fatal(err)
 		}
@@ -295,7 +299,7 @@ func TestBasicAggregation(t *testing.T) {
 		query := expr.Query{
 			Select:    projexpr,
 			Aggregate: aggexpr,
-			Dataset:   ds.ID,
+			Dataset:   database.DatasetIdentifier{Name: ds.Name, Latest: true},
 		}
 		res, err := Run(db, query)
 		if err != nil {
@@ -407,6 +411,7 @@ func TestBasicFiltering(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		input.Name = "inputds"
 		if err := db.AddDataset(input); err != nil {
 			t.Fatal(err)
 		}
@@ -431,7 +436,7 @@ func TestBasicFiltering(t *testing.T) {
 
 		q := expr.Query{
 			Select:  sel,
-			Dataset: input.ID,
+			Dataset: database.DatasetIdentifier{Name: input.Name, Latest: true},
 			Filter:  filter,
 		}
 
