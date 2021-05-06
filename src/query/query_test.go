@@ -2,6 +2,7 @@ package query
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -11,19 +12,7 @@ import (
 	"github.com/kokes/smda/src/query/expr"
 )
 
-func selectExpr(cols []string) []*expr.Expression {
-	ret := make([]*expr.Expression, 0, len(cols))
-	for _, col := range cols {
-		colExpr, err := expr.ParseStringExpr(col)
-		if err != nil {
-			panic(err)
-		}
-		ret = append(ret, colExpr)
-	}
-	return ret
-}
-
-func TestBasicQueries(t *testing.T) {
+func TestTheMostBasicQuery(t *testing.T) {
 	db, err := database.NewDatabase("", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -39,14 +28,13 @@ func TestBasicQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
-	limit := 100
-	cols := selectExpr([]string{"foo", "bar", "baz"})
-	q := Query{Select: cols, Dataset: ds.ID, Limit: &limit}
 
-	qr, err := Run(db, q)
+	query := fmt.Sprintf("select foo, bar, baz from %v limit 100", ds.Name)
+	qr, err := RunSQL(db, query)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,11 +71,11 @@ func TestQueryNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
-	cols := selectExpr(nil)
-	q := Query{Select: cols, Dataset: ds.ID}
+	q := expr.Query{Select: nil, Dataset: &database.DatasetIdentifier{Name: ds.Name, Latest: true}}
 
 	if _, err := Run(db, q); err != errNoProjection {
 		t.Errorf("expected that selecting nothing will yield %v, got %v instead", errNoProjection, err)
@@ -110,13 +98,17 @@ func TestLimitsInQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
 
 	firstColRaw := []string{"1", "4", "7"}
-	cols := selectExpr([]string{"foo", "bar", "baz"})
-	q := Query{Select: cols, Dataset: ds.ID}
+	cols, err := expr.ParseStringExprs("foo, bar, baz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := expr.Query{Select: cols, Dataset: &database.DatasetIdentifier{Name: ds.Name, Latest: true}}
 
 	// limit omitted
 	qr, err := Run(db, q)
@@ -164,95 +156,89 @@ func TestLimitsInQueries(t *testing.T) {
 	}
 }
 
-func stringsToExprs(raw []string) ([]*expr.Expression, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	ret := make([]*expr.Expression, 0, len(raw))
-	for _, el := range raw {
-		parsed, err := expr.ParseStringExpr(el)
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, parsed)
-	}
-	return ret, nil
-}
-
-func TestBasicAggregation(t *testing.T) {
+func TestBasicQueries(t *testing.T) {
 	tests := []struct {
-		input   string
-		aggexpr []string
-		projs   []string
-		output  string
+		input  string
+		query  string
+		output string
 	}{
-		{"foo\na\nb\nc", []string{"foo"}, []string{"foo"}, "foo\na\nb\nc"},
-		{"foo\na\na\na", []string{"foo"}, []string{"foo"}, "foo\na"},
-		{"foo,bar\na,b\nb,a", []string{"foo"}, []string{"foo"}, "foo\na\nb"},
-		{"foo,bar\na,b\nb,a", []string{"bar"}, []string{"bar"}, "bar\nb\na"},
-		{"foo,bar\na,b\nc,d", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\na,b\nc,d"},
-		{"foo,bar\na,b\nd,a", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\na,b\nd,a"},
-		{"foo,bar\na,b\na,b", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\na,b"},
-		{"foo,bar\n1,2\n2,3", []string{"foo"}, []string{"foo"}, "foo\n1\n2"},
-		{"foo,bar\nt,f\nt,f", []string{"foo"}, []string{"foo"}, "foo\ntrue"},
-		{"foo,bar\n1,t\n2,f", []string{"foo"}, []string{"foo"}, "foo,bar\n1,true\n2,false"},
+		// basic aggregations
+		{"foo\na\nb\nc", "SELECT foo FROM dataset GROUP BY foo", "foo\na\nb\nc"},
+		{"foo\na\na\na", "SELECT foo FROM dataset GROUP BY foo", "foo\na"},
+		{"foo,bar\na,b\nb,a", "SELECT foo FROM dataset GROUP BY foo", "foo\na\nb"},
+		{"foo,bar\na,b\nb,a", "SELECT bar FROM dataset GROUP BY bar", "bar\nb\na"},
+		{"foo,bar\na,b\nc,d", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\na,b\nc,d"},
+		{"foo,bar\na,b\nd,a", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\na,b\nd,a"},
+		{"foo,bar\na,b\na,b", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\na,b"},
+		{"foo,bar\n1,2\n2,3", "SELECT foo FROM dataset GROUP BY foo", "foo\n1\n2"},
+		{"foo,bar\nt,f\nt,f", "SELECT foo FROM dataset GROUP BY foo", "foo\ntrue"},
+		{"foo,bar\n1,t\n2,f", "SELECT foo FROM dataset GROUP BY foo", "foo,bar\n1,true\n2,false"},
 		// order preserving hashing
-		{"foo,bar\na,b\nb,a", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\na,b\nb,a"},
-		{"foo,bar\n1,3\n3,1", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\n1,3\n3,1"},
-		{"foo,bar\n1.2,3\n3,1.2", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\n1.2,3\n3,1.2"},
-		{"foo,bar\nt,f\nf,t", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\nt,f\nf,t"},
+		{"foo,bar\na,b\nb,a", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\na,b\nb,a"},
+		{"foo,bar\n1,3\n3,1", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\n1,3\n3,1"},
+		{"foo,bar\n1.2,3\n3,1.2", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\n1.2,3\n3,1.2"},
+		{"foo,bar\nt,f\nf,t", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\nt,f\nf,t"},
 		// order preserving, with nulls
-		{"foo,bar\nt,\nt,", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\nt,"},
-		{"foo,bar\n1,2\n,3\n,3\n,2", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\n1,2\n,3\n,2"},
-		{"foo,bar\n1.2,2\n,3.1\n,3.1\n,2", []string{"foo", "bar"}, []string{"foo", "bar"}, "foo,bar\n1.2,2\n,3.1\n,2"},
-		// {"foo,bar\nt,1\n,1\nt,1", []string{"foo"}, []string{"foo"}, "foo\nt\n"}, // we're hitting go's encoding/csv again
+		{"foo,bar\nt,\nt,", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\nt,"},
+		{"foo,bar\n1,2\n,3\n,3\n,2", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\n1,2\n,3\n,2"},
+		{"foo,bar\n1.2,2\n,3.1\n,3.1\n,2", "SELECT foo, bar FROM dataset GROUP BY foo, bar", "foo,bar\n1.2,2\n,3.1\n,2"},
+		// {"foo,bar\nt,1\n,1\nt,1", "SELECT foo FROM dataset GROUP BY foo", "foo\nt\n"}, // we're hitting go's encoding/csv again
 		// nulls in aggregation:
-		{"foo,bar\n,1\n0,2", []string{"foo"}, []string{"foo"}, "foo,bar\n,1\n0,2"},
-		{"foo,bar\n1,1\n,2", []string{"foo"}, []string{"foo"}, "foo,bar\n1,1\n,2"},
-		{"foo,bar\n,1\n.3,2", []string{"foo"}, []string{"foo"}, "foo,bar\n,1\n.3,2"},
-		{"foo,bar\n,1\nt,2", []string{"foo"}, []string{"foo"}, "foo,bar\n,1\nt,2"},
+		{"foo,bar\n,1\n0,2", "SELECT foo FROM dataset GROUP BY foo", "foo,bar\n,1\n0,2"},
+		{"foo,bar\n1,1\n,2", "SELECT foo FROM dataset GROUP BY foo", "foo,bar\n1,1\n,2"},
+		{"foo,bar\n,1\n.3,2", "SELECT foo FROM dataset GROUP BY foo", "foo,bar\n,1\n.3,2"},
+		{"foo,bar\n,1\nt,2", "SELECT foo FROM dataset GROUP BY foo", "foo,bar\n,1\nt,2"},
 		// basic expression aggregation
-		{"foo,bar\n,1\nt,2", []string{"bar=1"}, []string{"bar=1"}, "bar=1\nt\nf"},
+		{"foo,bar\n,1\nt,2", "SELECT bar=1 FROM dataset GROUP BY bar=1", "bar=1\nt\nf"},
 		// same as above, but the projection has extra whitespace (and it needs to still work)
-		{"foo,bar\n,1\nt,2", []string{"bar=1"}, []string{"bar = 1"}, "bar=1\nt\nf"},
-		{"foo,bar\n,1\nt,2", []string{"bar > 0"}, []string{"bar > 0"}, "bar>0\nt"},
+		{"foo,bar\n,1\nt,2", "SELECT bar = 1 FROM dataset GROUP BY bar=1", "bar=1\nt\nf"},
+		{"foo,bar\n,1\nt,2", "SELECT bar > 0 FROM dataset GROUP BY bar > 0", "bar>0\nt"},
 		// TODO: nullable strings tests
 
-		{"foo,bar\n1,12\n13,2\n1,3\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,3\n13,2"},
-		{"foo,bar\n1,12.3\n13,2\n1,3.3\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,3.3\n13,2"},
-		{"foo,bar\n1,12.3\n13,2\n1,3.3\n", []string{"foo"}, []string{"foo", "max(bar)"}, "foo,min(bar)\n1,12.3\n13,2"},
-		{"foo,bar\n1,foo\n13,bar\n13,baz\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,foo\n13,bar"},
-		{"foo,bar\n1,foo\n13,bar\n13,baz\n", []string{"foo"}, []string{"foo", "max(bar)"}, "foo,max(bar)\n1,foo\n13,baz"},
-		{"foo,bar\n1,12.3\n13,2\n1,3.5\n", []string{"foo"}, []string{"foo", "sum(bar)"}, "foo,sum(bar)\n1,15.8\n13,2"},
-		{"foo,bar\n1,5\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "avg(bar)"}, "foo,avg(bar)\n1,7.5\n13,2"},
-		{"foo,bar\n1,5\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count()"}, "foo,count(bar)\n1,2\n13,1"},
-		{"foo,bar\n1,\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count()"}, "foo,count(bar)\n1,2\n13,1"},
-		{"foo,bar\n1,12\n13,2\n1,10\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,count(bar)\n1,2\n13,1"},
+		{"foo,bar\n1,12\n13,2\n1,3\n", "SELECT foo, min(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,3\n13,2"},
+		{"foo,bar\n1,12.3\n13,2\n1,3.3\n", "SELECT foo, min(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,3.3\n13,2"},
+		{"foo,bar\n1,12.3\n13,2\n1,3.3\n", "SELECT foo, max(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,12.3\n13,2"},
+		{"foo,bar\n1,foo\n13,bar\n13,baz\n", "SELECT foo, min(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,foo\n13,bar"},
+		{"foo,bar\n1,foo\n13,bar\n13,baz\n", "SELECT foo, max(bar) FROM dataset GROUP BY foo", "foo,max(bar)\n1,foo\n13,baz"},
+		{"foo,bar\n1,12.3\n13,2\n1,3.5\n", "SELECT foo, sum(bar) FROM dataset GROUP BY foo", "foo,sum(bar)\n1,15.8\n13,2"},
+		{"foo,bar\n1,5\n13,2\n1,10\n", "SELECT foo, avg(bar) FROM dataset GROUP BY foo", "foo,avg(bar)\n1,7.5\n13,2"},
+		{"foo,bar\n1,5\n13,2\n1,10\n", "SELECT foo, count() FROM dataset GROUP BY foo", "foo,count(bar)\n1,2\n13,1"},
+		{"foo,bar\n1,\n13,2\n1,10\n", "SELECT foo, count() FROM dataset GROUP BY foo", "foo,count(bar)\n1,2\n13,1"},
+		{"foo,bar\n1,12\n13,2\n1,10\n", "SELECT foo, count(bar) FROM dataset GROUP BY foo", "foo,count(bar)\n1,2\n13,1"},
 		// count() doesn't return nulls in values
-		{"foo,bar\n1,\n13,2\n1,10\n3,\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,count(bar)\n1,1\n13,1\n3,0"},
+		{"foo,bar\n1,\n13,2\n1,10\n3,\n", "SELECT foo, count(bar) FROM dataset GROUP BY foo", "foo,count(bar)\n1,1\n13,1\n3,0"},
 		// null handling (keys and values)
-		{"foo,bar\n,12\n13,2\n1,3\n1,2\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n,12\n13,2\n1,2"},
-		{"foo,bar\n1,\n13,2\n1,\n", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,\n13,2"},
-		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", []string{"foo"}, []string{"foo", "count(bar)"}, "foo,count(bar)\n1,1\n,1\n"},
-		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", []string{"foo"}, []string{"foo", "count()"}, "foo,count()\n1,2\n,3\n"},
+		{"foo,bar\n,12\n13,2\n1,3\n1,2\n", "SELECT foo, min(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n,12\n13,2\n1,2"},
+		{"foo,bar\n1,\n13,2\n1,\n", "SELECT foo, min(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,\n13,2"},
+		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", "SELECT foo, count(bar) FROM dataset GROUP BY foo", "foo,count(bar)\n1,1\n,1\n"},
+		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", "SELECT foo, count() FROM dataset GROUP BY foo", "foo,count()\n1,2\n,3\n"},
 		// we can't have sum(bool) yet, because bool aggregators can't have state in []int64
-		// {"foo,bar\n1,t\n,\n1,f\n2,f\n2,t\n1,t\n", []string{"foo"}, []string{"foo", "sum(bar)"}, "foo,sumtbar()\n1,2\n2,2\n"},
+		// {"foo,bar\n1,t\n,\n1,f\n2,f\n2,t\n1,t\n", "SELECT foo, sum(bar) FROM dataset GROUP BY foo", "foo,sumtbar()\n1,2\n2,2\n"},
 		// dates
-		{"foo,bar\n1,2020-01-30\n1,2020-02-20\n1,1979-12-31", []string{"foo"}, []string{"foo", "max(bar)"}, "foo,max(bar)\n1,2020-02-20\n"},
-		{"foo,bar\n1,2020-01-30\n1,2020-02-20\n1,1979-12-31", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31\n"},
-		{"foo,bar\n1,2020-01-30 12:34:56\n1,2020-02-20 00:00:00\n1,1979-12-31 19:01:57", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31 19:01:57\n"},
-		{"foo,bar\n1,2020-01-30 12:34:56\n1,1979-12-31 19:01:57.001\n1,1979-12-31 19:01:57.002", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31 19:01:57.001\n"},
-		{"foo,bar\n1,2020-01-30 12:34:56\n1,1979-12-31 19:01:57.001\n1,1979-12-31 19:01:57.0001", []string{"foo"}, []string{"foo", "min(bar)"}, "foo,min(bar)\n1,1979-12-31 19:01:57.0001\n"},
+		{"foo,bar\n1,2020-01-30\n1,2020-02-20\n1,1979-12-31", "SELECT foo, max(bar) FROM dataset GROUP BY foo", "foo,max(bar)\n1,2020-02-20\n"},
+		{"foo,bar\n1,2020-01-30\n1,2020-02-20\n1,1979-12-31", "SELECT foo, min(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,1979-12-31\n"},
+		{"foo,bar\n1,2020-01-30 12:34:56\n1,2020-02-20 00:00:00\n1,1979-12-31 19:01:57", "SELECT foo, min(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,1979-12-31 19:01:57\n"},
+		{"foo,bar\n1,2020-01-30 12:34:56\n1,1979-12-31 19:01:57.001\n1,1979-12-31 19:01:57.002", "SELECT foo, min(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,1979-12-31 19:01:57.001\n"},
+		{"foo,bar\n1,2020-01-30 12:34:56\n1,1979-12-31 19:01:57.001\n1,1979-12-31 19:01:57.0001", "SELECT foo, min(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,1979-12-31 19:01:57.0001\n"},
 		// case insensitivity
-		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", []string{"foo"}, []string{"foo", "COUNT()"}, "foo,count()\n1,2\n,3\n"},
-		{"foo,bar\n1,\n13,2\n1,\n", []string{"foo"}, []string{"foo", "MIN(bar)"}, "foo,min(bar)\n1,\n13,2"},
+		{"foo,bar\n1,\n,\n1,10\n,4\n,\n", "SELECT foo, COUNT() FROM dataset GROUP BY foo", "foo,count()\n1,2\n,3\n"},
+		{"foo,bar\n1,\n13,2\n1,\n", "SELECT foo, MIN(bar) FROM dataset GROUP BY foo", "foo,min(bar)\n1,\n13,2"},
 		// no aggregating columns
-		{"foo\n1\n2\n3\n", nil, []string{"sum(foo)", "max(foo)"}, "sum(foo),max(foo)\n6,3\n"},
-		{"foo\n1\n2\n3\n", nil, []string{"count()"}, "count()\n3\n"},
-		{"foo\n1\n2\n3\n", nil, []string{"count() - 2"}, "count()\n1\n"},
-		{"foo\n1\n2\n3\n", nil, []string{"2-count()"}, "count()\n-1\n"},
-		{"foo\n1\n2\n3\n", nil, []string{"count()*2"}, "count()\n6\n"},
-		{"foo\n1\n2\n3\n", nil, []string{"2*count()"}, "count()\n6\n"},
+		{"foo\n1\n2\n3\n", "SELECT sum(foo), max(foo) FROM dataset", "sum(foo),max(foo)\n6,3\n"},
+		{"foo\n1\n2\n3\n", "SELECT count() FROM dataset", "count()\n3\n"},
+		{"foo\n1\n2\n3\n", "SELECT count() - 2 FROM dataset", "count()\n1\n"},
+		{"foo\n1\n2\n3\n", "SELECT 2-count() FROM dataset", "count()\n-1\n"},
+		{"foo\n1\n2\n3\n", "SELECT count()*2 FROM dataset", "count()\n6\n"},
+		{"foo\n1\n2\n3\n", "SELECT 2*count() FROM dataset", "count()\n6\n"},
+
+		// basic filtering
+		// no testing against literals as we don't support literal chunks yet
+		// {"foo\na\nb\nc", "SELECT foo FROM dataset WHERE foo != foo", "foo"}, // no type inference for our `output`
+		{"foo\na\nb\nc", "SELECT foo FROM dataset WHERE foo = foo", "foo\na\nb\nc"},
+		{"foo,bar\n1,4\n5,5\n10,4", "SELECT foo FROM dataset WHERE foo > bar", "foo\n10"},
+		{"foo,bar\n1,4\n5,5\n10,4", "SELECT foo FROM dataset WHERE foo >= bar", "foo\n5\n10"},
+		{"foo,bar\n1,4\n5,5\n10,4", "SELECT foo FROM dataset WHERE 4 > 1", "foo\n1\n5\n10"},
+		{"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset WHERE foo = null", "bar\n4\n6"},
 	}
 
 	for testNo, test := range tests {
@@ -270,6 +256,7 @@ func TestBasicAggregation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		ds.Name = "dataset"
 		if err := db.AddDataset(ds); err != nil {
 			t.Fatal(err)
 		}
@@ -282,22 +269,7 @@ func TestBasicAggregation(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		aggexpr, err := stringsToExprs(test.aggexpr)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		projexpr, nil := stringsToExprs(test.projs)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		query := Query{
-			Select:    projexpr,
-			Aggregate: aggexpr,
-			Dataset:   ds.ID,
-		}
-		res, err := Run(db, query)
+		res, err := RunSQL(db, test.query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -320,6 +292,8 @@ func TestBasicAggregation(t *testing.T) {
 			//        2) create a helper method which tests for equality of two datasets (== schema, == each column
 			//           in each stripe, ignore stripeIDs)
 			// also, to test this, we need to initialise the db with MaxRowsPerStripe to a very low number to force creation of multiple stripes
+			// ARCH: we might be better off just writing both datasets to CSV and comparing that byte for byte?
+			// it might get hairy wrt nulls, but it will be straightforward otherwise
 			expcol, err := sr.ReadColumn(j)
 			if err != nil {
 				t.Fatal(err)
@@ -333,13 +307,12 @@ func TestBasicAggregation(t *testing.T) {
 
 func TestAggregationProjectionErrors(t *testing.T) {
 	tests := []struct {
-		input   string
-		aggexpr []string
-		projs   []string
+		input string
+		query string
 	}{
-		{"foo,bar,baz\n1,2,3\n", []string{"foo", "bar"}, []string{"foo*2", "bar"}},
-		{"foo,bar,baz\n1,2,3\n", []string{"foo"}, []string{"bar"}},
-		{"foo,bar,baz\n1,2,3\n", []string{"nullif(foo, 2)"}, []string{"foo"}},
+		{"foo,bar,baz\n1,2,3\n", "SELECT foo*2, bar FROM dataset GROUP BY foo, bar"},
+		{"foo,bar,baz\n1,2,3\n", "SELECT bar FROM dataset GROUP BY foo"},
+		{"foo,bar,baz\n1,2,3\n", "SELECT foo FROM dataset GROUP BY nullif(foo, 2)"},
 	}
 
 	for _, test := range tests {
@@ -357,103 +330,14 @@ func TestAggregationProjectionErrors(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		aggexpr, err := stringsToExprs(test.aggexpr)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		projexpr, err := stringsToExprs(test.projs)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		// TODO: replace this with Run
-		_, err = aggregate(db, ds, aggexpr, projexpr, nil)
-		if !errors.Is(err, errInvalidProjectionInAggregation) {
-			t.Errorf("expecting projection %+v and aggregation %+v to result in errInvalidProjectionInAggregation, got %+v instead", test.projs, test.aggexpr, err)
-		}
-	}
-}
-
-func TestBasicFiltering(t *testing.T) {
-	tests := []struct {
-		input            string
-		columns          []string
-		filterExpression string
-		output           string
-	}{
-		// no testing against literals as we don't support literal chunks yet
-		{"foo\na\nb\nc", []string{"foo"}, "foo = foo", "foo\na\nb\nc"},
-		// {"foo\na\nb\nc", []string{"foo"}, "foo != foo", "foo"}, // no type inference for our `output`
-		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "foo > bar", "foo\n10"},
-		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "foo >= bar", "foo\n5\n10"},
-		{"foo,bar\n1,4\n5,5\n10,4", []string{"foo"}, "4 > 1", "foo\n1\n5\n10"},
-		{"foo,bar\n,4\n5,5\n,6", []string{"bar"}, "foo = null", "bar\n4\n6"},
-	}
-
-	for _, test := range tests {
-		db, err := database.NewDatabase("", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := db.Drop(); err != nil {
-				panic(err)
-			}
-		}()
-
-		input, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.input))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := db.AddDataset(input); err != nil {
+		ds.Name = "dataset"
+		if err := db.AddDataset(ds); err != nil {
 			t.Fatal(err)
 		}
 
-		expected, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.output))
-		if err != nil {
-			t.Fatal(err)
+		if _, err := RunSQL(db, test.query); !errors.Is(err, errInvalidProjectionInAggregation) {
+			t.Errorf("expecting query %v to result in errInvalidProjectionInAggregation, got %+v instead", test.query, err)
 		}
-
-		var sel []*expr.Expression
-		for _, col := range test.columns {
-			parsed, err := expr.ParseStringExpr(col)
-			if err != nil {
-				t.Fatal(err)
-			}
-			sel = append(sel, parsed)
-		}
-		filter, err := expr.ParseStringExpr(test.filterExpression)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		q := Query{
-			Select:  sel,
-			Dataset: input.ID,
-			Filter:  filter,
-		}
-
-		filtered, err := Run(db, q)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		expectedCols, err := db.ReadColumnsFromStripeByNames(expected, expected.Stripes[0], test.columns)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		filteredMap := make(map[string]column.Chunk)
-		for idx, col := range filtered.Schema {
-			filteredMap[col.Name] = filtered.Data[idx]
-		}
-
-		if !reflect.DeepEqual(filteredMap, expectedCols) {
-			t.Errorf("expecting filter %+v to result in %+v, not %+v", test.filterExpression, expectedCols, filtered.Data)
-		}
-
 	}
 }
 

@@ -373,7 +373,8 @@
                 const dsopt = qform.querySelector("datalist[id=dataset_id]");
                 empty(dsopt);
                 for (let [dsId, val] of Object.entries(this.datasets)) {
-                    dsopt.append(node("option", {"value": dsId}, `${val.name} (${dsId})`));
+                    const namever = `${val.name}@${dsId}`
+                    dsopt.append(node("option", {"value": namever}, `${val.name} (${dsId})`));
                 }
                 for (let inp of qform.querySelectorAll("input, select")) {
                     const fieldName = inp.getAttribute("name");
@@ -433,8 +434,13 @@
                 empty(target);
                 return;
             }
+
+            const valueparts = qform.dataset.value.split("@");
             const query = {
-                dataset: qform.dataset.value,
+                dataset: {
+                    name: valueparts[0],
+                    id: valueparts[1], // ARCH: might be `version`
+                },
             };
             let data, incrementor, startTime;
             try {
@@ -455,7 +461,7 @@
                 incrementor = setInterval(() => {
                     elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
                 }, 100)
-         
+
                 data = await this.runQuery(query);
             } catch(e) {
                 errBox.textContent = e;
@@ -482,7 +488,8 @@
             const rows = node("tbody", null, datasets.map(
                 ds => {
                     const cols = [
-                        node("td", null, node("a", {"href": `/query?dataset=${ds.id}&limit=100`}, ds.id)),
+                        // ARCH/TODO(next): escape the '@'?
+                        node("td", null, node("a", {"href": `/query?dataset=${ds.name}@${ds.id}&limit=100`}, ds.id)),
                         node("td", null, ds.name),
                         node("td", null,
                             node("span",
@@ -517,7 +524,8 @@
         async runQuery(query) {
             await this.loadDatasets();
             if (query["select"] === undefined) {
-                const columns = this.datasets[query.dataset].schema.map(x => x.name);
+                // TODO(next)/ARCH: we're only looking up using the dataset id, is that ok?
+                const columns = this.datasets[query.dataset.id].schema.map(x => x.name);
                 // always submit it as quoted if it's not all lowercase,
                 query["select"] = columns.map(x => quoteIfNeeded(x)).join(", ");
             }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/query"
+	"github.com/kokes/smda/src/query/expr"
 )
 
 //go:embed assets
@@ -62,7 +63,7 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 			http.Error(w, "only POST requests allowed for /api/query", http.StatusMethodNotAllowed)
 			return
 		}
-		var qr query.Query
+		var qr expr.Query
 		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&qr); err != nil {

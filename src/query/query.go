@@ -14,22 +14,6 @@ var errNoProjection = errors.New("no expressions specified to be selected")
 var errInvalidLimitValue = errors.New("invalid limit value")
 var errInvalidProjectionInAggregation = errors.New("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo))")
 
-// Query describes what we want to retrieve from a given dataset
-// There are basically four places you need to edit (and test!) in order to extend this:
-// 1) The engine itself needs to support this functionality (usually a method on Dataset or column.Chunk)
-// 2) The query method has to be able to translate query parameters to the engine
-// 3) The query endpoint handler needs to be able to process the incoming body
-//    to the Query struct (the Unmarshaler should mostly take care of this)
-// 4) The HTML/JS frontend needs to incorporate this in some way
-type Query struct {
-	Select    expr.ExpressionList `json:"select,omitempty"`
-	Dataset   database.UID        `json:"dataset"`
-	Filter    *expr.Expression    `json:"filter,omitempty"`
-	Aggregate expr.ExpressionList `json:"aggregate,omitempty"`
-	Limit     *int                `json:"limit,omitempty"`
-	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
-}
-
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
 // a Result to be a Dataset of its own (for better interoperability, persistence, caching etc.)
 type Result struct {
@@ -196,10 +180,18 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 	return ret, nil
 }
 
+func RunSQL(db *database.Database, query string) (*Result, error) {
+	q, err := expr.ParseQuerySQL(query)
+	if err != nil {
+		return nil, err
+	}
+	return Run(db, q)
+}
+
 // Run runs a given query against this database
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
 // the former should result in a 4xx, the latter in a 5xx
-func Run(db *database.Database, q Query) (*Result, error) {
+func Run(db *database.Database, q expr.Query) (*Result, error) {
 	if len(q.Select) == 0 {
 		return nil, errNoProjection
 	}

@@ -15,7 +15,6 @@ import (
 
 	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
-	"github.com/kokes/smda/src/query"
 	"github.com/kokes/smda/src/query/expr"
 )
 
@@ -297,11 +296,12 @@ func TestHandlingQueries(t *testing.T) {
 
 	dsets := []string{"foo,bar\n1,3\n4,6", "foo,bar\n9,8\n1,2"}
 	dss := make([]*database.Dataset, 0, len(dsets))
-	for _, dset := range dsets {
+	for j, dset := range dsets {
 		ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader(dset))
 		if err != nil {
 			t.Fatal(err)
 		}
+		ds.Name = fmt.Sprintf("dataset%02d", j)
 		if err := db.AddDataset(ds); err != nil {
 			t.Fatal(err)
 		}
@@ -322,7 +322,7 @@ func TestHandlingQueries(t *testing.T) {
 			}
 			cols = append(cols, colExpr)
 		}
-		qr := query.Query{Select: cols, Dataset: ds.ID, Limit: &limit}
+		qr := expr.Query{Select: cols, Dataset: &database.DatasetIdentifier{Name: ds.Name, Latest: true}, Limit: &limit}
 		body, err := json.Marshal(qr)
 		if err != nil {
 			t.Fatal(err)
@@ -382,12 +382,15 @@ func TestInvalidQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ds.Name = "foobar"
 
 	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/api/query", srv.URL)
-	body := fmt.Sprintf(`{"dataset": "%v", "foobar": 123}`, ds.ID)
+	body := fmt.Sprintf(`{"dataset": {"name": "%v", "id": "%v"}, "foobar": 123}`, ds.Name, ds.ID)
+	// _ = ds
+	// body := `{"foobar": 123}`
 	resp, err := http.Post(url, "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)

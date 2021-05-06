@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/kokes/smda/src/column"
+	"github.com/kokes/smda/src/database"
 )
 
 var errNoNestedAggregations = errors.New("cannot nest aggregations (e.g. sum(min(a)))")
@@ -126,6 +127,44 @@ type Expression struct {
 
 type ExpressionList []*Expression
 
+// Query describes what we want to retrieve from a given dataset
+// There are basically four places you need to edit (and test!) in order to extend this:
+// 1) The engine itself needs to support this functionality (usually a method on Dataset or column.Chunk)
+// 2) The query method has to be able to translate query parameters to the engine
+// 3) The query endpoint handler needs to be able to process the incoming body
+//    to the Query struct (the Unmarshaler should mostly take care of this)
+// 4) The HTML/JS frontend needs to incorporate this in some way
+type Query struct {
+	Select    ExpressionList              `json:"select,omitempty"`
+	Dataset   *database.DatasetIdentifier `json:"dataset"`
+	Filter    *Expression                 `json:"filter,omitempty"`
+	Aggregate ExpressionList              `json:"aggregate,omitempty"`
+	Limit     *int                        `json:"limit,omitempty"`
+	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
+}
+
+// this stringer is tested in the parser
+func (q Query) String() string {
+	var sb strings.Builder
+	sb.WriteString("SELECT ")
+	sb.WriteString(q.Select.String())
+	// ARCH: preparing for queries without FROM clauses
+	if q.Dataset != nil {
+		sb.WriteString(fmt.Sprintf(" FROM %s", q.Dataset))
+	}
+	if q.Filter != nil {
+		sb.WriteString(fmt.Sprintf(" WHERE %s", q.Filter))
+	}
+	if q.Aggregate != nil {
+		sb.WriteString(fmt.Sprintf(" GROUP BY %s", q.Aggregate))
+	}
+	if q.Limit != nil {
+		sb.WriteString(fmt.Sprintf(" LIMIT %d", *q.Limit))
+	}
+
+	return sb.String()
+}
+
 func (expr *Expression) InitFunctionCalls() error {
 	for _, ch := range expr.children {
 		if err := ch.InitFunctionCalls(); err != nil {
@@ -212,7 +251,12 @@ func (expr *Expression) String() string {
 		rval = fmt.Sprintf("-%s", expr.children[0])
 	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
 		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
-		rval = fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
+		// ARCH: maybe do `%s %s %s` for all of these, it will make our queries more readable
+		if expr.etype == exprAnd || expr.etype == exprOr {
+			rval = fmt.Sprintf("%s %s %s", expr.children[0], expr.etype, expr.children[1])
+		} else {
+			rval = fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
+		}
 	case exprLiteralInt, exprLiteralFloat, exprLiteralBool:
 		rval = expr.value
 	case exprLiteralString:
@@ -267,17 +311,17 @@ func (exprs *ExpressionList) UnmarshalJSON(data []byte) error {
 	return err
 }
 
-func (exprs ExpressionList) MarshalJSON() ([]byte, error) {
+func (exprs ExpressionList) String() string {
 	var buf bytes.Buffer
 	for j, expr := range exprs {
-		if _, err := buf.WriteString(expr.String()); err != nil {
-			return nil, err
-		}
+		buf.WriteString(expr.String())
 		if j < len(exprs)-1 {
-			if _, err := buf.WriteString(", "); err != nil {
-				return nil, err
-			}
+			buf.WriteString(", ")
 		}
 	}
-	return json.Marshal(buf.String())
+	return buf.String()
+}
+
+func (exprs ExpressionList) MarshalJSON() ([]byte, error) {
+	return json.Marshal(exprs.String())
 }

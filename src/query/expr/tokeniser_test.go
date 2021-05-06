@@ -107,6 +107,21 @@ func TestTokenisationWithValues(t *testing.T) {
 		{"+\"ahoy\"+", []token{{tokenAdd, nil}, {tokenIdentifierQuoted, []byte("ahoy")}, {tokenAdd, nil}}},
 		{"-- here is my comment\n1", []token{{tokenComment, []byte(" here is my comment")}, {tokenLiteralInt, []byte("1")}}},
 		{"--here is my comment\n1", []token{{tokenComment, []byte("here is my comment")}, {tokenLiteralInt, []byte("1")}}},
+		{"foo@v020485a2686b8d38fe", []token{{tokenIdentifier, []byte("foo")}, {tokenAt, nil}, {tokenIdentifier, []byte("v020485a2686b8d38fe")}}},
+		{"select foo from bar", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("bar")}}},
+		{"select foo, bar from baz", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenComma, nil}, {tokenIdentifier, []byte("bar")}, {tokenFrom, nil}, {tokenIdentifier, []byte("baz")}}},
+		// we're experimenting with vID here
+		{"select foo from bar@v020485a2686b8d38fe", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("bar")}, {tokenAt, nil},
+			{tokenIdentifier, []byte("v020485a2686b8d38fe")}}},
+		{"select foo from bar@v020485a2686b8d38fe where foo > 1", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("bar")}, {tokenAt, nil},
+			{tokenIdentifier, []byte("v020485a2686b8d38fe")}, {tokenWhere, nil}, {tokenIdentifier, []byte("foo")}, {tokenGt, nil}, {tokenLiteralInt, []byte("1")},
+		}},
+		{"select foo from bar@v020485a2686b8d38fe group by foo, bar", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("bar")}, {tokenAt, nil},
+			{tokenIdentifier, []byte("v020485a2686b8d38fe")}, {tokenGroup, nil}, {tokenBy, nil}, {tokenIdentifier, []byte("foo")}, {tokenComma, nil}, {tokenIdentifier, []byte("bar")},
+		}},
+		{"select foo from bar@v020485a2686b8d38fe limit 123", []token{{tokenSelect, nil}, {tokenIdentifier, []byte("foo")}, {tokenFrom, nil}, {tokenIdentifier, []byte("bar")}, {tokenAt, nil},
+			{tokenIdentifier, []byte("v020485a2686b8d38fe")}, {tokenLimit, nil}, {tokenLiteralInt, []byte("123")},
+		}},
 	}
 
 	for _, test := range tt {

@@ -392,3 +392,35 @@ testloop:
 		}
 	}
 }
+
+func TestParsingSQL(t *testing.T) {
+	tests := []struct {
+		raw string
+		err error
+	}{
+		// {"WITH foo", errSQLOnlySelects},
+		// {"SELECT 1", nil}, // TODO(next): support dataset-less selects
+		{"SELECT foo FROM bar", nil},
+		{"SELECT foo FROM bar@v020485a2686b8d38fe WHERE foo>2", nil},
+		{"SELECT foo FROM bar WHERE 1=1 AND foo>bar", nil},
+		{"SELECT foo FROM bar WHERE 1=1 AND foo>bar GROUP BY foo", nil},
+		{"SELECT foo FROM bar GROUP BY foo", nil},
+		{"SELECT foo FROM bar GROUP BY foo LIMIT 2", nil},
+		{"SELECT foo FROM bar@v020485a2686b8d38fe LIMIT 200", nil},
+		{"SELECT 1", errInvalidQuery},
+		{"SELECT foo FROM bar@234", errInvalidQuery},
+		{"SELECT foo FROM bar GROUP for 1", errInvalidQuery},
+		{"SELECT foo FROM bar GROUP BY foo LIMIT foo", errInvalidQuery},
+	}
+
+	for _, test := range tests {
+		parsed, err := ParseQuerySQL(test.raw)
+		if !errors.Is(err, test.err) {
+			t.Errorf("when parsing SQL query %v encountered %v, expected %v", test.raw, err, test.err)
+			continue
+		}
+		if test.err == nil && parsed.String() != test.raw {
+			t.Errorf("query %v failed our roundtrip test, got %s instead", test.raw, parsed.String())
+		}
+	}
+}

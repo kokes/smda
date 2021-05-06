@@ -202,24 +202,35 @@ func (uid UID) MarshalJSON() ([]byte, error) {
 	return ret, nil
 }
 
+// ARCH: test this instead the Unmarshal? Or both?
+func UIDFromHex(data []byte) (UID, error) {
+	var uid UID
+	unhexed := make([]byte, 9)
+	dec, err := hex.Decode(unhexed, data)
+	if err != nil {
+		return uid, err
+	}
+	if dec != len(unhexed) {
+		return uid, errors.New("failed to decode UID")
+	}
+
+	uid.Otype = ObjectType(unhexed[0])
+	uid.oid = binary.LittleEndian.Uint64(unhexed[1:9])
+	return uid, nil
+}
+
 // UnmarshalJSON satisfies the Unmarshaler interface
 // (we need a pointer here, because we'll be writing to it)
 func (uid *UID) UnmarshalJSON(data []byte) error {
 	if len(data) != 20 {
 		return errors.New("unexpected byte array used for UIDs")
 	}
-	data = data[1:19] // strip quotes
-	unhexed := make([]byte, 9)
-	dec, err := hex.Decode(unhexed, data)
+	id, err := UIDFromHex(data[1:19]) // strip quotes first
 	if err != nil {
 		return err
 	}
-	if dec != len(unhexed) {
-		return errors.New("failed to decode UID")
-	}
+	*uid = id
 
-	uid.Otype = ObjectType(unhexed[0])
-	uid.oid = binary.LittleEndian.Uint64(unhexed[1:9])
 	return nil
 }
 
@@ -248,6 +259,21 @@ type Dataset struct {
 	Stripes []Stripe `json:"stripes"`
 }
 
+// DatasetIdentifier contains fields needed for a dataset/version lookup
+type DatasetIdentifier struct {
+	Name    string `json:"name"`
+	Version UID    `json:"id"`
+	// Latest can be used to avoid using Version (e.g. if it's unknown)
+	Latest bool `json:"latest"`
+}
+
+func (did DatasetIdentifier) String() string {
+	if did.Latest {
+		return did.Name
+	}
+	return fmt.Sprintf("%s@v%s", did.Name, did.Version)
+}
+
 // NewDataset creates a new empty dataset
 func NewDataset() *Dataset {
 	return &Dataset{ID: newUID(OtypeDataset), Created: time.Now().Unix()}
@@ -267,13 +293,24 @@ func (db *Database) stripePath(ds *Dataset, stripe Stripe) string {
 // OPTIM: not efficient in this implementation, but we don't have a map-like structure
 // to store our datasets - we keep them in a slice, so that we have predictable order
 // -> we need a sorted map
-func (db *Database) GetDataset(datasetID UID) (*Dataset, error) {
+// TODO(next): test thouroughly all these cases
+func (db *Database) GetDataset(did *DatasetIdentifier) (*Dataset, error) {
+	var found *Dataset
 	for _, dataset := range db.Datasets {
-		if dataset.ID == datasetID {
+		if dataset.Name != did.Name {
+			continue
+		}
+		if did.Latest && (found == nil || dataset.Created > found.Created) {
+			found = dataset
+		}
+		if !did.Latest && dataset.ID == did.Version {
 			return dataset, nil
 		}
 	}
-	return nil, fmt.Errorf("dataset %v not found: %w", datasetID, errDatasetNotFound)
+	if found == nil {
+		return nil, fmt.Errorf("dataset %v not found: %w", did.Name, errDatasetNotFound)
+	}
+	return found, nil
 }
 
 // AddDataset adds a Dataset to a Database
