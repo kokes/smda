@@ -2,7 +2,6 @@ package column
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -25,11 +24,11 @@ type Chunk interface {
 	AddValue(string) error
 	AddValues([]string) error // consider merging AddValues and AddValue (using varargs)
 	WriteTo(io.Writer) (int64, error)
-	MarshalJSON() ([]byte, error) // ARCH: consider moving these implementations (together with writeto, csv etc.) to chunk_io.go or something
 	Prune(*bitmap.Bitmap) Chunk
 	Append(Chunk) error
 	Hash(int, []uint64)
 	Clone() Chunk
+	NthString(int) (string, bool)
 }
 
 type baseChunker interface {
@@ -1801,212 +1800,6 @@ func (rc *ChunkNulls) WriteTo(w io.Writer) (int64, error) {
 	return int64(4), nil
 }
 
-// MarshalJSON converts a chunk into its JSON representation
-func (rc *ChunkStrings) MarshalJSON() ([]byte, error) {
-	if rc.IsLiteral {
-		if rc.length == 0 {
-			return []byte("[]"), nil
-		}
-		buffer := make([]byte, 0, int(rc.length)*(len(rc.data)+1)+1)
-		serialised, err := json.Marshal(string(rc.data))
-		if err != nil {
-			return nil, err
-		}
-		buffer = append(buffer, '[')
-		serialised = append(serialised, ',')
-		for j := 0; j < int(rc.length); j++ {
-			buffer = append(buffer, serialised...)
-		}
-		buffer[len(buffer)-1] = ']' // replace the last comma by a closing bracket
-		return buffer, nil
-	}
-	if !(rc.Nullability != nil && rc.Nullability.Count() > 0) {
-		res := make([]string, 0, int(rc.length))
-		for j := 0; j < rc.Len(); j++ {
-			res = append(res, rc.nthValue(j))
-		}
-
-		return json.Marshal(res)
-	}
-
-	dt := make([]*string, 0, rc.length)
-	for j := 0; j < rc.Len(); j++ {
-		val := rc.nthValue(j)
-		dt = append(dt, &val)
-	}
-
-	for j := 0; j < int(rc.length); j++ {
-		if rc.Nullability.Get(j) {
-			dt[j] = nil
-		}
-	}
-	return json.Marshal(dt)
-}
-
-// MarshalJSON converts a chunk into its JSON representation
-func (rc *ChunkInts) MarshalJSON() ([]byte, error) {
-	// OPTIM: we could construct this JSON value using a byte buffer, avoiding []int64, reflection,
-	// serialisation and other overhead. But I guess it's not a bottleneck at this point.
-	// (more care will be needed in ChunkFloats, where not all floats can be serialised)
-	// It actually won't be that difficult: just json.Marshal that one value and then append it to a byte
-	// buffer n times with commas (reserve n*(length+1))
-	if rc.IsLiteral {
-		dt := make([]int64, 0, rc.length)
-		for j := 0; j < int(rc.length); j++ {
-			dt = append(dt, rc.data[0])
-		}
-		return json.Marshal(dt)
-	}
-	if !(rc.Nullability != nil && rc.Nullability.Count() > 0) {
-		return json.Marshal(rc.data)
-	}
-
-	dt := make([]*int64, 0, rc.length)
-	for j := range rc.data {
-		dt = append(dt, &rc.data[j])
-	}
-
-	for j := 0; j < int(rc.length); j++ {
-		if rc.Nullability.Get(j) {
-			dt[j] = nil
-		}
-	}
-	return json.Marshal(dt)
-}
-
-// MarshalJSON converts a chunk into its JSON representation
-// TODO: carefully consider the case when a non-masked value is a NaN or an Infty
-func (rc *ChunkFloats) MarshalJSON() ([]byte, error) {
-	// OPTIM: we could construct this JSON value using a byte buffer, avoiding []float64, reflection,
-	// serialisation and other overhead. But I guess it's not a bottleneck at this point.
-	// also, we need to make sure floats get serialised properly into JSON-valid values
-	if rc.IsLiteral {
-		dt := make([]float64, 0, rc.length)
-		for j := 0; j < int(rc.length); j++ {
-			dt = append(dt, rc.data[0])
-		}
-		return json.Marshal(dt)
-	}
-	// I thought we didn't need a nullability branch here, because while we do use a bitmap for nullables,
-	// we also store NaNs in the data themselves, so this should be serialised automatically
-	// that's NOT the case, MarshalJSON does not allow NaNs and Infties https://github.com/golang/go/issues/3480
-	if !(rc.Nullability != nil && rc.Nullability.Count() > 0) {
-		return json.Marshal(rc.data)
-	}
-
-	dt := make([]*float64, 0, rc.length)
-	for j := range rc.data {
-		dt = append(dt, &rc.data[j])
-	}
-
-	for j := 0; j < int(rc.length); j++ {
-		if rc.Nullability.Get(j) {
-			dt[j] = nil
-		}
-	}
-	return json.Marshal(dt)
-}
-
-// MarshalJSON converts a chunk into its JSON representation
-func (rc *ChunkBools) MarshalJSON() ([]byte, error) {
-	if rc.IsLiteral {
-		serialised, err := json.Marshal(rc.data.Get(0))
-		if err != nil {
-			return nil, err
-		}
-		buffer := make([]byte, 0, (len(serialised)+1)*int(rc.length)+1)
-		buffer = append(buffer, '[')
-		serialised = append(serialised, ',')
-		for j := 0; j < int(rc.length); j++ {
-			buffer = append(buffer, serialised...)
-		}
-		buffer[len(buffer)-1] = ']'
-
-		return buffer, nil
-	}
-	if !(rc.Nullability != nil && rc.Nullability.Count() > 0) {
-		dt := make([]bool, 0, rc.Len())
-		for j := 0; j < rc.Len(); j++ {
-			dt = append(dt, rc.data.Get(j))
-		}
-		return json.Marshal(dt)
-	}
-
-	dt := make([]*bool, 0, rc.Len())
-	for j := 0; j < rc.Len(); j++ {
-		if rc.Nullability.Get(j) {
-			dt = append(dt, nil)
-			continue
-		}
-		val := rc.data.Get(j)
-		dt = append(dt, &val)
-	}
-
-	return json.Marshal(dt)
-}
-
-// ARCH: don't use .String at all in this method, use json.Marshal instead
-func (rc *ChunkDates) MarshalJSON() ([]byte, error) {
-	if rc.IsLiteral {
-		dt := make([]string, 0, rc.length)
-		sval := rc.data[0].String()
-		for j := 0; j < int(rc.length); j++ {
-			dt = append(dt, sval)
-		}
-		return json.Marshal(dt)
-	}
-	if !(rc.Nullability != nil && rc.Nullability.Count() > 0) {
-		return json.Marshal(rc.data)
-	}
-
-	dt := make([]*string, 0, rc.length)
-	for j := range rc.data {
-		sval := rc.data[j].String()
-		dt = append(dt, &sval)
-	}
-
-	for j := 0; j < int(rc.length); j++ {
-		if rc.Nullability.Get(j) {
-			dt[j] = nil
-		}
-	}
-	return json.Marshal(dt)
-}
-
-// ARCH: don't use .String at all in this method, use json.Marshal instead
-func (rc *ChunkDatetimes) MarshalJSON() ([]byte, error) {
-	if rc.IsLiteral {
-		dt := make([]string, 0, rc.length)
-		sval := rc.data[0].String()
-		for j := 0; j < int(rc.length); j++ {
-			dt = append(dt, sval)
-		}
-		return json.Marshal(dt)
-	}
-	if !(rc.Nullability != nil && rc.Nullability.Count() > 0) {
-		return json.Marshal(rc.data)
-	}
-
-	dt := make([]*string, 0, rc.length)
-	for j := range rc.data {
-		sval := rc.data[j].String()
-		dt = append(dt, &sval)
-	}
-
-	for j := 0; j < int(rc.length); j++ {
-		if rc.Nullability.Get(j) {
-			dt[j] = nil
-		}
-	}
-	return json.Marshal(dt)
-}
-
-// MarshalJSON converts a chunk into its JSON representation
-func (rc *ChunkNulls) MarshalJSON() ([]byte, error) {
-	ret := make([]*uint8, rc.length) // how else can we create a [null, null, null, ...] in JSON?
-	return json.Marshal(ret)
-}
-
 func (rc *ChunkBools) Clone() Chunk {
 	var nulls, data *bitmap.Bitmap
 	// ARCH: consider bitmap.Clone(bm) to handle nils
@@ -2095,4 +1888,80 @@ func (rc *ChunkStrings) Clone() Chunk {
 		data:      data,
 		offsets:   offsets,
 	}
+}
+
+// TODO(PR): test these?
+
+func (rc *ChunkStrings) NthString(n int) (string, bool) {
+
+	if rc.IsLiteral {
+		return string(rc.data), true
+	}
+	if rc.Nullability != nil && rc.Nullability.Get(n) {
+		return "", false
+	}
+
+	return rc.nthValue(n), true
+}
+
+func (rc *ChunkInts) NthString(n int) (string, bool) {
+	if rc.IsLiteral {
+		return fmt.Sprintf("%v", rc.data[0]), true
+	}
+	if rc.Nullability != nil && rc.Nullability.Get(n) {
+		return "", false
+	}
+
+	return fmt.Sprintf("%v", rc.data[n]), true
+}
+
+// TODO(PR): carefully consider the case when a non-masked value is a NaN or an Infty
+func (rc *ChunkFloats) NthString(n int) (string, bool) {
+	if rc.IsLiteral {
+		return fmt.Sprintf("%v", rc.data[0]), true
+	}
+	if rc.Nullability != nil && rc.Nullability.Get(n) {
+		return "", false
+	}
+
+	return fmt.Sprintf("%v", rc.data[n]), true
+}
+
+func (rc *ChunkBools) NthString(n int) (string, bool) {
+	if rc.IsLiteral {
+		return fmt.Sprintf("%v", rc.data.Get(0)), true
+	}
+	if rc.Nullability != nil && rc.Nullability.Get(n) {
+		return "", false
+	}
+
+	return fmt.Sprintf("%v", rc.data.Get(n)), true
+}
+
+// ARCH: don't use .String at all in this method, use json.Marshal instead?
+func (rc *ChunkDates) NthString(n int) (string, bool) {
+	if rc.IsLiteral {
+		return rc.data[0].String(), true
+	}
+	if rc.Nullability != nil && rc.Nullability.Get(n) {
+		return "", false
+	}
+
+	return rc.data[n].String(), true
+}
+
+// ARCH: don't use .String at all in this method, use json.Marshal instead
+func (rc *ChunkDatetimes) NthString(n int) (string, bool) {
+	if rc.IsLiteral {
+		return rc.data[0].String(), true
+	}
+	if rc.Nullability != nil && rc.Nullability.Get(n) {
+		return "", false
+	}
+
+	return rc.data[n].String(), true
+}
+
+func (rc *ChunkNulls) NthString(n int) (string, bool) {
+	return "", false
 }
