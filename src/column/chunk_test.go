@@ -2,7 +2,6 @@ package column
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -335,13 +334,9 @@ func TestJSONMarshaling(t *testing.T) {
 		if err := test.rc.AddValues(test.values); err != nil {
 			t.Error(err)
 		}
-		w := new(bytes.Buffer)
-		if err := json.NewEncoder(w).Encode(test.rc); err != nil {
-			t.Fatal(err)
-		}
-		got := bytes.TrimSpace(w.Bytes())
-		if !bytes.Equal([]byte(test.expected), got) {
-			t.Errorf("expecting %+v, got %+v", test.expected, string(got))
+		got := jsonLiteral(test.rc)
+		if got != test.expected {
+			t.Errorf("expecting %+v, got %+v", test.expected, got)
 		}
 	}
 }
@@ -606,6 +601,24 @@ func TestHashing(t *testing.T) {
 	}
 }
 
+// this used to be a thing not just in tests, so reimplementing it now for testing purposes
+func jsonLiteral(c Chunk) string {
+	buf := new(bytes.Buffer)
+	buf.WriteByte('[')
+	for j := 0; j < c.Len(); j++ {
+		if j > 0 {
+			buf.WriteByte(',')
+		}
+		val, ok := c.JSONLiteral(j)
+		if !ok {
+			val = "null"
+		}
+		buf.WriteString(val)
+	}
+	buf.WriteByte(']')
+	return buf.String()
+}
+
 func TestNewLiterals(t *testing.T) {
 	tests := []struct {
 		val      string
@@ -662,11 +675,8 @@ func TestNewLiterals(t *testing.T) {
 				t.Errorf("hashing %+v twice should result in the same slice, got %+v and %+v instead", test.val, h1, h2)
 			}
 
-			blob, err := chunk.MarshalJSON()
-			if err != nil {
-				t.Errorf("could not marshal %+v into JSON", test.val)
-			}
-			if !bytes.Equal(blob, []byte(test.jsondata)) {
+			blob := jsonLiteral(chunk)
+			if blob != test.jsondata {
 				t.Errorf("expecting %+v to json serialise as %s, got %s instead", test.val, test.jsondata, blob)
 			}
 		}
@@ -679,7 +689,8 @@ func TestJSONMarshal(t *testing.T) {
 		vals     string
 		expected string
 	}{
-		// TODO: add other types (implemented this originally because of date[times])
+		// TODO(next): add other types (implemented this originally because of date[times])
+		// also add nulls
 		{DtypeInt, "1,2,3", "[1,2,3]"},
 		{DtypeBool, "t,f,t", "[true,false,true]"},
 		{DtypeDate, "2020-01-01,2020-08-23,1900-12-30", "[\"2020-01-01\",\"2020-08-23\",\"1900-12-30\"]"},
@@ -694,13 +705,9 @@ func TestJSONMarshal(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		marshalled, err := json.Marshal(nc)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		if string(marshalled) != test.expected {
-			t.Errorf("expected %s to marshal into %s, but got %s instead", test.vals, test.expected, string(marshalled))
+		marshalled := jsonLiteral(nc)
+		if marshalled != test.expected {
+			t.Errorf("expected %s to marshal into %s, but got %s instead", test.vals, test.expected, marshalled)
 		}
 	}
 }

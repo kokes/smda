@@ -550,15 +550,11 @@
                 )
             )
 
-            // this works, could only fail if we get zero columns, but that can't happen
-            // might be more convenient/explicit if we send nrows from the backend
-            // TODO: send this as metadata
-            const nrows = data.data[0].length;
-
-            for (let rowNum=0; rowNum < nrows; rowNum++) {
+            for (let rowNum=0; rowNum < data.nrows; rowNum++) {
+                const rowData = data.data[rowNum];
                 const row = node("tr", {},
                     data.schema.map((val, idx) => {
-                        return node("td", {}, data.data[idx][rowNum])
+                        return node("td", {}, rowData[idx])
                     })
                 )
                 table.appendChild(row);
