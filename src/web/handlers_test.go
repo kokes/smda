@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -333,7 +332,6 @@ func TestHandlingQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 		if resp.StatusCode != 200 {
-			io.Copy(os.Stdout, resp.Body) // TODO(PR): remove
 			t.Fatalf("unexpected status: %+v", resp.Status)
 		}
 		ct := resp.Header.Get("Content-Type")
@@ -346,26 +344,24 @@ func TestHandlingQueries(t *testing.T) {
 			Schema column.TableSchema `json:"schema"`
 			Data   [][]int            `json:"data"`
 		}
-		_ = respBody
-		// TODO(PR): make this work
-		// dec := json.NewDecoder(resp.Body)
-		// if err := dec.Decode(&respBody); err != nil {
-		// 	t.Fatal(err)
-		// }
-		// if dec.More() {
-		// 	t.Fatal("body cannot contain multiple JSON objects")
-		// }
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&respBody); err != nil {
+			t.Fatal(err)
+		}
+		if dec.More() {
+			t.Fatal("body cannot contain multiple JSON objects")
+		}
 
-		// expSchema := column.TableSchema{
-		// 	column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
-		// 	column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
-		// }
-		// if !reflect.DeepEqual(expSchema, respBody.Schema) {
-		// 	t.Errorf("expected schema to be %+v, got %+v", expSchema, respBody.Schema)
-		// }
-		// if !(len(respBody.Data) == 2 && len(respBody.Data[0]) == 2) {
-		// 	t.Errorf("unexpected payload: %+v", respBody.Data)
-		// }
+		expSchema := column.TableSchema{
+			column.Schema{Name: "foo", Dtype: column.DtypeInt, Nullable: false},
+			column.Schema{Name: "bar", Dtype: column.DtypeInt, Nullable: false},
+		}
+		if !reflect.DeepEqual(expSchema, respBody.Schema) {
+			t.Errorf("expected schema to be %+v, got %+v", expSchema, respBody.Schema)
+		}
+		if !(len(respBody.Data) == 2 && len(respBody.Data[0]) == 2) {
+			t.Errorf("unexpected payload: %+v", respBody.Data)
+		}
 	}
 }
 

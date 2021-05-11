@@ -2,6 +2,7 @@ package column
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -28,7 +29,7 @@ type Chunk interface {
 	Append(Chunk) error
 	Hash(int, []uint64)
 	Clone() Chunk
-	NthString(int) (string, bool)
+	JSONLiteral(int) (string, bool) // the bool stands for 'ok' (not null)
 }
 
 type baseChunker interface {
@@ -1890,33 +1891,21 @@ func (rc *ChunkStrings) Clone() Chunk {
 	}
 }
 
-// TODO(PR): test these?
-
-func (rc *ChunkStrings) NthString(n int) (string, bool) {
-
-	if rc.IsLiteral {
-		return string(rc.data), true
-	}
+func (rc *ChunkStrings) JSONLiteral(n int) (string, bool) {
 	if rc.Nullability != nil && rc.Nullability.Get(n) {
 		return "", false
 	}
 
-	return rc.nthValue(n), true
-}
-
-func (rc *ChunkInts) NthString(n int) (string, bool) {
-	if rc.IsLiteral {
-		return fmt.Sprintf("%v", rc.data[0]), true
-	}
-	if rc.Nullability != nil && rc.Nullability.Get(n) {
-		return "", false
+	val := rc.nthValue(n)
+	ret, err := json.Marshal(val)
+	if err != nil {
+		panic(err)
 	}
 
-	return fmt.Sprintf("%v", rc.data[n]), true
+	return string(ret), true
 }
 
-// TODO(PR): carefully consider the case when a non-masked value is a NaN or an Infty
-func (rc *ChunkFloats) NthString(n int) (string, bool) {
+func (rc *ChunkInts) JSONLiteral(n int) (string, bool) {
 	if rc.IsLiteral {
 		return fmt.Sprintf("%v", rc.data[0]), true
 	}
@@ -1927,7 +1916,23 @@ func (rc *ChunkFloats) NthString(n int) (string, bool) {
 	return fmt.Sprintf("%v", rc.data[n]), true
 }
 
-func (rc *ChunkBools) NthString(n int) (string, bool) {
+func (rc *ChunkFloats) JSONLiteral(n int) (string, bool) {
+	if rc.Nullability != nil && rc.Nullability.Get(n) {
+		return "", false
+	}
+	val := rc.data[0]
+	if !rc.IsLiteral {
+		val = rc.data[n]
+	}
+	// ARCH: this shouldn't happen?
+	if math.IsNaN(val) || math.IsInf(val, 0) {
+		return "", false
+	}
+
+	return fmt.Sprintf("%v", val), true
+}
+
+func (rc *ChunkBools) JSONLiteral(n int) (string, bool) {
 	if rc.IsLiteral {
 		return fmt.Sprintf("%v", rc.data.Get(0)), true
 	}
@@ -1938,30 +1943,36 @@ func (rc *ChunkBools) NthString(n int) (string, bool) {
 	return fmt.Sprintf("%v", rc.data.Get(n)), true
 }
 
-// ARCH: don't use .String at all in this method, use json.Marshal instead?
-func (rc *ChunkDates) NthString(n int) (string, bool) {
-	if rc.IsLiteral {
-		return rc.data[0].String(), true
-	}
+func (rc *ChunkDates) JSONLiteral(n int) (string, bool) {
 	if rc.Nullability != nil && rc.Nullability.Get(n) {
 		return "", false
 	}
-
-	return rc.data[n].String(), true
+	val := rc.data[0]
+	if !rc.IsLiteral {
+		val = rc.data[n]
+	}
+	ret, err := json.Marshal(val)
+	if err != nil {
+		panic(err)
+	}
+	return string(ret), true
 }
 
-// ARCH: don't use .String at all in this method, use json.Marshal instead
-func (rc *ChunkDatetimes) NthString(n int) (string, bool) {
-	if rc.IsLiteral {
-		return rc.data[0].String(), true
-	}
+func (rc *ChunkDatetimes) JSONLiteral(n int) (string, bool) {
 	if rc.Nullability != nil && rc.Nullability.Get(n) {
 		return "", false
 	}
-
-	return rc.data[n].String(), true
+	val := rc.data[0]
+	if !rc.IsLiteral {
+		val = rc.data[n]
+	}
+	ret, err := json.Marshal(val)
+	if err != nil {
+		panic(err)
+	}
+	return string(ret), true
 }
 
-func (rc *ChunkNulls) NthString(n int) (string, bool) {
+func (rc *ChunkNulls) JSONLiteral(n int) (string, bool) {
 	return "", false
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/kokes/smda/src/bitmap"
 	"github.com/kokes/smda/src/column"
@@ -19,13 +18,14 @@ var errInvalidProjectionInAggregation = errors.New("selections in aggregating ex
 
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
 // a Result to be a Dataset of its own (for better interoperability, persistence, caching etc.)
+// ARCH/TODO: this is really a schema and `stripeData`, isn't it? Can we leverage that?
 type Result struct {
 	Schema column.TableSchema
 	Length int
 	Data   []column.Chunk
 }
 
-// TODO(PR): test this
+// TODO(next): test this
 func (r *Result) MarshalJSON() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	enc := json.NewEncoder(buf)
@@ -35,7 +35,6 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 	if err := enc.Encode(r.Schema); err != nil {
 		return nil, err
 	}
-	// TODO(PR): make sure the frontend leverages this
 	if _, err := buf.WriteString(fmt.Sprintf(",\n\"nrows\": %d", r.Length)); err != nil {
 		return nil, err
 	}
@@ -55,19 +54,11 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 					return nil, err
 				}
 			}
-			// TODO(PR)/OPTIM: literal optimisation - find out literals beforehand and pre-serialise them
+			// TODO(next)/OPTIM: literal optimisation - find out literals beforehand and pre-serialise them
 			col := r.Data[cn]
-			val, ok := col.NthString(j)
+			val, ok := col.JSONLiteral(j)
 			if !ok {
 				val = "null"
-			} else {
-				// TODO(PR): this is terrible, it serialises 123 to "123", disregards null etc.
-				// we'll have to redo NthString to NthJSONString or something
-				jv, err := json.Marshal(val)
-				if err != nil {
-					return nil, err
-				}
-				val = string(jv)
 			}
 			if _, err := buf.WriteString(val); err != nil {
 				return nil, err
@@ -90,7 +81,6 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	log.Println(buf.String()) // TODO(PR): remove
 	return buf.Bytes(), nil
 }
 
@@ -271,7 +261,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	res := &Result{
 		Schema: make([]column.Schema, 0, len(q.Select)),
 		Data:   make([]column.Chunk, 0),
-		Length: -1, // TODO(PR): make sure we fill it
+		Length: -1,
 	}
 
 	ds, err := db.GetDataset(q.Dataset)
@@ -335,7 +325,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 			}
 		}
 		res.Data = columns
-		res.Length = columns[0].Len() // TODO(PR): we can't have zero aggregations, right?
+		res.Length = columns[0].Len() // TODO(next): we can't have zero aggregations, right?
 		return res, nil
 	}
 	for _, stripe := range ds.Stripes {
