@@ -1,0 +1,29 @@
+name: Build and test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.16']
+      # TODO: platforms?
+    name: Go ${{ matrix.go }} test run
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+
+    # the build runs tests as well... so it runs test twice (three times)
+    - name: Build
+      run: make build
+
+    - name: Test
+      run: make test
+    
+    - name: Test (race)
+      run: make test-race

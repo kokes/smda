@@ -32,7 +32,6 @@ run-docker: build-docker
 test:
 	CGO_ENABLED=0 $(GORLS) test -timeout 5s -coverprofile=coverage.out ./...
 
-# TODO: enable this in a CI pipeline (once we have it)
 test-race:
 	CGO_ENABLED=1 $(GORLS) test -race -timeout 5s -coverprofile=coverage.out ./...
 
