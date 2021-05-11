@@ -18,6 +18,7 @@ var errInvalidQuery = errors.New("invalid SQL query")
 const (
 	_ int = iota
 	LOWEST
+	RELABEL     // foo AS bar
 	BOOL_AND_OR // TODO(next): is it really that AND and OR have the same precedence?
 	EQUALS      // ==, !=
 	// TODO(next): IN clause?
@@ -43,6 +44,7 @@ var precedences = map[tokenType]int{
 	tokenQuo:    PRODUCT,
 	tokenMul:    PRODUCT,
 	tokenLparen: CALL,
+	tokenAs:     RELABEL,
 }
 
 var infixMapping = map[tokenType]exprType{
@@ -59,6 +61,7 @@ var infixMapping = map[tokenType]exprType{
 	tokenGte: exprGreaterThanEqual,
 	tokenLt:  exprLessThan,
 	tokenLte: exprLessThanEqual,
+	tokenAs:  exprRelabel,
 }
 
 type (
@@ -110,6 +113,7 @@ func NewParser(s string) (*Parser, error) {
 		tokenLte:    p.parseInfixExpression,
 		tokenGte:    p.parseInfixExpression,
 		tokenLparen: p.parseCallExpression,
+		tokenAs:     p.parseInfixExpression,
 	}
 
 	return p, nil
@@ -385,7 +389,7 @@ func ParseQuerySQL(s string) (Query, error) {
 	// ARCH: we didn't increment position and used peekToken... elsewhere we use walk+curToken
 	if p.peekToken().ttype != tokenFrom {
 		// this will be for queries without a FROM clause, e.g. SELECT 1`
-		return q, fmt.Errorf("%w: expecting FROM after expression list", errInvalidQuery)
+		return q, fmt.Errorf("%w: expecting FROM after expression list, got %v instead", errInvalidQuery, p.peekToken())
 	}
 
 	p.position += 2

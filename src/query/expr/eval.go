@@ -22,6 +22,8 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		return expr.aggregator.Resolve()
 	}
 	switch expr.etype {
+	case exprRelabel:
+		return Evaluate(expr.children[0], chunkLength, columnData, filter)
 	case exprUnaryMinus:
 		// OPTIM: this whole block will benefit from constant folding, especially if the child is a literal int/float
 		newExpr := &Expression{etype: exprMultiplication, children: []*Expression{

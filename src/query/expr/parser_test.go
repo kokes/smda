@@ -310,6 +310,27 @@ func TestParsingContents(t *testing.T) {
 				{etype: exprLiteralInt, value: "3"},
 			}},
 		}}},
+		{"foo as bar", &Expression{etype: exprRelabel, children: []*Expression{
+			{etype: exprIdentifier, value: "foo"},
+			{etype: exprIdentifier, value: "bar"},
+		}}},
+		{"1+2 as bar", &Expression{etype: exprRelabel, children: []*Expression{
+			{etype: exprAddition, children: []*Expression{
+				{etype: exprLiteralInt, value: "1"},
+				{etype: exprLiteralInt, value: "2"},
+			}},
+			{etype: exprIdentifier, value: "bar"},
+		}}},
+		{"1+2*3 as bar", &Expression{etype: exprRelabel, children: []*Expression{
+			{etype: exprAddition, children: []*Expression{
+				{etype: exprLiteralInt, value: "1"},
+				{etype: exprMultiplication, children: []*Expression{
+					{etype: exprLiteralInt, value: "2"},
+					{etype: exprLiteralInt, value: "3"},
+				}},
+			}},
+			{etype: exprIdentifier, value: "bar"},
+		}}},
 	}
 
 	for _, test := range tests {
@@ -346,7 +367,6 @@ func TestParsingErrors(t *testing.T) {
 		{"foo + sum(bar", errNoClosingBracket},
 		{"foo + sum(bar, ", errUnsupportedPrefixToken}, // ARCH: this is errNoClosingBracket, but we got to EOF first
 		{"+123", errUnsupportedPrefixToken},
-		{"foo as bar", errUnparsedBit},
 	}
 
 	for _, test := range tests {

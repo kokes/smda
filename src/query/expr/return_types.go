@@ -13,6 +13,7 @@ var errNoTypes = errors.New("expecting at least one column")
 var errWrongNumberofArguments = errors.New("wrong number arguments passed to a function")
 var errWrongArgumentType = errors.New("wrong argument type passed to a function")
 var errReturnTypeNotInferred = errors.New("cannot infer return type of expression")
+var errInvalidLabel = errors.New("cannot relabel projection")
 
 // should this be in the database package?
 func comparableTypes(t1, t2 column.Dtype) bool {
@@ -86,7 +87,13 @@ func (expr *Expression) ColumnsUsed(schema column.TableSchema) (cols []string) {
 		}
 		cols = append(cols, col.Name)
 	}
-	for _, ch := range expr.children {
+	// normally we'd add all the children to the list, but there's a special case
+	// of exprRelabel, where the second child is the relabeled identifier (not a column)
+	limit := len(expr.children)
+	if expr.etype == exprRelabel {
+		limit = 1
+	}
+	for _, ch := range expr.children[:limit] {
 		cols = append(cols, ch.ColumnsUsed(schema)...)
 	}
 	sort.Strings(cols)
@@ -105,6 +112,17 @@ func ColumnsUsed(schema column.TableSchema, exprs ...*Expression) []string {
 func (expr *Expression) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	schema := column.Schema{}
 	switch {
+	case expr.etype == exprRelabel:
+		if !expr.children[1].IsIdentifier() {
+			return schema, errInvalidLabel
+		}
+		schema.Name = string(expr.children[1].value) // cannot use .String, because quoted identifiers contain quotes
+		tschema, err := expr.children[0].ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		schema.Dtype = tschema.Dtype
+		schema.Nullable = tschema.Nullable
 	case expr.etype == exprUnaryMinus:
 		ch, err := expr.children[0].ReturnType(ts)
 		if err != nil {

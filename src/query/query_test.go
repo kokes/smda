@@ -286,6 +286,13 @@ func TestBasicQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer sr.Close()
+
+		// we can't do this just yet, because column names get sanitised by default
+		// if !reflect.DeepEqual(res.Schema, dso.Schema) {
+		// 	t.Errorf("query %v resulted in a different schema - %v - than expected - %v", test.query, res.Schema, dso.Schema)
+		// 	continue
+		// }
+
 		for j, col := range res.Data {
 			// TODO: we can't just read the first stripe, we need to either
 			//        1) select the given column and see if it matches
@@ -302,6 +309,48 @@ func TestBasicQueries(t *testing.T) {
 				t.Errorf("[%d] failed to aggregate %+v", testNo, test.input)
 			}
 		}
+	}
+}
+
+func TestProjections(t *testing.T) {
+	tests := []struct {
+		query      string
+		projection []string
+	}{
+		{"select foo from dataset", []string{"foo"}},
+		{"select 1+2 as foo from dataset", []string{"foo"}},
+	}
+
+	for _, test := range tests {
+		db, err := database.NewDatabase("", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := db.Drop(); err != nil {
+				panic(err)
+			}
+		}()
+		ds, err := db.LoadDatasetFromMap(map[string][]string{
+			"foo": {"1", "2", "3"},
+			"bar": {"1", "3", "4"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ds.Name = "dataset"
+		if err := db.AddDataset(ds); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := RunSQL(db, test.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res
 	}
 }
 

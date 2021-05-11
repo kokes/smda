@@ -19,6 +19,7 @@ const (
 	exprInvalid exprType = iota
 	exprIdentifier
 	exprIdentifierQuoted
+	exprRelabel
 	exprUnaryMinus
 	exprNot
 	exprAnd
@@ -70,6 +71,8 @@ func (etype exprType) String() string {
 		return "Identifier"
 	case exprIdentifierQuoted:
 		return "QuotedIdentifier"
+	case exprRelabel:
+		return "AS"
 	case exprUnaryMinus:
 		return "UnaryMinus"
 	case exprNot:
@@ -245,6 +248,8 @@ func (expr *Expression) String() string {
 		rval = expr.value
 	case exprIdentifierQuoted:
 		rval = fmt.Sprintf("\"%s\"", expr.value)
+	case exprRelabel:
+		rval = fmt.Sprintf("%s AS %s", expr.children[0], expr.children[1])
 	case exprNot:
 		rval = fmt.Sprintf("NOT %s", expr.children[0])
 	case exprUnaryMinus:

@@ -57,6 +57,9 @@ func TestColumnsUsed(t *testing.T) {
 		{"a * a", []string{"a"}}, // dupes
 		{"a * a / a", []string{"a"}},
 		{"b * a / b", []string{"a", "b"}},
+		{"foo as bar", []string{"foo"}},
+		{"foo*bar as bak", []string{"bar", "foo"}},
+		{"1 as foo", nil},
 	}
 
 	schema := dummySchema("foo", "bar", "bak", "a", "b", "c", "d")
@@ -318,6 +321,11 @@ func TestReturnTypes(t *testing.T) {
 		// "coalesce(foo, bar, 1) - 4", "nullif(baz, 'foo')", "nullif(bak, 103)",
 		// "round(1.234, 2)", "count(foo = true)", "bak != 3",
 		// "sum(foo > 3)", "sum(foo < 3)", "sum(foo >= 3)", "sum(foo <= 3)",
+
+		// relabeling
+		{"my_string_column as foo", column.Schema{Name: "foo", Dtype: column.DtypeString}, nil},
+		{"my_string_column as \"Bar\"", column.Schema{Name: "Bar", Dtype: column.DtypeString}, nil},
+		{"(my_string_column as foo) as bar", column.Schema{Name: "bar", Dtype: column.DtypeString}, nil},
 	}
 
 	for _, test := range testCases {
@@ -332,7 +340,9 @@ func TestReturnTypes(t *testing.T) {
 			t.Errorf("expecting ReturnType(%+v) to result in err %+v, got %+v instead", test.rawExpr, test.err, err)
 			continue
 		}
-		retType.Name = "" // resetting the name, we're not comparing it here
+		if test.returnType.Name == "" {
+			retType.Name = "" // resetting the name, we're not comparing it here
+		}
 		if !reflect.DeepEqual(retType, test.returnType) {
 			t.Errorf("expecting %+v to return a schema %+v, got %+v instead", test.rawExpr, test.returnType, retType)
 		}
