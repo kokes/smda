@@ -239,6 +239,8 @@ func TestBasicQueries(t *testing.T) {
 		{"foo,bar\n1,4\n5,5\n10,4", "SELECT foo FROM dataset WHERE foo >= bar", "foo\n5\n10"},
 		{"foo,bar\n1,4\n5,5\n10,4", "SELECT foo FROM dataset WHERE 4 > 1", "foo\n1\n5\n10"},
 		{"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset WHERE foo = null", "bar\n4\n6"},
+		// TODO(PR): test ORDER BY (incl. GROUP BY queries)
+		// {"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset WHERE bar != null ORDER BY bar desc", "bar\n6\n5\n4"},
 	}
 
 	for testNo, test := range tests {

@@ -20,6 +20,7 @@ const (
 	exprIdentifier
 	exprIdentifierQuoted
 	exprRelabel
+	exprSort
 	exprUnaryMinus
 	exprNot
 	exprAnd
@@ -40,6 +41,13 @@ const (
 	exprLiteralString
 	exprLiteralNull
 	exprFunCall
+)
+
+var (
+	sortAscNullsFirst  = "ASC NULLS FIRST"
+	sortAscNullsLast   = "ASC NULLS LAST"
+	sortDescNullsFirst = "DESC NULLS FIRST"
+	sortDescNullsLast  = "DESC NULLS LAST"
 )
 
 func (expr *Expression) IsIdentifier() bool {
@@ -73,6 +81,8 @@ func (etype exprType) String() string {
 		return "QuotedIdentifier"
 	case exprRelabel:
 		return "AS"
+	case exprSort:
+		return "ASC/DESC"
 	case exprUnaryMinus:
 		return "UnaryMinus"
 	case exprNot:
@@ -142,6 +152,7 @@ type Query struct {
 	Dataset   *database.DatasetIdentifier `json:"dataset"`
 	Filter    *Expression                 `json:"filter,omitempty"`
 	Aggregate ExpressionList              `json:"aggregate,omitempty"`
+	Order     ExpressionList              `json:"order,omitempty"`
 	Limit     *int                        `json:"limit,omitempty"`
 	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
 }
@@ -160,6 +171,9 @@ func (q Query) String() string {
 	}
 	if q.Aggregate != nil {
 		sb.WriteString(fmt.Sprintf(" GROUP BY %s", q.Aggregate))
+	}
+	if q.Order != nil {
+		sb.WriteString(fmt.Sprintf(" ORDER BY %s", q.Aggregate))
 	}
 	if q.Limit != nil {
 		sb.WriteString(fmt.Sprintf(" LIMIT %d", *q.Limit))
@@ -252,6 +266,8 @@ func (expr *Expression) String() string {
 		rval = fmt.Sprintf("%s AS %s", expr.children[0], expr.children[1])
 	case exprNot:
 		rval = fmt.Sprintf("NOT %s", expr.children[0])
+	case exprSort:
+		rval = fmt.Sprintf("%s %s", expr.children[0], expr.value)
 	case exprUnaryMinus:
 		rval = fmt.Sprintf("-%s", expr.children[0])
 	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,

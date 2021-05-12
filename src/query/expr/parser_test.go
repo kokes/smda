@@ -431,6 +431,11 @@ func TestParsingSQL(t *testing.T) {
 		{"SELECT foo FROM bar@234", errInvalidQuery},
 		{"SELECT foo FROM bar GROUP for 1", errInvalidQuery},
 		{"SELECT foo FROM bar GROUP BY foo LIMIT foo", errInvalidQuery},
+		{"SELECT foo FROM bar GROUP BY foo ORDER on foo", errInvalidQuery},
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo NULLS LIMIT 100", errInvalidQuery},
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo NULLS BY LIMIT 100", errInvalidQuery},
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LIMIT 100", errInvalidQuery},
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo DESC NULLS LIMIT 100", errInvalidQuery},
 	}
 
 	for _, test := range tests {

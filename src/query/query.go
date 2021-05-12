@@ -255,6 +255,9 @@ func RunSQL(db *database.Database, query string) (*Result, error) {
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
 // the former should result in a 4xx, the latter in a 5xx
 func Run(db *database.Database, q expr.Query) (*Result, error) {
+	if q.Order != nil {
+		return nil, errors.New("TODO(PR): ORDER BY not implemented yet")
+	}
 	if len(q.Select) == 0 {
 		return nil, errNoProjection
 	}
@@ -326,6 +329,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 		res.Data = columns
 		res.Length = columns[0].Len() // TODO(next): we can't have zero aggregations, right?
+		// TODO(PR): trigger ordering here
 		return res, nil
 	}
 	for _, stripe := range ds.Stripes {
@@ -382,6 +386,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 	}
 	res.Length = res.Data[0].Len()
+	// TODO(PR): trigger ordering here
 
 	return res, nil
 }
