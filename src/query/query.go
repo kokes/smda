@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/kokes/smda/src/bitmap"
 	"github.com/kokes/smda/src/column"
@@ -23,6 +24,10 @@ type Result struct {
 	Schema column.TableSchema
 	Length int
 	Data   []column.Chunk
+
+	// this is used for sorting
+	RowIdxs     []int          // TODO(PR): use this
+	SortColumns []column.Chunk // these might and will overlap with `Data`
 }
 
 // TODO(next): test this
@@ -243,6 +248,37 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 	return ret, nil
 }
 
+// ARCH: we might want to split this file up, it's getting a bit gnarly
+// TODO(PR): finish this
+// also... we might not have all the necessary data to do this ordering,
+// just think of `select sum(bar) from foo order by avg(bar)`
+// we will then need args `db *database.Database, ds *database.Dataset`
+func (res *Result) Len() int {
+	return res.Length
+}
+
+func (res *Result) Swap(i, j int) {
+	res.RowIdxs[i], res.RowIdxs[j] = res.RowIdxs[j], res.RowIdxs[i]
+}
+
+func (res *Result) Less(i, j int) bool {
+	// TODO(PR): chunk.Compare(i, j) {-1, 0, 1 or bool}
+	// there is a multi sorter in the sort Go docs
+
+	return true
+}
+
+func reorder(res *Result, orderbys []*expr.Expression) error {
+	res.RowIdxs = make([]int, res.Length)
+	for j := 0; j < res.Length; j++ {
+		res.RowIdxs[j] = j
+	}
+
+	sort.Sort(res)
+
+	return nil
+}
+
 func RunSQL(db *database.Database, query string) (*Result, error) {
 	q, err := expr.ParseQuerySQL(query)
 	if err != nil {
@@ -332,6 +368,11 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		// TODO(PR): trigger ordering here
 		return res, nil
 	}
+	// TODO(next)/OPTIM: this is a good place to think about NOT materialising these rows
+	// in case we need to sort them afterwards. Imagine `select * from foo order by bar desc limit 10`
+	// we can either return everything, sort it all based on `bar` and then take the top 10... or we can
+	// do something like top-k first (even if we have `where` clauses), discard most of our data and then
+	// proceed as usual
 	for _, stripe := range ds.Stripes {
 		var colnames []string
 		if q.Filter == nil {
