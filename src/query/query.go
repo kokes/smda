@@ -26,8 +26,11 @@ type Result struct {
 	Data   []column.Chunk
 
 	// this is used for sorting
-	RowIdxs     []int          // TODO(PR): use this
-	SortColumns []column.Chunk // these might and will overlap with `Data`
+	rowIdxs    []int
+	asc        []bool
+	nullsfirst []bool
+	// this does not allow for sorting by things not materialised by projections (ARCH?)
+	sortColumnsIdxs []int
 }
 
 // TODO(next): test this
@@ -50,6 +53,11 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 	}
 
 	for j := 0; j < r.Length; j++ {
+		rownum := j
+		if r.rowIdxs != nil {
+			rownum = r.rowIdxs[j]
+		}
+
 		if err := buf.WriteByte('['); err != nil {
 			return nil, err
 		}
@@ -61,7 +69,7 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 			}
 			// TODO(next)/OPTIM: literal optimisation - find out literals beforehand and pre-serialise them
 			col := r.Data[cn]
-			val, ok := col.JSONLiteral(j)
+			val, ok := col.JSONLiteral(rownum)
 			if !ok {
 				val = "null"
 			}
@@ -106,6 +114,9 @@ func filterStripe(db *database.Database, ds *database.Dataset, stripe database.S
 // 2) we walk the slice instead of building a map once (essentially the same point)
 // 3) we use .String() instead of .value - but will .value work if a projection
 //    is `a+b` and the groupby expression is `A + B`? (test all this)
+// TODO(next): this means we cannot compare projections with aggregations/orderings
+// e.g. `select foo as bar order by foo` doesn't work, neither does `order by bar`
+// relabeled projections just cannot be sorted on
 func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
 	ns := needle.String()
 	for j, ex := range haystack {
@@ -121,7 +132,7 @@ func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
 // everything else is way faster
 // OPTIM: if there's GROUPBY+LIMIT (and without ORDERBY), we can shortcircuit the hashing part - once we
 // reach ndistinct == LIMIT, we can stop
-func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Expression, projs []*expr.Expression, filterExpr *expr.Expression) ([]column.Chunk, error) {
+func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.Query) error {
 	// we need to validate all projections - they either need to be in the groupby clause
 	// or be aggregating (e.g. sum(ints) -> int)
 	// we'll also collect all the aggregating expressions, so that we can feed them individual chunks
@@ -131,56 +142,56 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 	// 2. if someone passes a plain `sum(foo)` with no aggregation, we want them to end up here
 	//    (it's monkeypatched for now via `allAggregations`)
 	var aggexprs []*expr.Expression
-	for _, proj := range projs {
+	for _, proj := range q.Select {
 		aggexpr, err := expr.AggExpr(proj)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if aggexpr != nil {
 			aggexprs = append(aggexprs, aggexpr...)
 			continue
 		}
-		pos := lookupExpr(proj, groupbys)
+		pos := lookupExpr(proj, q.Aggregate)
 		if pos == -1 {
-			return nil, fmt.Errorf("%w: %v", errInvalidProjectionInAggregation, proj)
+			return fmt.Errorf("%w: %v", errInvalidProjectionInAggregation, proj)
 		}
 	}
 	for _, aggexpr := range aggexprs {
 		if err := aggexpr.InitAggregator(ds.Schema); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	var columnNames []string
-	if filterExpr != nil {
-		columnNames = expr.ColumnsUsed(ds.Schema, append(groupbys, append(projs, filterExpr)...)...)
-	} else {
-		columnNames = expr.ColumnsUsed(ds.Schema, append(groupbys, projs...)...)
+	columnNames := expr.ColumnsUsed(ds.Schema, append(q.Aggregate, q.Select...)...)
+	if q.Filter != nil {
+		// TODO(next): turns out we don't hit this branch at all in our tests!
+		columnNames = append(columnNames, expr.ColumnsUsed(ds.Schema, q.Filter)...)
 	}
+	// TODO(PR): load orderby columns? Do we need to? Should we allow loading more than is in projections/groupbys?
 	groups := make(map[uint64]uint64)
 	// ARCH: `nrc` and `rcs` are not very descriptive
-	nrc := make([]column.Chunk, len(groupbys))
+	nrc := make([]column.Chunk, len(q.Aggregate))
 	for _, stripe := range ds.Stripes {
 		stripeLength := stripe.Length
 		var filter *bitmap.Bitmap
-		rcs := make([]column.Chunk, len(groupbys))
+		rcs := make([]column.Chunk, len(q.Aggregate))
 		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripe, columnNames)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if filterExpr != nil {
-			filter, err = filterStripe(db, ds, stripe, filterExpr, columnData)
+		if q.Filter != nil {
+			filter, err = filterStripe(db, ds, stripe, q.Filter, columnData)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			stripeLength = filter.Count()
 		}
 
 		// 1) evaluate all the aggregation expressions (those expressions that determine groups, e.g. `country`)
-		for j, expression := range groupbys {
+		for j, expression := range q.Aggregate {
 			rc, err := expr.Evaluate(expression, stripeLength, columnData, filter)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			rcs[j] = rc
 		}
@@ -204,7 +215,7 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 				continue
 			}
 			if err := nrc[j].Append(rc.Prune(bm)); err != nil {
-				return nil, err
+				return err
 			}
 		}
 
@@ -216,21 +227,21 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		}
 		for _, aggexpr := range aggexprs {
 			if err := expr.UpdateAggregator(aggexpr, hashes, len(groups), columnData, filter); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
 	// 3) resolve aggregating expressions
-	ret := make([]column.Chunk, len(projs))
-	for j, gr := range groupbys {
+	ret := make([]column.Chunk, len(q.Select))
+	for j, gr := range q.Aggregate {
 		// OPTIM: we did this once already
-		pos := lookupExpr(gr, projs)
+		pos := lookupExpr(gr, q.Select)
 		if pos == -1 {
 			continue
 		}
 		ret[pos] = nrc[j]
 	}
-	for j, proj := range projs {
+	for j, proj := range q.Select {
 		if ret[j] != nil {
 			// this is an aggregating expression, skip it
 			continue
@@ -240,38 +251,110 @@ func aggregate(db *database.Database, ds *database.Dataset, groupbys []*expr.Exp
 		// of funky to hide the Resolver under Evaluate
 		agg, err := expr.Evaluate(proj, len(groups), nil, nil)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		ret[j] = agg
 	}
 
-	return ret, nil
+	res.Data = ret
+	res.Length = ret[0].Len() // TODO(next): we can't have zero aggregations, right?
+
+	if q.Order != nil {
+		// TODO(PR): prep for this call
+		if err := reorder(res, q); err != nil {
+			return err
+		}
+	}
+
+	// OPTIM: if we push the limit somewhere above, we can simplify the aggregation itself
+	//        we will still have to iterate all chunks, but the state will be smaller
+	//        This will be an excellent optimisation for larger datasets - think queries
+	//        like `select user_id, count() from activity group by user_id limit 100`
+	// TODO(next): test this
+	if q.Limit != nil && *q.Limit < res.Length {
+		// we cannot prune the data as if it's ordered
+		if q.Order == nil {
+			bm := bitmap.NewBitmap(res.Length)
+			bm.Invert()
+			bm.KeepFirstN(*q.Limit)
+			for j, col := range res.Data {
+				res.Data[j] = col.Prune(bm)
+			}
+		}
+		res.Length = *q.Limit
+	}
+
+	return nil
 }
 
 // ARCH: we might want to split this file up, it's getting a bit gnarly
-// TODO(PR): finish this
-// also... we might not have all the necessary data to do this ordering,
-// just think of `select sum(bar) from foo order by avg(bar)`
-// we will then need args `db *database.Database, ds *database.Dataset`
 func (res *Result) Len() int {
 	return res.Length
 }
 
 func (res *Result) Swap(i, j int) {
-	res.RowIdxs[i], res.RowIdxs[j] = res.RowIdxs[j], res.RowIdxs[i]
+	res.rowIdxs[i], res.rowIdxs[j] = res.rowIdxs[j], res.rowIdxs[i]
 }
 
+// based on the multi sorter in the sort Go docs
 func (res *Result) Less(i, j int) bool {
-	// TODO(PR): chunk.Compare(i, j) {-1, 0, 1 or bool}
-	// there is a multi sorter in the sort Go docs
+	for pos, idx := range res.sortColumnsIdxs {
+		// i, j don't signify the position in the chunk's data field, because we're mapping row ordering
+		// using res.rowIdxs instead
+		p1, p2 := res.rowIdxs[i], res.rowIdxs[j]
+		cmp := res.Data[idx].Compare(res.asc[pos], res.nullsfirst[pos], p1, p2)
+		if cmp == -1 {
+			return true
+		}
+		if cmp == 1 {
+			return false
+		}
+	}
 
-	return true
+	// all are equal, so use the last one - the docs say that... but by definition this must be false?
+	// TODO(next): review this
+	// return res.Data[idx].Compare(res.asc[pos], res.nullsfirst[pos], i, j) == -1
+	return true // using true to get a stable sort?
 }
 
-func reorder(res *Result, orderbys []*expr.Expression) error {
-	res.RowIdxs = make([]int, res.Length)
+func reorder(res *Result, q expr.Query) error {
+	res.rowIdxs = make([]int, res.Length)
 	for j := 0; j < res.Length; j++ {
-		res.RowIdxs[j] = j
+		res.rowIdxs[j] = j
+	}
+	res.asc = make([]bool, len(q.Order))
+	res.nullsfirst = make([]bool, len(q.Order))
+	res.sortColumnsIdxs = make([]int, len(q.Order))
+	for j := 0; j < len(q.Order); j++ {
+		clause := q.Order[j]
+		var asc, nullsFirst bool
+		var needle *expr.Expression
+		switch clause.Value() {
+		case expr.SortAscNullsFirst:
+			asc, nullsFirst = true, true
+		case expr.SortAscNullsLast:
+			asc, nullsFirst = true, false
+		case expr.SortDescNullsFirst:
+			asc, nullsFirst = false, true
+		case expr.SortDescNullsLast:
+			asc, nullsFirst = false, false
+		default:
+			// this means we didn't specify any asc/desc/nulls - so we need to inject it here
+			// also means clause.Children()[0] cannot be used in the lookupExpr below
+			asc, nullsFirst = true, false
+			needle = clause
+		}
+		if needle == nil {
+			needle = clause.Children()[0]
+		}
+		pos := lookupExpr(needle, q.Select)
+		if pos == -1 {
+			return fmt.Errorf("cannot sort by a column not in projections: %s", needle)
+		}
+		res.sortColumnsIdxs[j] = pos
+
+		res.asc[j] = asc
+		res.nullsfirst[j] = nullsFirst
 	}
 
 	sort.Sort(res)
@@ -291,9 +374,6 @@ func RunSQL(db *database.Database, query string) (*Result, error) {
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
 // the former should result in a 4xx, the latter in a 5xx
 func Run(db *database.Database, q expr.Query) (*Result, error) {
-	if q.Order != nil {
-		return nil, errors.New("TODO(PR): ORDER BY not implemented yet")
-	}
 	if len(q.Select) == 0 {
 		return nil, errNoProjection
 	}
@@ -337,6 +417,8 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 	}
 
+	// TODO(next): remove this, we've already incorporated a part of this into `aggregate`
+	// only check that if q.Limit is not nil that it's non-negative, otherwise don't use it and leave it in `q`
 	limit := -1
 	if q.Limit != nil {
 		if *q.Limit < 0 {
@@ -345,40 +427,26 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		limit = *q.Limit
 	}
 	if q.Aggregate != nil || allAggregations {
-		columns, err := aggregate(db, ds, q.Aggregate, q.Select, q.Filter)
-		if err != nil {
+		if err := aggregate(db, ds, res, q); err != nil {
 			return nil, err
 		}
-		// OPTIM: if we push the limit into `aggregate`, we can simplify the aggregation itself
-		//        we will still have to iterate all chunks, but the state will be smaller
-		//        This will be an excellent optimisation for larger datasets - think queries
-		//        like `select user_id, count() from activity group by user_id limit 100`
-		// TODO(next): test this
-		if limit >= 0 {
-			nrows := columns[0].Len()
-			bm := bitmap.NewBitmap(nrows)
-			bm.Invert()
-			bm.KeepFirstN(limit)
-			for j, col := range columns {
-				columns[j] = col.Prune(bm)
-			}
-		}
-		res.Data = columns
-		res.Length = columns[0].Len() // TODO(next): we can't have zero aggregations, right?
-		// TODO(PR): trigger ordering here
+
 		return res, nil
 	}
+	// TODO(HIGHPRIO): this can really explode memory usage by running just `select * from bar order by foo`
+	// one random idea: run reorder in the hot for loop whenever res.Length >> q.Limit, once done, call
+	// res.Prune (new method) which takes first `q.Limit` rows in the result set and prunes them (first by using
+	// rowIdxs and building a bitmap)
+	// MIGHT be more performant to do this before the .Append... not sure now
 	// TODO(next)/OPTIM: this is a good place to think about NOT materialising these rows
 	// in case we need to sort them afterwards. Imagine `select * from foo order by bar desc limit 10`
 	// we can either return everything, sort it all based on `bar` and then take the top 10... or we can
 	// do something like top-k first (even if we have `where` clauses), discard most of our data and then
 	// proceed as usual
 	for _, stripe := range ds.Stripes {
-		var colnames []string
-		if q.Filter == nil {
-			colnames = expr.ColumnsUsed(ds.Schema, q.Select...)
-		} else {
-			colnames = expr.ColumnsUsed(ds.Schema, append(q.Select, q.Filter)...)
+		colnames := expr.ColumnsUsed(ds.Schema, q.Select...)
+		if q.Filter != nil {
+			colnames = append(colnames, expr.ColumnsUsed(ds.Schema, q.Filter)...)
 		}
 		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
 		if err != nil {
@@ -391,12 +459,13 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 			if err != nil {
 				return nil, err
 			}
-			if limit >= 0 && filter.Count() > limit {
+			// only prune the filter if we're not reordering in the end
+			if q.Order == nil && limit >= 0 && filter.Count() > limit {
 				filter.KeepFirstN(limit)
 			}
 		} else {
 			// TODO/ARCH: all this limit handling is a bit clunky, simplify it quite a bit
-			if limit >= 0 && stripe.Length > limit {
+			if q.Order == nil && limit >= 0 && stripe.Length > limit {
 				filter = bitmap.NewBitmap(stripe.Length)
 				filter.Invert()
 				filter.KeepFirstN(limit)
@@ -405,13 +474,15 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		if filter != nil && filter.Count() < loadFromStripe {
 			loadFromStripe = filter.Count()
 		}
-		if limit >= 0 && limit < loadFromStripe {
+		if q.Order == nil && limit >= 0 && limit < loadFromStripe {
 			loadFromStripe = limit
 		}
 		if loadFromStripe == 0 {
 			continue
 		}
-		limit -= loadFromStripe
+		if q.Order == nil {
+			limit -= loadFromStripe
+		}
 		for j, colExpr := range q.Select {
 			col, err := expr.Evaluate(colExpr, loadFromStripe, columns, filter)
 			if err != nil {
@@ -427,7 +498,14 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 	}
 	res.Length = res.Data[0].Len()
-	// TODO(PR): trigger ordering here
+	if q.Order != nil {
+		if err := reorder(res, q); err != nil {
+			return nil, err
+		}
+		if q.Limit != nil && *q.Limit < res.Length {
+			res.Length = *q.Limit
+		}
+	}
 
 	return res, nil
 }

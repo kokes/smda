@@ -44,10 +44,10 @@ const (
 )
 
 var (
-	sortAscNullsFirst  = "ASC NULLS FIRST"
-	sortAscNullsLast   = "ASC NULLS LAST"
-	sortDescNullsFirst = "DESC NULLS FIRST"
-	sortDescNullsLast  = "DESC NULLS LAST"
+	SortAscNullsFirst  = "ASC NULLS FIRST"
+	SortAscNullsLast   = "ASC NULLS LAST"
+	SortDescNullsFirst = "DESC NULLS FIRST"
+	SortDescNullsLast  = "DESC NULLS LAST"
 )
 
 func (expr *Expression) IsIdentifier() bool {
@@ -138,6 +138,15 @@ type Expression struct {
 	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
 }
 
+// TODO/ARCH: should we just export these two fields? We only use them once though
+// or maybe we could merge `src/query` and `src/query/expr`, so that nothing needs exporting
+func (expr *Expression) Value() string {
+	return expr.value
+}
+func (expr *Expression) Children() []*Expression {
+	return expr.children
+}
+
 type ExpressionList []*Expression
 
 // Query describes what we want to retrieve from a given dataset
@@ -173,7 +182,7 @@ func (q Query) String() string {
 		sb.WriteString(fmt.Sprintf(" GROUP BY %s", q.Aggregate))
 	}
 	if q.Order != nil {
-		sb.WriteString(fmt.Sprintf(" ORDER BY %s", q.Aggregate))
+		sb.WriteString(fmt.Sprintf(" ORDER BY %s", q.Order))
 	}
 	if q.Limit != nil {
 		sb.WriteString(fmt.Sprintf(" LIMIT %d", *q.Limit))

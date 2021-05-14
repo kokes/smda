@@ -288,6 +288,40 @@ func (p *Parser) parseExpression(precedence int) *Expression {
 	return left
 }
 
+func (p *Parser) parseOrdering() (*Expression, error) {
+	asc := true
+	nullsFirst := false
+	if (p.peekToken().ttype == tokenAsc) || (p.peekToken().ttype == tokenDesc) {
+		asc = p.peekToken().ttype == tokenAsc
+		nullsFirst = !asc
+		p.position++
+	}
+	if p.peekToken().ttype == tokenNulls {
+		p.position++
+		if !(p.peekToken().ttype == tokenFirst || p.peekToken().ttype == tokenLast) {
+			return nil, fmt.Errorf("%w: expecting NULLS to be followed by FIRST or LAST", errInvalidQuery)
+		}
+		nullsFirst = p.peekToken().ttype == tokenFirst
+		p.position++
+	}
+	var method string
+	// ARCH: eeeeek
+	if asc {
+		if nullsFirst {
+			method = SortAscNullsFirst
+		} else {
+			method = SortAscNullsLast
+		}
+	} else {
+		if nullsFirst {
+			method = SortDescNullsFirst
+		} else {
+			method = SortDescNullsLast
+		}
+	}
+	return &Expression{etype: exprSort, value: method}, nil
+}
+
 func (p *Parser) Err() error {
 	if len(p.errors) == 0 {
 		return nil
@@ -300,6 +334,16 @@ func (p *Parser) parseExpressions() (ExpressionList, error) {
 	var ret ExpressionList
 	for {
 		expr := p.parseExpression(LOWEST)
+		pt := p.peekToken().ttype
+		if pt == tokenAsc || pt == tokenDesc || pt == tokenNulls {
+			oexp, err := p.parseOrdering()
+			if err != nil {
+				return nil, err
+			}
+			oexp.children = []*Expression{expr}
+			expr, oexp = oexp, expr
+		}
+
 		if err := p.Err(); err != nil {
 			return nil, err
 		}
@@ -452,59 +496,11 @@ func ParseQuerySQL(s string) (Query, error) {
 			return q, fmt.Errorf("%w: expecting ORDER to be followed by BY", errInvalidQuery)
 		}
 		p.position++
-		// ARCH/TODO: technically, we could adapt p.parseExpressions to take "ASC/DESC NULLS FIRST/LAST" into account...
-		// but we're not there yet (I tried it a little bit, but couldn't get a clear abstraction)
-		// it will also be a lot easier to test (also TODO(PR): test this - e.g. NULLS FIRST/LAST without ASC/DESC)
-		var obs ExpressionList
-	list:
-		for {
-			expr := p.parseExpression(LOWEST)
-			if err := p.Err(); err != nil {
-				return q, err
-			}
-			asc := true
-			nullsFirst := false
-			if (p.peekToken().ttype == tokenAsc) || (p.peekToken().ttype == tokenDesc) {
-				asc = p.peekToken().ttype == tokenAsc
-				nullsFirst = !asc
-				p.position++
-			}
-			if p.peekToken().ttype == tokenNulls {
-				p.position++
-				if !(p.peekToken().ttype == tokenFirst || p.peekToken().ttype == tokenLast) {
-					return q, fmt.Errorf("%w: expecting NULLS to be followed by FIRST or LAST", errInvalidQuery)
-				}
-				nullsFirst = p.peekToken().ttype == tokenFirst
-				p.position++
-			}
-			var method string
-			// ARCH: eeeeek
-			if asc {
-				if nullsFirst {
-					method = sortAscNullsFirst
-				} else {
-					method = sortAscNullsLast
-				}
-			} else {
-				if nullsFirst {
-					method = sortDescNullsFirst
-				} else {
-					method = sortDescNullsLast
-				}
-			}
-			expr = &Expression{etype: exprSort, value: method, children: []*Expression{expr}}
-
-			obs = append(obs, expr)
-
-			ntype := p.peekToken().ttype
-			switch ntype {
-			case tokenComma:
-				p.position += 2
-			default:
-				break list
-			}
+		q.Order, err = p.parseExpressions()
+		if err != nil {
+			return q, err
 		}
-		q.Order = obs
+		p.position++
 	}
 
 	if p.curToken().ttype == tokenLimit {

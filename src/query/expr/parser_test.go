@@ -418,7 +418,7 @@ func TestParsingSQL(t *testing.T) {
 		raw string
 		err error
 	}{
-		// {"WITH foo", errSQLOnlySelects},
+		{"WITH foo", errSQLOnlySelects},
 		// {"SELECT 1", nil}, // TODO(next): support dataset-less selects
 		{"SELECT foo FROM bar", nil},
 		{"SELECT foo FROM bar@v020485a2686b8d38fe WHERE foo>2", nil},
@@ -427,6 +427,15 @@ func TestParsingSQL(t *testing.T) {
 		{"SELECT foo FROM bar GROUP BY foo", nil},
 		{"SELECT foo FROM bar GROUP BY foo LIMIT 2", nil},
 		{"SELECT foo FROM bar@v020485a2686b8d38fe LIMIT 200", nil},
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo, bar", nil},
+		// we do roundtrips only, so we have to specify the full `ASC NULLS LAST`, we cannot have just `ASC`
+		// TODO: this means we can't test parsing `ORDER BY foo NULLS LAST` with ASC being implicit
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar", nil},
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar DESC NULLS FIRST", nil},
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS FIRST, bar DESC NULLS FIRST", nil},
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar DESC NULLS FIRST", nil},
+		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar DESC NULLS FIRST LIMIT 3", nil},
+
 		{"SELECT 1", errInvalidQuery},
 		{"SELECT foo FROM bar@234", errInvalidQuery},
 		{"SELECT foo FROM bar GROUP for 1", errInvalidQuery},

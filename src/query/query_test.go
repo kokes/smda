@@ -241,6 +241,7 @@ func TestBasicQueries(t *testing.T) {
 		{"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset WHERE foo = null", "bar\n4\n6"},
 		// TODO(PR): test ORDER BY (incl. GROUP BY queries)
 		// {"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset WHERE bar != null ORDER BY bar desc", "bar\n6\n5\n4"},
+		// {"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset ORDER BY bar desc", "bar\n6\n5\n4"},
 	}
 
 	for testNo, test := range tests {
@@ -307,6 +308,7 @@ func TestBasicQueries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// TODO(PR): this doesn't take into account res.rowIdxs - we might have to compare JSON results
 			if !column.ChunksEqual(col, expcol) {
 				t.Errorf("[%d] failed to aggregate %+v", testNo, test.input)
 			}

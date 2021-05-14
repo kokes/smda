@@ -366,9 +366,12 @@ func (ts *tokenScanner) scan() (token, error) {
 		if err != nil {
 			return token{}, err
 		}
-		identl := strings.ToLower(string(ident.value))
-		if kw, ok := keywords[identl]; ok {
-			return token{ttype: kw}, nil
+		// quoted identifiers cannot be mistaken for keywords
+		if ident.ttype == tokenIdentifier {
+			identl := strings.ToLower(string(ident.value))
+			if kw, ok := keywords[identl]; ok {
+				return token{ttype: kw}, nil
+			}
 		}
 
 		return ident, nil
