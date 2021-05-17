@@ -212,6 +212,10 @@
                             <input name="select" id="select" />
                         </div>
                         <div>
+                            <label for="order">Order</label>
+                            <input name="order" id="order" />
+                        </div>
+                        <div>
                             <label for="limit">Limit</label>
                             <input name="limit" id="limit" type="number" />
                         </div>
@@ -329,6 +333,10 @@
     // TODO: are there quotes in the individual names? can there be?
     // also, columns with all lowercase but with spaces need to be quoted
     function quoteIfNeeded(s) {
+        // TODO(next): due to an issue with keywords (we'd have to sync them between Go and JavaScript somehow),
+        // we're quoting everything for the time being
+        return `"${s}"`;
+
         for (let char of s) {
             if (!((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || (char == '_'))) {
                 return `"${s}"`;
@@ -452,6 +460,9 @@
                 }
                 if (qform.select.value !== "") {
                     query.select = qform.select.value;
+                }
+                if (qform.order.value !== "") {
+                    query.order = qform.order.value;
                 }
                 if (qform.limit.value !== "") {
                     query.limit = parseInt(qform.limit.value, 10);

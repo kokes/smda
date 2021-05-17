@@ -394,6 +394,10 @@ func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, col
 	}
 	defer sr.Close()
 	for _, column := range columns {
+		// we allow for duplicates in `columns`, so just skip those
+		if _, ok := cols[column]; ok {
+			continue
+		}
 		idx, _, err := ds.Schema.LocateColumn(column)
 		if err != nil {
 			return nil, err

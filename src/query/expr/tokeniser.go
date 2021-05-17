@@ -42,6 +42,12 @@ const (
 	tokenGroup
 	tokenBy
 	tokenLimit
+	tokenOrder
+	tokenAsc
+	tokenDesc
+	tokenNulls
+	tokenFirst
+	tokenLast
 	// non-select keywords:
 	tokenAnd
 	tokenOr
@@ -99,6 +105,12 @@ var keywords = map[string]tokenType{
 	"group":  tokenGroup,
 	"by":     tokenBy,
 	"limit":  tokenLimit,
+	"order":  tokenOrder,
+	"asc":    tokenAsc,
+	"desc":   tokenDesc,
+	"nulls":  tokenNulls,
+	"first":  tokenFirst,
+	"last":   tokenLast,
 }
 
 // ARCH: it might be useful to just use .value in most cases here
@@ -152,6 +164,18 @@ func (tok token) String() string {
 		return "BY"
 	case tokenLimit:
 		return "LIMIT"
+	case tokenOrder:
+		return "ORDER"
+	case tokenAsc:
+		return "ASC"
+	case tokenDesc:
+		return "DESC"
+	case tokenNulls:
+		return "NULLS"
+	case tokenFirst:
+		return "FIRST"
+	case tokenLast:
+		return "LAST"
 	case tokenAdd:
 		return "+"
 	case tokenSub:
@@ -342,9 +366,12 @@ func (ts *tokenScanner) scan() (token, error) {
 		if err != nil {
 			return token{}, err
 		}
-		identl := strings.ToLower(string(ident.value))
-		if kw, ok := keywords[identl]; ok {
-			return token{ttype: kw}, nil
+		// quoted identifiers cannot be mistaken for keywords
+		if ident.ttype == tokenIdentifier {
+			identl := strings.ToLower(string(ident.value))
+			if kw, ok := keywords[identl]; ok {
+				return token{ttype: kw}, nil
+			}
 		}
 
 		return ident, nil

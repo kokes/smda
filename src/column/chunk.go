@@ -30,6 +30,7 @@ type Chunk interface {
 	Hash(int, []uint64)
 	Clone() Chunk
 	JSONLiteral(int) (string, bool) // the bool stands for 'ok' (not null)
+	Compare(bool, bool, int, int) int
 }
 
 type baseChunker interface {
@@ -1975,4 +1976,108 @@ func (rc *ChunkDatetimes) JSONLiteral(n int) (string, bool) {
 
 func (rc *ChunkNulls) JSONLiteral(n int) (string, bool) {
 	return "", false
+}
+
+// TODO(next): test comparisons
+func compareOneNull(ltv int, nullsFirst bool, null1, null2 bool) int {
+	if (null1 && nullsFirst) || (null2 && !nullsFirst) {
+		return ltv
+	}
+	return -ltv
+}
+
+func compareValues(ltv int, lt, eq bool) int {
+	if eq {
+		return 0
+	}
+	if lt {
+		return ltv
+	}
+	return -ltv
+}
+
+func comparisonFactory(asc, nullsFirst, isLiteral, isNullable, lt, eq, n1, n2 bool) int {
+	ltv := -1
+	if !asc {
+		ltv = 1
+	}
+	if isLiteral {
+		return 0
+	}
+	if isNullable && (n1 || n2) {
+		if n1 && n2 {
+			return 0
+		}
+		return compareOneNull(ltv, nullsFirst, n1, n2)
+	}
+	return compareValues(ltv, lt, eq)
+}
+
+// ARCH: this could be made entirely generic by allowing an interface `nthValue(int) T` to genericise v1/v2
+//       EXCEPT for bools :-( (not comparable)
+func (rc *ChunkInts) Compare(asc, nullsFirst bool, i, j int) int {
+	var n1, n2 bool
+	if rc.Nullability != nil {
+		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
+	}
+	v1, v2 := rc.data[i], rc.data[j]
+
+	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+}
+
+func (rc *ChunkFloats) Compare(asc, nullsFirst bool, i, j int) int {
+	var n1, n2 bool
+	if rc.Nullability != nil {
+		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
+	}
+	// TODO: do we have to worry about inf/nans? I thought we eliminated them from the .data slice
+	v1, v2 := rc.data[i], rc.data[j]
+
+	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+}
+
+func (rc *ChunkStrings) Compare(asc, nullsFirst bool, i, j int) int {
+	var n1, n2 bool
+	if rc.Nullability != nil {
+		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
+	}
+	v1, v2 := rc.nthValue(i), rc.nthValue(j)
+
+	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+
+}
+
+func (rc *ChunkBools) Compare(asc, nullsFirst bool, i, j int) int {
+	var n1, n2 bool
+	if rc.Nullability != nil {
+		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
+	}
+	v1, v2 := rc.data.Get(i), rc.data.Get(j)
+	lt := v1 == false && v2 == true
+
+	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, lt, v1 == v2, n1, n2)
+}
+
+func (rc *ChunkDates) Compare(asc, nullsFirst bool, i, j int) int {
+	var n1, n2 bool
+	if rc.Nullability != nil {
+		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
+	}
+	v1, v2 := rc.data[i], rc.data[j]
+
+	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+}
+
+func (rc *ChunkDatetimes) Compare(asc, nullsFirst bool, i, j int) int {
+	var n1, n2 bool
+	if rc.Nullability != nil {
+		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
+	}
+	v1, v2 := rc.data[i], rc.data[j]
+
+	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+}
+
+func (rc *ChunkNulls) Compare(asc, nullsFirst bool, i, j int) int {
+	return 0
 }
