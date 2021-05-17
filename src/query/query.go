@@ -35,8 +35,20 @@ type Result struct {
 
 // Length might be much smaller than the data within (thanks to ORDER BY), so we should prune our columns
 func (res *Result) Prune() {
-	// bm := bitmap.NewBitmap(res.Length)
-
+	// take actual data length, not res.Length, which may be artificially low (that's the purpose here, to set
+	// it low and discard all the other rows)
+	bm := bitmap.NewBitmap(res.Data[0].Len())
+	for j, el := range res.rowIdxs {
+		if el < res.Length {
+			bm.Set(j, true)
+		}
+	}
+	for j, col := range res.Data {
+		res.Data[j] = col.Prune(bm)
+	}
+	// TODO/OPTIM/ARCH: the rowIdxs is all broken now... should we somehow clean it up?
+	// `reorder` recreates it, so it's fine, but e.g. rowIdxs is used in serialisation, so
+	// if we run Prune and then export... it might panic
 }
 
 // TODO(next): test this
@@ -476,16 +488,36 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		if q.Order == nil {
 			limit -= loadFromStripe
 		}
-		for j, colExpr := range q.Select {
+		// we construct an intermediate column storage and sort it before adding it to our result
+		// this will help us remove most of the data we don't need in case we're sorting it
+		// OPTIM: either top-k to avoid most of the sort (might be tricky when sorting by multiple cols)
+		// OPTIM: merge sort in the end, not append + sort (again, tricky for multiple cols)
+		intermediate := &Result{
+			Schema: res.Schema, // TODO(next): do we need this? I don't think so...
+		}
+		for _, colExpr := range q.Select {
 			col, err := expr.Evaluate(colExpr, loadFromStripe, columns, filter)
 			if err != nil {
 				return nil, err
 			}
 
+			intermediate.Data = append(intermediate.Data, col)
+		}
+		intermediate.Length = intermediate.Data[0].Len()
+
+		if q.Order != nil && intermediate.Length > limit {
+			intermediate.Length = limit
+			if err := reorder(intermediate, q); err != nil {
+				return nil, err
+			}
+			intermediate.Prune()
+		}
+		for j, col := range intermediate.Data {
 			if err := res.Data[j].Append(col); err != nil {
 				return nil, err
 			}
 		}
+
 		if limit <= 0 {
 			break
 		}
