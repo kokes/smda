@@ -6,17 +6,6 @@ import (
 	"testing"
 )
 
-func stringifySlice(exprs []*Expression) []string {
-	if len(exprs) == 0 {
-		return nil
-	}
-	ret := make([]string, 0, len(exprs))
-	for _, expr := range exprs {
-		ret = append(ret, expr.String())
-	}
-	return ret
-}
-
 func TestAggExpr(t *testing.T) {
 	tests := []struct {
 		raw      string
@@ -48,7 +37,10 @@ func TestAggExpr(t *testing.T) {
 		if err != test.err {
 			t.Errorf("expecting %s to result in error %+v, got %+v instead", test.raw, test.err, err)
 		}
-		ress := stringifySlice(res)
+		var ress []string
+		for _, el := range res {
+			ress = append(ress, el.String())
+		}
 		if !reflect.DeepEqual(ress, test.expected) {
 			t.Errorf("expected %+v to have %+v as aggregating expressions, got %+v instead", test.raw, test.expected, ress)
 		}
@@ -104,7 +96,7 @@ func TestJSONMarshaling(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		ret, err := json.Marshal(expr)
+		ret, err := ToJSON(expr)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -113,17 +105,14 @@ func TestJSONMarshaling(t *testing.T) {
 			t.Errorf("expected %v to be parsed and JSON marshaled as %v, got %s instead", test.rawExpr, test.jsonRepr, ret)
 		}
 
-		var roundtripped Expression
-		if err := json.Unmarshal(ret, &roundtripped); err != nil {
+		roundtripped, err := FromJSON(ret)
+		if err != nil {
 			t.Error(err)
 			continue
 		}
-		// resetting some functions to make these comparable
-		expr.evaler = nil
-		expr.aggregatorFactory = nil
-		roundtripped.evaler = nil
-		roundtripped.aggregatorFactory = nil
-		if !reflect.DeepEqual(expr, &roundtripped) {
+		PruneFunctionCalls(roundtripped)
+		PruneFunctionCalls(expr)
+		if !reflect.DeepEqual(expr, roundtripped) {
 			t.Errorf("expression %v failed our JSON roundtrip - expected %v, got %v", test.rawExpr, expr, roundtripped)
 		}
 	}
@@ -163,13 +152,6 @@ func TestJSONMarshalingLists(t *testing.T) {
 		if len(exprs) != len(roundtripped) {
 			t.Errorf("expected %d elements, got %d", len(exprs), len(roundtripped))
 			continue
-		}
-		// resetting some functions to make these comparable
-		for j := range exprs {
-			exprs[j].evaler = nil
-			exprs[j].aggregatorFactory = nil
-			roundtripped[j].evaler = nil
-			roundtripped[j].aggregatorFactory = nil
 		}
 		if !reflect.DeepEqual(exprs, roundtripped) {
 			t.Errorf("expression %v failed our JSON roundtrip - expected %v, got %v", test.rawExpr, exprs, roundtripped)

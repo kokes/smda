@@ -14,6 +14,7 @@ var errNoClosingBracket = errors.New("no closing bracket after an opening one")
 var errUnsupportedPrefixToken = errors.New("unsupported prefix token")
 var errSQLOnlySelects = errors.New("only SELECT queries supported")
 var errInvalidQuery = errors.New("invalid SQL query")
+var errInvalidFunctionName = errors.New("invalid function name")
 
 const (
 	_ int = iota
@@ -47,26 +48,9 @@ var precedences = map[tokenType]int{
 	tokenAs:     RELABEL,
 }
 
-var infixMapping = map[tokenType]exprType{
-	tokenAnd: exprAnd,
-	tokenOr:  exprOr,
-	tokenAdd: exprAddition,
-	tokenSub: exprSubtraction,
-	tokenMul: exprMultiplication,
-	tokenQuo: exprDivision,
-	tokenEq:  exprEquality,
-	tokenIs:  exprEquality,
-	tokenNeq: exprNequality,
-	tokenGt:  exprGreaterThan,
-	tokenGte: exprGreaterThanEqual,
-	tokenLt:  exprLessThan,
-	tokenLte: exprLessThanEqual,
-	tokenAs:  exprRelabel,
-}
-
 type (
-	prefixParseFn func() *Expression
-	infixParseFn  func(*Expression) *Expression
+	prefixParseFn func() Expression
+	infixParseFn  func(Expression) Expression
 )
 
 type Parser struct {
@@ -147,47 +131,48 @@ func (p *Parser) peekPrecedence() int {
 
 // ARCH: maybe don't build these as method but as functions (taking in Parser) and have them globally in a slice,
 // not in a map for each parser
-func (p *Parser) parseIdentifer() *Expression {
+func (p *Parser) parseIdentifer() Expression {
 	val := p.curToken().value
 	val = bytes.ToLower(val) // unquoted identifiers are case insensitive, so we can lowercase them
-	return &Expression{etype: exprIdentifier, value: string(val)}
+	return &Identifier{name: string(val)}
 }
-func (p *Parser) parseIdentiferQuoted() *Expression {
+func (p *Parser) parseIdentiferQuoted() Expression {
 	val := p.curToken().value
-	etype := exprIdentifier
+	var quoted bool
 	// only assign the Quoted variant if there's a need for it
 	// TODO/ARCH: what about '-'? In general, what are our rules for quoting?
 	for _, char := range val {
 		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
-			etype = exprIdentifierQuoted
+			quoted = true
 			break
 		}
 	}
 
-	return &Expression{etype: etype, value: string(val)}
+	return &Identifier{quoted: quoted, name: string(val)}
 }
-func (p *Parser) parseLiteralInteger() *Expression {
-	val := string(p.curToken().value)
+func (p *Parser) parseLiteralInteger() Expression {
 	// we don't need to do strconv validation - the tokeniser has done so already
-	return &Expression{etype: exprLiteralInt, value: val}
+	val, _ := strconv.ParseInt(string(p.curToken().value), 10, 64)
+	return &Integer{value: val}
 }
-func (p *Parser) parseLiteralFloat() *Expression {
-	val := string(p.curToken().value)
-	return &Expression{etype: exprLiteralFloat, value: val}
+func (p *Parser) parseLiteralFloat() Expression {
+	val, _ := strconv.ParseFloat(string(p.curToken().value), 64)
+	return &Float{value: val}
 }
-func (p *Parser) parseLiteralString() *Expression {
-	val := p.curToken().value
-	return &Expression{etype: exprLiteralString, value: string(val)}
+func (p *Parser) parseLiteralString() Expression {
+	return &String{value: string(p.curToken().value)}
 }
-func (p *Parser) parseLiteralNULL() *Expression {
-	return &Expression{etype: exprLiteralNull}
+func (p *Parser) parseLiteralNULL() Expression {
+	return &Null{}
 }
-func (p *Parser) parseLiteralBool() *Expression {
-	val := p.curToken()
-	return &Expression{etype: exprLiteralBool, value: val.String()}
+func (p *Parser) parseLiteralBool() Expression {
+	// OPTIM: use a switch on p.curToken().ttype instead?
+	val, _ := strconv.ParseBool(string(p.curToken().String()))
+
+	return &Bool{value: val}
 }
 
-func (p *Parser) parseParentheses() *Expression {
+func (p *Parser) parseParentheses() Expression {
 	p.position++
 	expr := p.parseExpression(LOWEST)
 
@@ -197,48 +182,42 @@ func (p *Parser) parseParentheses() *Expression {
 		return nil
 	}
 	p.position++
-	expr.parens = true
 
-	return expr
+	return &Parentheses{inner: expr}
 }
-func (p *Parser) parsePrefixExpression() *Expression {
-	curToken := p.curToken()
-	var etype exprType
-	switch curToken.ttype {
-	case tokenSub:
-		etype = exprUnaryMinus
-	case tokenNot:
-		etype = exprNot
-	default:
-		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnsupportedPrefixToken, curToken.ttype))
-		return nil
-	}
-	expr := &Expression{
-		etype: etype,
-	}
+func (p *Parser) parsePrefixExpression() Expression {
+	expr := &Prefix{operator: p.curToken().ttype}
 
 	p.position++
 
-	right := p.parseExpression(PREFIX)
-	expr.children = append(expr.children, right)
+	expr.right = p.parseExpression(PREFIX)
 
 	return expr
 }
 
-func (p *Parser) parseCallExpression(left *Expression) *Expression {
-	funName := left.value
-	expr := &Expression{etype: exprFunCall, value: funName}
+func (p *Parser) parseCallExpression(left Expression) Expression {
+	id, ok := left.(*Identifier)
+	if !ok || id.quoted {
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errInvalidFunctionName, left.String()))
+		return nil
+	}
+	funName := id.name
+	expr, err := NewFunction(funName)
+	if err != nil {
+		p.errors = append(p.errors, fmt.Errorf("error initialising function %v", funName))
+		return nil
+	}
 
 	if p.peekToken().ttype == tokenRparen {
 		p.position++
 		return expr
 	}
 	p.position++
-	expr.children = append(expr.children, p.parseExpression(LOWEST))
+	expr.args = append(expr.args, p.parseExpression(LOWEST))
 
 	for p.peekToken().ttype == tokenComma {
 		p.position += 2
-		expr.children = append(expr.children, p.parseExpression(LOWEST))
+		expr.args = append(expr.args, p.parseExpression(LOWEST))
 	}
 
 	if p.peekToken().ttype != tokenRparen {
@@ -249,24 +228,17 @@ func (p *Parser) parseCallExpression(left *Expression) *Expression {
 
 	return expr
 }
-func (p *Parser) parseInfixExpression(left *Expression) *Expression {
+func (p *Parser) parseInfixExpression(left Expression) Expression {
 	curToken := p.curToken()
-	etype, ok := infixMapping[curToken.ttype]
-	if !ok {
-		p.errors = append(p.errors, fmt.Errorf("unsupported infix operator: %v", curToken.ttype))
-		return nil
-	}
-	expr := &Expression{etype: etype}
+	expr := &Infix{operator: curToken.ttype, left: left}
 	precedence := p.curPrecedence()
 	p.position++
-	right := p.parseExpression(precedence)
-
-	expr.children = []*Expression{left, right}
+	expr.right = p.parseExpression(precedence)
 
 	return expr
 }
 
-func (p *Parser) parseExpression(precedence int) *Expression {
+func (p *Parser) parseExpression(precedence int) Expression {
 	curToken := p.curToken()
 	prefix := p.prefixParseFns[curToken.ttype]
 	if prefix == nil {
@@ -288,7 +260,7 @@ func (p *Parser) parseExpression(precedence int) *Expression {
 	return left
 }
 
-func (p *Parser) parseOrdering() (*Expression, error) {
+func (p *Parser) parseOrdering() (Expression, error) {
 	asc := true
 	nullsFirst := false
 	if (p.peekToken().ttype == tokenAsc) || (p.peekToken().ttype == tokenDesc) {
@@ -304,22 +276,7 @@ func (p *Parser) parseOrdering() (*Expression, error) {
 		nullsFirst = p.peekToken().ttype == tokenFirst
 		p.position++
 	}
-	var method string
-	// ARCH: eeeeek
-	if asc {
-		if nullsFirst {
-			method = SortAscNullsFirst
-		} else {
-			method = SortAscNullsLast
-		}
-	} else {
-		if nullsFirst {
-			method = SortDescNullsFirst
-		} else {
-			method = SortDescNullsLast
-		}
-	}
-	return &Expression{etype: exprSort, value: method}, nil
+	return &Ordering{Asc: asc, NullsFirst: nullsFirst}, nil
 }
 
 func (p *Parser) Err() error {
@@ -340,7 +297,7 @@ func (p *Parser) parseExpressions() (ExpressionList, error) {
 			if err != nil {
 				return nil, err
 			}
-			oexp.children = []*Expression{expr}
+			oexp.(*Ordering).inner = expr
 			expr, oexp = oexp, expr
 		}
 
@@ -359,7 +316,7 @@ func (p *Parser) parseExpressions() (ExpressionList, error) {
 	}
 }
 
-func ParseStringExpr(s string) (*Expression, error) {
+func ParseStringExpr(s string) (Expression, error) {
 	p, err := NewParser(s)
 	if err != nil {
 		return nil, err
@@ -377,10 +334,6 @@ func ParseStringExpr(s string) (*Expression, error) {
 	// ARCH: abstract this into p.Err()? Will be useful if we do additional parsing (multiple expressions, select queries etc.)
 	if len(p.errors) > 0 {
 		return nil, fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
-	}
-
-	if err := ret.InitFunctionCalls(); err != nil {
-		return nil, err
 	}
 
 	return ret, nil
@@ -402,11 +355,6 @@ func ParseStringExprs(s string) (ExpressionList, error) {
 		return nil, err
 	}
 
-	for _, expr := range exprs {
-		if err := expr.InitFunctionCalls(); err != nil {
-			return nil, err
-		}
-	}
 	if p.position != len(p.tokens)-1 {
 		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnparsedBit, p.tokens[p.position:]))
 	}
@@ -518,29 +466,6 @@ func ParseQuerySQL(s string) (Query, error) {
 	// ARCH: using '<' to avoid issues with walking past the end (when using p.position++ instead of peekToken)
 	if p.position < len(p.tokens)-1 {
 		return q, fmt.Errorf("%w: incomplete parsing of supplied query", errInvalidQuery)
-	}
-
-	// TODO/ARCH: this is repeated in multiple places, make it implicit?
-	// also do this for all the Query fields that need this
-	// maybe have something like query.InitFunctionCalls and remove it from the parser altogether?
-	if q.Select != nil {
-		for _, expr := range q.Select {
-			if err := expr.InitFunctionCalls(); err != nil {
-				return q, err
-			}
-		}
-	}
-	if q.Aggregate != nil {
-		for _, expr := range q.Aggregate {
-			if err := expr.InitFunctionCalls(); err != nil {
-				return q, err
-			}
-		}
-	}
-	if q.Filter != nil {
-		if err := q.Filter.InitFunctionCalls(); err != nil {
-			return q, err
-		}
 	}
 
 	return q, nil

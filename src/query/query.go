@@ -103,7 +103,7 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func filterStripe(db *database.Database, ds *database.Dataset, stripe database.Stripe, filterExpr *expr.Expression, colData map[string]column.Chunk) (*bitmap.Bitmap, error) {
+func filterStripe(db *database.Database, ds *database.Dataset, stripe database.Stripe, filterExpr expr.Expression, colData map[string]column.Chunk) (*bitmap.Bitmap, error) {
 	fvals, err := expr.Evaluate(filterExpr, stripe.Length, colData, nil)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func filterStripe(db *database.Database, ds *database.Dataset, stripe database.S
 // TODO(next): this means we cannot compare projections with aggregations/orderings
 // e.g. `select foo as bar order by foo` doesn't work, neither does `order by bar`
 // relabeled projections just cannot be sorted on
-func lookupExpr(needle *expr.Expression, haystack []*expr.Expression) int {
+func lookupExpr(needle expr.Expression, haystack []expr.Expression) int {
 	ns := needle.String()
 	for j, ex := range haystack {
 		if ex.String() == ns {
@@ -147,7 +147,7 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 	//    now it redirects to a plain select and says `sum` doesn't exist as a projection
 	// 2. if someone passes a plain `sum(foo)` with no aggregation, we want them to end up here
 	//    (it's monkeypatched for now via `allAggregations`)
-	var aggexprs []*expr.Expression
+	var aggexprs []*expr.Function
 	for _, proj := range q.Select {
 		aggexpr, err := expr.AggExpr(proj)
 		if err != nil {
@@ -163,15 +163,15 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 		}
 	}
 	for _, aggexpr := range aggexprs {
-		if err := aggexpr.InitAggregator(ds.Schema); err != nil {
+		if err := expr.InitAggregator(aggexpr, ds.Schema); err != nil {
 			return err
 		}
 	}
 
-	columnNames := expr.ColumnsUsed(ds.Schema, append(q.Aggregate, q.Select...)...)
+	columnNames := expr.ColumnsUsedMultiple(ds.Schema, append(q.Aggregate, q.Select...)...)
 	if q.Filter != nil {
 		// TODO(next): turns out we don't hit this branch at all in our tests!
-		columnNames = append(columnNames, expr.ColumnsUsed(ds.Schema, q.Filter)...)
+		columnNames = append(columnNames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter)...)
 	}
 	// TODO(next): load orderby columns? Do we need to? Should we allow loading more than is in projections/groupbys?
 	// test what happens if we order by something not in select/groupby (we should check for it)
@@ -333,25 +333,12 @@ func reorder(res *Result, q expr.Query) error {
 	res.sortColumnsIdxs = make([]int, len(q.Order))
 	for j := 0; j < len(q.Order); j++ {
 		clause := q.Order[j]
-		var asc, nullsFirst bool
-		var needle *expr.Expression
-		switch clause.Value() {
-		case expr.SortAscNullsFirst:
-			asc, nullsFirst = true, true
-		case expr.SortAscNullsLast:
-			asc, nullsFirst = true, false
-		case expr.SortDescNullsFirst:
-			asc, nullsFirst = false, true
-		case expr.SortDescNullsLast:
-			asc, nullsFirst = false, false
-		default:
-			// this means we didn't specify any asc/desc/nulls - so we need to inject it here
-			// also means clause.Children()[0] cannot be used in the lookupExpr below
-			asc, nullsFirst = true, false
-			needle = clause
-		}
-		if needle == nil {
-			needle = clause.Children()[0]
+		asc, nullsFirst := true, false
+		needle := clause
+		if oby, ok := clause.(*expr.Ordering); ok {
+			asc = oby.Asc
+			nullsFirst = oby.NullsFirst
+			needle = oby.Children()[0]
 		}
 		pos := lookupExpr(needle, q.Select)
 		if pos == -1 {
@@ -450,9 +437,9 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	// do something like top-k first (even if we have `where` clauses), discard most of our data and then
 	// proceed as usual
 	for _, stripe := range ds.Stripes {
-		colnames := expr.ColumnsUsed(ds.Schema, q.Select...)
+		colnames := expr.ColumnsUsedMultiple(ds.Schema, q.Select...)
 		if q.Filter != nil {
-			colnames = append(colnames, expr.ColumnsUsed(ds.Schema, q.Filter)...)
+			colnames = append(colnames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter)...)
 		}
 		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
 		if err != nil {

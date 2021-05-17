@@ -314,7 +314,7 @@ func TestHandlingQueries(t *testing.T) {
 	for _, ds := range dss {
 		url := fmt.Sprintf("%s/api/query", srv.URL)
 		limit := 100
-		var cols []*expr.Expression
+		var cols []expr.Expression
 		for _, colSchema := range ds.Schema {
 			colExpr, err := expr.ParseStringExpr(colSchema.Name)
 			if err != nil {

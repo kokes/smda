@@ -16,7 +16,7 @@ func (rc *ChunkInts) cast(dtype Dtype) (Chunk, error) {
 	case DtypeFloat:
 		if rc.IsLiteral {
 			val := float64(rc.data[0])
-			return newChunkLiteralFloats(val, rc.Len()), nil
+			return NewChunkLiteralFloats(val, rc.Len()), nil
 		}
 		data := make([]float64, rc.Len())
 		for j := 0; j < rc.Len(); j++ {

@@ -15,36 +15,42 @@ var errFunctionNotImplemented = errors.New("function not implemented")
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
 // the same tree of operations - this applies not just here, but in projections.go as well - e.g. we know that
 // if we have `intA - intB`, we'll run a function for ints - we don't need to decide that for each stripe
-func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Chunk, filter *bitmap.Bitmap) (column.Chunk, error) {
+func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chunk, filter *bitmap.Bitmap) (column.Chunk, error) {
 	// TODO: test this via UpdateAggregator
-	if expr.aggregator != nil {
+	if f, ok := expr.(*Function); ok && f.aggregator != nil {
 		// TODO: assert that filters !== nil?
-		return expr.aggregator.Resolve()
+		return f.aggregator.Resolve()
 	}
-	switch expr.etype {
-	case exprRelabel:
-		return Evaluate(expr.children[0], chunkLength, columnData, filter)
-	case exprUnaryMinus:
-		// OPTIM: this whole block will benefit from constant folding, especially if the child is a literal int/float
-		newExpr := &Expression{etype: exprMultiplication, children: []*Expression{
-			{etype: exprLiteralInt, value: "-1"},
-			expr.children[0],
-		}}
-		return Evaluate(newExpr, chunkLength, columnData, filter)
-	case exprNot:
-		// TODO(next): figure out how best to support this (a simple test case is ready)
-		return nil, errQueryPatternNotSupported
-	// ARCH: perhaps use expr.IsIdentifier?
-	case exprIdentifier, exprIdentifierQuoted:
-		lookupValue := expr.value
-		if expr.etype == exprIdentifier {
+
+	switch node := expr.(type) {
+	case *Parentheses:
+		return Evaluate(node.inner, chunkLength, columnData, filter)
+	case *Prefix:
+		switch node.operator {
+		case tokenNot:
+			// TODO(next): figure out how best to support this (a simple test case is ready)
+			return nil, errQueryPatternNotSupported
+		case tokenSub:
+			// OPTIM: this whole block will benefit from constant folding, especially if the child is a literal int/float
+			newExpr := &Infix{
+				operator: tokenMul,
+				left:     &Integer{value: -1},
+				right:    node.right,
+			}
+			return Evaluate(newExpr, chunkLength, columnData, filter)
+		default:
+			return nil, fmt.Errorf("unknown prefix token: %v", node.operator)
+		}
+	case *Identifier:
+		lookupValue := node.name
+		if !node.quoted {
 			lookupValue = strings.ToLower(lookupValue)
 		}
 		col, ok := columnData[lookupValue]
 		if !ok {
 			// we validated the expression, so this should not happen?
 			// perhaps to catch bugs in case folding?
-			return nil, fmt.Errorf("column %v not found", expr.value)
+			return nil, fmt.Errorf("column %v not found", node.name)
 		}
 		if filter != nil {
 			return col.Prune(filter), nil
@@ -52,42 +58,45 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		return col, nil
 	// since these literals don't interact with any "dense" column chunks, we need
 	// to pass in their lengths
-	case exprLiteralBool:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeBool, chunkLength)
-	case exprLiteralFloat:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeFloat, chunkLength)
-	case exprLiteralInt:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeInt, chunkLength)
-	case exprLiteralString:
-		return column.NewChunkLiteralTyped(expr.value, column.DtypeString, chunkLength)
-	case exprLiteralNull:
+	case *Integer:
+		return column.NewChunkLiteralInts(node.value, chunkLength), nil
+	case *Float:
+		return column.NewChunkLiteralFloats(node.value, chunkLength), nil
+	case *Bool:
+		return column.NewChunkLiteralBools(node.value, chunkLength), nil
+	case *String:
+		return column.NewChunkLiteralStrings(node.value, chunkLength), nil
+	case *Null:
 		return column.NewChunkLiteralTyped("", column.DtypeNull, chunkLength)
-	// OPTIM: we could optimise shallow function calls - e.g. `log(foo) > 1` doesn't need
-	// `log(foo)` as a newly allocated chunk, we can compute that on the fly
-	case exprFunCall:
+	case *Function:
+		// OPTIM: we could optimise shallow function calls - e.g. `log(foo) > 1` doesn't need
+		// `log(foo)` as a newly allocated chunk, we can compute that on the fly
 		// TODO(next): if we do count() or sum(foo) without aggregations, this should
 		// run on the whole dataset - currently triggers this error
-		if expr.evaler == nil {
-			return nil, fmt.Errorf("%w: %s", errFunctionNotImplemented, expr.value)
+		if node.evaler == nil {
+			return nil, fmt.Errorf("%w: %s", errFunctionNotImplemented, node.name)
 		}
 		// ARCH: abstract out this `children` construction and use it elsewhere (in exprEquality etc.)
-		children := make([]column.Chunk, 0, len(expr.children))
-		for _, ch := range expr.children {
+		children := make([]column.Chunk, 0, len(node.Children()))
+		for _, ch := range node.Children() {
 			child, err := Evaluate(ch, chunkLength, columnData, filter)
 			if err != nil {
 				return nil, err
 			}
 			children = append(children, child)
 		}
-		return expr.evaler(children...)
-	// ARCH: these could all be generalised as FunCalls
-	case exprEquality, exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual,
-		exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprAnd, exprOr:
-		c1, err := Evaluate(expr.children[0], chunkLength, columnData, filter)
+		return node.evaler(children...)
+
+	case *Infix:
+		// special case to avoid materialising the right side
+		if node.operator == tokenAs {
+			return Evaluate(node.left, chunkLength, columnData, filter)
+		}
+		c1, err := Evaluate(node.left, chunkLength, columnData, filter)
 		if err != nil {
 			return nil, err
 		}
-		c2, err := Evaluate(expr.children[1], chunkLength, columnData, filter)
+		c2, err := Evaluate(node.right, chunkLength, columnData, filter)
 		if err != nil {
 			return nil, err
 		}
@@ -102,12 +111,12 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 		// rewrite all `x=null` expressions into it during our AST shenanigans
 		// even though we don't support this evaluation, we need to honor the input types
 		if c1.Dtype() == column.DtypeNull || c2.Dtype() == column.DtypeNull {
-			if !(expr.etype == exprEquality || expr.etype == exprNequality) {
-				if expr.IsOperatorMath() {
+			if !(node.operator == tokenEq || node.operator == tokenNeq || node.operator == tokenIs) {
+				if node.operator == tokenAdd || node.operator == tokenSub || node.operator == tokenMul || node.operator == tokenQuo {
 					nulls := bitmap.NewBitmap(chunkLength)
 					nulls.Invert()
 					// ARCH: duplicating logic from ReturnTypes
-					if c1.Dtype() == column.DtypeFloat || c2.Dtype() == column.DtypeFloat || expr.etype == exprDivision {
+					if c1.Dtype() == column.DtypeFloat || c2.Dtype() == column.DtypeFloat || node.operator == tokenQuo {
 						return column.NewChunkFloatsFromSlice(make([]float64, chunkLength), nulls), nil
 					}
 					return column.NewChunkIntsFromSlice(make([]int64, chunkLength), nulls), nil
@@ -134,18 +143,18 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 			// literals cannot be null, so a comparison to nulls is simple
 			// this should really be done in constant folding
 			if cdata.Base().IsLiteral || nb == nil {
-				if expr.etype == exprEquality {
+				if node.operator == tokenEq || node.operator == tokenIs {
 					return column.NewChunkLiteralTyped("false", column.DtypeBool, chunkLength)
-				} else if expr.etype == exprNequality {
+				} else if node.operator == tokenNeq {
 					return column.NewChunkLiteralTyped("true", column.DtypeBool, chunkLength)
 				} else {
 					panic("unreachable")
 				}
 			}
 
-			if expr.etype == exprEquality {
+			if node.operator == tokenEq || node.operator == tokenIs {
 				return column.NewChunkBoolsFromBitmap(nb.Clone()), nil
-			} else if expr.etype == exprNequality {
+			} else if node.operator == tokenNeq {
 				values := nb.Clone()
 				values.Invert()
 				return column.NewChunkBoolsFromBitmap(values), nil
@@ -153,39 +162,41 @@ func Evaluate(expr *Expression, chunkLength int, columnData map[string]column.Ch
 				panic("unreachable")
 			}
 		}
-		switch expr.etype {
-		case exprAnd:
+
+		switch node.operator {
+		case tokenAnd:
 			return column.EvalAnd(c1, c2)
-		case exprOr:
+		case tokenOr:
 			return column.EvalOr(c1, c2)
-		case exprEquality:
+		case tokenEq, tokenIs:
 			return column.EvalEq(c1, c2)
-		case exprNequality:
+		case tokenNeq:
 			return column.EvalNeq(c1, c2)
-		case exprLessThan:
+		case tokenLt:
 			return column.EvalLt(c1, c2)
-		case exprLessThanEqual:
+		case tokenLte:
 			return column.EvalLte(c1, c2)
-		case exprGreaterThan:
+		case tokenGt:
 			return column.EvalGt(c1, c2)
-		case exprGreaterThanEqual:
+		case tokenGte:
 			return column.EvalGte(c1, c2)
-		case exprAddition:
+		case tokenAdd:
 			return column.EvalAdd(c1, c2)
-		case exprSubtraction:
+		case tokenSub:
 			return column.EvalSubtract(c1, c2)
-		case exprDivision:
+		case tokenQuo:
 			return column.EvalDivide(c1, c2)
-		case exprMultiplication:
+		case tokenMul:
 			return column.EvalMultiply(c1, c2)
+		default:
+			return nil, fmt.Errorf("unknown infix token: %v", node.operator)
 		}
-		fallthrough
 	default:
-		return nil, fmt.Errorf("expression %v (%v) not supported: %w", expr, expr.etype, errQueryPatternNotSupported)
+		return nil, fmt.Errorf("expression %v not supported: %w", expr, errQueryPatternNotSupported)
 	}
 }
 
-func UpdateAggregator(expr *Expression, buckets []uint64, ndistinct int, columnData map[string]column.Chunk, filter *bitmap.Bitmap) error {
+func UpdateAggregator(fun *Function, buckets []uint64, ndistinct int, columnData map[string]column.Chunk, filter *bitmap.Bitmap) error {
 	// if expr.aggregator == nil {err}
 	// if len(expr.children) != 1 {err}// what about count()?
 
@@ -194,12 +205,12 @@ func UpdateAggregator(expr *Expression, buckets []uint64, ndistinct int, columnD
 	var child column.Chunk
 	var err error
 	// in case we have e.g. `count()`, we cannot evaluate its children as there are none
-	if len(expr.children) > 0 {
-		child, err = Evaluate(expr.children[0], len(buckets), columnData, filter)
+	if len(fun.args) > 0 {
+		child, err = Evaluate(fun.args[0], len(buckets), columnData, filter)
 		if err != nil {
 			return err
 		}
 	}
-	expr.aggregator.AddChunk(buckets, ndistinct, child)
+	fun.aggregator.AddChunk(buckets, ndistinct, child)
 	return nil
 }

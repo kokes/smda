@@ -69,7 +69,7 @@ func TestColumnsUsed(t *testing.T) {
 			t.Errorf("cannot parse %+v, got %+v", test.rawExpr, err)
 			continue
 		}
-		used := expr.ColumnsUsed(schema)
+		used := ColumnsUsed(expr, schema)
 		if !reflect.DeepEqual(used, test.colsUsed) {
 			t.Errorf("expecting %+v to use %+v, but got %+v instead", test.rawExpr, test.colsUsed, used)
 		}
@@ -127,7 +127,7 @@ func TestColumnsUsedVarargs(t *testing.T) {
 
 	schema := dummySchema("foo", "zoo", "bar", "bak", "a", "b", "c")
 	for _, test := range tests {
-		var exprs []*Expression
+		var exprs []Expression
 		for _, rawExpr := range test.rawExprs {
 			expr, err := ParseStringExpr(rawExpr)
 			if err != nil {
@@ -136,7 +136,7 @@ func TestColumnsUsedVarargs(t *testing.T) {
 			}
 			exprs = append(exprs, expr)
 		}
-		used := ColumnsUsed(schema, exprs...)
+		used := ColumnsUsedMultiple(schema, exprs...)
 		if !reflect.DeepEqual(used, test.colsUsed) {
 			t.Errorf("expecting %+v to use %+v, but got %+v instead", test.rawExprs, test.colsUsed, used)
 		}
@@ -193,6 +193,7 @@ func TestValiditySadPaths(t *testing.T) {
 	}
 }
 
+// TODO(next): move to expression_test.go?
 func TestReturnTypes(t *testing.T) {
 	schema := column.TableSchema([]column.Schema{
 		{Name: "my_bool_column", Dtype: column.DtypeBool},

@@ -13,141 +13,24 @@ import (
 
 var errNoNestedAggregations = errors.New("cannot nest aggregations (e.g. sum(min(a)))")
 
-type exprType uint8
-
-const (
-	exprInvalid exprType = iota
-	exprIdentifier
-	exprIdentifierQuoted
-	exprRelabel
-	exprSort
-	exprUnaryMinus
-	exprNot
-	exprAnd
-	exprOr
-	exprAddition
-	exprSubtraction
-	exprMultiplication
-	exprDivision
-	exprEquality
-	exprNequality
-	exprLessThan
-	exprLessThanEqual
-	exprGreaterThan
-	exprGreaterThanEqual
-	exprLiteralInt
-	exprLiteralFloat
-	exprLiteralBool
-	exprLiteralString
-	exprLiteralNull
-	exprFunCall
-)
-
-var (
-	SortAscNullsFirst  = "ASC NULLS FIRST"
-	SortAscNullsLast   = "ASC NULLS LAST"
-	SortDescNullsFirst = "DESC NULLS FIRST"
-	SortDescNullsLast  = "DESC NULLS LAST"
-)
-
-func (expr *Expression) IsIdentifier() bool {
-	return expr.etype == exprIdentifier || expr.etype == exprIdentifierQuoted
-}
-func (expr *Expression) IsOperatorBoolean() bool {
-	return expr.etype == exprAnd || expr.etype == exprOr
-}
-func (expr *Expression) IsOperatorMath() bool {
-	return expr.etype >= exprAddition && expr.etype <= exprDivision
-}
-func (expr *Expression) IsOperatorComparison() bool {
-	return expr.etype >= exprEquality && expr.etype <= exprGreaterThanEqual
+type Expression interface {
+	ReturnType(ts column.TableSchema) (column.Schema, error)
+	String() string
+	Children() []Expression
 }
 
-func (expr *Expression) IsOperator() bool {
-	return expr.IsOperatorBoolean() || expr.IsOperatorMath() || expr.IsOperatorComparison()
-}
-func (expr *Expression) IsLiteral() bool {
-	return expr.etype >= exprLiteralInt && expr.etype <= exprLiteralNull
-}
-
-// ARCH: is this used anywhere? (partially in the Expression stringer, partially in error reporting in parser_test.go)
-func (etype exprType) String() string {
-	switch etype {
-	case exprInvalid:
-		return "Invalid"
-	case exprIdentifier:
-		return "Identifier"
-	case exprIdentifierQuoted:
-		return "QuotedIdentifier"
-	case exprRelabel:
-		return "AS"
-	case exprSort:
-		return "ASC/DESC"
-	case exprUnaryMinus:
-		return "UnaryMinus"
-	case exprNot:
-		return "NOT"
-	case exprAnd:
-		return "AND"
-	case exprOr:
-		return "OR"
-	case exprAddition:
-		return "+"
-	case exprSubtraction:
-		return "-"
-	case exprMultiplication:
-		return "*"
-	case exprDivision:
-		return "/"
-	case exprEquality:
-		return "="
-	case exprNequality:
-		return "!="
-	case exprLessThan:
-		return "<"
-	case exprLessThanEqual:
-		return "<="
-	case exprGreaterThan:
-		return ">"
-	case exprGreaterThanEqual:
-		return ">="
-	case exprLiteralInt:
-		return "LiteralInt"
-	case exprLiteralFloat:
-		return "LiteralFloat"
-	case exprLiteralBool:
-		return "LiteralBool"
-	case exprLiteralString:
-		return "LiteralString"
-	case exprLiteralNull:
-		return "LiteralNull"
-	case exprFunCall:
-		return "FunCall"
-	default:
-		return "unknown_expression"
+func PruneFunctionCalls(ex Expression) {
+	if f, ok := ex.(*Function); ok {
+		f.aggregator = nil
+		f.aggregatorFactory = nil
+		f.evaler = nil
+	}
+	for _, ch := range ex.Children() {
+		PruneFunctionCalls(ch)
 	}
 }
 
-type Expression struct {
-	etype             exprType
-	children          []*Expression
-	value             string
-	parens            bool
-	evaler            func(...column.Chunk) (column.Chunk, error)
-	aggregator        *column.AggState
-	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
-}
-
-// TODO/ARCH: should we just export these two fields? We only use them once though
-// or maybe we could merge `src/query` and `src/query/expr`, so that nothing needs exporting
-func (expr *Expression) Value() string {
-	return expr.value
-}
-func (expr *Expression) Children() []*Expression {
-	return expr.children
-}
-
-type ExpressionList []*Expression
+type ExpressionList []Expression
 
 // Query describes what we want to retrieve from a given dataset
 // There are basically four places you need to edit (and test!) in order to extend this:
@@ -159,7 +42,7 @@ type ExpressionList []*Expression
 type Query struct {
 	Select    ExpressionList              `json:"select,omitempty"`
 	Dataset   *database.DatasetIdentifier `json:"dataset"`
-	Filter    *Expression                 `json:"filter,omitempty"`
+	Filter    Expression                  `json:"filter,omitempty"`
 	Aggregate ExpressionList              `json:"aggregate,omitempty"`
 	Order     ExpressionList              `json:"order,omitempty"`
 	Limit     *int                        `json:"limit,omitempty"`
@@ -169,8 +52,7 @@ type Query struct {
 // this stringer is tested in the parser
 func (q Query) String() string {
 	var sb strings.Builder
-	sb.WriteString("SELECT ")
-	sb.WriteString(q.Select.String())
+	sb.WriteString(fmt.Sprintf("SELECT %s", q.Select))
 	// ARCH: preparing for queries without FROM clauses
 	if q.Dataset != nil {
 		sb.WriteString(fmt.Sprintf(" FROM %s", q.Dataset))
@@ -191,63 +73,33 @@ func (q Query) String() string {
 	return sb.String()
 }
 
-func (expr *Expression) InitFunctionCalls() error {
-	for _, ch := range expr.children {
-		if err := ch.InitFunctionCalls(); err != nil {
-			return err
-		}
-	}
-
-	if expr.etype != exprFunCall {
-		return nil
-	}
-
-	funName := expr.value
-	fncp, ok := column.FuncProj[funName]
-	if ok {
-		expr.evaler = fncp
-	} else {
-		// if it's not a projection, it must be an aggregator
-		// ARCH: cannot initialise the aggregator here, because we don't know
-		// the types that go in (and we're already using static dispatch here)
-		// TODO/ARCH: but since we've decoupled this from the parser, we might have the schema at hand already!
-		//            we just need to remove this `InitFunctionCalls` from ParseStringExpr
-		aggfac, err := column.NewAggregator(funName)
-		if err != nil {
-			return err
-		}
-		expr.aggregatorFactory = aggfac
-	}
-
-	return nil
-}
-
-func (expr *Expression) InitAggregator(schema column.TableSchema) error {
+func InitAggregator(fun *Function, schema column.TableSchema) error {
 	var rtypes []column.Dtype
-	for _, ch := range expr.children {
+	for _, ch := range fun.args {
 		rtype, err := ch.ReturnType(schema)
 		if err != nil {
 			return err
 		}
 		rtypes = append(rtypes, rtype.Dtype)
 	}
-	aggregator, err := expr.aggregatorFactory(rtypes...)
+	aggregator, err := fun.aggregatorFactory(rtypes...)
 	if err != nil {
 		return err
 	}
-	expr.aggregator = aggregator
+	fun.aggregator = aggregator
 	return nil
 }
 
-func AggExpr(expr *Expression) ([]*Expression, error) {
-	var ret []*Expression
+func AggExpr(expr Expression) ([]*Function, error) {
+	var ret []*Function
 	found := false
 	// ARCH: we used to test `expr.evaler == nil` in the second condition... better?
-	if expr.etype == exprFunCall && expr.aggregatorFactory != nil {
-		ret = append(ret, expr)
+	fun, ok := expr.(*Function)
+	if ok && fun.aggregatorFactory != nil {
+		ret = append(ret, fun)
 		found = true
 	}
-	for _, ch := range expr.children {
+	for _, ch := range expr.Children() {
 		ach, err := AggExpr(ch)
 		if err != nil {
 			return nil, err
@@ -262,68 +114,16 @@ func AggExpr(expr *Expression) ([]*Expression, error) {
 	return ret, nil
 }
 
-func (expr *Expression) String() string {
-	var rval string
-	switch expr.etype {
-	case exprInvalid:
-		rval = "invalid_expression"
-	case exprIdentifier:
-		rval = expr.value
-	case exprIdentifierQuoted:
-		rval = fmt.Sprintf("\"%s\"", expr.value)
-	case exprRelabel:
-		rval = fmt.Sprintf("%s AS %s", expr.children[0], expr.children[1])
-	case exprNot:
-		rval = fmt.Sprintf("NOT %s", expr.children[0])
-	case exprSort:
-		rval = fmt.Sprintf("%s %s", expr.children[0], expr.value)
-	case exprUnaryMinus:
-		rval = fmt.Sprintf("-%s", expr.children[0])
-	case exprAddition, exprSubtraction, exprMultiplication, exprDivision, exprEquality,
-		exprNequality, exprLessThan, exprLessThanEqual, exprGreaterThan, exprGreaterThanEqual, exprAnd, exprOr:
-		// ARCH: maybe do `%s %s %s` for all of these, it will make our queries more readable
-		if expr.etype == exprAnd || expr.etype == exprOr {
-			rval = fmt.Sprintf("%s %s %s", expr.children[0], expr.etype, expr.children[1])
-		} else {
-			rval = fmt.Sprintf("%s%s%s", expr.children[0], expr.etype, expr.children[1])
-		}
-	case exprLiteralInt, exprLiteralFloat, exprLiteralBool:
-		rval = expr.value
-	case exprLiteralString:
-		// TODO: what about literals with apostrophes in them? escape them
-		rval = fmt.Sprintf("'%s'", expr.value)
-	case exprLiteralNull:
-		rval = "NULL"
-	case exprFunCall:
-		args := make([]string, 0, len(expr.children))
-		for _, ch := range expr.children {
-			args = append(args, ch.String())
-		}
-
-		rval = fmt.Sprintf("%s(%s)", expr.value, strings.Join(args, ", "))
-	default:
-		// we need to panic, because we use this stringer for expression comparison
-		panic(fmt.Sprintf("unsupported expression type: %v", expr.etype))
-	}
-	if expr.parens {
-		return fmt.Sprintf("(%s)", rval)
-	}
-	return rval
-}
-
-func (expr *Expression) UnmarshalJSON(data []byte) error {
+// cannot have interface pointer receivers
+func FromJSON(data []byte) (Expression, error) {
 	var raw string
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
+		return nil, err
 	}
-	ex, err := ParseStringExpr(raw)
-	if ex != nil {
-		*expr = *ex
-	}
-	return err
+	return ParseStringExpr(raw)
 }
 
-func (expr *Expression) MarshalJSON() ([]byte, error) {
+func ToJSON(expr Expression) ([]byte, error) {
 	return json.Marshal(expr.String())
 }
 
@@ -354,4 +154,424 @@ func (exprs ExpressionList) String() string {
 
 func (exprs ExpressionList) MarshalJSON() ([]byte, error) {
 	return json.Marshal(exprs.String())
+}
+
+type Identifier struct {
+	quoted bool
+	name   string
+}
+
+func (ex *Identifier) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	if ex.quoted {
+		_, col, err := ts.LocateColumn(ex.name)
+		return col, err
+	}
+	_, col, err := ts.LocateColumnCaseInsensitive(ex.name)
+	return col, err
+}
+
+func (ex *Identifier) String() string {
+	if !ex.quoted {
+		return ex.name
+	}
+	return fmt.Sprintf("\"%s\"", ex.name)
+}
+func (ex *Identifier) Children() []Expression {
+	return nil
+}
+
+type Integer struct {
+	value int64
+}
+
+func (ex *Integer) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	return column.Schema{
+		Name:     ex.String(),
+		Dtype:    column.DtypeInt,
+		Nullable: false,
+	}, nil
+}
+func (ex *Integer) String() string {
+	return fmt.Sprintf("%v", ex.value)
+}
+func (ex *Integer) Children() []Expression {
+	return nil
+}
+
+type Float struct {
+	value float64
+}
+
+func (ex *Float) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	return column.Schema{
+		Name:     ex.String(),
+		Dtype:    column.DtypeFloat,
+		Nullable: false,
+	}, nil
+}
+func (ex *Float) String() string {
+	return fmt.Sprintf("%v", ex.value)
+}
+func (ex *Float) Children() []Expression {
+	return nil
+}
+
+type Bool struct {
+	value bool
+}
+
+func (ex *Bool) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	return column.Schema{
+		Name:     ex.String(),
+		Dtype:    column.DtypeBool,
+		Nullable: false,
+	}, nil
+}
+func (ex *Bool) String() string {
+	if ex.value {
+		return "TRUE"
+	}
+	return "FALSE"
+}
+func (ex *Bool) Children() []Expression {
+	return nil
+}
+
+type String struct {
+	value string
+}
+
+func (ex *String) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	return column.Schema{
+		Name:     ex.String(),
+		Dtype:    column.DtypeString,
+		Nullable: false,
+	}, nil
+}
+func (ex *String) String() string {
+	// TODO: what about literals with apostrophes in them? escape them
+	return fmt.Sprintf("'%s'", ex.value)
+}
+func (ex *String) Children() []Expression {
+	return nil
+}
+
+type Null struct{}
+
+func (ex *Null) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	return column.Schema{
+		Name:     "NULL",
+		Dtype:    column.DtypeNull,
+		Nullable: false,
+	}, nil
+}
+func (ex *Null) String() string {
+	return "NULL"
+}
+func (ex *Null) Children() []Expression {
+	return nil
+}
+
+type Function struct {
+	name              string
+	args              []Expression
+	evaler            func(...column.Chunk) (column.Chunk, error)
+	aggregator        *column.AggState
+	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
+}
+
+// NewFunction is one of the very few constructors as we have to do some fiddling here
+func NewFunction(name string) (*Function, error) {
+	ex := &Function{name: name}
+	fncp, ok := column.FuncProj[name]
+	if ok {
+		ex.evaler = fncp
+	} else {
+		// if it's not a projection, it must be an aggregator
+		// ARCH: cannot initialise the aggregator here, because we don't know
+		// the types that go in (and we're already using static dispatch here)
+		// TODO/ARCH: but since we've decoupled this from the parser, we might have the schema at hand already!
+		//            we just need to remove this `InitFunctionCalls` from ParseStringExpr
+		aggfac, err := column.NewAggregator(name)
+		if err != nil {
+			return nil, err
+		}
+		ex.aggregatorFactory = aggfac
+	}
+	return ex, nil
+}
+
+// now, all function return types are centralised here, but it should probably be embedded in individual functions'
+// definitions - we'll need to have some structs in place (for state management in aggregating funcs), so those
+// could have methods like `ReturnType(args)` and `IsValid(args)`, `IsAggregating` etc.
+// also, should we make multiplication, inequality etc. just functions like nullif or coalesce? That would allow us
+// to fold all the functionality of eval() into a (recursive) function call
+// TODO: make sure that these return types are honoured in aggregators' resolvers
+// TODO: check input types (how will that square off with implementations?)
+func (ex *Function) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	schema := column.Schema{Name: ex.String()}
+	var argTypes []column.Schema
+	for _, child := range ex.args {
+		ctype, err := child.ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		argTypes = append(argTypes, ctype)
+	}
+	switch ex.name {
+	case "count":
+		if len(argTypes) > 1 {
+			return schema, errWrongNumberofArguments
+		}
+		schema.Dtype = column.DtypeInt
+		schema.Nullable = false
+	case "min", "max":
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
+		schema.Dtype = argTypes[0].Dtype
+		schema.Nullable = argTypes[0].Nullable
+	case "sum":
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
+		// ARCH: isNumericType or something?
+		if argTypes[0].Dtype != column.DtypeFloat && argTypes[0].Dtype != column.DtypeInt {
+			return schema, errWrongArgumentType
+		}
+		schema.Dtype = argTypes[0].Dtype
+		// ARCH: we can't do sum(bool), because a boolean aggregator can't have internal state in ints yet
+		// if argTypes[0].Dtype == column.DtypeBool {
+		// 	schema.Dtype = column.DtypeInt
+		// }
+		schema.Nullable = argTypes[0].Nullable
+	case "avg":
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
+		// TODO(next): check arg for a numeric type (and fix where we mention "isNumericType")
+		// and do this for sin/cos etc.
+		schema.Dtype = column.DtypeFloat // average of integers will be a float
+		schema.Nullable = argTypes[0].Nullable
+	case "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "sqrt", "exp", "exp2", "log", "log2", "log10":
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
+		schema.Dtype = column.DtypeFloat
+		schema.Nullable = true
+	case "round":
+		if len(argTypes) == 0 || len(argTypes) > 2 {
+			return schema, errWrongNumberofArguments
+		}
+		// OPTIM: in case len(argTypes) == 1 && DtypeInt, we could make this a noop
+		schema.Dtype = column.DtypeFloat
+		schema.Nullable = argTypes[0].Nullable
+	case "nullif":
+		if len(argTypes) != 2 {
+			return schema, errWrongNumberofArguments
+		}
+		schema.Dtype = argTypes[0].Dtype
+		schema.Nullable = true // even if the nullif condition is never met, I think it's fair to set it as nullable
+	case "coalesce":
+		if len(argTypes) == 0 {
+			return schema, errWrongNumberofArguments
+		}
+		// OPTIM: we can optimise this away if len(argTypes) == 1
+		types := make([]column.Dtype, 0, len(argTypes))
+		nullable := true
+		for _, el := range argTypes {
+			types = append(types, el.Dtype)
+			// OPTIM: we can prune all the arguments that come after the first non-nullable
+			// we can't prune it just yet - we could have an invalid call (e.g. coalesce(int, float, string))
+			// but we can note the position of the first non-nullable arg
+			if !el.Nullable {
+				nullable = false
+			}
+		}
+		candidate, err := coalesceType(types...)
+		if err != nil {
+			return schema, err
+		}
+		schema.Dtype = candidate
+		schema.Nullable = nullable
+	case "trim", "lower", "upper":
+		// ARCH: no support for TRIM(foo, 'chars') yet
+		if len(argTypes) != 1 {
+			return schema, errWrongNumberofArguments
+		}
+		if argTypes[0].Dtype != column.DtypeString {
+			return schema, errWrongArgumentType
+		}
+		schema.Dtype = column.DtypeString
+		schema.Nullable = argTypes[0].Nullable
+	default:
+		return schema, fmt.Errorf("unsupported function: %v", ex.name)
+	}
+
+	return schema, nil
+}
+func (ex *Function) String() string {
+	args := make([]string, 0, len(ex.args))
+	for _, ch := range ex.args {
+		args = append(args, ch.String())
+	}
+
+	return fmt.Sprintf("%s(%s)", ex.name, strings.Join(args, ", "))
+}
+func (ex *Function) Children() []Expression {
+	return ex.args
+}
+
+type Prefix struct {
+	operator tokenType
+	right    Expression
+}
+
+func (ex *Prefix) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	schema := column.Schema{Name: ex.String()}
+	switch ex.operator {
+	case tokenSub:
+		ch, err := ex.right.ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		// TODO/ARCH: we check for numerical types in various places, unify it
+		if !(ch.Dtype == column.DtypeInt || ch.Dtype == column.DtypeFloat) {
+			return schema, errTypeMismatch
+		}
+
+		schema.Dtype = ch.Dtype
+		schema.Nullable = ch.Nullable
+
+	case tokenNot:
+		ch, err := ex.right.ReturnType(ts)
+		if err != nil {
+			return schema, err
+		}
+		if ch.Dtype != column.DtypeBool {
+			return schema, errTypeMismatch
+		}
+
+		schema.Dtype = ch.Dtype
+		schema.Nullable = ch.Nullable
+	}
+	return schema, nil
+}
+func (ex *Prefix) String() string {
+	space := " "
+	if ex.operator == tokenSub {
+		space = ""
+	}
+	op := token{ttype: ex.operator} // TODO: this is a hack, because we don't have ttype stringers
+	return fmt.Sprintf("%s%s%s", op, space, ex.right)
+}
+func (ex *Prefix) Children() []Expression {
+	return []Expression{ex.right}
+}
+
+type Infix struct {
+	operator tokenType
+	left     Expression
+	right    Expression
+}
+
+func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	var schema column.Schema
+	t1, err := ex.left.ReturnType(ts)
+	if err != nil {
+		return schema, err
+	}
+	// one extra case - AS relabeling - we cannot resolve `t2` - it will fail
+	if ex.operator == tokenAs {
+		label, ok := ex.right.(*Identifier)
+		if !ok {
+			return schema, errInvalidLabel
+		}
+		schema.Name = label.name // cannot use .String, because quoted identifiers contain quotes
+		schema.Dtype = t1.Dtype
+		schema.Nullable = t1.Nullable
+		return schema, nil
+	}
+
+	t2, err := ex.right.ReturnType(ts)
+	if err != nil {
+		return schema, err
+	}
+	switch ex.operator {
+	case tokenAnd, tokenOr:
+		if !(t1.Dtype == column.DtypeBool && t2.Dtype == column.DtypeBool) {
+			return schema, fmt.Errorf("AND/OR clauses require both sides to be booleans: %w", errTypeMismatch)
+		}
+		schema.Dtype = column.DtypeBool
+		schema.Nullable = t1.Nullable || t2.Nullable
+	case tokenEq, tokenNeq, tokenLt, tokenGt, tokenLte, tokenGte:
+		if !comparableTypes(t1.Dtype, t2.Dtype) {
+			return schema, errTypeMismatch
+		}
+		schema.Dtype = column.DtypeBool
+		schema.Nullable = t1.Nullable || t2.Nullable
+	case tokenAdd, tokenSub, tokenMul, tokenQuo:
+		if !comparableTypes(t1.Dtype, t2.Dtype) {
+			return schema, errTypeMismatch
+		}
+		schema.Dtype = t1.Dtype
+		if t1.Dtype == column.DtypeNull {
+			schema.Dtype = t2.Dtype
+		}
+		// for mixed use cases, always resolve it as a float (1 - 2.0 = -1.0)
+		// also division can never result in an integer
+		if (t1.Dtype == column.DtypeFloat || t2.Dtype == column.DtypeFloat) || ex.operator == tokenQuo {
+			schema.Dtype = column.DtypeFloat
+		}
+		schema.Nullable = t1.Nullable || t2.Nullable
+	default:
+		return schema, fmt.Errorf("operator type %v not supported", ex.operator)
+	}
+	return schema, nil
+}
+func (ex *Infix) String() string {
+	op := token{ttype: ex.operator}.String() // TODO: this is a hack, because we don't have ttype stringers
+	if ex.operator == tokenAnd || ex.operator == tokenOr || ex.operator == tokenAs {
+		op = fmt.Sprintf(" %s ", op)
+	}
+	return fmt.Sprintf("%s%s%s", ex.left, op, ex.right)
+}
+func (ex *Infix) Children() []Expression {
+	return []Expression{ex.left, ex.right}
+}
+
+type Parentheses struct {
+	inner Expression
+}
+
+func (ex *Parentheses) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	return ex.inner.ReturnType(ts)
+}
+func (ex *Parentheses) String() string {
+	return fmt.Sprintf("(%s)", ex.inner)
+}
+func (ex *Parentheses) Children() []Expression {
+	return []Expression{ex.inner}
+}
+
+type Ordering struct {
+	Asc, NullsFirst bool // ARCH: consider *bool for better stringers (and better roundtrip tests)
+	inner           Expression
+}
+
+func (ex *Ordering) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	return ex.inner.ReturnType(ts)
+}
+func (ex *Ordering) String() string {
+	asc, nullsFirst := "ASC", "NULLS FIRST"
+	if !ex.Asc {
+		asc = "DESC"
+	}
+	if !ex.NullsFirst {
+		nullsFirst = "NULLS LAST"
+	}
+	return fmt.Sprintf("%s %s %s", ex.inner, asc, nullsFirst)
+}
+func (ex *Ordering) Children() []Expression {
+	return []Expression{ex.inner}
 }

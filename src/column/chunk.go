@@ -346,7 +346,7 @@ func newChunkStrings() *ChunkStrings {
 	}
 }
 
-func newChunkLiteralStrings(value string, length int) *ChunkStrings {
+func NewChunkLiteralStrings(value string, length int) *ChunkStrings {
 	offsets := []uint32{0, uint32(len(value))}
 	return &ChunkStrings{
 		baseChunk: baseChunk{
@@ -364,7 +364,7 @@ func newChunkInts() *ChunkInts {
 	}
 }
 
-func newChunkLiteralInts(value int64, length int) *ChunkInts {
+func NewChunkLiteralInts(value int64, length int) *ChunkInts {
 	return &ChunkInts{
 		baseChunk: baseChunk{
 			IsLiteral: true,
@@ -380,7 +380,7 @@ func newChunkFloats() *ChunkFloats {
 	}
 }
 
-func newChunkLiteralFloats(value float64, length int) *ChunkFloats {
+func NewChunkLiteralFloats(value float64, length int) *ChunkFloats {
 	return &ChunkFloats{
 		baseChunk: baseChunk{
 			IsLiteral: true,
@@ -396,7 +396,7 @@ func newChunkBools() *ChunkBools {
 	}
 }
 
-func newChunkLiteralBools(value bool, length int) *ChunkBools {
+func NewChunkLiteralBools(value bool, length int) *ChunkBools {
 	bm := bitmap.NewBitmap(1)
 	bm.Set(0, value)
 	return &ChunkBools{
@@ -419,7 +419,7 @@ func newChunkDatetimes() *ChunkDatetimes {
 	}
 }
 
-func newChunkLiteralDates(value date, length int) *ChunkDates {
+func NewChunkLiteralDates(value date, length int) *ChunkDates {
 	return &ChunkDates{
 		baseChunk: baseChunk{
 			IsLiteral: true,

@@ -166,7 +166,7 @@ func stringFunc(fnc func(string) string) func(...Chunk) (Chunk, error) {
 		ct := cs[0].(*ChunkStrings)
 		if ct.IsLiteral {
 			newValue := fnc(ct.nthValue(0))
-			return newChunkLiteralStrings(newValue, ct.Len()), nil
+			return NewChunkLiteralStrings(newValue, ct.Len()), nil
 		}
 		ret := newChunkStrings()
 		if ct.Nullability != nil {
