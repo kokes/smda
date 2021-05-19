@@ -45,6 +45,16 @@ func floatChunkFromParts(data []float64, null1, null2 *bitmap.Bitmap) *ChunkFloa
 	return NewChunkFloatsFromSlice(data, nulls)
 }
 
+// TODO(next): test it here as well (already tested in eval)
+func Not(c Chunk) (Chunk, error) {
+	if c.Dtype() != DtypeBool {
+		return nil, fmt.Errorf("%w: cannot evaluate NOT on non-bool columns", errProjectionNotSupported)
+	}
+	ret := c.Clone()
+	ret.(*ChunkBools).data.Invert()
+	return ret, nil
+}
+
 func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, string) bool) (*ChunkBools, error) {
 	nvals := c1.Len()
 	if c1.IsLiteral && c2.IsLiteral {

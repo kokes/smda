@@ -40,12 +40,14 @@ type ExpressionList []Expression
 //    to the Query struct (the Unmarshaler should mostly take care of this)
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
-	Select    ExpressionList              `json:"select,omitempty"`
-	Dataset   *database.DatasetIdentifier `json:"dataset"`
-	Filter    Expression                  `json:"filter,omitempty"`
-	Aggregate ExpressionList              `json:"aggregate,omitempty"`
-	Order     ExpressionList              `json:"order,omitempty"`
-	Limit     *int                        `json:"limit,omitempty"`
+	Select  ExpressionList              `json:"select,omitempty"`
+	Dataset *database.DatasetIdentifier `json:"dataset"`
+	// ARCH: this is quite hacky - we know Filter can only be a single Expression,
+	// but we cannot unmarshal Expressions as they are interfaces
+	Filter    ExpressionList `json:"filter,omitempty"`
+	Aggregate ExpressionList `json:"aggregate,omitempty"`
+	Order     ExpressionList `json:"order,omitempty"`
+	Limit     *int           `json:"limit,omitempty"`
 	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
 }
 
@@ -476,7 +478,9 @@ type Infix struct {
 }
 
 func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
-	var schema column.Schema
+	// TODO(next): check out all the ReturnTypes in here and see if they implement this correctly,
+	// we had columns without names on multiple occasions (oh and test all this)
+	schema := column.Schema{Name: ex.String()}
 	t1, err := ex.left.ReturnType(ts)
 	if err != nil {
 		return schema, err
@@ -504,7 +508,7 @@ func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
 		}
 		schema.Dtype = column.DtypeBool
 		schema.Nullable = t1.Nullable || t2.Nullable
-	case tokenEq, tokenNeq, tokenLt, tokenGt, tokenLte, tokenGte:
+	case tokenEq, tokenIs, tokenNeq, tokenLt, tokenGt, tokenLte, tokenGte:
 		if !comparableTypes(t1.Dtype, t2.Dtype) {
 			return schema, errTypeMismatch
 		}
@@ -531,7 +535,8 @@ func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
 }
 func (ex *Infix) String() string {
 	op := token{ttype: ex.operator}.String() // TODO: this is a hack, because we don't have ttype stringers
-	if ex.operator == tokenAnd || ex.operator == tokenOr || ex.operator == tokenAs {
+	// TODO(next): test for this (e.g. `foo is 12` => `foo IS 12`)
+	if ex.operator == tokenAnd || ex.operator == tokenOr || ex.operator == tokenAs || ex.operator == tokenIs {
 		op = fmt.Sprintf(" %s ", op)
 	}
 	return fmt.Sprintf("%s%s%s", ex.left, op, ex.right)

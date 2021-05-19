@@ -16,6 +16,7 @@ import (
 var errNoProjection = errors.New("no expressions specified to be selected")
 var errInvalidLimitValue = errors.New("invalid limit value")
 var errInvalidProjectionInAggregation = errors.New("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo))")
+var errInvalidFilter = errors.New("invalid WHERE clause")
 
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
 // a Result to be a Dataset of its own (for better interoperability, persistence, caching etc.)
@@ -183,7 +184,7 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 	columnNames := expr.ColumnsUsedMultiple(ds.Schema, append(q.Aggregate, q.Select...)...)
 	if q.Filter != nil {
 		// TODO(next): turns out we don't hit this branch at all in our tests!
-		columnNames = append(columnNames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter)...)
+		columnNames = append(columnNames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter[0])...)
 	}
 	// TODO(next): load orderby columns? Do we need to? Should we allow loading more than is in projections/groupbys?
 	// test what happens if we order by something not in select/groupby (we should check for it)
@@ -199,7 +200,7 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 			return err
 		}
 		if q.Filter != nil {
-			filter, err = filterStripe(db, ds, stripe, q.Filter, columnData)
+			filter, err = filterStripe(db, ds, stripe, q.Filter[0], columnData)
 			if err != nil {
 				return err
 			}
@@ -382,6 +383,10 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	if len(q.Select) == 0 {
 		return nil, errNoProjection
 	}
+	if len(q.Filter) > 1 {
+		// TODO(next): test this
+		return nil, errInvalidFilter
+	}
 	res := &Result{
 		Schema: make([]column.Schema, 0, len(q.Select)),
 		Data:   make([]column.Chunk, 0),
@@ -413,12 +418,12 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	}
 
 	if q.Filter != nil {
-		rettype, err := q.Filter.ReturnType(ds.Schema)
+		rettype, err := q.Filter[0].ReturnType(ds.Schema)
 		if err != nil {
 			return nil, err
 		}
 		if rettype.Dtype != column.DtypeBool {
-			return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", q.Filter, rettype.Dtype)
+			return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", q.Filter[0], rettype.Dtype)
 		}
 	}
 
@@ -451,7 +456,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	for _, stripe := range ds.Stripes {
 		colnames := expr.ColumnsUsedMultiple(ds.Schema, q.Select...)
 		if q.Filter != nil {
-			colnames = append(colnames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter)...)
+			colnames = append(colnames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter[0])...)
 		}
 		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
 		if err != nil {
@@ -460,7 +465,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		var filter *bitmap.Bitmap
 		loadFromStripe := stripe.Length
 		if q.Filter != nil {
-			filter, err = filterStripe(db, ds, stripe, q.Filter, columns)
+			filter, err = filterStripe(db, ds, stripe, q.Filter[0], columns)
 			if err != nil {
 				return nil, err
 			}

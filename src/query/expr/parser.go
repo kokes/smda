@@ -422,7 +422,7 @@ func ParseQuerySQL(s string) (Query, error) {
 		if err := p.Err(); err != nil {
 			return q, err
 		}
-		q.Filter = clause
+		q.Filter = ExpressionList([]Expression{clause})
 		p.position++
 	}
 	if p.curToken().ttype == tokenGroup {

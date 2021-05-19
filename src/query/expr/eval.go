@@ -28,8 +28,11 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 	case *Prefix:
 		switch node.operator {
 		case tokenNot:
-			// TODO(next): figure out how best to support this (a simple test case is ready)
-			return nil, errQueryPatternNotSupported
+			inner, err := Evaluate(node.right, chunkLength, columnData, filter)
+			if err != nil {
+				return nil, err
+			}
+			return column.Not(inner)
 		case tokenSub:
 			// OPTIM: this whole block will benefit from constant folding, especially if the child is a literal int/float
 			newExpr := &Infix{

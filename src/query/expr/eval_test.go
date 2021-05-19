@@ -58,8 +58,8 @@ func TestBasicEval(t *testing.T) {
 		{"2.2 >= float123", column.DtypeBool, 3, "t,t,f"},
 
 		// prefix operators
-		// {"not bool_tff", column.DtypeBool, 3, "f,t,t"},
-		// {"not (not bool_tff)", column.DtypeBool, 3, "t,f,f"},
+		{"not bool_tff", column.DtypeBool, 3, "f,t,t"},
+		{"not (not bool_tff)", column.DtypeBool, 3, "t,f,f"},
 		{"-float123", column.DtypeFloat, 3, "-1,-2,-3"},
 		{"-foo123", column.DtypeInt, 3, "-1,-2,-3"},
 
