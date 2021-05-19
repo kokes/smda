@@ -406,6 +406,18 @@ func (ex *Function) ReturnType(ts column.TableSchema) (column.Schema, error) {
 		}
 		schema.Dtype = column.DtypeString
 		schema.Nullable = argTypes[0].Nullable
+	case "left":
+		if len(argTypes) != 2 {
+			return schema, errWrongNumberofArguments
+		}
+		if argTypes[0].Dtype != column.DtypeString {
+			return schema, errWrongArgumentType
+		}
+		if argTypes[1].Dtype != column.DtypeInt {
+			return schema, errWrongArgumentType
+		}
+		schema.Dtype = column.DtypeString
+		schema.Nullable = argTypes[0].Nullable
 	default:
 		return schema, fmt.Errorf("unsupported function: %v", ex.name)
 	}

@@ -43,7 +43,8 @@ var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	"trim":  stringFunc(strings.TrimSpace),
 	"lower": stringFunc(strings.ToLower),
 	"upper": stringFunc(strings.ToUpper),
-	// TODO(next): all those useful string functions - hashing, left, right, position, split_part, ...
+	"left":  evalLeft,
+	// TODO(next): all those useful string functions - hashing, mid, right, position, split_part, ...
 }
 
 func evalCoalesce(cs ...Chunk) (Chunk, error) {
@@ -114,6 +115,27 @@ func evalRound(cs ...Chunk) (Chunk, error) {
 	default:
 		return nil, fmt.Errorf("%w: round(%v)", errTypeNotSupported, ct.Dtype())
 	}
+}
+
+// TODO(next)/OPTIM: test; ASCII-only fast pass (if all chars are lt RuneSelf, don't use string[:n], but bytes[:n])
+// OPTIM: maybe if nchars > max(len(j)), we can just cheaply clone/return the existing column
+// OPTIM: use nthValue returning []byte rather than string... and then use something cheaper than AddValue (AddValueNative?)
+func evalLeft(cs ...Chunk) (Chunk, error) {
+	nchars := int(cs[1].(*ChunkInts).data[0])
+	data := cs[0].(*ChunkStrings)
+	ret := newChunkStrings()
+
+	for j := 0; j < data.Len(); j++ {
+		val := data.nthValue(j)
+		if len(val) > nchars {
+			val = val[:nchars]
+		}
+		if err := ret.AddValue(val); err != nil {
+			return nil, err
+		}
+	}
+
+	return ret, nil
 }
 
 func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
