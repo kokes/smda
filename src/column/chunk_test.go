@@ -689,14 +689,21 @@ func TestJSONMarshal(t *testing.T) {
 		vals     string
 		expected string
 	}{
-		// TODO(next): add other types (implemented this originally because of date[times])
-		// also add nulls
 		{DtypeInt, "1,2,3", "[1,2,3]"},
+		{DtypeInt, "1,,3", "[1,null,3]"},
+		{DtypeFloat, "1,,3", "[1,null,3]"},
+		{DtypeFloat, "1.1,2.2,3.3", "[1.1,2.2,3.3]"},
 		{DtypeBool, "t,f,t", "[true,false,true]"},
+		{DtypeBool, "t,f,", "[true,false,null]"},
+		// still no support for nullable strings
+		{DtypeString, "foo,bar,baz", "[\"foo\",\"bar\",\"baz\"]"},
+		{DtypeString, "foo,ba\"r,baz", "[\"foo\",\"ba\\\"r\",\"baz\"]"},
 		{DtypeDate, "2020-01-01,2020-08-23,1900-12-30", "[\"2020-01-01\",\"2020-08-23\",\"1900-12-30\"]"},
 		{DtypeDate, "2020-01-01,2020-08-23,1900-12-30,", "[\"2020-01-01\",\"2020-08-23\",\"1900-12-30\",null]"},
+		{DtypeDate, "2020-01-01,,1900-12-30,", "[\"2020-01-01\",null,\"1900-12-30\",null]"},
 		{DtypeDatetime, "2020-01-01 12:34:56,2020-08-23 00:00:00,1900-12-30 23:59:59", "[\"2020-01-01 12:34:56.000000\",\"2020-08-23 00:00:00.000000\",\"1900-12-30 23:59:59.000000\"]"},
 		{DtypeDatetime, "2020-01-01 12:34:56,2020-08-23 00:00:00,1900-12-30 23:59:59,", "[\"2020-01-01 12:34:56.000000\",\"2020-08-23 00:00:00.000000\",\"1900-12-30 23:59:59.000000\",null]"},
+		{DtypeDatetime, ",2020-08-23 00:00:00,1900-12-30 23:59:59,", "[null,\"2020-08-23 00:00:00.000000\",\"1900-12-30 23:59:59.000000\",null]"},
 	}
 
 	for _, test := range tests {
