@@ -120,6 +120,7 @@ func evalRound(cs ...Chunk) (Chunk, error) {
 // TODO(next)/OPTIM: test; ASCII-only fast pass (if all chars are lt RuneSelf, don't use string[:n], but bytes[:n])
 // OPTIM: maybe if nchars > max(len(j)), we can just cheaply clone/return the existing column
 // OPTIM: use nthValue returning []byte rather than string... and then use something cheaper than AddValue (AddValueNative?)
+// ARCH: postgres allows for negative indexing
 func evalLeft(cs ...Chunk) (Chunk, error) {
 	nchars := int(cs[1].(*ChunkInts).data[0])
 	data := cs[0].(*ChunkStrings)

@@ -443,16 +443,11 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 
 		return res, nil
 	}
-	// TODO(HIGHPRIO): this can really explode memory usage by running just `select * from bar order by foo`
-	// one random idea: run reorder in the hot for loop whenever res.Length >> q.Limit, once done, call
-	// res.Prune (new method) which takes first `q.Limit` rows in the result set and prunes them (first by using
-	// rowIdxs and building a bitmap)
-	// MIGHT be more performant to do this before the .Append... not sure now
-	// TODO(next)/OPTIM: this is a good place to think about NOT materialising these rows
-	// in case we need to sort them afterwards. Imagine `select * from foo order by bar desc limit 10`
-	// we can either return everything, sort it all based on `bar` and then take the top 10... or we can
-	// do something like top-k first (even if we have `where` clauses), discard most of our data and then
-	// proceed as usual
+
+	// OPTIM: if there's an ORDERBY, we sort/prune a given (filtered) stripe before appending it... so that
+	// we don't append tons of data in case we have a LIMIT 10
+	// But we still end up appending tons of data... shouldn't we do top-k or something?
+	// We could also do a merge sort instead of sorting a list of sorted blocks
 	for _, stripe := range ds.Stripes {
 		colnames := expr.ColumnsUsedMultiple(ds.Schema, q.Select...)
 		if q.Filter != nil {

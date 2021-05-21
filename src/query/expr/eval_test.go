@@ -122,6 +122,10 @@ func TestBasicEval(t *testing.T) {
 		{"trim(' foo ')", column.DtypeString, 3, "lit:foo"},
 		{"trim('')", column.DtypeString, 3, "lit:"},
 		{"trim('	')", column.DtypeString, 3, "lit:"},
+		{"left(names, 2)", column.DtypeString, 3, "Jo,On,Bo"},
+		{"left(names, 100)", column.DtypeString, 3, "Joe,Ondřej,Bob"},
+		{"left(names, 1)", column.DtypeString, 3, "J,O,B"},
+		{"left(names, 0)", column.DtypeString, 3, ",,"},
 	}
 
 	db, err := database.NewDatabase("", nil)

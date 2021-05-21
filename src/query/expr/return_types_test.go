@@ -280,6 +280,14 @@ func TestReturnTypes(t *testing.T) {
 		{"round(my_int_column, 3)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}, nil},
 		{"round(my_float_column, 4)", column.Schema{Dtype: column.DtypeFloat, Nullable: false}, nil},
 
+		// string functions
+		{"trim(my_string_column)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
+		{"upper(my_string_column)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
+		{"lower(my_string_column)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
+		{"left(my_string_column, 4)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
+		// {"mid(my_string_column, 4)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
+		// {"right(my_string_column, 4)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
+
 		// trigonometric functions always return a nullable column (though sin/cos/exp don't have to)
 		{"sin(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}, nil},
 		{"cos(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}, nil},
@@ -314,6 +322,9 @@ func TestReturnTypes(t *testing.T) {
 		{"nullif(my_int_column)", column.Schema{}, errWrongNumberofArguments},
 		{"nullif(my_int_column, 4, 5)", column.Schema{}, errWrongNumberofArguments},
 		{"coalesce()", column.Schema{}, errWrongNumberofArguments},
+		{"left(my_string_column)", column.Schema{}, errWrongNumberofArguments},
+		// {"mid(my_string_column)", column.Schema{}, errWrongNumberofArguments},
+		// {"right(my_string_column)", column.Schema{}, errWrongNumberofArguments},
 
 		{"sum(my_string_column)", column.Schema{}, errWrongArgumentType},
 		// {"NULLIF(my_float_column, 12)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}, nil}, // once we implement case folding...
