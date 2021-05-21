@@ -12,7 +12,6 @@ var errNoTypes = errors.New("expecting at least one column")
 var errWrongNumberofArguments = errors.New("wrong number arguments passed to a function")
 var errWrongArgumentType = errors.New("wrong argument type passed to a function")
 var errReturnTypeNotInferred = errors.New("cannot infer return type of expression")
-var errInvalidLabel = errors.New("cannot relabel projection")
 
 // should this be in the database package?
 func comparableTypes(t1, t2 column.Dtype) bool {
@@ -86,14 +85,8 @@ func ColumnsUsed(expr Expression, schema column.TableSchema) (cols []string) {
 		}
 		cols = append(cols, col.Name)
 	}
-	// normally we'd add all the children to the list, but there's a special case
-	// of exprRelabel, where the second child is the relabeled identifier (not a column)
 	children := expr.Children()
-	limit := len(children)
-	if ex, ok := expr.(*Infix); ok && ex.operator == tokenAs {
-		limit = 1
-	}
-	for _, ch := range children[:limit] {
+	for _, ch := range children {
 		cols = append(cols, ColumnsUsed(ch, schema)...)
 	}
 	sort.Strings(cols)

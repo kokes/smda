@@ -17,6 +17,7 @@ var errNoProjection = errors.New("no expressions specified to be selected")
 var errInvalidLimitValue = errors.New("invalid limit value")
 var errInvalidProjectionInAggregation = errors.New("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo))")
 var errInvalidFilter = errors.New("invalid WHERE clause")
+var errInvalidOrderClause = errors.New("invalid ORDER BY clause")
 
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
 // a Result to be a Dataset of its own (for better interoperability, persistence, caching etc.)
@@ -133,13 +134,19 @@ func filterStripe(db *database.Database, ds *database.Dataset, stripe database.S
 // 2) we walk the slice instead of building a map once (essentially the same point)
 // 3) we use .String() instead of .value - but will .value work if a projection
 //    is `a+b` and the groupby expression is `A + B`? (test all this)
-// TODO(next): this means we cannot compare projections with aggregations/orderings
-// e.g. `select foo as bar order by foo` doesn't work, neither does `order by bar`
-// relabeled projections just cannot be sorted on
 func lookupExpr(needle expr.Expression, haystack []expr.Expression) int {
-	ns := needle.String()
+	ni, nl := needle.String(), ""
+	if lab, ok := needle.(*expr.Relabel); ok {
+		ni = lab.Children()[0].String()
+		nl = lab.Label
+	}
 	for j, ex := range haystack {
-		if ex.String() == ns {
+		hi, hl := ex.String(), ""
+		if lab, ok := ex.(*expr.Relabel); ok {
+			hi = lab.Children()[0].String()
+			hl = lab.Label
+		}
+		if ni == hi || (hl != "" && ni == hl) || (nl != "" && nl == hi) || (nl != "" && hl != "" && nl == hl) {
 			return j
 		}
 	}
@@ -183,11 +190,8 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 
 	columnNames := expr.ColumnsUsedMultiple(ds.Schema, append(q.Aggregate, q.Select...)...)
 	if q.Filter != nil {
-		// TODO(next): turns out we don't hit this branch at all in our tests!
 		columnNames = append(columnNames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter[0])...)
 	}
-	// TODO(next): load orderby columns? Do we need to? Should we allow loading more than is in projections/groupbys?
-	// test what happens if we order by something not in select/groupby (we should check for it)
 	groups := make(map[uint64]uint64)
 	// ARCH: `nrc` and `rcs` are not very descriptive
 	nrc := make([]column.Chunk, len(q.Aggregate))
@@ -234,6 +238,7 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 				nrc[j] = rc.Prune(bm)
 				continue
 			}
+			// TODO: this is untested, because we have large stripes in testing
 			if err := nrc[j].Append(rc.Prune(bm)); err != nil {
 				return err
 			}
@@ -277,7 +282,7 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 	}
 
 	res.Data = ret
-	res.Length = ret[0].Len() // TODO(next): we can't have zero aggregations, right?
+	res.Length = ret[0].Len()
 
 	if q.Order != nil {
 		if err := reorder(res, q); err != nil {
@@ -337,6 +342,9 @@ func (res *Result) Less(i, j int) bool {
 }
 
 func reorder(res *Result, q expr.Query) error {
+	if res.Length < 0 {
+		return errors.New("invalid structure of intermediate results")
+	}
 	res.rowIdxs = make([]int, res.Length)
 	for j := 0; j < res.Length; j++ {
 		res.rowIdxs[j] = j
@@ -384,7 +392,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		return nil, errNoProjection
 	}
 	if len(q.Filter) > 1 {
-		// TODO(next): test this
+		// TODO(next): test this (this will have to come from JSON, we can't simulate this in SQL)
 		return nil, errInvalidFilter
 	}
 	res := &Result{
@@ -424,6 +432,20 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 		if rettype.Dtype != column.DtypeBool {
 			return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", q.Filter[0], rettype.Dtype)
+		}
+	}
+
+	if q.Order != nil {
+		for _, proj := range q.Order {
+			posS := lookupExpr(proj, q.Select)
+			posG := -1
+			if q.Aggregate != nil {
+				posG = lookupExpr(proj, q.Aggregate)
+			}
+
+			if posS == -1 && posG == -1 {
+				return nil, fmt.Errorf("%w: %v", errInvalidOrderClause, proj)
+			}
 		}
 	}
 
@@ -505,7 +527,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 		intermediate.Length = intermediate.Data[0].Len()
 
-		if q.Order != nil && intermediate.Length > limit {
+		if q.Order != nil && limit > 0 && intermediate.Length > limit {
 			intermediate.Length = limit
 			if err := reorder(intermediate, q); err != nil {
 				return nil, err

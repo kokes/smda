@@ -235,6 +235,16 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	p.position++
 	expr.right = p.parseExpression(precedence)
 
+	// relabeling is an exception, we use a different Expression for that
+	if expr.operator == tokenAs {
+		label, ok := expr.right.(*Identifier)
+		if !ok {
+			p.errors = append(p.errors, errors.New("when relabeling (AS), the right side value has to be an identifier"))
+			return nil
+		}
+		return &Relabel{inner: left, Label: label.name}
+	}
+
 	return expr
 }
 

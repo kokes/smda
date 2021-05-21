@@ -316,26 +316,34 @@ func TestParsingContents(t *testing.T) {
 				right:    &Integer{value: 3},
 			},
 		}}},
-		{"foo as bar", &Infix{operator: tokenAs,
-			left:  &Identifier{name: "foo"},
-			right: &Identifier{name: "bar"},
+		{"foo as bar", &Relabel{
+			inner: &Identifier{name: "foo"},
+			Label: "bar",
 		}},
-		{"1+2 as bar", &Infix{operator: tokenAs,
-			left: &Infix{operator: tokenAdd,
+		{"foo as Bar", &Relabel{
+			inner: &Identifier{name: "foo"},
+			Label: "bar",
+		}},
+		{"foo as \"Bar\"", &Relabel{
+			inner: &Identifier{name: "foo"},
+			Label: "Bar",
+		}},
+		{"1+2 as bar", &Relabel{
+			inner: &Infix{operator: tokenAdd,
 				left:  &Integer{value: 1},
 				right: &Integer{value: 2},
 			},
-			right: &Identifier{name: "bar"},
+			Label: "bar",
 		}},
-		{"1+2*3 as bar", &Infix{operator: tokenAs,
-			left: &Infix{operator: tokenAdd,
+		{"1+2*3 as bar", &Relabel{
+			inner: &Infix{operator: tokenAdd,
 				left: &Integer{value: 1},
 				right: &Infix{operator: tokenMul,
 					left:  &Integer{value: 2},
 					right: &Integer{value: 3},
 				},
 			},
-			right: &Identifier{name: "bar"},
+			Label: "bar",
 		}},
 	}
 

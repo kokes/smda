@@ -89,12 +89,9 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			children = append(children, child)
 		}
 		return node.evaler(children...)
-
+	case *Relabel:
+		return Evaluate(node.inner, chunkLength, columnData, filter)
 	case *Infix:
-		// special case to avoid materialising the right side
-		if node.operator == tokenAs {
-			return Evaluate(node.left, chunkLength, columnData, filter)
-		}
 		c1, err := Evaluate(node.left, chunkLength, columnData, filter)
 		if err != nil {
 			return nil, err

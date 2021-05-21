@@ -497,18 +497,6 @@ func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	if err != nil {
 		return schema, err
 	}
-	// one extra case - AS relabeling - we cannot resolve `t2` - it will fail
-	if ex.operator == tokenAs {
-		label, ok := ex.right.(*Identifier)
-		if !ok {
-			return schema, errInvalidLabel
-		}
-		schema.Name = label.name // cannot use .String, because quoted identifiers contain quotes
-		schema.Dtype = t1.Dtype
-		schema.Nullable = t1.Nullable
-		return schema, nil
-	}
-
 	t2, err := ex.right.ReturnType(ts)
 	if err != nil {
 		return schema, err
@@ -548,13 +536,35 @@ func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
 func (ex *Infix) String() string {
 	op := token{ttype: ex.operator}.String() // TODO: this is a hack, because we don't have ttype stringers
 	// TODO(next): test for this (e.g. `foo is 12` => `foo IS 12`)
-	if ex.operator == tokenAnd || ex.operator == tokenOr || ex.operator == tokenAs || ex.operator == tokenIs {
+	if ex.operator == tokenAnd || ex.operator == tokenOr || ex.operator == tokenIs {
 		op = fmt.Sprintf(" %s ", op)
 	}
 	return fmt.Sprintf("%s%s%s", ex.left, op, ex.right)
 }
 func (ex *Infix) Children() []Expression {
 	return []Expression{ex.left, ex.right}
+}
+
+type Relabel struct {
+	inner Expression
+	Label string // exporting it, because there's no other way of getting to it
+}
+
+func (ex *Relabel) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	schema, err := ex.inner.ReturnType(ts)
+	if err != nil {
+		return schema, err
+	}
+	schema.Name = ex.Label
+	return schema, nil
+}
+
+func (ex *Relabel) String() string {
+	return fmt.Sprintf("%s AS %s", ex.inner.String(), ex.Label)
+}
+
+func (ex *Relabel) Children() []Expression {
+	return []Expression{ex.inner}
 }
 
 type Parentheses struct {

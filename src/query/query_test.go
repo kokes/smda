@@ -239,6 +239,9 @@ func TestBasicQueries(t *testing.T) {
 		{"foo,bar\n1,4\n5,5\n10,4", "SELECT foo FROM dataset WHERE foo >= bar", "foo\n5\n10"},
 		{"foo,bar\n1,4\n5,5\n10,4", "SELECT foo FROM dataset WHERE 4 > 1", "foo\n1\n5\n10"},
 		{"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset WHERE foo = null", "bar\n4\n6"},
+
+		// filtering with groupbys
+		{"foo,bar\n1,2\n3,4\n3,6", "SELECT foo, min(bar), max(bar) FROM dataset WHERE foo > 1 GROUP BY foo", "foo,min(bar),max(bar)\n3,4,6\n"},
 		// TODO(next): test ORDER BY (incl. GROUP BY queries)
 		// {"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset WHERE bar != null ORDER BY bar desc", "bar\n6\n5\n4"},
 		// {"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset ORDER BY bar desc", "bar\n6\n5\n4"},
@@ -309,6 +312,7 @@ func TestBasicQueries(t *testing.T) {
 				t.Fatal(err)
 			}
 			// TODO(next): this doesn't take into account res.rowIdxs - we might have to compare JSON results
+			// or maybe we'll implement (perhaps just here) something that physically reorders given Result.data
 			if !column.ChunksEqual(col, expcol) {
 				t.Errorf("[%d] failed to aggregate %+v", testNo, test.input)
 			}
@@ -358,14 +362,27 @@ func TestProjections(t *testing.T) {
 	}
 }
 
-func TestAggregationProjectionErrors(t *testing.T) {
+func TestQuerySetup(t *testing.T) {
 	tests := []struct {
-		input string
 		query string
+		err   error
 	}{
-		{"foo,bar,baz\n1,2,3\n", "SELECT foo*2, bar FROM dataset GROUP BY foo, bar"},
-		{"foo,bar,baz\n1,2,3\n", "SELECT bar FROM dataset GROUP BY foo"},
-		{"foo,bar,baz\n1,2,3\n", "SELECT foo FROM dataset GROUP BY nullif(foo, 2)"},
+		{"SELECT foo*2, bar FROM dataset GROUP BY foo, bar", errInvalidProjectionInAggregation},
+		{"SELECT bar FROM dataset GROUP BY foo", errInvalidProjectionInAggregation},
+		{"SELECT foo FROM dataset GROUP BY nullif(foo, 2)", errInvalidProjectionInAggregation},
+		{"SELECT foo FROM dataset ORDER by FOO", nil},
+		{"SELECT foo FROM dataset ORDER by bar", errInvalidOrderClause},
+		{"SELECT foo FROM dataset ORDER by foo, bar", errInvalidOrderClause},
+		{"SELECT foo FROM dataset LIMIT 0", nil}, // cannot test -2, because that fails with a parser error
+		// we get a parser issue, because we can get multiple where clauses only in JSON unmarshaling of queries
+		// {"SELECT foo FROM dataset WHERE foo > 0, foo < 3", errInvalidFilter},
+
+		// relabeling can be tricky, especially when looking up columns across parts of the query - these are all legal
+		// BUT this doesn't work the same for WHERE clauses - we cannot filter on relabeled fields
+		{"SELECT foo AS bar FROM dataset GROUP BY foo", nil},
+		{"SELECT foo AS bar FROM dataset GROUP BY bar", nil},
+		{"SELECT foo AS bar FROM dataset ORDER BY foo", nil},
+		{"SELECT foo AS bar FROM dataset ORDER BY bar", nil},
 	}
 
 	for _, test := range tests {
@@ -379,7 +396,7 @@ func TestAggregationProjectionErrors(t *testing.T) {
 			}
 		}()
 
-		ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.input))
+		ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader("foo,bar,baz\n1,2,3\n"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -388,10 +405,8 @@ func TestAggregationProjectionErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if _, err := RunSQL(db, test.query); !errors.Is(err, errInvalidProjectionInAggregation) {
-			t.Errorf("expecting query %v to result in errInvalidProjectionInAggregation, got %+v instead", test.query, err)
+		if _, err := RunSQL(db, test.query); !errors.Is(err, test.err) {
+			t.Errorf("expecting query %v to result in %v, got %+v instead", test.query, test.err, err)
 		}
 	}
 }
-
-// TODO(next): test groupbys with filters
