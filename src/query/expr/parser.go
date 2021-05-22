@@ -15,6 +15,7 @@ var errUnsupportedPrefixToken = errors.New("unsupported prefix token")
 var errSQLOnlySelects = errors.New("only SELECT queries supported")
 var errInvalidQuery = errors.New("invalid SQL query")
 var errInvalidFunctionName = errors.New("invalid function name")
+var errEmptyExpression = errors.New("cannot parse an expression from an empty string")
 
 const (
 	_ int = iota
@@ -331,10 +332,9 @@ func ParseStringExpr(s string) (Expression, error) {
 	if err != nil {
 		return nil, err
 	}
-	// ARCH/TODO(next): perhaps return noExpression or something?
-	// if len(p.tokens) == 0 {
-	// 	return nil, nil
-	// }
+	if len(p.tokens) == 0 {
+		return nil, errEmptyExpression
+	}
 	ret := p.parseExpression(LOWEST)
 
 	if p.position != len(p.tokens)-1 {
@@ -355,9 +355,8 @@ func ParseStringExprs(s string) (ExpressionList, error) {
 		return nil, err
 	}
 
-	// ARCH/TODO(next): perhaps return noExpression or something?
 	if len(p.tokens) == 0 {
-		return nil, nil
+		return nil, errEmptyExpression
 	}
 
 	exprs, err := p.parseExpressions()

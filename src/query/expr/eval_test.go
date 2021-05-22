@@ -186,4 +186,3 @@ func TestBasicEval(t *testing.T) {
 }
 
 // UpdateAggregator
-// TODO(next): eval with filters? or leave that to query?

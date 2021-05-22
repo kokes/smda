@@ -365,9 +365,9 @@ func TestParsingErrors(t *testing.T) {
 		raw string
 		err error
 	}{
-		{"", errUnsupportedPrefixToken},  // TODO(next): is this right?
-		{" ", errUnsupportedPrefixToken}, // dtto: is this right?
-		{"-", errUnsupportedPrefixToken}, // dtto: is this right?
+		{"", errEmptyExpression},
+		{" ", errEmptyExpression},
+		{"-", errUnsupportedPrefixToken},
 		{"123123123131231231312312313123", errInvalidInteger},
 		{"1e12312312323", errInvalidFloat},
 		{"2 * (3-foo", errNoClosingBracket},
