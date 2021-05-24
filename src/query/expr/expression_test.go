@@ -372,6 +372,8 @@ func TestReturnTypes(t *testing.T) {
 		{"my_int_column", column.Schema{Dtype: column.DtypeInt}, nil},
 
 		// unary/prefix
+		{"+my_int_column", column.Schema{Dtype: column.DtypeInt}, nil},
+		{"+my_float_column", column.Schema{Dtype: column.DtypeFloat}, nil},
 		{"-my_int_column", column.Schema{Dtype: column.DtypeInt}, nil},
 		{"-my_float_column", column.Schema{Dtype: column.DtypeFloat}, nil},
 		{"-my_string_column", column.Schema{}, errTypeMismatch},

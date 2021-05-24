@@ -33,6 +33,9 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 				return nil, err
 			}
 			return column.Not(inner)
+		case tokenAdd:
+			// noop
+			return Evaluate(node.right, chunkLength, columnData, filter)
 		case tokenSub:
 			// OPTIM: this whole block will benefit from constant folding, especially if the child is a literal int/float
 			newExpr := &Infix{
@@ -74,8 +77,6 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 	case *Function:
 		// OPTIM: we could optimise shallow function calls - e.g. `log(foo) > 1` doesn't need
 		// `log(foo)` as a newly allocated chunk, we can compute that on the fly
-		// TODO(next): if we do count() or sum(foo) without aggregations, this should
-		// run on the whole dataset - currently triggers this error
 		if node.evaler == nil {
 			return nil, fmt.Errorf("%w: %s", errFunctionNotImplemented, node.name)
 		}

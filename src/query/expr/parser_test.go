@@ -49,9 +49,8 @@ func TestParsingContents(t *testing.T) {
 				right:    &Identifier{name: "bar"},
 			},
 		}}},
-		// TODO(next): unary plus? Just eliminate the plus entirely? (tests are in place already)
-		// {"+2", &Integer{value: "2"}},
-		// {"+2.4", &Float{value: "2.4"}},
+		{"+2", &Prefix{operator: tokenAdd, right: &Integer{value: 2}}},
+		{"+2.4", &Prefix{operator: tokenAdd, right: &Float{value: 2.4}}},
 
 		// infix operators
 		{"4 * 2", &Infix{
@@ -373,7 +372,6 @@ func TestParsingErrors(t *testing.T) {
 		{"2 * (3-foo", errNoClosingBracket},
 		{"foo + sum(bar", errNoClosingBracket},
 		{"foo + sum(bar, ", errUnsupportedPrefixToken}, // ARCH: this is errNoClosingBracket, but we got to EOF first
-		{"+123", errUnsupportedPrefixToken},
 		{"3 + 123(124)", errInvalidFunctionName},
 		{"3 + \"Count\"(124)", errInvalidFunctionName},
 	}

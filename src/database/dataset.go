@@ -276,7 +276,10 @@ func (did DatasetIdentifier) String() string {
 
 // NewDataset creates a new empty dataset
 func NewDataset() *Dataset {
-	return &Dataset{ID: newUID(OtypeDataset), Created: time.Now().Unix()}
+	// we need to use a high resolution timer, because subsequent dataset creation need to have a timer
+	// that advanced between these actions
+	// ARCH: this might be an issue in Windows, where the resolution is low?
+	return &Dataset{ID: newUID(OtypeDataset), Created: time.Now().UnixNano()}
 }
 
 // DatasetPath returns the path of a given dataset (all the stripes are there)
@@ -293,7 +296,6 @@ func (db *Database) stripePath(ds *Dataset, stripe Stripe) string {
 // OPTIM: not efficient in this implementation, but we don't have a map-like structure
 // to store our datasets - we keep them in a slice, so that we have predictable order
 // -> we need a sorted map
-// TODO(next): test thouroughly all these cases
 func (db *Database) GetDataset(did *DatasetIdentifier) (*Dataset, error) {
 	var found *Dataset
 	for _, dataset := range db.Datasets {

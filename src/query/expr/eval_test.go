@@ -62,6 +62,7 @@ func TestBasicEval(t *testing.T) {
 		{"not (not bool_tff)", column.DtypeBool, 3, "t,f,f"},
 		{"-float123", column.DtypeFloat, 3, "-1,-2,-3"},
 		{"-foo123", column.DtypeInt, 3, "-1,-2,-3"},
+		{"+foo123", column.DtypeInt, 3, "1,2,3"},
 
 		// infix operators
 		{"bool_tff = true", column.DtypeBool, 3, "t,f,f"},

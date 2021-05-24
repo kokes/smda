@@ -292,15 +292,15 @@
     }
 
     // TODO: test (0, 1, 59/60 seconds etc., test fallbacks, test future)
-    function formatTimestamp(timestamp) {
+    function formatTimestamp(timestamp_s) {
         const now = Math.floor((new Date()).getTime()/1000);
-        const diff = now - timestamp;
+        const diff = Math.floor(now - timestamp_s); // timestamp_s can be a float (and now is)
         // ARCH: change from if statements to some for loop with decreasing granularity
         // also handle plurals betters
         if (diff < 0) {
             // future timestamps are tricky (clocks can get skewed) - also, even if we sent server time
             // as some guideline... we could still get a skew (not as bad as local time though)
-            return (new Date(timestamp * 1000).toISOString());
+            return (new Date(timestamp_s * 1000).toISOString());
         }
         if (diff < 60) {
             return `${diff} seconds ago`;
@@ -498,14 +498,15 @@
             datasets.sort((a, b) => b.created_timestamp - a.created_timestamp)
             const rows = node("tbody", null, datasets.map(
                 ds => {
+                    console.log(ds.created_timestamp)
                     const cols = [
                         // ARCH/TODO(next): escape the '@'?
                         node("td", null, node("a", {"href": `/query?dataset=${ds.name}@${ds.id}&limit=100`}, ds.id)),
                         node("td", null, ds.name),
                         node("td", null,
                             node("span",
-                                {"title": (new Date(ds.created_timestamp * 1000).toISOString())},
-                                formatTimestamp(ds.created_timestamp)
+                                {"title": (new Date(ds.created_timestamp / 1000 / 1000).toISOString())},
+                                formatTimestamp(ds.created_timestamp / 1000 / 1000 / 1000)
                                 )
                             ),
                         node("td", null, formatBytes(ds.size_raw)),

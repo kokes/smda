@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -113,6 +114,47 @@ func TestAddingDatasets(t *testing.T) {
 	}
 	if ds != ds2 {
 		t.Fatal("roundtrip did not work out")
+	}
+}
+
+func TestAddingDatasetsWithVersions(t *testing.T) {
+	db, err := NewDatabase("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+	n := 10
+	dss := make([]*Dataset, 0, n)
+	for j := 0; j < n; j++ {
+		ds := NewDataset()
+		ds.Name = fmt.Sprintf("foobar%02d", j%3) // have datasets with various names
+		if err := db.AddDataset(ds); err != nil {
+			t.Fatal(err)
+		}
+		dss = append(dss, ds)
+	}
+	last := dss[len(dss)-1]
+
+	ds, err := db.GetDataset(&DatasetIdentifier{Name: last.Name, Latest: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ds != last {
+		t.Fatal("did not get the `latest` dataset correctly")
+	}
+
+	for _, ds := range dss {
+		rds, err := db.GetDataset(&DatasetIdentifier{Name: ds.Name, Version: ds.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ds != rds {
+			t.Fatal("did not get the dataset by name/version correctly")
+		}
 	}
 }
 

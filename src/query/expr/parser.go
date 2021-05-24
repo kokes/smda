@@ -80,6 +80,7 @@ func NewParser(s string) (*Parser, error) {
 		tokenTrue:             p.parseLiteralBool,
 		tokenFalse:            p.parseLiteralBool,
 		tokenNull:             p.parseLiteralNULL,
+		tokenAdd:              p.parsePrefixExpression,
 		tokenSub:              p.parsePrefixExpression,
 		tokenNot:              p.parsePrefixExpression,
 	}

@@ -292,7 +292,7 @@ type Prefix struct {
 func (ex *Prefix) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	schema := column.Schema{Name: ex.String()}
 	switch ex.operator {
-	case tokenSub:
+	case tokenAdd, tokenSub:
 		ch, err := ex.right.ReturnType(ts)
 		if err != nil {
 			return schema, err

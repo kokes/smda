@@ -392,7 +392,6 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		return nil, errNoProjection
 	}
 	if len(q.Filter) > 1 {
-		// TODO(next): test this (this will have to come from JSON, we can't simulate this in SQL)
 		return nil, errInvalidFilter
 	}
 	res := &Result{
@@ -437,6 +436,13 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 
 	if q.Order != nil {
 		for _, proj := range q.Order {
+			// order by clauses are NOT `expr.Ordering` by default - if they are plain `ORDER BY foo`,
+			// they will just be expr.Identifier{foo} - so we need to unwrap them in case they are wrapped
+			// like `exprOrdering{asc: true, inner: expr.Identifier{foo}}`
+			if wrapped, ok := proj.(*expr.Ordering); ok {
+				proj = wrapped.Children()[0]
+			}
+
 			posS := lookupExpr(proj, q.Select)
 			posG := -1
 			if q.Aggregate != nil {
