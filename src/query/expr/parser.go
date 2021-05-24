@@ -16,6 +16,7 @@ var errSQLOnlySelects = errors.New("only SELECT queries supported")
 var errInvalidQuery = errors.New("invalid SQL query")
 var errInvalidFunctionName = errors.New("invalid function name")
 var errEmptyExpression = errors.New("cannot parse an expression from an empty string")
+var errInvalidTuple = errors.New("invalid tuple expression")
 
 const (
 	_ int = iota
@@ -23,7 +24,6 @@ const (
 	RELABEL     // foo AS bar
 	BOOL_AND_OR // TODO(next): is it really that AND and OR have the same precedence?
 	EQUALS      // ==, !=
-	// TODO(next): IN clause?
 	LESSGREATER // >, <, <=, >=
 	ADDITION    // +
 	PRODUCT     // *
@@ -37,6 +37,8 @@ var precedences = map[tokenType]int{
 	tokenEq:     EQUALS,
 	tokenIs:     EQUALS,
 	tokenNeq:    EQUALS,
+	tokenIn:     EQUALS,
+	tokenNot:    EQUALS,
 	tokenLt:     LESSGREATER,
 	tokenGt:     LESSGREATER,
 	tokenLte:    LESSGREATER,
@@ -94,6 +96,8 @@ func NewParser(s string) (*Parser, error) {
 		tokenEq:     p.parseInfixExpression,
 		tokenIs:     p.parseInfixExpression,
 		tokenNeq:    p.parseInfixExpression,
+		tokenIn:     p.parseInfixExpression,
+		tokenNot:    p.parseInfixExpression,
 		tokenLt:     p.parseInfixExpression,
 		tokenGt:     p.parseInfixExpression,
 		tokenLte:    p.parseInfixExpression,
@@ -235,10 +239,10 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	expr := &Infix{operator: curToken.ttype, left: left}
 	precedence := p.curPrecedence()
 	p.position++
-	expr.right = p.parseExpression(precedence)
 
 	// relabeling is an exception, we use a different Expression for that
 	if expr.operator == tokenAs {
+		expr.right = p.parseExpression(precedence)
 		label, ok := expr.right.(*Identifier)
 		if !ok {
 			p.errors = append(p.errors, errors.New("when relabeling (AS), the right side value has to be an identifier"))
@@ -246,8 +250,57 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 		}
 		return &Relabel{inner: left, Label: label.name}
 	}
+	// NOT is another exception ¯\_(ツ)_/¯
+	// and a weird one, because it turns an infix operation to a prefix one (`foo NOT IN bar` -> `NOT(foo IN bar)`)
+	if expr.operator == tokenNot || expr.operator == tokenIn {
+		// will be used to extend LIKE and ILIKE to `NOT LIKE/ILIKE`
+		if expr.operator == tokenNot && p.curToken().ttype != tokenIn {
+			p.errors = append(p.errors, errors.New("infix operator NOT expects IN to follow"))
+			return nil
+		}
+		neg := false
+		if expr.operator == tokenNot {
+			neg = true
+			expr.operator = p.curToken().ttype // expr.operator is now e.g. `IN`, we'll wrap this infix be a prefix NOT
+			p.position++
+		}
 
+		// TODO(next): this should be `p.parseTuple` for tokenIn and `p.parseStringLiteral` for tokenLike/tokenIlike
+		expr.right = p.parseTuple(precedence)
+
+		if neg {
+			return &Prefix{operator: tokenNot, right: expr}
+		}
+		return expr
+	}
+
+	expr.right = p.parseExpression(precedence)
 	return expr
+}
+
+// ARCH/TODO: I guess I don't need `precedence` here?
+func (p *Parser) parseTuple(precedence int) Expression {
+	if p.curToken().ttype != tokenLparen {
+		p.errors = append(p.errors, fmt.Errorf("%w: IN clauses need to be followed by a parenthesised clause", errInvalidTuple))
+		return nil
+	}
+	// foo in ()
+	if p.peekToken().ttype == tokenRparen {
+		p.errors = append(p.errors, fmt.Errorf("%w: cannot have an empty tuple", errInvalidTuple))
+		return nil
+	}
+	p.position++
+	inner, err := p.parseExpressions()
+	if err != nil {
+		p.errors = append(p.errors, err)
+		return nil
+	}
+	if p.peekToken().ttype != tokenRparen {
+		p.errors = append(p.errors, fmt.Errorf("%w: tuples need to end with a closing bracket", errInvalidTuple))
+		return nil
+	}
+	p.position++
+	return &Tuple{inner: inner}
 }
 
 func (p *Parser) parseExpression(precedence int) Expression {

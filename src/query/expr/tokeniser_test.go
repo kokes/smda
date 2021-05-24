@@ -104,6 +104,10 @@ func TestTokenisationWithValues(t *testing.T) {
 		{"hello_world", []token{{tokenIdentifier, []byte("hello_world")}}},
 		{"foo as bar", []token{{tokenIdentifier, []byte("foo")}, {tokenAs, nil}, {tokenIdentifier, []byte("bar")}}},
 		{"\"ahoy\"", []token{{tokenIdentifierQuoted, []byte("ahoy")}}},
+		{"foo in (1, 2)", []token{{tokenIdentifier, []byte("foo")}, {tokenIn, nil},
+			{tokenLparen, nil}, {tokenLiteralInt, []byte("1")}, {tokenComma, nil}, {tokenLiteralInt, []byte("2")}, {tokenRparen, nil}}},
+		{"foo not in (1, 2)", []token{{tokenIdentifier, []byte("foo")}, {tokenNot, nil}, {tokenIn, nil},
+			{tokenLparen, nil}, {tokenLiteralInt, []byte("1")}, {tokenComma, nil}, {tokenLiteralInt, []byte("2")}, {tokenRparen, nil}}},
 		// quoted keywords are identifiers, not keywords
 		{"\"select\"", []token{{tokenIdentifierQuoted, []byte("select")}}},
 		{"\"SELECT\"", []token{{tokenIdentifierQuoted, []byte("SELECT")}}},

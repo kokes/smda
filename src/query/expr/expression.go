@@ -13,8 +13,6 @@ import (
 )
 
 var errNoNestedAggregations = errors.New("cannot nest aggregations (e.g. sum(min(a)))")
-var errWrongNumberofArguments = errors.New("wrong number arguments passed to a function")
-var errWrongArgumentType = errors.New("wrong argument type passed to a function")
 var errTypeMismatch = errors.New("expecting compatible types")
 var errNoTypes = errors.New("expecting at least one column")
 

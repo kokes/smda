@@ -1,11 +1,17 @@
 package expr
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/kokes/smda/src/column"
 )
+
+var errWrongNumberofArguments = errors.New("wrong number arguments passed to a function")
+var errWrongArgumentType = errors.New("wrong argument type passed to a function")
+var errEmptyTuple = errors.New("tuple cannot be empty")
+var errTupleTypeMismatch = errors.New("all values in a tuple must be the same")
 
 type Identifier struct {
 	quoted bool
@@ -121,6 +127,54 @@ func (ex *Null) String() string {
 }
 func (ex *Null) Children() []Expression {
 	return nil
+}
+
+type Tuple struct {
+	inner ExpressionList
+}
+
+// this is a bit weird, because a Tuple is a container, it doesn't "return" anything,
+// so we'll just return the homogenous type it contains
+// so (1, 2, 3) -> int, (1, 2.0, 3) -> float, (1, 'foo', 3) -> err
+// TODO/ARCH: we don't worry if these are all literals... should we? Or should we leave that to eval?
+func (ex *Tuple) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	// this is already prohibited by the parser, but let's be on the safe side
+	if len(ex.inner) == 0 {
+		return column.Schema{}, errEmptyTuple
+	}
+	first, err := ex.inner[0].ReturnType(ts)
+	if err != nil {
+		return column.Schema{}, err
+	}
+	settled := first.Dtype
+	for _, el := range ex.inner[1:] {
+		rv, err := el.ReturnType(ts)
+		if err != nil {
+			return column.Schema{}, err
+		}
+		// TODO(next): implement isNumericType/compatibleTypes or something along those lines to support (1, 2.0, 3)
+		if rv.Dtype != settled {
+			return column.Schema{}, errTupleTypeMismatch
+		}
+	}
+	return column.Schema{Dtype: settled}, nil
+}
+
+func (ex *Tuple) String() string {
+	var sb strings.Builder
+	sb.WriteByte('(')
+	for j, el := range ex.inner {
+		if j > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(el.String())
+	}
+	sb.WriteByte(')')
+	return sb.String()
+}
+
+func (ex *Tuple) Children() []Expression {
+	return ex.inner
 }
 
 type Function struct {

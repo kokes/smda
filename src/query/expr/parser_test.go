@@ -116,6 +116,34 @@ func TestParsingContents(t *testing.T) {
 			left:  &Prefix{operator: tokenSub, right: &Integer{value: 4}},
 			right: &Identifier{name: "foo"},
 		}},
+		{"foo in (1, 2)", &Infix{operator: tokenIn,
+			left: &Identifier{name: "foo"},
+			right: &Tuple{inner: []Expression{
+				&Integer{value: 1},
+				&Integer{value: 2},
+			}},
+		}},
+		{"foo in (1, 2) = true", &Infix{operator: tokenEq,
+			left: &Infix{operator: tokenIn,
+				left: &Identifier{name: "foo"},
+				right: &Tuple{inner: []Expression{
+					&Integer{value: 1},
+					&Integer{value: 2},
+				}},
+			},
+			right: &Bool{value: true},
+		}},
+		// here the NOT is hacked together a bit... (it's not `prefix` in this context)
+		// ARCH: would it make more sense to have a NotIn token?
+		{"foo not in (1, 2)", &Prefix{operator: tokenNot,
+			right: &Infix{operator: tokenIn,
+				left: &Identifier{name: "foo"},
+				right: &Tuple{inner: []Expression{
+					&Integer{value: 1},
+					&Integer{value: 2},
+				}},
+			},
+		}},
 
 		// operators
 		{"4 + 3 > 5", &Infix{operator: tokenGt,
@@ -374,6 +402,9 @@ func TestParsingErrors(t *testing.T) {
 		{"foo + sum(bar, ", errUnsupportedPrefixToken}, // ARCH: this is errNoClosingBracket, but we got to EOF first
 		{"3 + 123(124)", errInvalidFunctionName},
 		{"3 + \"Count\"(124)", errInvalidFunctionName},
+		{"foo in bar", errInvalidTuple},
+		{"foo not in bar", errInvalidTuple},
+		{"foo in ()", errInvalidTuple},
 	}
 
 	for _, test := range tests {
