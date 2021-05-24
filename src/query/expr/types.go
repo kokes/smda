@@ -18,6 +18,20 @@ type Identifier struct {
 	name   string
 }
 
+// TODO(quoting): rules are quite non-transparent - unify and document somehow
+func NewIdentifier(name string) *Identifier {
+	idn := Identifier{name: name}
+
+	// only assign the Quoted variant if there's a need for it
+	for _, char := range name {
+		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
+			idn.quoted = true
+			break
+		}
+	}
+	return &idn
+}
+
 func (ex *Identifier) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	if ex.quoted {
 		_, col, err := ts.LocateColumn(ex.name)

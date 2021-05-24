@@ -405,6 +405,22 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		return nil, err
 	}
 
+	// expand `*` clauses
+	// ARCH: we're mutating `q.Select`... we don't tend to do that here (it messes up printing it back)
+	// consider having some optimisation here that will spit out a new `Query` and leave the old one intact
+	var projs []expr.Expression
+	for _, el := range q.Select {
+		if idn, ok := el.(*expr.Identifier); ok && idn.String() == "*" {
+			for _, el := range ds.Schema {
+				col := expr.NewIdentifier(el.Name)
+				projs = append(projs, col)
+			}
+		} else {
+			projs = append(projs, el)
+		}
+	}
+	q.Select = projs
+
 	allAggregations := true
 	for _, col := range q.Select {
 		rschema, err := col.ReturnType(ds.Schema)

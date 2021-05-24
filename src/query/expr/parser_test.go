@@ -35,6 +35,7 @@ func TestParsingContents(t *testing.T) {
 		{"null", &Null{}},
 		{"NULL", &Null{}},
 		{"NULl", &Null{}},
+		{"*", &Identifier{name: "*"}},
 
 		// prefix operators
 		{"-2", &Prefix{operator: tokenSub, right: &Integer{value: 2}}},
@@ -425,6 +426,10 @@ func TestListParsingContents(t *testing.T) {
 		{"foo, bar", []string{"foo", "bar"}},
 		{"foo, bar,baz,bak", []string{"foo", "bar", "baz", "bak"}},
 		{"1+2, 3+4, foo + 3, 5*(1-foo)", []string{"1+2", "3+4", "foo+3", "5*(1-foo)"}},
+		{"*", []string{"*"}},
+		{"*, foo, bar", []string{"*", "foo", "bar"}},
+		{"foo, *, bar", []string{"foo", "*", "bar"}},
+		{"foo, *", []string{"foo", "*"}},
 	}
 
 testloop:
@@ -459,6 +464,10 @@ func TestParsingSQL(t *testing.T) {
 		{"WITH foo", errSQLOnlySelects},
 		// {"SELECT 1", nil}, // TODO(next): support dataset-less selects
 		{"SELECT foo FROM bar", nil},
+		{"SELECT * FROM bar", nil},
+		{"SELECT *, foo FROM bar", nil},
+		{"SELECT foo, * FROM bar", nil},
+		{"SELECT foo, *, foo FROM bar", nil},
 		{"SELECT foo FROM bar@v020485a2686b8d38fe WHERE foo>2", nil},
 		{"SELECT foo FROM bar WHERE 1=1 AND foo>bar", nil},
 		{"SELECT foo FROM bar WHERE 1=1 AND foo>bar GROUP BY foo", nil},

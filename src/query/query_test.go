@@ -413,6 +413,11 @@ func TestQuerySetup(t *testing.T) {
 		// we need to unwrap Ordering clauses
 		{"SELECT max(foo) FROM dataset ORDER BY max(foo) DESC NULLS LAST", nil},
 		{"SELECT max(foo) FROM dataset ORDER BY max(foo) ASC", nil},
+
+		// asterisk selection
+		{"SELECT * FROM dataset", nil},
+		{"SELECT * FROM dataset GROUP BY foo, bar, baz", nil},
+		{"SELECT * FROM dataset WHERE foo > 1", nil},
 		// we get a parser issue, because we can get multiple where clauses only in JSON unmarshaling of queries
 		// {"SELECT foo FROM dataset WHERE foo > 0, foo < 3", errInvalidFilter},
 

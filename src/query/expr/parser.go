@@ -144,17 +144,7 @@ func (p *Parser) parseIdentifer() Expression {
 }
 func (p *Parser) parseIdentiferQuoted() Expression {
 	val := p.curToken().value
-	var quoted bool
-	// only assign the Quoted variant if there's a need for it
-	// TODO/ARCH: what about '-'? In general, what are our rules for quoting?
-	for _, char := range val {
-		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
-			quoted = true
-			break
-		}
-	}
-
-	return &Identifier{quoted: quoted, name: string(val)}
+	return NewIdentifier(string(val))
 }
 func (p *Parser) parseLiteralInteger() Expression {
 	// we don't need to do strconv validation - the tokeniser has done so already
@@ -305,6 +295,13 @@ func (p *Parser) parseTuple(precedence int) Expression {
 
 func (p *Parser) parseExpression(precedence int) Expression {
 	curToken := p.curToken()
+
+	// `select * from foo` or `select *, foo from bar` etc.
+	if curToken.ttype == tokenMul && (p.peekToken().ttype == tokenEOF || p.peekToken().ttype == tokenComma || p.peekToken().ttype == tokenFrom) {
+		// TODO(next): implement the rest of this (also consider a custom type for this)
+		return &Identifier{name: "*"}
+	}
+
 	prefix := p.prefixParseFns[curToken.ttype]
 	if prefix == nil {
 		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnsupportedPrefixToken, curToken))
