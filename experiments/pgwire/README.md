@@ -10,7 +10,9 @@ images here: https://ankushchadda.in/posts/postgres-understanding-the-wire-proto
 nice expl https://www.pgcon.org/2014/schedule/attachments/330_postgres-for-the-wire.pdf
 
 the current implementation can be connected to from psql (no validation of anything), but no queries can be
-made (last thing we sent was ReadyForQuery)
+made: we accept query strings, but have no way of responding
+
+type OIDs in RowDescription are probably in pg_type table in pg
 
 
 refactor:

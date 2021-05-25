@@ -88,12 +88,6 @@ func run() error {
 			fmt.Printf("key: %s; val: %s\n", key, val)
 		}
 
-		// if err := binary.Read(conn, binary.BigEndian, &payload); err != nil {
-		// 	return err
-		// }
-		// fmt.Printf("got payload after kv: %v\n", payload)
-
-		// TODO: auth ok too soon?
 		// AuthenticationOk
 		if _, err := conn.Write([]byte{'R'}); err != nil {
 			return err
@@ -120,6 +114,25 @@ func run() error {
 			return err
 		}
 
+		// reading a query at last
+		msgtype := make([]byte, 1) // TODO: make this common for all reads
+		if _, err := conn.Read(msgtype); err != nil {
+			return err
+		}
+		if msgtype[0] != 'Q' {
+			return fmt.Errorf("expecting queries now, got %s", msgtype)
+		}
+
+		if err := binary.Read(conn, binary.BigEndian, &payload); err != nil {
+			return err
+		}
+		query := make([]byte, payload-4)
+		if _, err := io.ReadFull(conn, query); err != nil {
+			return err
+		}
+		fmt.Printf("got a query: %s\n", query)
+		// we need to respond with RowDescription, DataRow; and CommandComplete/ErrorResponse
+		// we don't quite know what RowDescription is, but we can wireshark it (try `select 1` against pg)
+
 	}
-	return nil
 }
