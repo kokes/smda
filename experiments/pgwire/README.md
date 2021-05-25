@@ -14,8 +14,4 @@ made: we accept query strings, but have no way of responding
 
 type OIDs in RowDescription are probably in pg_type table in pg
 
-
-refactor:
-- all messages start with an ASCII identifier, then length, then payload
-- the startup message is the only exception (no ASCII identifier)
-- take these two things into account
+TablePlus fails, because it asks for `SELECT version();` upon startup
