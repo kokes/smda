@@ -188,36 +188,29 @@
                 <form action="/query" name="query">
                     <fieldset>
                         <legend>Query parameters</legend>
-                        <!--
-                            TODO(next):
-                            - input placeholders
-                            - proper support for multiple select/aggregate expressions
-                            - show names in the dataset dropdown (it's there, but it's not in the final <input>)
-                        -->
                         <div>
                             <label for="dataset">Dataset</label>
-                            <input list="dataset_id" id="dataset" name="dataset" />
-                            <datalist id="dataset_id"></datalist>
+                            <input id="dataset" name="dataset" placeholder="orders" />
                         </div>
                         <div>
                             <label for="filter">Filter</label>
-                            <input name="filter" id="filter" />
+                            <input name="filter" id="filter" placeholder="customer_id = 123 AND status = 'Done'"/>
                         </div>
                         <div>
                             <label for="aggregate">Aggregate</label>
-                            <input name="aggregate" id="aggregate" />
+                            <input name="aggregate" id="aggregate" placeholder="region, division" />
                         </div>
                         <div>
                             <label for="select">Select</label>
-                            <input name="select" id="select" />
+                            <input name="select" id="select" placeholder="region, division, count(), sum(revenue)" />
                         </div>
                         <div>
                             <label for="order">Order</label>
-                            <input name="order" id="order" />
+                            <input name="order" id="order" placeholder="sum(revenue) DESC" />
                         </div>
                         <div>
                             <label for="limit">Limit</label>
-                            <input name="limit" id="limit" type="number" />
+                            <input name="limit" id="limit" type="number" placeholder="100" />
                         </div>
 
                         <button>Run query</button>
@@ -329,22 +322,6 @@
         return `${prefix} ${(ms/1000).toFixed(2)} seconds`;
     }
 
-    // TODO: test: "foo", "foo bar", "Foo", "FOO", "foo32"
-    // TODO: are there quotes in the individual names? can there be?
-    // also, columns with all lowercase but with spaces need to be quoted
-    function quoteIfNeeded(s) {
-        // TODO(next): due to an issue with keywords (we'd have to sync them between Go and JavaScript somehow),
-        // we're quoting everything for the time being
-        return `"${s}"`;
-
-        for (let char of s) {
-            if (!((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || (char == '_'))) {
-                return `"${s}"`;
-            }
-        }
-        return s;
-    }
-
     // ARCH: this does a bit of UI stuff - maybe separate that out completely, so that
     // this becomes more testable
     class smda {
@@ -358,10 +335,7 @@
             this.setupRouter();
             this.setupUI();
         }
-        // TODO/ARCH: we could preventDefault on all links and use the History API to handle everything
-        // on the client since most links will be served by index.html anyway
-        // Probably by addEventListener to all `a`s and then using MutationObserver to monitor new links and buttons
-        async setupRouter() {
+        setupRouter() {
             const that = this;
 
             const currentClass = "current";
@@ -377,13 +351,6 @@
             const qform = document.forms["query"];
             if (qform !== undefined) {
                 const params = new URLSearchParams(window.location.search);
-                await this.loadDatasets(); // ARCH: this is the only reason routing is async... and we only need this to get the name of our dataset
-                const dsopt = qform.querySelector("datalist[id=dataset_id]");
-                empty(dsopt);
-                for (let [dsId, val] of Object.entries(this.datasets)) {
-                    const namever = `${val.name}@${dsId}`
-                    dsopt.append(node("option", {"value": namever}, `${val.name} (${dsId})`));
-                }
                 for (let inp of qform.querySelectorAll("input, select")) {
                     const fieldName = inp.getAttribute("name");
                     inp.value = params.get(fieldName);
@@ -420,7 +387,8 @@
                         method: "POST",
                         body: file,
                     })
-                    // TODO: err handling
+                    // TODO(next): err handling (also make sure we don't err completely, because e.target will stay disabled,
+                    // we also block all subsequent file uploads - unblock both)
                     const response = await request.json();
                 }
                 e.target.value = "";
@@ -429,9 +397,6 @@
         }
         async submitQuery() {
             const qform = document.forms["query"];
-            // TODO(next): we can't disable the button upon submission, because we also
-            // need to do proper error handling to enable it back in case of an exception
-            // const submitButton = qform.querySelector("button");
             const target = document.getElementById("query-results");
             const elapsed = qform.querySelector("small#elapsed");
             const errBox = document.getElementById("query-error");
@@ -443,7 +408,7 @@
                 return;
             }
 
-            const valueparts = qform.dataset.value.split("@");
+            const valueparts = qform.dataset.value.split("@v");
             const query = {
                 dataset: {
                     name: valueparts[0],
@@ -498,10 +463,9 @@
             datasets.sort((a, b) => b.created_timestamp - a.created_timestamp)
             const rows = node("tbody", null, datasets.map(
                 ds => {
-                    console.log(ds.created_timestamp)
+                    const dsv = encodeURIComponent(`${ds.name}@v${ds.id}`);
                     const cols = [
-                        // ARCH/TODO(next): escape the '@'?
-                        node("td", null, node("a", {"href": `/query?dataset=${ds.name}@${ds.id}&limit=100`}, ds.id)),
+                        node("td", null, node("a", {"href": `/query?dataset=${dsv}&limit=100`}, ds.id)),
                         node("td", null, ds.name),
                         node("td", null,
                             node("span",
@@ -534,12 +498,8 @@
             this.datasets = Object.fromEntries(raw.map(x => [x.id, x]))
         }
         async runQuery(query) {
-            await this.loadDatasets();
             if (query["select"] === undefined) {
-                // TODO(next)/ARCH: we're only looking up using the dataset id, is that ok?
-                const columns = this.datasets[query.dataset.id].schema.map(x => x.name);
-                // always submit it as quoted if it's not all lowercase,
-                query["select"] = columns.map(x => quoteIfNeeded(x)).join(", ");
+                query["select"] = "*";
             }
             if (query["limit"] === undefined) {
                 query["limit"] = 100; // ARCH: safety mechanism
