@@ -118,6 +118,16 @@ func evalRound(cs ...Chunk) (Chunk, error) {
 	}
 }
 
+// this is essentially len(d) > utf8.RuneCount(d)
+func hasRunes(d []byte) bool {
+	for _, c := range d {
+		if c >= utf8.RuneSelf {
+			return true
+		}
+	}
+	return false
+}
+
 // OPTIM: maybe if nchars > max(len(j)), we can just cheaply clone/return the existing column
 // OPTIM: use nthValue returning []byte rather than string... and then use something cheaper than AddValue (AddValueNative?)
 // ARCH: postgres allows for negative indexing
@@ -126,12 +136,11 @@ func evalLeft(cs ...Chunk) (Chunk, error) {
 	data := cs[0].(*ChunkStrings)
 	ret := newChunkStrings()
 
-	// OPTIM: would it be faster to iterate, check RuneSelf and exit early?
-	runes := len(data.data) > utf8.RuneCount(data.data)
+	runes := hasRunes(data.data)
 
 	for j := 0; j < data.Len(); j++ {
 		val := data.nthValue(j)
-		if runes && len([]rune(val)) > nchars {
+		if runes && utf8.RuneCountInString(val) > nchars {
 			val = string([]rune(val)[:nchars])
 		}
 		if !runes && len(val) > nchars {
