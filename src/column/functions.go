@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/kokes/smda/src/bitmap"
 )
@@ -117,7 +118,6 @@ func evalRound(cs ...Chunk) (Chunk, error) {
 	}
 }
 
-// TODO(next)/OPTIM: test; ASCII-only fast pass (if all chars are lt RuneSelf, don't use string[:n], but bytes[:n])
 // OPTIM: maybe if nchars > max(len(j)), we can just cheaply clone/return the existing column
 // OPTIM: use nthValue returning []byte rather than string... and then use something cheaper than AddValue (AddValueNative?)
 // ARCH: postgres allows for negative indexing
@@ -126,11 +126,18 @@ func evalLeft(cs ...Chunk) (Chunk, error) {
 	data := cs[0].(*ChunkStrings)
 	ret := newChunkStrings()
 
+	// OPTIM: would it be faster to iterate, check RuneSelf and exit early?
+	runes := len(data.data) > utf8.RuneCount(data.data)
+
 	for j := 0; j < data.Len(); j++ {
 		val := data.nthValue(j)
-		if len(val) > nchars {
+		if runes && len([]rune(val)) > nchars {
+			val = string([]rune(val)[:nchars])
+		}
+		if !runes && len(val) > nchars {
 			val = val[:nchars]
 		}
+
 		if err := ret.AddValue(val); err != nil {
 			return nil, err
 		}
