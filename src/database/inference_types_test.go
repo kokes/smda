@@ -128,6 +128,17 @@ func TestInferTypesInvalidCSV(t *testing.T) {
 	}
 }
 
+func TestInferTypesOnlyHeader(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "filename.csv")
+	if err := os.WriteFile(filename, []byte("foo,bar\n"), os.ModePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := inferTypes(filename, &loadSettings{}); !errors.Is(err, errCannotInferTypes) {
+		t.Errorf("type inference on a header-only file should fail with %v, got %v instead", errCannotInferTypes, err)
+	}
+}
+
 func TestInferTypesNoloadSettings(t *testing.T) {
 	filename := filepath.Join(t.TempDir(), "filename.csv")
 	f, err := os.Create(filename)

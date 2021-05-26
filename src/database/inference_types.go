@@ -2,6 +2,7 @@ package database
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/kokes/smda/src/column"
 )
+
+var errCannotInferTypes = errors.New("cannot infer types")
 
 // ARCH: consider converting non-ascii to ascii?
 func cleanupColumns(columns []string) []string {
@@ -123,6 +126,9 @@ func inferTypes(path string, settings *loadSettings) (column.TableSchema, error)
 	ret := make(column.TableSchema, len(tgs))
 	for j, tg := range tgs {
 		ret[j] = tg.InferredType()
+		if ret[j].Dtype == column.DtypeInvalid {
+			return nil, errCannotInferTypes
+		}
 		ret[j].Name = hd[j]
 	}
 

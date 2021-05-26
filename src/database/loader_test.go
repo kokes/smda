@@ -89,6 +89,25 @@ func TestAutoInferenceInLoading(t *testing.T) {
 	}
 }
 
+func TestInabilityToInferTypes(t *testing.T) {
+	db, err := NewDatabase("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
+	buf := strings.NewReader("foo,bar,baz\n")
+
+	_, err = db.LoadDatasetFromReaderAuto(buf)
+	if !errors.Is(err, errCannotInferTypes) {
+		t.Fatalf("expecting to err with %v, got %v instead", errCannotInferTypes, err)
+	}
+}
+
 func TestReadingFromStripes(t *testing.T) {
 	db, err := NewDatabase("", nil)
 	if err != nil {

@@ -413,14 +413,12 @@
                 e.target.disabled = "disabled";
                 for (const file of e.target.files) {
                     const filename = encodeURIComponent(file.name);
-                    try {
-                        const request = await fetch(`/upload/auto?name=${filename}`, {
-                            method: "POST",
-                            body: file,
-                        })
-                        const response = await request.json();
-                    } catch (e) {
-                        errDialog(`failed to upload ${file.name}`, e);
+                    const request = await fetch(`/upload/auto?name=${filename}`, {
+                        method: "POST",
+                        body: file,
+                    })
+                    if (request.ok !== true) {
+                        errDialog(`failed to upload ${file.name}`, await request.text());
                     }
                 }
                 e.target.value = "";

@@ -408,6 +408,7 @@ type Infix struct {
 func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	// TODO(next): check out all the ReturnTypes in here and see if they implement this correctly,
 	// we had columns without names on multiple occasions (oh and test all this)
+	// the issue is that we test ReturnTypes, but we don't test their names
 	schema := column.Schema{Name: ex.String()}
 	t1, err := ex.left.ReturnType(ts)
 	if err != nil {
@@ -451,7 +452,6 @@ func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
 }
 func (ex *Infix) String() string {
 	op := token{ttype: ex.operator}.String() // TODO: this is a hack, because we don't have ttype stringers
-	// TODO(next): test for this (e.g. `foo is 12` => `foo IS 12`)
 	if ex.operator == tokenAnd || ex.operator == tokenOr || ex.operator == tokenIs {
 		op = fmt.Sprintf(" %s ", op)
 	}

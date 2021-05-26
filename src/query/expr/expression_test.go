@@ -67,6 +67,14 @@ func TestExprStringer(t *testing.T) {
 		{"not  (1+2+ 3)", "NOT (1+2+3)"},
 		{"foo as bar", "foo AS bar"},
 		{"1+2*3 as bar", "1+2*3 AS bar"},
+		// these are the only three infix operators that have spaces around the op
+		{"foo is bar", "foo IS bar"},
+		{"foo and bar", "foo AND bar"},
+		{"foo or bar", "foo OR bar"},
+		// ... and these do not (not exhaustive)
+		{"foo=bar", "foo=bar"},
+		{"foo > bar", "foo>bar"},
+		{"foo <= bar", "foo<=bar"},
 	}
 
 	for _, test := range tests {

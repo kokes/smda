@@ -536,9 +536,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		// this will help us remove most of the data we don't need in case we're sorting it
 		// OPTIM: either top-k to avoid most of the sort (might be tricky when sorting by multiple cols)
 		// OPTIM: merge sort in the end, not append + sort (again, tricky for multiple cols)
-		intermediate := &Result{
-			Schema: res.Schema, // TODO(next): do we need this? I don't think so...
-		}
+		intermediate := &Result{}
 		for _, colExpr := range q.Select {
 			col, err := expr.Evaluate(colExpr, loadFromStripe, columns, filter)
 			if err != nil {
