@@ -11,6 +11,20 @@
         body, table {
             font-family: Arial, Helvetica, sans-serif;
         }
+        div#errors {
+            position: absolute;
+            left: 50%; top: 10%;
+            margin-left: -200px;
+            width: 400px;
+        }
+        div#errors > div {
+            padding: 1em;
+            margin-bottom: .5em;
+            width: 100%;
+            border: 1px solid red;
+            background: lightpink;
+            color: darkred;
+        }
         /* layout start */
         div#container {
             display: grid;
@@ -144,16 +158,9 @@
                 overflow-x: scroll;
             */
         }
-        div#query-error {
-            padding: 1em;
-            margin: 1em 0 0 0;
-            border: 1px solid red;
-            background-color: lightpink;
-            color: darkred;
-            font-style: italic;
-        }
     </style>
 <body>
+    <div id="errors"></div>
     <div id='container'>
         <header>
             <input id='filepicker' type='file' multiple />
@@ -215,7 +222,6 @@
 
                         <button>Run query</button>
                         <small id="elapsed"></small>
-                        <div id="query-error"></div>
                     </fieldset>
                 </form>
 
@@ -256,6 +262,25 @@
         while (node.firstChild) {
             node.removeChild(node.firstChild);
         }
+    }
+
+    document.addEventListener("keydown", e => {
+        if (e.code != "Escape") {
+            return;
+        }
+        for (let dv of document.querySelectorAll("div#errors div")) {
+            dv.remove();
+        }
+    })
+    function errDialog(title, msg) {
+        const target = document.getElementById("errors");
+        target.setAttribute("title", "click to dismiss");
+        const name = node("h3", null, title);
+        const err = node("div", null, [name, msg]);
+        err.addEventListener("click", e => {
+            e.target.closest("div").remove();
+        });
+        target.append(err);
     }
 
     function node(tag, props, children) {
@@ -361,9 +386,14 @@
             document.querySelectorAll("main > div").forEach(x => x.style.display = "none");
             // ARCH: pass this down to submitQuery/setupDatasets?
             const target = document.getElementById(`route-${path[0]}`);
-            target.style.display = "block";
+            if (target !== null) {
+                target.style.display = "block";
+            }
 
             switch (path[0]) {
+                case '':
+                    // TODO(next): do something for the homepage
+                    break
                 case 'query':
                     that.submitQuery(); // ARCH: automatic submission, maybe too eager?
                     break;
@@ -383,13 +413,15 @@
                 e.target.disabled = "disabled";
                 for (const file of e.target.files) {
                     const filename = encodeURIComponent(file.name);
-                    const request = await fetch(`/upload/auto?name=${filename}`, {
-                        method: "POST",
-                        body: file,
-                    })
-                    // TODO(next): err handling (also make sure we don't err completely, because e.target will stay disabled,
-                    // we also block all subsequent file uploads - unblock both)
-                    const response = await request.json();
+                    try {
+                        const request = await fetch(`/upload/auto?name=${filename}`, {
+                            method: "POST",
+                            body: file,
+                        })
+                        const response = await request.json();
+                    } catch (e) {
+                        errDialog(`failed to upload ${file.name}`, e);
+                    }
                 }
                 e.target.value = "";
                 e.target.disabled = "";
@@ -399,8 +431,6 @@
             const qform = document.forms["query"];
             const target = document.getElementById("query-results");
             const elapsed = qform.querySelector("small#elapsed");
-            const errBox = document.getElementById("query-error");
-            errBox.style.display = "none"; // ARCH: lookup all style.displays here and consider making them into a function
             // if nothing is to be submitted, just remove any leftover query results and exit
             if (qform.dataset.value === "") {
                 empty(elapsed);
@@ -415,7 +445,7 @@
                     id: valueparts[1], // ARCH: might be `version`
                 },
             };
-            let data, incrementor, startTime;
+            let data, incrementor, startTime, success = false;
             try {
                 if (qform.filter.value !== "") {
                     query.filter = qform.filter.value;
@@ -439,16 +469,18 @@
                 }, 100)
 
                 data = await this.runQuery(query);
+                success = true;
             } catch(e) {
-                errBox.textContent = e;
-                errBox.style.display = "block";
+                errDialog("Failed to run query", e)
             } finally {
                 clearInterval(incrementor);
                 elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
             }
 
-            empty(target)
-            this.renderTable(data, target);
+            if (success) {
+                empty(target);
+                this.renderTable(data, target);
+            }
 
         }
         async setupDatasets() {
