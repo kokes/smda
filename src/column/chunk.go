@@ -486,7 +486,6 @@ func newChunkStringsFromSlice(data []string, nulls *bitmap.Bitmap) *ChunkStrings
 func (rc *ChunkBools) Truths() *bitmap.Bitmap {
 	if rc.IsLiteral {
 		// ARCH: still assuming literals are not nullable
-		// TODO(next): test here in chunk_test.go?
 		value := rc.data.Get(0)
 		bm := bitmap.NewBitmap(rc.Len())
 		if value {
@@ -1978,7 +1977,6 @@ func (rc *ChunkNulls) JSONLiteral(n int) (string, bool) {
 	return "", false
 }
 
-// TODO(next): test comparisons
 func compareOneNull(ltv int, nullsFirst bool, null1, null2 bool) int {
 	if (null1 && nullsFirst) || (null2 && !nullsFirst) {
 		return ltv

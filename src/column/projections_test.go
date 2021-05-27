@@ -86,6 +86,7 @@ func TestAndOr(t *testing.T) {
 		}
 	}
 }
+
 func TestComparisons(t *testing.T) {
 	tests := []struct {
 		dtype1, dtype2   Dtype
@@ -251,6 +252,46 @@ func TestAlgebraicExpressions(t *testing.T) {
 		}
 		if test.err == nil && !ChunksEqual(res, expected) {
 			t.Errorf("expected %+v and %+v to result in %+v, got %+v instead", test.c1, test.c2, test.expected, res)
+		}
+	}
+}
+
+func TestNot(t *testing.T) {
+	tests := []struct {
+		nrows        int
+		c1, expected string
+	}{
+		{3, "t,f,t", "f,t,f"},
+		{3, "f,t,f", "t,f,t"},
+		{3, "t,t,t", "f,f,f"},
+		{3, "f,f,f", "t,t,t"},
+		{3, "t,,t", "f,,f"},
+		{3, "f,,", "t,,"},
+
+		// literals
+		{3, "lit:f", "lit:t"},
+		{3, "lit:t", "lit:f"},
+	}
+	for _, test := range tests {
+		c, err := prepColumn(test.nrows, DtypeBool, test.c1)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		exp, err := prepColumn(test.nrows, DtypeBool, test.expected)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+
+		ca, err := EvalNot(c)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+
+		if !ChunksEqual(ca, exp) {
+			t.Errorf("expected NOT %v to result in %+v, got %+v instead", test.c1, test.expected, ca)
 		}
 	}
 }

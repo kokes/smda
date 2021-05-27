@@ -298,7 +298,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 
 	// `select * from foo` or `select *, foo from bar` etc.
 	if curToken.ttype == tokenMul && (p.peekToken().ttype == tokenEOF || p.peekToken().ttype == tokenComma || p.peekToken().ttype == tokenFrom) {
-		// TODO(next): implement the rest of this (also consider a custom type for this)
+		// ARCH: consider a custom type for this
 		return &Identifier{name: "*"}
 	}
 
@@ -440,6 +440,11 @@ func ParseQuerySQL(s string) (Query, error) {
 
 	// ARCH: we didn't increment position and used peekToken... elsewhere we use walk+curToken
 	if p.peekToken().ttype != tokenFrom {
+		// we expect FROM ... unless the query is without a dataset (e.g. `SELECT 1`)
+		// ARCH: consider allowing for limits/having, I think they are supported elsewhere
+		if p.peekToken().ttype == tokenEOF {
+			return q, nil
+		}
 		// this will be for queries without a FROM clause, e.g. SELECT 1`
 		return q, fmt.Errorf("%w: expecting FROM after expression list, got %v instead", errInvalidQuery, p.peekToken())
 	}

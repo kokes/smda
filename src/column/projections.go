@@ -45,8 +45,7 @@ func floatChunkFromParts(data []float64, null1, null2 *bitmap.Bitmap) *ChunkFloa
 	return NewChunkFloatsFromSlice(data, nulls)
 }
 
-// TODO(next): test it here as well (already tested in eval)
-func Not(c Chunk) (Chunk, error) {
+func EvalNot(c Chunk) (Chunk, error) {
 	if c.Dtype() != DtypeBool {
 		return nil, fmt.Errorf("%w: cannot evaluate NOT on non-bool columns", errProjectionNotSupported)
 	}

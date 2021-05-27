@@ -41,11 +41,12 @@ var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	// TODO: log with arbitrary base
 	// ARCH: these string functions are unicode aware and thus e.g. TRIM removes more than just spaces
 	// OPTIM: consider avoiding some of the UTF penalty (e.g. strings.TrimSpace has optimisations for this)
-	"trim":  stringFunc(strings.TrimSpace),
-	"lower": stringFunc(strings.ToLower),
-	"upper": stringFunc(strings.ToUpper),
-	"left":  evalLeft,
-	// TODO(next): all those useful string functions - hashing, mid, right, position, split_part, ...
+	"trim":       stringFunc(strings.TrimSpace),
+	"lower":      stringFunc(strings.ToLower),
+	"upper":      stringFunc(strings.ToUpper),
+	"left":       evalLeft,
+	"split_part": evalSplitPart,
+	// TODO(next): all those useful string functions - hashing, mid, right, position, ...
 }
 
 func evalCoalesce(cs ...Chunk) (Chunk, error) {
@@ -155,6 +156,29 @@ func evalLeft(cs ...Chunk) (Chunk, error) {
 	return ret, nil
 }
 
+func evalSplitPart(cs ...Chunk) (Chunk, error) {
+	pos := int(cs[2].(*ChunkInts).data[0])
+	data := cs[0].(*ChunkStrings)
+	needle := cs[1].(*ChunkStrings).nthValue(0)
+	ret := newChunkStrings()
+
+	for j := 0; j < data.Len(); j++ {
+		val := data.nthValue(j)
+		parts := strings.SplitN(val, needle, pos+1)
+		if len(parts) == 1 || len(parts) < pos {
+			val = ""
+		} else {
+			val = parts[pos-1]
+		}
+
+		if err := ret.AddValue(val); err != nil {
+			return nil, err
+		}
+	}
+
+	return ret, nil
+}
+
 func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 	return func(cs ...Chunk) (Chunk, error) {
 		switch ct := cs[0].(type) {
@@ -199,7 +223,6 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 	}
 }
 
-// TODO(next): support nullability (e.g. split_part can return nulls) by changing fnc's signature to (string, bool[ok])
 func stringFunc(fnc func(string) string) func(...Chunk) (Chunk, error) {
 	return func(cs ...Chunk) (Chunk, error) {
 		ct := cs[0].(*ChunkStrings)

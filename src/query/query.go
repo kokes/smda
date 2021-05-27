@@ -18,6 +18,7 @@ var errInvalidLimitValue = errors.New("invalid limit value")
 var errInvalidProjectionInAggregation = errors.New("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo))")
 var errInvalidFilter = errors.New("invalid WHERE clause")
 var errInvalidOrderClause = errors.New("invalid ORDER BY clause")
+var errQueryNoDatasetIdentifiers = errors.New("query without a dataset has identifiers in the SELECT clause")
 
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
 // a Result to be a Dataset of its own (for better interoperability, persistence, caching etc.)
@@ -335,10 +336,9 @@ func (res *Result) Less(i, j int) bool {
 		}
 	}
 
-	// all are equal, so use the last one - the docs say that... but by definition this must be false?
-	// TODO(next): review this
-	// return res.Data[idx].Compare(res.asc[pos], res.nullsfirst[pos], i, j) == -1
-	return true // using true to get a stable sort?
+	// all are equal, so just return true to avoid further sorting,
+	// which wouldn't make a difference
+	return true
 }
 
 func reorder(res *Result, q expr.Query) error {
@@ -398,6 +398,28 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		Schema: make([]column.Schema, 0, len(q.Select)),
 		Data:   make([]column.Chunk, 0),
 		Length: -1,
+	}
+
+	// this is a special case of e.g. `SELECT 1`, `SELECT now()` etc.
+	if q.Dataset == nil {
+		for _, proj := range q.Select {
+			if expr.HasIdentifiers(proj) {
+				return nil, errQueryNoDatasetIdentifiers
+			}
+			rt, err := proj.ReturnType(nil)
+			if err != nil {
+				return nil, err
+			}
+			res.Schema = append(res.Schema, rt)
+			col, err := expr.Evaluate(proj, 1, nil, nil)
+			if err != nil {
+				return nil, err
+			}
+			res.Data = append(res.Data, col)
+		}
+
+		res.Length = 1
+		return res, nil
 	}
 
 	ds, err := db.GetDataset(q.Dataset)

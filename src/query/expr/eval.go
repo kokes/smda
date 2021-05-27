@@ -32,7 +32,7 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			if err != nil {
 				return nil, err
 			}
-			return column.Not(inner)
+			return column.EvalNot(inner)
 		case tokenAdd:
 			// noop
 			return Evaluate(node.right, chunkLength, columnData, filter)

@@ -462,7 +462,12 @@ func TestParsingSQL(t *testing.T) {
 		err error
 	}{
 		{"WITH foo", errSQLOnlySelects},
-		// {"SELECT 1", nil}, // TODO(next): support dataset-less selects
+		{"SELECT 1", nil},
+		{"SELECT 'foo'", nil},
+		{"SELECT 1+2*3", nil},
+		// TODO: support data-less functions
+		// {"SELECT now()", nil},
+		// {"SELECT version()", nil},
 		{"SELECT foo FROM bar", nil},
 		{"SELECT * FROM bar", nil},
 		{"SELECT *, foo FROM bar", nil},
@@ -483,7 +488,6 @@ func TestParsingSQL(t *testing.T) {
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar DESC NULLS FIRST", nil},
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar DESC NULLS FIRST LIMIT 3", nil},
 
-		{"SELECT 1", errInvalidQuery},
 		{"SELECT foo FROM bar@234", errInvalidQuery},
 		{"SELECT foo FROM bar GROUP for 1", errInvalidQuery},
 		{"SELECT foo FROM bar GROUP BY foo LIMIT foo", errInvalidQuery},

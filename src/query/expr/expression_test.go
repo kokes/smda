@@ -450,6 +450,7 @@ func TestReturnTypes(t *testing.T) {
 		{"left(my_string_column, 4)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
 		// {"mid(my_string_column, 4)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
 		// {"right(my_string_column, 4)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
+		{"split_part(my_string_column, 'foo', 4)", column.Schema{Dtype: column.DtypeString, Nullable: false}, nil},
 
 		// trigonometric functions always return a nullable column (though sin/cos/exp don't have to)
 		{"sin(my_float_column)", column.Schema{Dtype: column.DtypeFloat, Nullable: true}, nil},
@@ -522,5 +523,33 @@ func TestReturnTypes(t *testing.T) {
 			t.Errorf("expecting %+v to return a schema %+v, got %+v instead", test.rawExpr, test.returnType, retType)
 		}
 
+	}
+}
+
+func TestHasIdentifiers(t *testing.T) {
+	tests := []struct {
+		raw string
+		has bool
+	}{
+		{"1", false},
+		{"1+2", false},
+		{"foo", true},
+		{"1 + foo", true},
+		{"sum(foo)", true},
+		{"sum(foo) + 4", true},
+		{"2/3 + round(bar)", true},
+		{"2/3 + round(\"Baz\")", true},
+	}
+
+	for _, test := range tests {
+		expr, err := ParseStringExpr(test.raw)
+		if err != nil {
+			t.Errorf("cannot parse %+v, got %+v", test.raw, err)
+			continue
+		}
+		has := HasIdentifiers(expr)
+		if has != test.has {
+			t.Errorf("expecting HasIdentifiers(%v) to result in %v, got %v instead", test.raw, test.has, has)
+		}
 	}
 }

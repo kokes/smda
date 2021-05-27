@@ -184,13 +184,13 @@
 
         <nav id='panel'>
             <ul>
+                <li><a href='/'>Overview</a></li>
                 <li><a href='/query'>Query</a></li>
-                <li><a href='/datasets'>Datasets</a></li>
             </ul>
         </nav>
 
         <main>
-            <div id="route-datasets"></div>
+            <div id="route-root"></div>
             <div id="route-query">
                 <form action="/query" name="query">
                     <fieldset>
@@ -383,23 +383,25 @@
             }
 
             const path = window.location.pathname.slice(1).split("/");
+            let route = path[0];
+            if (route === "") {
+                route = "root";
+            }
             document.querySelectorAll("main > div").forEach(x => x.style.display = "none");
             // ARCH: pass this down to submitQuery/setupDatasets?
-            const target = document.getElementById(`route-${path[0]}`);
+            const target = document.getElementById(`route-${route}`);
             if (target !== null) {
                 target.style.display = "block";
             }
 
-            switch (path[0]) {
-                case '':
-                    // TODO(next): do something for the homepage
-                    break
+            switch (route) {
+                case 'root':
+                    that.setupDatasets();
+                    break;
                 case 'query':
                     that.submitQuery(); // ARCH: automatic submission, maybe too eager?
                     break;
-                case 'datasets':
-                    that.setupDatasets();
-                    break;
+
                 default:
                     console.error(`unexpected route base: "${path[0]}"`);
             }
@@ -429,38 +431,31 @@
             const qform = document.forms["query"];
             const target = document.getElementById("query-results");
             const elapsed = qform.querySelector("small#elapsed");
-            // if nothing is to be submitted, just remove any leftover query results and exit
-            if (qform.dataset.value === "") {
+
+            const query = Object.fromEntries(
+                [...qform.querySelectorAll("input")]
+                    .filter(x => x.value !== "")
+                    .map(x => [x.name, x.value])
+            )
+            if (query.dataset !== undefined) {
+                const valueparts = query.dataset.split("@v");
+                query.dataset = {
+                    name: valueparts[0],
+                    id: valueparts[1], // ARCH: might be `version`
+                }
+            }
+            if (query.limit !== undefined) {
+                query.limit = parseInt(query.limit, 10);
+            }
+            
+            if (Object.entries(query).length === 0) {
                 empty(elapsed);
                 empty(target);
                 return;
             }
 
-            const valueparts = qform.dataset.value.split("@v");
-            const query = {
-                dataset: {
-                    name: valueparts[0],
-                    id: valueparts[1], // ARCH: might be `version`
-                },
-            };
             let data, incrementor, startTime, success = false;
             try {
-                if (qform.filter.value !== "") {
-                    query.filter = qform.filter.value;
-                }
-                if (qform.aggregate.value !== "") {
-                    query.aggregate = qform.aggregate.value;
-                }
-                if (qform.select.value !== "") {
-                    query.select = qform.select.value;
-                }
-                if (qform.order.value !== "") {
-                    query.order = qform.order.value;
-                }
-                if (qform.limit.value !== "") {
-                    query.limit = parseInt(qform.limit.value, 10);
-                }
-
                 startTime = performance.now();
                 incrementor = setInterval(() => {
                     elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
@@ -482,7 +477,7 @@
 
         }
         async setupDatasets() {
-            const target = document.getElementById('route-datasets');
+            const target = document.getElementById('route-root');
 
             // OPTIM: well, this is uncached in multiple places
             await this.loadDatasets();

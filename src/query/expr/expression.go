@@ -216,6 +216,18 @@ func dedupeSortedStrings(s []string) []string {
 	return s[:currPos]
 }
 
+func HasIdentifiers(expr Expression) bool {
+	if _, ok := expr.(*Identifier); ok {
+		return true
+	}
+	for _, ch := range expr.Children() {
+		if HasIdentifiers(ch) {
+			return true
+		}
+	}
+	return false
+}
+
 // ARCH: this panics when a given column is not in the schema, but since we already validated
 // this schema during the ReturnType call, we should be fine. It's still a bit worrying that
 // we might panic though.

@@ -403,6 +403,11 @@ func TestQuerySetup(t *testing.T) {
 		query string
 		err   error
 	}{
+		{"SELECT 1", nil},
+		{"SELECT 1 + 2*3", nil},
+		{"SELECT 1 + foo", errQueryNoDatasetIdentifiers},
+		{"SELECT sum(foo)", errQueryNoDatasetIdentifiers},
+		{"SELECT 1 + trim(bar)", errQueryNoDatasetIdentifiers},
 		{"SELECT foo*2, bar FROM dataset GROUP BY foo, bar", errInvalidProjectionInAggregation},
 		{"SELECT bar FROM dataset GROUP BY foo", errInvalidProjectionInAggregation},
 		{"SELECT foo FROM dataset GROUP BY nullif(foo, 2)", errInvalidProjectionInAggregation},

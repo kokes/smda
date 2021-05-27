@@ -721,32 +721,81 @@ func TestJSONMarshal(t *testing.T) {
 
 func TestTruths(t *testing.T) {
 	tests := []struct {
+		length int
 		values string
-		result []bool
+		result string
 	}{
-		{"", []bool{false}},
-		{"t", []bool{true}},
-		{"f", []bool{false}},
-		{"t,t,t", []bool{true, true, true}},
-		{"t,f,t", []bool{true, false, true}},
-		{"t,,t", []bool{true, false, true}},
-		{"f,,", []bool{false, false, false}},
-		{",,", []bool{false, false, false}},
+		{1, "", "false"},
+		{1, "t", "true"},
+		{1, "f", "false"},
+		{3, "t,t,t", "true,true,true"},
+		{3, "t,f,t", "true,false,true"},
+		{3, "t,,t", "true,false,true"},
+		{3, "f,,", "false,false,false"},
+		{3, ",,", "false,false,false"},
+		{3, "lit:t", "t,t,t"},
+		{3, "lit:f", "f,f,f"},
 	}
 
 	for _, test := range tests {
-		rc := newChunkBools()
-		if err := rc.AddValues(strings.Split(test.values, ",")); err != nil {
+		rc, err := prepColumn(test.length, DtypeBool, test.values)
+		if err != nil {
 			t.Error(err)
 			continue
 		}
-		truths := rc.Truths()
-		expected := bitmap.NewBitmapFromBools(test.result)
+		truths := rc.(*ChunkBools).Truths()
+		expected, err := prepColumn(test.length, DtypeBool, test.result)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		bm := expected.(*ChunkBools).data
 
-		if !reflect.DeepEqual(truths, expected) {
+		if !reflect.DeepEqual(truths, bm) {
 			t.Errorf("expected Truths(%s) to result in %+v, got %b instead", test.values, test.result, truths.Data())
 		}
+	}
+}
 
+func TestCompare(t *testing.T) {
+	tests := []struct {
+		length          int
+		dtype           Dtype
+		values          string
+		idx1, idx2      int
+		asc, nullsFirst bool
+		expectedCmp     int
+	}{
+		{3, DtypeInt, "1,2,3", 0, 1, true, true, -1},
+		{3, DtypeInt, "1,2,3", 1, 0, true, true, 1},
+		{3, DtypeInt, "1,2,3", 1, 1, true, true, 0},
+		{3, DtypeFloat, "1,2,3", 0, 1, true, true, -1},
+		{3, DtypeFloat, "1,2,3", 1, 0, true, true, 1},
+		{3, DtypeFloat, "1,2,3", 1, 1, true, true, 0},
+		{3, DtypeInt, "1,2,3", 1, 0, true, false, 1},
+		{3, DtypeInt, "1,2,3", 0, 1, false, true, 1},
+		{3, DtypeInt, "1,2,3", 1, 0, false, true, -1},
+		{3, DtypeInt, "1,2,3", 1, 1, false, true, 0},
+		{3, DtypeBool, "f,t,f", 1, 1, true, true, 0},
+		{3, DtypeBool, "f,t,f", 2, 2, true, true, 0},
+		{3, DtypeBool, "f,t,f", 1, 2, true, true, 1},
+		{3, DtypeBool, "f,t,f", 1, 2, false, true, -1},
+		{3, DtypeString, "a,b,c", 1, 2, true, true, -1},
+		{3, DtypeString, "a,b,c", 1, 2, false, true, 1},
+		{3, DtypeString, "1,2,10", 1, 2, true, true, 1},
+	}
+
+	for _, test := range tests {
+		rc, err := prepColumn(test.length, test.dtype, test.values)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		cmp := rc.Compare(test.asc, test.nullsFirst, test.idx1, test.idx2)
+
+		if cmp != test.expectedCmp {
+			t.Errorf("%v: expected comparison of %v vs. %v to result in %v, got %v instead", test.values, test.idx1, test.idx2, test.expectedCmp, cmp)
+		}
 	}
 }
 

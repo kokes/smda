@@ -128,6 +128,9 @@ func TestBasicEval(t *testing.T) {
 		{"left(names, 4)", column.DtypeString, 3, "Joe,Ondř,Bob"}, // testing multi-byte characters
 		{"left(names, 1)", column.DtypeString, 3, "J,O,B"},
 		{"left(names, 0)", column.DtypeString, 3, ",,"},
+		{"split_part(names, 'o', 1)", column.DtypeString, 3, "J,,B"},
+		{"split_part(names, 'o', 2)", column.DtypeString, 3, "e,,b"},
+		{"split_part(names, 'o', 3)", column.DtypeString, 3, ",,"},
 	}
 
 	db, err := database.NewDatabase("", nil)
