@@ -1924,7 +1924,7 @@ func (rc *ChunkFloats) JSONLiteral(n int) (string, bool) {
 	if !rc.IsLiteral {
 		val = rc.data[n]
 	}
-	// ARCH: this shouldn't happen?
+	// ARCH: this shouldn't happen? (it used to happen in division by zero... can it happen anywhere else?)
 	if math.IsNaN(val) || math.IsInf(val, 0) {
 		return "", false
 	}

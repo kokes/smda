@@ -11,6 +11,7 @@ import (
 
 var errQueryPatternNotSupported = errors.New("query pattern not supported")
 var errFunctionNotImplemented = errors.New("function not implemented")
+var errDivisionByZero = errors.New("division by zero") // TODO/ARCH: hint that we can use NULLIF?
 
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
 // the same tree of operations - this applies not just here, but in projections.go as well - e.g. we know that
@@ -186,7 +187,21 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 		case tokenSub:
 			return column.EvalSubtract(c1, c2)
 		case tokenQuo:
-			return column.EvalDivide(c1, c2)
+			div, err := column.EvalDivide(c1, c2)
+			if err != nil {
+				return nil, err
+			}
+			// investigate if `c2` contains zeros - if so, trigger errDivisionByZero (SQL standard)
+			// OPTIM: it would probably be faster to iterate c2.data, but this is cleaner
+			eq, err := column.EvalEq(c2, column.NewChunkLiteralFloats(0, c2.Len()))
+			if err != nil {
+				return nil, err
+			}
+			zeros := eq.(*column.ChunkBools).Truths()
+			if zeros.Count() > 0 {
+				return nil, errDivisionByZero
+			}
+			return div, nil
 		case tokenMul:
 			return column.EvalMultiply(c1, c2)
 		default:
