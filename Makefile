@@ -3,6 +3,10 @@
 # call the makefile like `GORLS=gotip make test` to use an alternative Go release
 GORLS ?= go
 
+BUILD_OS ?= linux darwin windows
+# TODO(next): not building for ARM, because windows/arm64 not supported in 1.16 (coming in 1.17)
+BUILD_ARCH ?= amd64
+
 check:
 	$(GORLS) fmt ./...
 	CGO_ENABLED=0 $(GORLS) vet ./...
@@ -28,6 +32,24 @@ run-clean:
 run-docker: build-docker
 	# ephemeral run - will destroy the container after exiting
 	docker run --rm -p 8822:8822 kokes/smda:latest
+
+# TODO(next): use Docker? (as an option)
+# TODO(next): err if git status dirty/untracked files present
+# TODO(PR): load version from some place? (also ingrain the version into the binary)
+dist: check test
+	@rm -r dist
+	mkdir dist
+	@for os in $(BUILD_OS) ; do \
+		for arch in $(BUILD_ARCH); do \
+			echo "Buidling" $$arch $$os; \
+			artpath="dist/smda-$$os-$$arch.tar.gz"; \
+			binpath="smda-server";\
+			CGO_ENABLED=0 GOARCH=$$arch GOOS=$$os $(GORLS) build -o $$binpath ./cmd/server; \
+			tar -czf $$artpath LICENSE $$binpath; \
+			rm $$binpath;\
+		done \
+	done
+	(cd dist; shasum -a 256 *.tar.gz > sha256sums.txt)
 
 test:
 	CGO_ENABLED=0 $(GORLS) test -timeout 5s -coverprofile=coverage.out ./...
