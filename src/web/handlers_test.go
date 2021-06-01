@@ -154,8 +154,9 @@ func TestDatasetListing(t *testing.T) {
 	}()
 
 	dsets := []string{"foo,bar,baz\n1,2,3\n4,5,6", "foo,bar\ntrue,false\nfalse,true"}
-	for _, dset := range dsets {
-		_, err := db.LoadDatasetFromReaderAuto(strings.NewReader(dset))
+	for j, dset := range dsets {
+		name := fmt.Sprintf("dataset%02d", j)
+		_, err := db.LoadDatasetFromReaderAuto(name, strings.NewReader(dset))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -297,11 +298,11 @@ func TestHandlingQueries(t *testing.T) {
 	dsets := []string{"foo,bar\n1,3\n4,6", "foo,bar\n9,8\n1,2"}
 	dss := make([]*database.Dataset, 0, len(dsets))
 	for j, dset := range dsets {
-		ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader(dset))
+		name := fmt.Sprintf("dataset%02d", j)
+		ds, err := db.LoadDatasetFromReaderAuto(name, strings.NewReader(dset))
 		if err != nil {
 			t.Fatal(err)
 		}
-		ds.Name = fmt.Sprintf("dataset%02d", j)
 		if err := db.AddDataset(ds); err != nil {
 			t.Fatal(err)
 		}
@@ -378,11 +379,10 @@ func TestInvalidQueries(t *testing.T) {
 	}()
 
 	data := "foo\n1\n2\n3"
-	ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader(data))
+	ds, err := db.LoadDatasetFromReaderAuto("foobar", strings.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds.Name = "foobar"
 
 	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()

@@ -41,6 +41,7 @@ func TestColumnCleanup(t *testing.T) {
 		{"fooID", "foo_id"},
 		{"fooId", "foo_id"},
 		{"fooIdBarBaz", "foo_id_bar_baz"},
+		// TODO: "1foo" should not be allowed (we won't be able to parse it anyway)
 	}
 
 	for _, test := range tests {

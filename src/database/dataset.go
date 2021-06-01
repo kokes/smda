@@ -275,11 +275,18 @@ func (did DatasetIdentifier) String() string {
 }
 
 // NewDataset creates a new empty dataset
-func NewDataset() *Dataset {
+func NewDataset(name string) *Dataset {
+	// ARCH: we don't give the user a choice - the name will get modified if it doesn't
+	// satisfy our rules... allow for some UnsafeNewDataset thingy?
+	name = cleanupIdentifier(name)
 	// we need to use a high resolution timer, because subsequent dataset creation need to have a timer
 	// that advanced between these actions
 	// ARCH: this might be an issue in Windows, where the resolution is low?
-	return &Dataset{ID: newUID(OtypeDataset), Created: time.Now().UnixNano()}
+	return &Dataset{
+		ID:      newUID(OtypeDataset),
+		Created: time.Now().UnixNano(),
+		Name:    name,
+	}
 }
 
 // DatasetPath returns the path of a given dataset (all the stripes are there)

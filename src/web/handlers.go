@@ -99,8 +99,8 @@ func handleUpload(db *database.Database) http.HandlerFunc {
 		// 1) we don't want to block the body read by our parser - we want to save the incoming
 		// data as quickly as possible
 		// 2) we want to have a local copy if we need to reprocess it
-		ds := database.NewDataset()
-		ds.Name = r.URL.Query().Get("name")
+		name := r.URL.Query().Get("name")
+		ds := database.NewDataset(name)
 
 		if err := database.CacheIncomingFile(r.Body, db.DatasetPath(ds)); err != nil {
 			http.Error(w, "could not upload file", http.StatusInternalServerError)
@@ -125,13 +125,13 @@ func handleAutoUpload(db *database.Database) http.HandlerFunc {
 			return
 		}
 
-		ds, err := db.LoadDatasetFromReaderAuto(r.Body)
+		name := r.URL.Query().Get("name")
+		ds, err := db.LoadDatasetFromReaderAuto(name, r.Body)
 		defer r.Body.Close()
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to parse a given file: %v", err), http.StatusInternalServerError)
 			return
 		}
-		ds.Name = r.URL.Query().Get("name")
 		clength, err := strconv.Atoi(r.Header.Get("Content-Length"))
 		if err != nil {
 			clength = 0

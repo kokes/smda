@@ -92,6 +92,29 @@ func TestInitTempDB(t *testing.T) {
 	}
 }
 
+func TestDatasetNames(t *testing.T) {
+	tests := []struct {
+		before, expected string
+	}{
+		{"dataset", "dataset"},
+		{"  dataset	", "dataset"},
+		{"my dataset", "my_dataset"},
+		{"my dataset...", "my_dataset"},
+		{"...my dataset...", "my_dataset"},
+		{"myLargeDataset", "my_large_dataset"},
+		{"123", "123"},         // TODO: we should avoid this, really (cannot be parsed)
+		{"", ""},               // ... and this as well
+		{"foo.csv", "foo_csv"}, // ARCH: do we want this or just "foo"?
+	}
+
+	for _, test := range tests {
+		ds := NewDataset(test.before)
+		if ds.Name != test.expected {
+			t.Errorf("expected column name '%v' to be cleaned up into '%v', got '%v' instead", test.before, test.expected, ds.Name)
+		}
+	}
+}
+
 func TestAddingDatasets(t *testing.T) {
 	db, err := NewDatabase("", nil)
 	if err != nil {
@@ -102,8 +125,7 @@ func TestAddingDatasets(t *testing.T) {
 			panic(err)
 		}
 	}()
-	ds := NewDataset()
-	ds.Name = "foobar"
+	ds := NewDataset("foobar")
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +152,8 @@ func TestAddingDatasetsWithVersions(t *testing.T) {
 	n := 10
 	dss := make([]*Dataset, 0, n)
 	for j := 0; j < n; j++ {
-		ds := NewDataset()
-		ds.Name = fmt.Sprintf("foobar%02d", j%3) // have datasets with various names
+		name := fmt.Sprintf("foobar%02d", j%3) // have datasets with various names
+		ds := NewDataset(name)
 		if err := db.AddDataset(ds); err != nil {
 			t.Fatal(err)
 		}
@@ -169,8 +191,7 @@ func TestAddingDatasetsWithRestarts(t *testing.T) {
 			panic(err)
 		}
 	}()
-	ds := NewDataset()
-	ds.Name = "foobar"
+	ds := NewDataset("foobar")
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
@@ -205,11 +226,10 @@ func TestRemovingDatasets(t *testing.T) {
 		}
 	}()
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
-	ds, err := db.LoadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto("foobar", data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds.Name = "foobar"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
@@ -252,11 +272,10 @@ func TestGettingNewDatasets(t *testing.T) {
 		}
 	}()
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
-	ds, err := db.LoadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto("foobar", data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds.Name = "foobar"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
