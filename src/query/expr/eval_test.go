@@ -152,7 +152,7 @@ func TestBasicEval(t *testing.T) {
 		}
 	}()
 
-	ds, err := db.LoadDatasetFromMap(map[string][]string{
+	ds, err := db.LoadDatasetFromMap("dataset", map[string][]string{
 		"foo123":          {"1", "2", "3"},
 		"foo120":          {"1", "2", "0"},
 		"bar134":          {"1", "3", "4"},

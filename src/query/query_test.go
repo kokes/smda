@@ -24,11 +24,10 @@ func TestTheMostBasicQuery(t *testing.T) {
 	}()
 
 	data := strings.NewReader("foo,bar,BAZ\n1,2,3\n4,5,6")
-	ds, err := db.LoadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto("foodata", data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
@@ -67,11 +66,10 @@ func TestQueryNothing(t *testing.T) {
 	}()
 
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
-	ds, err := db.LoadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto("foodata", data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
@@ -103,11 +101,10 @@ func TestQueryInvalidFilter(t *testing.T) {
 	}()
 
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
-	ds, err := db.LoadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto("foodata", data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
@@ -130,11 +127,10 @@ func TestLimitsInQueries(t *testing.T) {
 	}()
 
 	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6\n7,8,9")
-	ds, err := db.LoadDatasetFromReaderAuto(data)
+	ds, err := db.LoadDatasetFromReaderAuto("foodata", data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds.Name = "foodata"
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
@@ -294,16 +290,15 @@ func TestBasicQueries(t *testing.T) {
 			}
 		}()
 
-		ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.input))
+		ds, err := db.LoadDatasetFromReaderAuto("dataset", strings.NewReader(test.input))
 		if err != nil {
 			t.Fatal(err)
 		}
-		ds.Name = "dataset"
 		if err := db.AddDataset(ds); err != nil {
 			t.Fatal(err)
 		}
 
-		dso, err := db.LoadDatasetFromReaderAuto(strings.NewReader(test.output))
+		dso, err := db.LoadDatasetFromReaderAuto("dataseto", strings.NewReader(test.output))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -375,14 +370,13 @@ func TestProjections(t *testing.T) {
 				panic(err)
 			}
 		}()
-		ds, err := db.LoadDatasetFromMap(map[string][]string{
+		ds, err := db.LoadDatasetFromMap("dataset", map[string][]string{
 			"foo": {"1", "2", "3"},
 			"bar": {"1", "3", "4"},
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		ds.Name = "dataset"
 		if err := db.AddDataset(ds); err != nil {
 			t.Fatal(err)
 		}
@@ -445,11 +439,10 @@ func TestQuerySetup(t *testing.T) {
 			}
 		}()
 
-		ds, err := db.LoadDatasetFromReaderAuto(strings.NewReader("foo,bar,baz\n1,2,3\n"))
+		ds, err := db.LoadDatasetFromReaderAuto("dataset", strings.NewReader("foo,bar,baz\n1,2,3\n"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		ds.Name = "dataset"
 		if err := db.AddDataset(ds); err != nil {
 			t.Fatal(err)
 		}

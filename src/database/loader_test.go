@@ -58,7 +58,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		}
 
 		// first try from a reader
-		ds, err := d.LoadDatasetFromReaderAuto(bytes.NewReader(bf.Bytes()))
+		ds, err := d.LoadDatasetFromReaderAuto("dataset", bytes.NewReader(bf.Bytes()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +75,7 @@ func TestAutoInferenceInLoading(t *testing.T) {
 		if err := os.WriteFile(tfn, bf.Bytes(), os.ModePerm); err != nil {
 			t.Fatal(err)
 		}
-		ds, err = d.loadDatasetFromLocalFileAuto(tfn)
+		ds, err = d.loadDatasetFromLocalFileAuto("dataset", tfn)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,7 +102,7 @@ func TestInabilityToInferTypes(t *testing.T) {
 
 	buf := strings.NewReader("foo,bar,baz\n")
 
-	_, err = db.LoadDatasetFromReaderAuto(buf)
+	_, err = db.LoadDatasetFromReaderAuto("dataset", buf)
 	if !errors.Is(err, errCannotInferTypes) {
 		t.Fatalf("expecting to err with %v, got %v instead", errCannotInferTypes, err)
 	}
@@ -121,7 +121,7 @@ func TestReadingFromStripes(t *testing.T) {
 
 	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
-	ds, err := db.LoadDatasetFromReaderAuto(buf)
+	ds, err := db.LoadDatasetFromReaderAuto("dataset", buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func BenchmarkReadingFromStripes(b *testing.B) {
 
 			b.SetBytes(int64(buf.Len()))
 
-			ds, err := db.LoadDatasetFromReaderAuto(buf)
+			ds, err := db.LoadDatasetFromReaderAuto("dataset", buf)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -363,7 +363,7 @@ func TestChecksumValidation(t *testing.T) {
 
 	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
-	ds, err := db.LoadDatasetFromReaderAuto(buf)
+	ds, err := db.LoadDatasetFromReaderAuto("dataset", buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +426,7 @@ func TestInvalidOffsets(t *testing.T) {
 
 	buf := strings.NewReader("foo,bar,baz\n1,true,1.23\n1444,,1e8")
 
-	ds, err := db.LoadDatasetFromReaderAuto(buf)
+	ds, err := db.LoadDatasetFromReaderAuto("dataset", buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -502,7 +502,7 @@ func TestLoadingFromMaps(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ds, err := db.LoadDatasetFromMap(test.data)
+		ds, err := db.LoadDatasetFromMap("dataset", test.data)
 		if !errors.Is(err, test.err) {
 			t.Errorf("expecting %+v to fail with %+v, got %+v instead", test.data, test.err, err)
 			continue

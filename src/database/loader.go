@@ -47,11 +47,10 @@ func (db *Database) LoadSampleData(sampleDir fs.FS) error {
 		if err != nil {
 			return err
 		}
-		ds, err := db.LoadDatasetFromReaderAuto(f)
+		ds, err := db.LoadDatasetFromReaderAuto(file, f)
 		if err != nil {
 			return err
 		}
-		ds.Name = file
 		if err := db.AddDataset(ds); err != nil {
 			return err
 		}
@@ -426,8 +425,8 @@ func validateHeaderAgainstSchema(header []string, schema column.TableSchema) err
 }
 
 // This is how data gets in! This is the main entrypoint
-func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (*Dataset, error) {
-	dataset := NewDataset()
+func (db *Database) loadDatasetFromReader(name string, r io.Reader, settings *loadSettings) (*Dataset, error) {
+	dataset := NewDataset(name)
 	if settings.schema == nil {
 		return nil, errors.New("cannot load data without a schema")
 	}
@@ -485,17 +484,17 @@ func (db *Database) loadDatasetFromReader(r io.Reader, settings *loadSettings) (
 }
 
 // convenience wrapper
-func (db *Database) loadDatasetFromLocalFile(path string, settings *loadSettings) (*Dataset, error) {
+func (db *Database) loadDatasetFromLocalFile(name, path string, settings *loadSettings) (*Dataset, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return db.loadDatasetFromReader(f, settings)
+	return db.loadDatasetFromReader(name, f, settings)
 }
 
 // LoadDatasetFromReaderAuto loads data from a reader and returns a Dataset
-func (db *Database) LoadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
+func (db *Database) LoadDatasetFromReaderAuto(name string, r io.Reader) (*Dataset, error) {
 	f, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err
@@ -505,10 +504,10 @@ func (db *Database) LoadDatasetFromReaderAuto(r io.Reader) (*Dataset, error) {
 		return nil, err
 	}
 
-	return db.loadDatasetFromLocalFileAuto(f.Name())
+	return db.loadDatasetFromLocalFileAuto(name, f.Name())
 }
 
-func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) {
+func (db *Database) loadDatasetFromLocalFileAuto(name, path string) (*Dataset, error) {
 	ctype, dlim, err := inferCompressionAndDelimiter(path)
 	if err != nil {
 		return nil, err
@@ -535,13 +534,13 @@ func (db *Database) loadDatasetFromLocalFileAuto(path string) (*Dataset, error) 
 	}
 	ls.schema = schema
 
-	return db.loadDatasetFromLocalFile(path, ls)
+	return db.loadDatasetFromLocalFile(name, path, ls)
 }
 
 // LoadDatasetFromMap allows for an easy setup of a new dataset, mostly useful for tests
 // Converts this map into an in-memory CSV file and passes it to our usual routines
 // OPTIM: the underlying call (LoadDatasetFromReaderAuto) caches this raw data on disk, may be unecessary
-func (db *Database) LoadDatasetFromMap(data map[string][]string) (*Dataset, error) {
+func (db *Database) LoadDatasetFromMap(name string, data map[string][]string) (*Dataset, error) {
 	if len(data) == 0 {
 		return nil, errNoMapData
 	}
@@ -574,5 +573,5 @@ func (db *Database) LoadDatasetFromMap(data map[string][]string) (*Dataset, erro
 	}
 	cw.Flush()
 
-	return db.LoadDatasetFromReaderAuto(bf)
+	return db.LoadDatasetFromReaderAuto(name, bf)
 }

@@ -6,58 +6,58 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/kokes/smda/src/column"
 )
 
 var errCannotInferTypes = errors.New("cannot infer types")
 
+func cleanupIdentifier(s string) string {
+	chars := bytes.TrimSpace([]byte(s))
+	for j, char := range chars {
+		if char >= 'A' && char <= 'Z' {
+			// we could lowercase it, but we'd rather de-camel case it (if needs be)
+			// chars[j] = 'a' + char - 'A'
+			continue
+		}
+		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
+			chars[j] = '_'
+		}
+	}
+
+	// remove subsequent underscores
+	length := len(chars)
+	for j := length - 1; j > 0; j-- {
+		if (chars[j] == chars[j-1]) && (chars[j] == '_') {
+			copy(chars[j-1:], chars[j:])
+			length--
+		}
+	}
+	chars = chars[:length]
+
+	// remove camel casing
+	length = len(chars)
+	for j := length - 1; j >= 0; j-- {
+		if chars[j] >= 'A' && chars[j] <= 'Z' {
+			chars[j] = 'a' + chars[j] - 'A' // lowercase it in any case
+			// and if it's preceded by a lowercase letter...
+			if j > 0 && chars[j-1] >= 'a' && chars[j-1] <= 'z' {
+				chars = append(chars, '0') // add an empty space at the end
+				copy(chars[j+1:], chars[j:])
+				chars[j] = '_'
+			}
+		}
+	}
+
+	return string(bytes.Trim(chars, "_"))
+}
+
 // ARCH: consider converting non-ascii to ascii?
 func cleanupColumns(columns []string) []string {
 	existing := make(map[string]bool)
 	ret := make([]string, 0, len(columns))
-	_ = existing
 	for _, col := range columns {
-		col = strings.TrimSpace(col)
-		chars := []byte(col)
-		for j, char := range chars {
-			if char >= 'A' && char <= 'Z' {
-				// we could lowercase it, but we'd rather de-camel case it (if needs be)
-				// chars[j] = 'a' + char - 'A'
-				continue
-			}
-			if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
-				chars[j] = '_'
-			}
-		}
-
-		// remove subsequent underscores
-		length := len(chars)
-		for j := length - 1; j > 0; j-- {
-			if (chars[j] == chars[j-1]) && (chars[j] == '_') {
-				copy(chars[j-1:], chars[j:])
-				length--
-			}
-		}
-		chars = chars[:length]
-
-		// remove camel casing
-		length = len(chars)
-		for j := length - 1; j >= 0; j-- {
-			if chars[j] >= 'A' && chars[j] <= 'Z' {
-				chars[j] = 'a' + chars[j] - 'A' // lowercase it in any case
-				// and if it's preceded by a lowercase letter...
-				if j > 0 && chars[j-1] >= 'a' && chars[j-1] <= 'z' {
-					chars = append(chars, '0') // add an empty space at the end
-					copy(chars[j+1:], chars[j:])
-					chars[j] = '_'
-				}
-			}
-		}
-
-		chars = bytes.Trim(chars, "_")
-		col = string(chars)
+		col = cleanupIdentifier(col)
 
 		if _, ok := existing[col]; ok || col == "" {
 			if col == "" {

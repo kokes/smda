@@ -35,7 +35,7 @@ run-docker: build-docker
 
 # TODO(next): use Docker? (as an option)
 # TODO(next): err if git status dirty/untracked files present
-# TODO(PR): load version from some place? (also ingrain the version into the binary)
+# TODO(next): load version from some place? (also ingrain the version into the binary)
 dist: check test
 	@rm -r dist
 	mkdir dist
