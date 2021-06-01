@@ -55,7 +55,7 @@ func NewDatabase(wdir string, overrides *Config) (*Database, error) {
 		if err != nil {
 			return nil, err
 		}
-		config.WorkingDirectory = filepath.Join(tdir, "smda_database")
+		config.WorkingDirectory = filepath.Join(tdir, "smda_db")
 	}
 
 	abspath, err := filepath.Abs(config.WorkingDirectory)

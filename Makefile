@@ -12,7 +12,7 @@ check:
 	CGO_ENABLED=0 $(GORLS) vet ./...
 
 build: check test
-	CGO_ENABLED=0 $(GORLS) build ./cmd/server/
+	CGO_ENABLED=0 $(GORLS) build -o bin/server ./cmd/server/
 
 build-docker:
 	docker build . -t kokes/smda:latest

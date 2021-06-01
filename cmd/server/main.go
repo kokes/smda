@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/web"
@@ -20,7 +21,7 @@ func main() {
 	expose := flag.Bool("expose", false, "expose the server on the network, do not run it just locally")
 	portHTTP := flag.Int("port-http", 8822, "port to listen on for http traffic")
 	portHTTPS := flag.Int("port-https", 8823, "port to listen on for https traffic")
-	wdir := flag.String("wdir", "tmp", "working directory for the database")
+	wdir := flag.String("wdir", "", "working directory for the database")
 	loadSamples := flag.Bool("samples", false, "load sample datasets")
 	useTLS := flag.Bool("tls", false, "use TLS when hosting the server")
 	tlsCert := flag.String("tls-cert", "", "TLS certificate to use")
@@ -50,6 +51,13 @@ func main() {
 }
 
 func run(ctx context.Context, wdir string, portHTTP, portHTTPS int, expose bool, loadSamples, useTLS bool, tlsCert, tlsKey string) error {
+	if wdir == "" {
+		hdir, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		wdir = filepath.Join(hdir, "smda_db")
+	}
 	d, err := database.NewDatabase(wdir, nil)
 	if err != nil {
 		return err

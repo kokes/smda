@@ -15,7 +15,7 @@ FROM scratch
 # it in alpine and copying it over (we need it for temporary directories)
 # We might as well use alpine as the base image
 WORKDIR /tmp/
-COPY --from=build /smda/server .
+COPY --from=build /smda/bin/server .
 
 EXPOSE 8822
 CMD ["./server", "-port-http", "8822", "-expose", "-samples"]
