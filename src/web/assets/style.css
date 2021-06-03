@@ -1,0 +1,138 @@
+* {
+    margin: 0; padding: 0;
+}
+body, table {
+    font-family: Arial, Helvetica, sans-serif;
+}
+div#errors {
+    position: absolute;
+    left: 50%; top: 10%;
+    margin-left: -200px;
+    width: 400px;
+}
+div#errors > div {
+    padding: 1em;
+    margin-bottom: .5em;
+    width: 100%;
+    border: 1px solid red;
+    background: lightpink;
+    color: darkred;
+}
+/* layout start */
+div#container {
+    display: grid;
+    height: 100vh;
+    grid-template-columns: 250px auto;
+    grid-template-rows: 3em auto 3em;
+    /* this is also a feasible layout */
+    /* grid-template-areas: "header header" "panel content" "footer footer"; */
+    grid-template-areas: "panel header" "panel content" "panel footer";
+}
+header { grid-area: header; }
+nav#panel { grid-area: panel; }
+main {
+    grid-area: content;
+    /*
+        I want to limit it in width (so that we can scroll its children elements... but what's the best way?)
+        max-width: calc(100vw - 250px - 3em);
+    */
+}
+footer { grid-area: footer; }
+
+header, footer, main { padding: 1em; }
+
+/* we could use some fun colours, check out the generator over at https://coolors.co */
+header, footer {
+    display: flex;
+    flex-direction: row;
+    background-color: #eee;
+    align-items: center;
+}
+header {
+    justify-content: space-between;
+}
+footer {
+    justify-content: flex-end;
+    font-size: 90%;
+}
+nav#panel {
+    background-color: #086375;
+}
+nav#panel, nav#panel a { color: #CCDBDC; }
+main {
+    background-color: white;
+    overflow: auto;
+}
+main > div {
+    /* prevent flickering upon load */
+    display: none;
+}
+/* end layout */
+
+table {
+    border-spacing: 0;
+    margin-top: 1em;
+    line-height: 1.5em;
+}
+table tr:nth-child(even) {
+    background: lavenderblush;
+}
+table tr td, table tr th {
+    padding: .5em 1em;
+    /*
+      this is primarily for extendable tables (e.g. schema overviews), so that
+      the content doesn't jump around
+    */
+    vertical-align: top;
+}
+table tr td summary:hover {
+    cursor: pointer;
+}
+table tr th {
+    border-bottom: 2px solid mistyrose;
+}
+
+nav#panel ul li {
+    list-style: none;
+}
+nav#panel ul li a {
+    display: block;
+    padding: 1em;
+    text-decoration: underline;
+}
+nav#panel ul li a:hover, nav#panel ul li a.current {
+    background: darkslategray;
+}
+
+form fieldset {
+    padding: 1em;
+    border: 1px solid #ccc;
+}
+form fieldset legend {
+    padding: .5em;
+    border: 1px solid darkslategray;
+    background: #eee;
+}
+form fieldset > div {
+    margin: .7em 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+form fieldset > div label {
+    display: block;
+    width: 150px;
+    padding-right: 1em;
+}
+form fieldset > div input {
+    padding: .3em .5em;
+    min-width: 600px;
+    max-width: 80%;
+}
+form fieldset button {
+    padding: .3em 1em;
+}
+
+form small#elapsed {
+    padding-left: 1em;
+}
