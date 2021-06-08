@@ -48,9 +48,6 @@ header, footer {
     background-color: #eee;
     align-items: center;
 }
-header {
-    justify-content: space-between;
-}
 footer {
     justify-content: flex-end;
     font-size: 90%;
@@ -68,6 +65,10 @@ main > div {
     display: none;
 }
 /* end layout */
+
+header > input {
+    padding-left: .5em;
+}
 
 table {
     border-spacing: 0;

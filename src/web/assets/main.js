@@ -39,7 +39,12 @@ class smda {
                 })
                 if (request.ok !== true) {
                     errDialog(`failed to upload ${file.name}`, await request.text());
+                    continue;
                 }
+                // ARCH/TODO: we're fetching dataset listings from the API... but we already have it in the
+                // request response... maybe add it to `this.datasets` from there directly
+                // this will also mean it won't be async (but we'll need to trigger the UI change)
+                await this.setupDatasets();
             }
             e.target.value = "";
             e.target.disabled = "";
