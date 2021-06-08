@@ -172,7 +172,7 @@ var bomBytes []byte = []byte{0xEF, 0xBB, 0xBF}
 // tend to care about or know
 func skipBom(r io.Reader) (io.Reader, error) {
 	first := make([]byte, 3)
-	n, err := r.Read(first)
+	n, err := r.Read(first) // ARCH: readfull?
 	if err != nil {
 		return nil, err
 	}
