@@ -166,7 +166,15 @@ class smda {
     async renderTable(data, target) {
         const table = node("table", {"class": "data-view"},
             node("thead", {},
-                node("tr", {}, data.schema.map((col) => node("th", {}, col.name)))
+                node("tr", {}, data.schema.map((col, idx) => {
+                    const th = node("th", {}, col.name);
+                    if (data.ordering[idx] !== null) {
+                        const pictos = {"asc": "↑", "desc": "↓"};
+                        th.append(node("span", {"class": "ordering"}, pictos[data.ordering[idx]]))
+                    }
+
+                    return th;
+                }))
             )
         )
 

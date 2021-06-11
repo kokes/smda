@@ -49,7 +49,7 @@ func (res *Result) Prune() {
 	for j, col := range res.Data {
 		res.Data[j] = col.Prune(bm)
 	}
-	// TODO/OPTIM/ARCH: the rowIdxs is all broken now... should we somehow clean it up?
+	// TODO(next)/ARCH: the rowIdxs is all broken now... should we somehow clean it up?
 	// `reorder` recreates it, so it's fine, but e.g. rowIdxs is used in serialisation, so
 	// if we run Prune and then export... it might panic
 }
@@ -65,6 +65,25 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	if _, err := buf.WriteString(fmt.Sprintf(",\n\"nrows\": %d", r.Length)); err != nil {
+		return nil, err
+	}
+
+	// ARCH: there is no notion of order here - `foo asc, bar desc` is the same as the other way around
+	// we might want to encode this order here at some point, so that the FE can react to it
+	// ARCH: we used to guard this with `if len(r.sortColumnsIdxs) > 0 {`, but I guess we want to include
+	// it in the JSON every time, so that we don't have to check for existence... or do we?
+	sorting := make([]*string, len(r.Schema))
+	for j, idx := range r.sortColumnsIdxs {
+		order := "asc"
+		if !r.asc[j] {
+			order = "desc"
+		}
+		sorting[idx] = &order
+	}
+	if _, err := buf.WriteString(",\n\"ordering\": "); err != nil {
+		return nil, err
+	}
+	if err := enc.Encode(sorting); err != nil {
 		return nil, err
 	}
 

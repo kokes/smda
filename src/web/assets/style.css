@@ -86,6 +86,9 @@ table tr td, table tr th {
     */
     vertical-align: top;
 }
+table tr th span.ordering {
+    padding-left: .5em;
+}
 table tr td summary:hover {
     cursor: pointer;
 }
