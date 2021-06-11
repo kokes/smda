@@ -501,7 +501,8 @@ func TestReturnTypes(t *testing.T) {
 		// relabeling
 		{"my_string_column as foo", column.Schema{Name: "foo", Dtype: column.DtypeString}, nil},
 		{"my_string_column as \"Bar\"", column.Schema{Name: "Bar", Dtype: column.DtypeString}, nil},
-		{"(my_string_column as foo) as bar", column.Schema{Name: "bar", Dtype: column.DtypeString}, nil},
+		// ARCH: we no longer support this pattern
+		// {"(my_string_column as foo) as bar", column.Schema{Name: "bar", Dtype: column.DtypeString}, nil},
 	}
 
 	for _, test := range testCases {

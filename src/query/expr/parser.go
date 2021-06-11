@@ -21,7 +21,6 @@ var errInvalidTuple = errors.New("invalid tuple expression")
 const (
 	_ int = iota
 	LOWEST
-	RELABEL     // foo AS bar
 	BOOL_AND_OR // TODO(next): is it really that AND and OR have the same precedence?
 	EQUALS      // ==, !=
 	LESSGREATER // >, <, <=, >=
@@ -48,7 +47,6 @@ var precedences = map[tokenType]int{
 	tokenQuo:    PRODUCT,
 	tokenMul:    PRODUCT,
 	tokenLparen: CALL,
-	tokenAs:     RELABEL,
 }
 
 type (
@@ -103,7 +101,6 @@ func NewParser(s string) (*Parser, error) {
 		tokenLte:    p.parseInfixExpression,
 		tokenGte:    p.parseInfixExpression,
 		tokenLparen: p.parseCallExpression,
-		tokenAs:     p.parseInfixExpression,
 	}
 
 	return p, nil
@@ -230,16 +227,6 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	precedence := p.curPrecedence()
 	p.position++
 
-	// relabeling is an exception, we use a different Expression for that
-	if expr.operator == tokenAs {
-		expr.right = p.parseExpression(precedence)
-		label, ok := expr.right.(*Identifier)
-		if !ok {
-			p.errors = append(p.errors, errors.New("when relabeling (AS), the right side value has to be an identifier"))
-			return nil
-		}
-		return &Relabel{inner: left, Label: label.name}
-	}
 	// NOT is another exception ¯\_(ツ)_/¯
 	// and a weird one, because it turns an infix operation to a prefix one (`foo NOT IN bar` -> `NOT(foo IN bar)`)
 	if expr.operator == tokenNot || expr.operator == tokenIn {
@@ -354,6 +341,19 @@ func (p *Parser) parseExpressions() (ExpressionList, error) {
 	for {
 		expr := p.parseExpression(LOWEST)
 		pt := p.peekToken().ttype
+		if pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted {
+			p.position++
+			if pt == tokenAs {
+				p.position++
+			}
+			// relabeling is an exception, we use a different Expression for that
+			target := p.parseExpression(LOWEST)
+			label, ok := target.(*Identifier)
+			if !ok {
+				return nil, errors.New("when relabeling (AS), the right side value has to be an identifier")
+			}
+			expr = &Relabel{inner: expr, Label: label.name}
+		}
 		if pt == tokenAsc || pt == tokenDesc || pt == tokenNulls {
 			oexp, err := p.parseOrdering()
 			if err != nil {
@@ -386,7 +386,13 @@ func ParseStringExpr(s string) (Expression, error) {
 	if len(p.tokens) == 0 {
 		return nil, errEmptyExpression
 	}
-	ret := p.parseExpression(LOWEST)
+	ret, err := p.parseExpressions()
+	if err != nil {
+		return nil, err
+	}
+	if len(ret) != 1 {
+		return nil, fmt.Errorf("expected a single expression, got %v instead", len(ret))
+	}
 
 	if p.position != len(p.tokens)-1 {
 		p.errors = append(p.errors, fmt.Errorf("%w: %v", errUnparsedBit, p.tokens[p.position:]))
@@ -397,7 +403,7 @@ func ParseStringExpr(s string) (Expression, error) {
 		return nil, fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
 	}
 
-	return ret, nil
+	return ret[0], nil
 }
 
 func ParseStringExprs(s string) (ExpressionList, error) {

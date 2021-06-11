@@ -348,11 +348,23 @@ func TestParsingContents(t *testing.T) {
 			inner: &Identifier{name: "foo"},
 			Label: "bar",
 		}},
+		{"foo bar", &Relabel{
+			inner: &Identifier{name: "foo"},
+			Label: "bar",
+		}},
 		{"foo as Bar", &Relabel{
 			inner: &Identifier{name: "foo"},
 			Label: "bar",
 		}},
+		{"foo Bar", &Relabel{
+			inner: &Identifier{name: "foo"},
+			Label: "bar",
+		}},
 		{"foo as \"Bar\"", &Relabel{
+			inner: &Identifier{name: "foo"},
+			Label: "Bar",
+		}},
+		{"foo \"Bar\"", &Relabel{
 			inner: &Identifier{name: "foo"},
 			Label: "Bar",
 		}},
@@ -364,6 +376,16 @@ func TestParsingContents(t *testing.T) {
 			Label: "bar",
 		}},
 		{"1+2*3 as bar", &Relabel{
+			inner: &Infix{operator: tokenAdd,
+				left: &Integer{value: 1},
+				right: &Infix{operator: tokenMul,
+					left:  &Integer{value: 2},
+					right: &Integer{value: 3},
+				},
+			},
+			Label: "bar",
+		}},
+		{"1+2*3 bar", &Relabel{
 			inner: &Infix{operator: tokenAdd,
 				left: &Integer{value: 1},
 				right: &Infix{operator: tokenMul,
