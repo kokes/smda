@@ -37,12 +37,13 @@ run-docker: build-docker
 # TODO(next): err if git status dirty/untracked files present
 # TODO(next): load version from some place? (also ingrain the version into the binary)
 dist: check test
-	@rm -r dist
+	@rm -rf dist
 	mkdir dist
 	@for os in $(BUILD_OS) ; do \
 		for arch in $(BUILD_ARCH); do \
 			echo "Buidling" $$arch $$os; \
 			artpath="dist/smda-$$os-$$arch.tar.gz"; \
+			# TODO(next): rename to smda-server.exe for windows targets
 			binpath="smda-server";\
 			CGO_ENABLED=0 GOARCH=$$arch GOOS=$$os $(GORLS) build -o $$binpath ./cmd/server; \
 			tar -czf $$artpath LICENSE $$binpath; \
