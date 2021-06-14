@@ -25,8 +25,56 @@ function errDialog(title, msg) {
 class smda {
     constructor() {        
         this.setupUploader();
+        this.setupColumnFilter()
     }
-    // ARCH: move elsewhere
+    // ARCH: move elsewhere (both UI setups)
+    // ARCH: maybe move this one to submitQuery?
+    setupColumnFilter() {
+        const dsi = document.querySelector("input#dataset");
+        dsi.addEventListener("change", async e => {
+            if (this.datasets === undefined) {
+                await this.loadDatasets(); // OPTIM: we might want to load metadata for just one dataset
+            }
+            if (e.target.value === "") {
+                return;
+            }
+            const version = e.target.value.split("@v")[1];
+            const ds = this.datasets[version];
+            const target = document.getElementById("column-filter");
+            const inner = document.createElement("div");
+            const filter = document.createElement("input");
+            filter.setAttribute("placeholder", "filter columns");
+            filter.addEventListener("keyup", e => {
+                const needle = e.target.value;
+                // TODO(next): add S/A/F links - add to select, aggregate, filter fields (and be aware of its contents)
+                for (const col of e.target.parentNode.querySelectorAll("ul li")) {
+                    const val = col.textContent;
+                    // OPTIM: we can be smart about this and save our last query and if it's a subset, we can skip some columns etc.
+                    if (needle === "" || val.includes(needle)) {
+                        col.style.display = "list-item";
+                    } else {
+                        col.style.display = "none";
+                    }
+                }
+            });
+
+            inner.append(filter);
+
+            const columns = document.createElement("ul");
+
+            for (const col of ds.schema) {
+                columns.append(node("li", null, `${col.name} (${col.dtype})`));
+            }
+
+            inner.append(columns);
+            // we cannot do `target.innerHTML = ...`, because we're registering event listeners
+            empty(target);
+            target.append(inner);
+        });
+
+        // trigger this upon first load
+        dsi.dispatchEvent(new Event("change"));
+    }
     setupUploader() {
         const fp = document.getElementById("filepicker");
         fp.addEventListener("change", async e => {
@@ -61,6 +109,7 @@ class smda {
                 .map(x => [x.name, x.value])
         )
         if (query.dataset !== undefined) {
+            // ARCH/TODO: create a helper function to work with dataset versions (search `@v` for more use cases here)
             const valueparts = query.dataset.split("@v");
             query.dataset = {
                 name: valueparts[0],

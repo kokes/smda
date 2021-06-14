@@ -108,6 +108,28 @@ nav#panel ul li a:hover, nav#panel ul li a.current {
     background: darkslategray;
 }
 
+/* contains a fieldset and a column filter */
+div#query {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+div#column-filter {
+    max-height: 300px;
+    width: 400px;
+    overflow-y: auto;
+    align-self: end
+}
+div#column-filter input {
+    font-size: 110%;
+    padding: .3em;
+    margin: 1em 0;
+}
+div#column-filter ul li {
+    margin-left: 1.5em;
+}
+
 form fieldset {
     padding: 1em;
     border: 1px solid #ccc;

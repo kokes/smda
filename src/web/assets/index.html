@@ -30,38 +30,42 @@
         <main>
             <div id="route-root"></div>
             <div id="route-query">
-                <form action="/query" name="query">
-                    <fieldset>
-                        <legend>Query parameters</legend>
-                        <div>
-                            <label for="dataset">Dataset</label>
-                            <input id="dataset" name="dataset" placeholder="orders" />
-                        </div>
-                        <div>
-                            <label for="filter">Filter</label>
-                            <input name="filter" id="filter" placeholder="customer_id = 123 AND status = 'Done'"/>
-                        </div>
-                        <div>
-                            <label for="aggregate">Aggregate</label>
-                            <input name="aggregate" id="aggregate" placeholder="region, division" />
-                        </div>
-                        <div>
-                            <label for="select">Select</label>
-                            <input name="select" id="select" placeholder="region, division, count(), sum(revenue)" />
-                        </div>
-                        <div>
-                            <label for="order">Order</label>
-                            <input name="order" id="order" placeholder="sum(revenue) DESC" />
-                        </div>
-                        <div>
-                            <label for="limit">Limit</label>
-                            <input name="limit" id="limit" type="number" placeholder="100" />
-                        </div>
+                <div id="query">
+                    <form action="/query" name="query">
+                        <fieldset>
+                            <legend>Query parameters</legend>
+                            <div>
+                                <label for="dataset">Dataset</label>
+                                <input id="dataset" name="dataset" placeholder="orders" />
+                            </div>
+                            <div>
+                                <label for="filter">Filter</label>
+                                <input name="filter" id="filter" placeholder="customer_id = 123 AND status = 'Done'"/>
+                            </div>
+                            <div>
+                                <label for="aggregate">Aggregate</label>
+                                <input name="aggregate" id="aggregate" placeholder="region, division" />
+                            </div>
+                            <div>
+                                <label for="select">Select</label>
+                                <input name="select" id="select" placeholder="region, division, count(), sum(revenue)" />
+                            </div>
+                            <div>
+                                <label for="order">Order</label>
+                                <input name="order" id="order" placeholder="sum(revenue) DESC" />
+                            </div>
+                            <div>
+                                <label for="limit">Limit</label>
+                                <input name="limit" id="limit" type="number" placeholder="100" />
+                            </div>
 
-                        <button>Run query</button>
-                        <small id="elapsed"></small>
-                    </fieldset>
-                </form>
+                            <button>Run query</button>
+                            <small id="elapsed"></small>
+                        </fieldset>
+                    </form>
+
+                    <div id="column-filter"></div>
+                </div>
 
                 <div id="query-results"></div>
             </div>

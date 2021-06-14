@@ -55,6 +55,7 @@ class Router {
             for (let inp of qform.querySelectorAll("input, select")) {
                 const fieldName = inp.getAttribute("name");
                 inp.value = params.get(fieldName);
+                inp.dispatchEvent(new Event("change")); // inputs don't fire change events when value is set programatically
             }
         }
 
