@@ -62,6 +62,7 @@ func run(ctx context.Context, wdir string, portHTTP, portHTTPS int, expose bool,
 	if err != nil {
 		return err
 	}
+	log.Printf("used/initialised a database in path %s", wdir)
 
 	// for now, this is blocking, which means as soon as the site is ready, all the sample data are in there
 	// it also means that if our sample data are large, the server takes that much longer to load
