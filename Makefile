@@ -43,8 +43,10 @@ dist: check test
 		for arch in $(BUILD_ARCH); do \
 			echo "Buidling" $$arch $$os; \
 			artpath="dist/smda-$$os-$$arch.tar.gz"; \
-			# TODO(next): rename to smda-server.exe for windows targets
 			binpath="smda-server";\
+			if [ $$os = "windows" ]; then\
+				binpath="smda-server.exe";\
+			fi;\
 			CGO_ENABLED=0 GOARCH=$$arch GOOS=$$os $(GORLS) build -o $$binpath ./cmd/server; \
 			tar -czf $$artpath LICENSE $$binpath; \
 			rm $$binpath;\
