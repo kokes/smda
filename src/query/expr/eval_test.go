@@ -172,7 +172,7 @@ func TestBasicEval(t *testing.T) {
 	for _, cln := range ds.Schema {
 		columns = append(columns, cln.Name)
 	}
-	coldata, err := db.ReadColumnsFromStripeByNames(ds, ds.Stripes[0], columns)
+	coldata, _, err := db.ReadColumnsFromStripeByNames(ds, ds.Stripes[0], columns)
 	if err != nil {
 		t.Fatal(err)
 	}

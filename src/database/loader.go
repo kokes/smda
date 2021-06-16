@@ -320,10 +320,11 @@ type StripeReader struct {
 	f *os.File
 	// seeking is slow, so keep position manually is a big win
 	// if we read columns sequentially, we don't need to seek at all
-	pos     int
-	offsets []uint32
-	schema  column.TableSchema
-	buffer  *bytes.Buffer
+	pos       int
+	offsets   []uint32
+	schema    column.TableSchema
+	buffer    *bytes.Buffer
+	bytesRead int
 }
 
 // OPTIM: pass in a bytes buffer to reuse it?
@@ -365,6 +366,7 @@ func (sr *StripeReader) ReadColumn(nthColumn int) (column.Chunk, error) {
 		return nil, err
 	}
 	sr.pos += length
+	sr.bytesRead += length
 
 	raw := sr.buffer.Bytes()
 	// IEEE CRC32 is in the first four bytes of this slice
@@ -385,11 +387,11 @@ func (sr *StripeReader) ReadColumn(nthColumn int) (column.Chunk, error) {
 
 // OPTIM: perhaps reorder the column requests, so that they are contiguous, or at least in order
 //        also add a benchmark that reads columns in reverse and see if we get any benefits from this
-func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) (map[string]column.Chunk, error) {
+func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) (map[string]column.Chunk, int, error) {
 	cols := make(map[string]column.Chunk, len(columns))
 	sr, err := NewStripeReader(db, ds, stripe)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer sr.Close()
 	for _, column := range columns {
@@ -399,16 +401,16 @@ func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, col
 		}
 		idx, _, err := ds.Schema.LocateColumn(column)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		// ARCH: consider ReadColumnByName to avoid the LocateColumn call above (and hide it in this method)
 		col, err := sr.ReadColumn(idx)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		cols[column] = col
 	}
-	return cols, nil
+	return cols, sr.bytesRead, nil
 }
 
 func validateHeaderAgainstSchema(header []string, schema column.TableSchema) error {

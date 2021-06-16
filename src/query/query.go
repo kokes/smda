@@ -27,6 +27,8 @@ type Result struct {
 	Schema column.TableSchema
 	Length int
 	Data   []column.Chunk
+	// ARCH: consider something like `stats` that will encapsulate this?
+	bytesRead int
 
 	// this is used for sorting
 	rowIdxs    []int
@@ -65,6 +67,9 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	if _, err := buf.WriteString(fmt.Sprintf(",\n\"nrows\": %d", r.Length)); err != nil {
+		return nil, err
+	}
+	if _, err := buf.WriteString(fmt.Sprintf(",\n\"bytes_read\": %d", r.bytesRead)); err != nil {
 		return nil, err
 	}
 
@@ -219,7 +224,8 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 		stripeLength := stripe.Length
 		var filter *bitmap.Bitmap
 		rcs := make([]column.Chunk, len(q.Aggregate))
-		columnData, err := db.ReadColumnsFromStripeByNames(ds, stripe, columnNames)
+		columnData, bytesRead, err := db.ReadColumnsFromStripeByNames(ds, stripe, columnNames)
+		res.bytesRead += bytesRead
 		if err != nil {
 			return err
 		}
@@ -538,7 +544,8 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		if q.Filter != nil {
 			colnames = append(colnames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter[0])...)
 		}
-		columns, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
+		columns, bytesRead, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
+		res.bytesRead += bytesRead
 		if err != nil {
 			return nil, err
 		}

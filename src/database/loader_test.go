@@ -441,7 +441,7 @@ func TestInvalidOffsets(t *testing.T) {
 	for _, test := range tests {
 		ds.Stripes[0].Offsets = test
 
-		if _, err := db.ReadColumnsFromStripeByNames(ds, ds.Stripes[0], cols); err != errInvalidOffsetData {
+		if _, _, err := db.ReadColumnsFromStripeByNames(ds, ds.Stripes[0], cols); err != errInvalidOffsetData {
 			t.Errorf("expecting offsets %+v to trigger errInvalidOffsetData, but got %+v instead", test, err)
 		}
 	}

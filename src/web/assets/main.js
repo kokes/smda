@@ -139,7 +139,8 @@ class smda {
             errDialog("Failed to run query", e)
         } finally {
             clearInterval(incrementor);
-            elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
+            const runtime = formatDuration(performance.now() - startTime, "Elapsed: ");
+            elapsed.textContent = `${runtime} (${formatBytes(data.bytes_read)} scanned)`;
         }
 
         if (success) {
@@ -230,8 +231,24 @@ class smda {
         for (let rowNum=0; rowNum < data.nrows; rowNum++) {
             const rowData = data.data[rowNum];
             const row = node("tr", {},
-                data.schema.map((val, idx) => {
-                    return node("td", {}, rowData[idx])
+                data.schema.map((_, idx) => {
+                    let val = rowData[idx];
+                    if (typeof(val) === "number" && !Number.isInteger(val)) {
+                        // ARCH: why three? what if we need more precision?
+                        val = val.toFixed(3);
+                        // trim trailing zeroes... it's a bit clunky at the moment, but I guess it's better than a regex
+                        // TODO: test - 0, 100, 20.00, 0.00, 2.34, 2.340, 2.00, 2.001, 234, ...
+                        if (val.endsWith("0") && val.length > 1 && val.includes(".")) {
+                            for (let j=val.length-1; j >= 0; j--) {
+                                const char = val.charAt(j);
+                                if (char === "." || char !== "0") {
+                                    val = val.slice(0, j + 1 - (char === "."));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    return node("td", {}, val);
                 })
             )
             table.appendChild(row);
