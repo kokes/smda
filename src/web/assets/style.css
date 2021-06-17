@@ -78,6 +78,13 @@ table {
 table tr:nth-child(even) {
     background: lavenderblush;
 }
+table tr td[data-null="null"] {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent 0 20px,
+      #f5f5f5 20px 40px
+    );
+}
 table tr td, table tr th {
     padding: .5em 1em;
     /*
@@ -86,14 +93,21 @@ table tr td, table tr th {
     */
     vertical-align: top;
 }
-table tr th span.ordering {
-    padding-left: .5em;
-}
 table tr td summary:hover {
     cursor: pointer;
 }
 table tr th {
+    text-align: start;
+    cursor: pointer;
     border-bottom: 2px solid mistyrose;
+}
+table tr th[data-ordering="asc"]::after {
+    padding-left: .5em;
+    content: "↑";
+}
+table tr th[data-ordering="desc"]::after {
+    padding-left: .5em;
+    content: "↓";
 }
 
 nav#panel ul li {

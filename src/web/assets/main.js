@@ -217,22 +217,66 @@ class smda {
         const table = node("table", {"class": "data-view"},
             node("thead", {},
                 node("tr", {}, data.schema.map((col, idx) => {
-                    const th = node("th", {}, col.name);
+                    const props = {"data-idx": idx, "data-dtype": col.dtype};
                     if (data.ordering[idx] !== null) {
-                        const pictos = {"asc": "↑", "desc": "↓"};
-                        th.append(node("span", {"class": "ordering"}, pictos[data.ordering[idx]]))
+                        props["data-ordering"] = data.ordering[idx];
                     }
+                    const th = node("th", props, col.name);
+                    th.addEventListener("click", e => {
+                        const dtype = e.target.getAttribute("data-dtype");
+                        const isNumeric = dtype === "float" || dtype === "int"; // TODO: isNumeric as a function?
+                        const existing = e.target.getAttribute("data-ordering");
+                        let newOrder = "asc";
+                        if (existing === "asc") {
+                            newOrder = "desc";
+                        }
+                        const ths = e.target.closest("thead").querySelectorAll("tr th");
+                        ths.forEach(x => x.removeAttribute("data-ordering"));
+                        e.target.setAttribute("data-ordering", newOrder);
+
+                        const colIdx = parseInt(e.target.getAttribute("data-idx"), 10);
+                        const tbody = e.target.closest("table").querySelector("tbody");
+                        const trs = Array.from(tbody.querySelectorAll("tr"));
+
+                        const ltv = newOrder === "asc" ? -1 : 1;
+                        trs.sort((a, b) => {
+                            const cells = [a, b].map(x => x.children[colIdx]);
+                            let vals = cells.map(x => x.textContent);
+                            const nulls = cells.map(x => x.getAttribute("data-null") !== null);
+                            if (nulls[0] && nulls[1]) {
+                                return 0;
+                            }
+                            if (nulls[0] || nulls[1]) {
+                                // nulls first for asc, nulls last for desc (mapping [0, 1] to [-1, 1])
+                                return (2*nulls[0] - 1)*ltv;
+                            }
+                            if (isNumeric) {
+                                vals = vals.map(x => parseFloat(x));
+                            }
+                            if (vals[0] === vals[1]) { return 0; }
+                            if (vals[0] < vals[1]) {  return ltv; }
+                            return -ltv;
+                        });
+                        empty(tbody);
+                        trs.forEach(x => tbody.append(x));
+                    });
 
                     return th;
                 }))
             )
         )
 
+        const tbody = node("tbody", null);
         for (let rowNum=0; rowNum < data.nrows; rowNum++) {
             const rowData = data.data[rowNum];
             const row = node("tr", {},
                 data.schema.map((_, idx) => {
                     let val = rowData[idx];
+                    let props = {};
+                    if (val === null) {
+                        props["data-null"] = "null";
+                        val = "";
+                    }
                     if (typeof(val) === "number" && !Number.isInteger(val)) {
                         // ARCH: why three? what if we need more precision?
                         val = val.toFixed(3);
@@ -248,10 +292,10 @@ class smda {
                             }
                         }
                     }
-                    return node("td", {}, val);
+                    return node("td", props, val);
                 })
             )
-            table.appendChild(row);
+            tbody.appendChild(row);
             // ARCH: I think the imperative code below is more readable...
             // const row = document.createElement('tr');
             // for (let colNum = 0; colNum < data.schema.length; colNum++) {
@@ -261,6 +305,7 @@ class smda {
             // }
             // table.appendChild(row);
         }
+        table.append(tbody);
 
         empty(target);
         target.appendChild(table);
