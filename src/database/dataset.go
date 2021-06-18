@@ -261,10 +261,10 @@ type Dataset struct {
 
 // DatasetIdentifier contains fields needed for a dataset/version lookup
 type DatasetIdentifier struct {
-	Name    string `json:"name"`
-	Version UID    `json:"id"`
+	Name    string
+	Version UID
 	// Latest can be used to avoid using Version (e.g. if it's unknown)
-	Latest bool `json:"latest"`
+	Latest bool
 }
 
 func (did DatasetIdentifier) String() string {

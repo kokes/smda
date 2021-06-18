@@ -1,7 +1,6 @@
 package expr
 
 import (
-	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -85,88 +84,6 @@ func TestExprStringer(t *testing.T) {
 		}
 		if parsed.String() != test.expected {
 			t.Errorf("expecting %s to parse and then stringify into %s, got %s instead", test.raw, test.expected, parsed.String())
-		}
-	}
-}
-
-func TestJSONMarshaling(t *testing.T) {
-	tests := []struct {
-		rawExpr  string
-		jsonRepr string
-	}{
-		// {"", ""}, // TODO(next): make this fail with a meaningful error
-		{"1", `"1"`},
-		{"1-2", `"1-2"`},
-		{"-4 + 5", `"-4+5"`},
-		{"-(foo+bar)", `"-(foo+bar)"`},
-		{"not (foo + 3)", `"NOT (foo+3)"`},
-		{"sum(a+b)", `"sum(a+b)"`},
-	}
-	for _, test := range tests {
-		expr, err := ParseStringExpr(test.rawExpr)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		ret, err := ToJSON(expr)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		if !reflect.DeepEqual(string(ret), test.jsonRepr) {
-			t.Errorf("expected %v to be parsed and JSON marshaled as %v, got %s instead", test.rawExpr, test.jsonRepr, ret)
-		}
-
-		roundtripped, err := FromJSON(ret)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		PruneFunctionCalls(roundtripped)
-		PruneFunctionCalls(expr)
-		if !reflect.DeepEqual(expr, roundtripped) {
-			t.Errorf("expression %v failed our JSON roundtrip - expected %v, got %v", test.rawExpr, expr, roundtripped)
-		}
-	}
-}
-
-func TestJSONMarshalingLists(t *testing.T) {
-	tests := []struct {
-		rawExpr  string
-		jsonRepr string
-	}{
-		{"1", `"1"`},
-		{"1-2", `"1-2"`},
-		{"foo, bar", `"foo, bar"`},
-		{"1 + 2, foo, bar*bak", `"1+2, foo, bar*bak"`},
-		{"1 + 2, (foo - bar)/4+3, bar*bak", `"1+2, (foo-bar)/4+3, bar*bak"`},
-	}
-	for _, test := range tests {
-		exprs, err := ParseStringExprs(test.rawExpr)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		ret, err := json.Marshal(exprs)
-		if err != nil {
-			t.Error(err)
-			continue
-		}
-		if !reflect.DeepEqual(string(ret), test.jsonRepr) {
-			t.Errorf("expected %v to be parsed and JSON marshaled as %v, got %s instead", test.rawExpr, test.jsonRepr, ret)
-		}
-
-		var roundtripped ExpressionList
-		if err := json.Unmarshal(ret, &roundtripped); err != nil {
-			t.Error(err)
-			continue
-		}
-		if len(exprs) != len(roundtripped) {
-			t.Errorf("expected %d elements, got %d", len(exprs), len(roundtripped))
-			continue
-		}
-		if !reflect.DeepEqual(exprs, roundtripped) {
-			t.Errorf("expression %v failed our JSON roundtrip - expected %v, got %v", test.rawExpr, exprs, roundtripped)
 		}
 	}
 }

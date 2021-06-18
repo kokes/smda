@@ -26,8 +26,13 @@ class Router {
                     if (qform.method !== "get") {
                         throw new Error("cannot submit POST forms yet");
                     }
-                    for (let entry of (new FormData(qform)).entries()) {
-                        url.searchParams.set(entry[0], entry[1]);
+                    if (qform.write_sql.checked) {
+                        const query = qform.sql.value;
+                        url.searchParams.set("sql", query);
+                    } else {
+                        for (let entry of (new FormData(qform)).entries()) {
+                            url.searchParams.set(entry[0], entry[1]);
+                        }
                     }
                     history.pushState({}, "", url);
                     break;
@@ -52,7 +57,7 @@ class Router {
         const qform = document.forms["query"];
         if (qform !== undefined) {
             const params = new URLSearchParams(window.location.search);
-            for (let inp of qform.querySelectorAll("input, select")) {
+            for (let inp of qform.querySelectorAll("input, textarea, select")) {
                 const fieldName = inp.getAttribute("name");
                 inp.value = params.get(fieldName);
                 inp.dispatchEvent(new Event("change")); // inputs don't fire change events when value is set programatically

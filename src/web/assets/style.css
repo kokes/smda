@@ -144,6 +144,15 @@ div#column-filter ul li {
     margin-left: 1.5em;
 }
 
+div#query div#toggle {
+    margin-bottom: 1em;
+}
+textarea#sql {
+    display: block;
+    margin: 1em 0;
+    padding: .5em;
+}
+
 form fieldset {
     padding: 1em;
     border: 1px solid #ccc;
@@ -169,10 +178,13 @@ form fieldset > div input {
     min-width: 600px;
     max-width: 80%;
 }
-form fieldset button {
+div#submit-query {
+    margin-top: 1em;
+}
+div#submit-query button {
     padding: .3em 1em;
 }
 
-form small#elapsed {
+div#submit-query  small#elapsed {
     padding-left: 1em;
 }

@@ -15,7 +15,6 @@ import (
 
 	"github.com/kokes/smda/src/column"
 	"github.com/kokes/smda/src/database"
-	"github.com/kokes/smda/src/query/expr"
 )
 
 func newDatabaseWithRoutes() (*database.Database, error) {
@@ -315,16 +314,12 @@ func TestHandlingQueries(t *testing.T) {
 	for _, ds := range dss {
 		url := fmt.Sprintf("%s/api/query", srv.URL)
 		limit := 100
-		var cols []expr.Expression
-		for _, colSchema := range ds.Schema {
-			colExpr, err := expr.ParseStringExpr(colSchema.Name)
-			if err != nil {
-				t.Fatal(err)
-			}
-			cols = append(cols, colExpr)
+		var cols []string
+		for _, col := range ds.Schema {
+			cols = append(cols, col.Name)
 		}
-		qr := expr.Query{Select: cols, Dataset: &database.DatasetIdentifier{Name: ds.Name, Latest: true}, Limit: &limit}
-		body, err := json.Marshal(qr)
+		query := fmt.Sprintf("SELECT %v FROM %v LIMIT %v", strings.Join(cols, ", "), ds.Name, limit)
+		body, err := json.Marshal(payload{SQL: query})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -378,17 +373,11 @@ func TestInvalidQueries(t *testing.T) {
 		}
 	}()
 
-	data := "foo\n1\n2\n3"
-	ds, err := db.LoadDatasetFromReaderAuto("foobar", strings.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
 	url := fmt.Sprintf("%s/api/query", srv.URL)
-	body := fmt.Sprintf(`{"dataset": {"name": "%v", "id": "%v"}, "foobar": 123}`, ds.Name, ds.ID)
+	body := `{"sql": "select 1", "foo": "bar"}`
 	// _ = ds
 	// body := `{"foobar": 123}`
 	resp, err := http.Post(url, "application/json", strings.NewReader(body))
@@ -399,7 +388,7 @@ func TestInvalidQueries(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %+v", resp.Status)
 	}
-	expErr := `did not supply correct query parameters: json: unknown field "foobar"`
+	expErr := `did not supply correct query parameters: json: unknown field "foo"`
 	defer resp.Body.Close()
 	ret, err := io.ReadAll(resp.Body)
 	if err != nil {

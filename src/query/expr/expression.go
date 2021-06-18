@@ -43,14 +43,12 @@ type ExpressionList []Expression
 //    to the Query struct (the Unmarshaler should mostly take care of this)
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
-	Select  ExpressionList              `json:"select,omitempty"`
-	Dataset *database.DatasetIdentifier `json:"dataset"`
-	// ARCH: this is quite hacky - we know Filter can only be a single Expression,
-	// but we cannot unmarshal Expressions as they are interfaces
-	Filter    ExpressionList `json:"filter,omitempty"`
-	Aggregate ExpressionList `json:"aggregate,omitempty"`
-	Order     ExpressionList `json:"order,omitempty"`
-	Limit     *int           `json:"limit,omitempty"`
+	Select    ExpressionList
+	Dataset   *database.DatasetIdentifier
+	Filter    Expression
+	Aggregate ExpressionList
+	Order     ExpressionList
+	Limit     *int
 	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
 }
 
@@ -117,33 +115,6 @@ func AggExpr(expr Expression) ([]*Function, error) {
 		}
 	}
 	return ret, nil
-}
-
-// cannot have interface pointer receivers
-func FromJSON(data []byte) (Expression, error) {
-	var raw string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-	return ParseStringExpr(raw)
-}
-
-func ToJSON(expr Expression) ([]byte, error) {
-	return json.Marshal(expr.String())
-}
-
-// ARCH: this is a bit contentious - our []*Expression aka ExpressionList (un)marshals
-// as a "expr, expr2", NOT as "[]*Expression{expr, expr2}"
-func (exprs *ExpressionList) UnmarshalJSON(data []byte) error {
-	var raw string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	ex, err := ParseStringExprs(raw)
-	if ex != nil {
-		*exprs = ex
-	}
-	return err
 }
 
 func (exprs ExpressionList) String() string {

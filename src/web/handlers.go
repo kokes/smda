@@ -11,7 +11,6 @@ import (
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/query"
-	"github.com/kokes/smda/src/query/expr"
 )
 
 //go:embed assets
@@ -56,6 +55,11 @@ func handleDatasets(db *database.Database) http.HandlerFunc {
 	}
 }
 
+// TODO(next)/ARCH: reorg this, move to query.go maybe?
+type payload struct {
+	SQL string `json:"sql"`
+}
+
 func handleQuery(db *database.Database) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -63,10 +67,11 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 			http.Error(w, "only POST requests allowed for /api/query", http.StatusMethodNotAllowed)
 			return
 		}
-		var qr expr.Query
+
+		var inc payload
 		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
-		if err := dec.Decode(&qr); err != nil {
+		if err := dec.Decode(&inc); err != nil {
 			http.Error(w, fmt.Sprintf("did not supply correct query parameters: %v", err), http.StatusBadRequest)
 			return
 		}
@@ -75,7 +80,7 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 			http.Error(w, "body can only contain a single JSON object", http.StatusBadRequest)
 			return
 		}
-		res, err := query.Run(db, qr)
+		res, err := query.RunSQL(db, inc.SQL)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed this query: %v", err), http.StatusInternalServerError)
 			return

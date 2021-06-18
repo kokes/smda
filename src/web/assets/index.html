@@ -32,6 +32,12 @@
             <div id="route-query">
                 <div id="query">
                     <form action="/query" name="query">
+                        <div id="toggle">
+                            <input type="checkbox" name="write_sql" id="write_sql" /> <label for="write_sql">Write SQL</label>
+                        </div>
+
+                        <textarea name="sql" id="sql" rows=10 cols=100></textarea>
+
                         <fieldset>
                             <legend>Query parameters</legend>
                             <div>
@@ -58,10 +64,12 @@
                                 <label for="limit">Limit</label>
                                 <input name="limit" id="limit" type="number" placeholder="100" />
                             </div>
+                        </fieldset>
 
+                        <div id="submit-query">
                             <button>Run query</button>
                             <small id="elapsed"></small>
-                        </fieldset>
+                        </div>
                     </form>
 
                     <div id="column-filter"></div>

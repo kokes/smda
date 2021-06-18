@@ -215,7 +215,7 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 
 	columnNames := expr.ColumnsUsedMultiple(ds.Schema, append(q.Aggregate, q.Select...)...)
 	if q.Filter != nil {
-		columnNames = append(columnNames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter[0])...)
+		columnNames = append(columnNames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter)...)
 	}
 	groups := make(map[uint64]uint64)
 	// ARCH: `nrc` and `rcs` are not very descriptive
@@ -230,7 +230,7 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 			return err
 		}
 		if q.Filter != nil {
-			filter, err = filterStripe(db, ds, stripe, q.Filter[0], columnData)
+			filter, err = filterStripe(db, ds, stripe, q.Filter, columnData)
 			if err != nil {
 				return err
 			}
@@ -416,9 +416,6 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	if len(q.Select) == 0 {
 		return nil, errNoProjection
 	}
-	if len(q.Filter) > 1 {
-		return nil, errInvalidFilter
-	}
 	res := &Result{
 		Schema: make([]column.Schema, 0, len(q.Select)),
 		Data:   make([]column.Chunk, 0),
@@ -488,12 +485,12 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	}
 
 	if q.Filter != nil {
-		rettype, err := q.Filter[0].ReturnType(ds.Schema)
+		rettype, err := q.Filter.ReturnType(ds.Schema)
 		if err != nil {
 			return nil, err
 		}
 		if rettype.Dtype != column.DtypeBool {
-			return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", q.Filter[0], rettype.Dtype)
+			return nil, fmt.Errorf("can only filter by expressions that return booleans, got %v that returns %v", q.Filter, rettype.Dtype)
 		}
 	}
 
@@ -542,7 +539,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	for _, stripe := range ds.Stripes {
 		colnames := expr.ColumnsUsedMultiple(ds.Schema, q.Select...)
 		if q.Filter != nil {
-			colnames = append(colnames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter[0])...)
+			colnames = append(colnames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter)...)
 		}
 		columns, bytesRead, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
 		res.bytesRead += bytesRead
@@ -552,7 +549,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		var filter *bitmap.Bitmap
 		loadFromStripe := stripe.Length
 		if q.Filter != nil {
-			filter, err = filterStripe(db, ds, stripe, q.Filter[0], columns)
+			filter, err = filterStripe(db, ds, stripe, q.Filter, columns)
 			if err != nil {
 				return nil, err
 			}

@@ -504,6 +504,7 @@ func TestParsingSQL(t *testing.T) {
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo, bar", nil},
 		// we do roundtrips only, so we have to specify the full `ASC NULLS LAST`, we cannot have just `ASC`
 		// TODO: this means we can't test parsing `ORDER BY foo NULLS LAST` with ASC being implicit
+		// TODO(next): doing roundtrips also means we can't test comments - `{"SELECT * FROM bar\n-- my comment\nLIMIT 5", nil},`
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar", nil},
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar DESC NULLS FIRST", nil},
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS FIRST, bar DESC NULLS FIRST", nil},

@@ -25,9 +25,39 @@ function errDialog(title, msg) {
 class smda {
     constructor() {        
         this.setupUploader();
+        this.setupQueryWindow()
         this.setupColumnFilter()
     }
-    // ARCH: move elsewhere (both UI setups)
+    // ARCH: move elsewhere (all UI setups)
+    setupQueryWindow() {
+        // toggle query methods based on a checkbox
+        const tick = document.getElementById("write_sql");
+        tick.addEventListener("click", e => {
+            const target = document.getElementById("sql");
+            const checked = e.target.checked;
+            if (checked && target.value.trim() === "") {
+                target.value = this.queryFromStructured(document.forms["query"]);
+            }
+
+            const qform = document.querySelector("div#query fieldset");
+            const qsql = document.querySelector("div#query textarea#sql");
+
+            qform.style.display = checked ? "none" : "block";
+            qsql.style.display = checked ? "block" : "none";
+        });
+        tick.dispatchEvent(new Event("click"));
+
+        // submit on shift-enter
+        document.querySelector("div#query textarea#sql").addEventListener("keydown", e => {
+            if (!(e.code === "Enter" && e.shiftKey === true)) {
+                return;
+            }
+            e.preventDefault();
+            // TODO(next)/ARCH: we can't do `document.forms["query"].submit()`, because that
+            // would circumvent our router
+            document.forms["query"].querySelector("button").click();
+        });
+    }
     // ARCH: maybe move this one to submitQuery?
     setupColumnFilter() {
         const dsi = document.querySelector("input#dataset");
@@ -38,6 +68,7 @@ class smda {
             if (e.target.value === "") {
                 return;
             }
+            // ARCH/TODO: create a helper function to work with dataset versions (search `@v` for more use cases here)
             const version = e.target.value.split("@v")[1];
             const ds = this.datasets[version];
             const target = document.getElementById("column-filter");
@@ -98,31 +129,38 @@ class smda {
             e.target.disabled = "";
         })
     }
-    async submitQuery() {
-        const qform = document.forms["query"];
-        const target = document.getElementById("query-results");
-        const elapsed = qform.querySelector("small#elapsed");
-
+    queryFromStructured(qform) {
         const query = Object.fromEntries(
             [...qform.querySelectorAll("input")]
                 .filter(x => x.value !== "")
                 .map(x => [x.name, x.value])
         )
-        if (query.dataset !== undefined) {
-            // ARCH/TODO: create a helper function to work with dataset versions (search `@v` for more use cases here)
-            const valueparts = query.dataset.split("@v");
-            query.dataset = {
-                name: valueparts[0],
-                id: valueparts[1], // ARCH: might be `version`
-            }
-        }
-        if (query.limit !== undefined) {
-            query.limit = parseInt(query.limit, 10);
-        }
-        
         if (Object.entries(query).length === 0) {
-            empty(elapsed);
+            return "";
+        }
+        return [
+            `SELECT ${query["select"] ? query["select"] : "*"}`,
+            `${query["dataset"] ? "FROM " + query["dataset"] : ""}`,
+            `${query["filter"] ? "WHERE " + query["filter"] : ""}`,
+            `${query["aggregate"] ? "GROUP BY " + query["aggregate"] : ""}`,
+            `${query["order"] ? "ORDER BY " + query["order"] : ""}`,
+            `${query["limit"] !== undefined ? "LIMIT " + query["limit"] : ""}`,
+        ].filter(x => x.trim() !== "").join("\n");
+    }
+    async submitQuery() {
+        const qform = document.forms["query"];
+        const writeSQL = document.getElementById("write_sql").checked;
+        const target = document.getElementById("query-results");
+        const elapsed = qform.querySelector("small#elapsed");
+
+        let query = qform.sql.value;
+        if (!writeSQL) {
+            query = this.queryFromStructured(qform);
+        }
+        if (query.trim() === "") {
             empty(target);
+            empty(elapsed);
+            empty(document.getElementById("column-filter"));
             return;
         }
 
@@ -196,16 +234,10 @@ class smda {
         this.datasets = Object.fromEntries(raw.map(x => [x.id, x]))
     }
     async runQuery(query) {
-        if (query["select"] === undefined) {
-            query["select"] = "*";
-        }
-        if (query["limit"] === undefined) {
-            query["limit"] = 100; // ARCH: safety mechanism
-        }
         const req = await fetch('/api/query', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(query),
+            body: JSON.stringify({"sql": query}),
         })
         if (req.ok === false) {
             const error = await req.text();

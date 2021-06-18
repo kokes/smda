@@ -65,10 +65,20 @@ type Parser struct {
 
 func NewParser(s string) (*Parser, error) {
 	// OPTIM: walk it here without materialising it... but it shouldn't really matter for our use cases
-	tokens, err := tokeniseString(s)
+	tokensRaw, err := tokeniseString(s)
 	if err != nil {
 		return nil, err
 	}
+	// TODO(next)/ARCH: consider skipping comments in peekToken? But what about trailing comments,
+	// won't the mess with "unparsed content"?
+	tokens := make([]token, 0, len(tokensRaw))
+	for _, tok := range tokensRaw {
+		if tok.ttype == tokenComment {
+			continue
+		}
+		tokens = append(tokens, tok)
+	}
+
 	p := &Parser{tokens: tokens}
 	p.prefixParseFns = map[tokenType]prefixParseFn{
 		tokenLparen:           p.parseParentheses,
@@ -448,6 +458,7 @@ func ParseQuerySQL(s string) (Query, error) {
 	if p.peekToken().ttype != tokenFrom {
 		// we expect FROM ... unless the query is without a dataset (e.g. `SELECT 1`)
 		// ARCH: consider allowing for limits/having, I think they are supported elsewhere
+		// TODO(next): "select 1 limit 100" NOT supported
 		if p.peekToken().ttype == tokenEOF {
 			return q, nil
 		}
@@ -493,7 +504,7 @@ func ParseQuerySQL(s string) (Query, error) {
 		if err := p.Err(); err != nil {
 			return q, err
 		}
-		q.Filter = ExpressionList([]Expression{clause})
+		q.Filter = clause
 		p.position++
 	}
 	if p.curToken().ttype == tokenGroup {

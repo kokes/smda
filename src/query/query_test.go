@@ -53,42 +53,6 @@ func TestTheMostBasicQuery(t *testing.T) {
 	}
 }
 
-// ARCH: we repeat quite a heavy setup - maybe abstract it out somehow?
-func TestQueryNothing(t *testing.T) {
-	db, err := database.NewDatabase("", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := db.Drop(); err != nil {
-			panic(err)
-		}
-	}()
-
-	data := strings.NewReader("foo,bar,baz\n1,2,3\n4,5,6")
-	ds, err := db.LoadDatasetFromReaderAuto("foodata", data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.AddDataset(ds); err != nil {
-		t.Fatal(err)
-	}
-	cols, err := expr.ParseStringExprs("foo, bar, baz")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// filters are almost at most one expression - this case would have to be `foo > 1 AND bar < 2 AND baz = 6`
-	filter, err := expr.ParseStringExprs("foo > 1, bar < 2, baz = 6")
-	if err != nil {
-		t.Fatal(err)
-	}
-	q := expr.Query{Select: cols, Dataset: &database.DatasetIdentifier{Name: ds.Name, Latest: true}, Filter: filter}
-
-	if _, err := Run(db, q); err != errInvalidFilter {
-		t.Errorf("expected that selecting nothing will yield %v, got %v instead", errInvalidFilter, err)
-	}
-}
-
 func TestQueryInvalidFilter(t *testing.T) {
 	db, err := database.NewDatabase("", nil)
 	if err != nil {
