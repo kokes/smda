@@ -34,3 +34,5 @@ The goal was to create a data exploration tool, and while the basis of that is c
 ## Closing notes
 
 At this point the tools is in flux, the APIs (both REST and Go) keep changing, the binary format may be overhauled at some point, the code base and tooling is changing as well. For these reasons, the tool is to meant to be integrated into larger systems, it's meant as an ad-hoc data exploration tool.
+
+If you have any bug reports, objections, questions, or proposals, you can [file an issue](https://github.com/kokes/smda/issues), [e-mail me](mailto:ondrej.kokes@gmail.com), or ping me [on twitter](https://twitter.com/pndrej).
