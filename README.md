@@ -10,6 +10,12 @@ Deployment simplicity is definitely at the heart of this project, a lot of effor
 
 Go to [releases](https://github.com/kokes/smda/releases), download a version for your operating system and architecture, unpack it and launch it. A local webserver will be launched, you interact with that through your web browser, that's it.
 
+There are multiple ways you can run smda from source. You'll need `make` and either the [Go compiler](https://golang.org/) or [Docker](https://www.docker.com/).
+
+1. `make run` builds it on the fly and launches it. You can run `DEV=1 make run` if you want web assets (HTML, CSS, JS) served from disk - useful for frontend development. This requires the Go compiler.
+2. `make build` runs tests and builds a static binary that you can then launch. Again, the Go compiler is needed.
+3. `make build-docker` will build the binary from within Docker and result in a Docker image. The entrypoint is already set up, but you'll need to forward ports, e.g. by running `docker run --rm -it -p 8822:8822 kokes/smda`.
+
 ## Main ideas
 
 There are essentially three major things we want to address in smda:
