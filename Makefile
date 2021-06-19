@@ -39,7 +39,6 @@ run-docker: build-docker
 dist: check test
 	@rm -rf dist
 	mkdir dist
-	git archive --format tar HEAD | gzip > dist/smda-src.tar.gz
 	@for os in $(BUILD_OS) ; do \
 		for arch in $(BUILD_ARCH); do \
 			echo "Buidling" $$arch $$os; \
