@@ -42,17 +42,17 @@ dist: check test
 	@for os in $(BUILD_OS) ; do \
 		for arch in $(BUILD_ARCH); do \
 			echo "Buidling" $$arch $$os; \
-			artpath="dist/smda-$$os-$$arch.tar.gz"; \
+			artpath="dist/smda-$$os-$$arch.zip"; \
 			binpath="smda-server";\
 			if [ $$os = "windows" ]; then\
 				binpath="smda-server.exe";\
 			fi;\
 			CGO_ENABLED=0 GOARCH=$$arch GOOS=$$os $(GORLS) build -o $$binpath ./cmd/server; \
-			tar -czf $$artpath LICENSE $$binpath; \
+			zip $$artpath LICENSE $$binpath; \
 			rm $$binpath;\
 		done \
 	done
-	(cd dist; shasum -a 256 *.tar.gz > sha256sums.txt)
+	(cd dist; shasum -a 256 *.zip > sha256sums.txt)
 
 test:
 	CGO_ENABLED=0 $(GORLS) test -timeout 5s -coverprofile=coverage.out ./...
