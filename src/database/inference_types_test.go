@@ -19,6 +19,7 @@ func TestColumnCleanup(t *testing.T) {
 		input    string
 		expected string
 	}{
+		{"", "column_01"},
 		{"foo|bar|baz", "foo|bar|baz"},
 		{"foo | bar | baz", "foo|bar|baz"},
 		{"foo |	bar	|	baz", "foo|bar|baz"},
@@ -41,7 +42,11 @@ func TestColumnCleanup(t *testing.T) {
 		{"fooID", "foo_id"},
 		{"fooId", "foo_id"},
 		{"fooIdBarBaz", "foo_id_bar_baz"},
-		// TODO: "1foo" should not be allowed (we won't be able to parse it anyway)
+		// cannot parse identifiers that start with a digit (because we optimistically think of them as numbers)
+		{"1foo", "column1foo"},
+		{"č1foo", "column1foo"},
+		{"_1foo", "column1foo"},
+		{"123", "column123"},
 	}
 
 	for _, test := range tests {

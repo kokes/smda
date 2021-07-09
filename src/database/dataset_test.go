@@ -102,15 +102,16 @@ func TestDatasetNames(t *testing.T) {
 		{"my dataset...", "my_dataset"},
 		{"...my dataset...", "my_dataset"},
 		{"myLargeDataset", "my_large_dataset"},
-		{"123", "123"},         // TODO: we should avoid this, really (cannot be parsed)
-		{"", ""},               // ... and this as well
+		{"123", "dataset123"},
+		{"1dataset", "dataset1dataset"},
+		{"", "dataset"},
 		{"foo.csv", "foo_csv"}, // ARCH: do we want this or just "foo"?
 	}
 
 	for _, test := range tests {
 		ds := NewDataset(test.before)
 		if ds.Name != test.expected {
-			t.Errorf("expected column name '%v' to be cleaned up into '%v', got '%v' instead", test.before, test.expected, ds.Name)
+			t.Errorf("expected dataset name '%v' to be cleaned up into '%v', got '%v' instead", test.before, test.expected, ds.Name)
 		}
 	}
 }

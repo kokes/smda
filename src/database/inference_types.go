@@ -12,7 +12,7 @@ import (
 
 var errCannotInferTypes = errors.New("cannot infer types")
 
-func cleanupIdentifier(s string) string {
+func cleanupIdentifier(s, prefix string) string {
 	chars := bytes.TrimSpace([]byte(s))
 	for j, char := range chars {
 		if char >= 'A' && char <= 'Z' {
@@ -49,20 +49,23 @@ func cleanupIdentifier(s string) string {
 		}
 	}
 
-	return string(bytes.Trim(chars, "_"))
+	trimmed := bytes.Trim(chars, "_")
+	if len(trimmed) == 0 || !(trimmed[0] >= 'a' && trimmed[0] <= 'z') {
+		trimmed = append([]byte(prefix), trimmed...)
+	}
+
+	return string(trimmed)
 }
 
 // ARCH: consider converting non-ascii to ascii?
 func cleanupColumns(columns []string) []string {
+	prefix := "column"
 	existing := make(map[string]bool)
 	ret := make([]string, 0, len(columns))
 	for _, col := range columns {
-		col = cleanupIdentifier(col)
+		col = cleanupIdentifier(col, prefix)
 
-		if _, ok := existing[col]; ok || col == "" {
-			if col == "" {
-				col = "column"
-			}
+		if _, ok := existing[col]; ok || col == prefix {
 			base, j := col, 1
 			for {
 				col = fmt.Sprintf("%v_%02d", base, j)

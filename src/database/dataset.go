@@ -278,7 +278,7 @@ func (did DatasetIdentifier) String() string {
 func NewDataset(name string) *Dataset {
 	// ARCH: we don't give the user a choice - the name will get modified if it doesn't
 	// satisfy our rules... allow for some UnsafeNewDataset thingy?
-	name = cleanupIdentifier(name)
+	name = cleanupIdentifier(name, "dataset")
 	// we need to use a high resolution timer, because subsequent dataset creation need to have a timer
 	// that advanced between these actions
 	// ARCH: this might be an issue in Windows, where the resolution is low?
