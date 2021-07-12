@@ -75,3 +75,6 @@ coverstats:
 pprof:
 	CGO_ENABLED=0 $(GORLS) test -cpuprofile cpu.prof -memprofile mem.prof -bench=. ./src/
 	$(GORLS) tool pprof src.test cpu.prof
+
+fuzz:
+	$(GORLS) test -v -run=NONE -fuzz=$(FUZZ) ./...
