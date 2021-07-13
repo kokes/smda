@@ -301,6 +301,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 					continue
 				}
 				pos := buckets[j]
+				// TODO(PR): place DISTINCT logic here?
 				// we don't always have updaters (e.g. for counters)
 				// OPTIM: can we hoist this outside the loop?
 				if upd.ints != nil {

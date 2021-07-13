@@ -205,9 +205,16 @@ func (p *Parser) parseCallExpression(left Expression) Expression {
 		return nil
 	}
 	funName := id.name
-	expr, err := NewFunction(funName)
+	var distinct bool
+
+	if p.peekToken().ttype == tokenDistinct {
+		distinct = true
+		p.position++
+	}
+
+	expr, err := NewFunction(funName, distinct)
 	if err != nil {
-		p.errors = append(p.errors, fmt.Errorf("error initialising function %v", funName))
+		p.errors = append(p.errors, fmt.Errorf("error initialising function %v: %w", funName, err))
 		return nil
 	}
 
@@ -216,12 +223,13 @@ func (p *Parser) parseCallExpression(left Expression) Expression {
 		return expr
 	}
 	p.position++
-	expr.args = append(expr.args, p.parseExpression(LOWEST))
 
-	for p.peekToken().ttype == tokenComma {
-		p.position += 2
-		expr.args = append(expr.args, p.parseExpression(LOWEST))
+	args, err := p.parseExpressions()
+	if err != nil {
+		p.errors = append(p.errors, err)
+		return nil
 	}
+	expr.args = []Expression(args)
 
 	if p.peekToken().ttype != tokenRparen {
 		p.errors = append(p.errors, errNoClosingBracket)

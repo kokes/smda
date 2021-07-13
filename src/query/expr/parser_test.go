@@ -285,6 +285,16 @@ func TestParsingContents(t *testing.T) {
 		{"count(foobar)", &Function{name: "count", args: []Expression{
 			&Identifier{name: "foobar"},
 		}}},
+		{"count(distinct foobar)", &Function{name: "count", distinct: true, args: []Expression{
+			&Identifier{name: "foobar"},
+		}}},
+		{"count(distinct foo + bar)", &Function{name: "count", distinct: true, args: []Expression{
+			&Infix{
+				left:     &Identifier{name: "foo"},
+				operator: tokenAdd,
+				right:    &Identifier{name: "bar"},
+			},
+		}}},
 		{"count(1, 2, 3)", &Function{name: "count", args: []Expression{
 			&Integer{value: 1},
 			&Integer{value: 2},
@@ -428,6 +438,7 @@ func TestParsingErrors(t *testing.T) {
 		{"foo in bar", errInvalidTuple},
 		{"foo not in bar", errInvalidTuple},
 		{"foo in ()", errInvalidTuple},
+		{"sin(distinct foo)", errDistinctInProjection},
 	}
 
 	for _, test := range tests {
@@ -491,6 +502,8 @@ func TestParsingSQL(t *testing.T) {
 		// {"SELECT now()", nil},
 		// {"SELECT version()", nil},
 		{"SELECT foo FROM bar", nil},
+		{"SELECT count(DISTINCT foo) FROM bar", nil},
+		{"SELECT sum(DISTINCT foo), count(DISTINCT baz) FROM bar", nil},
 		{"SELECT * FROM bar", nil},
 		{"SELECT *, foo FROM bar", nil},
 		{"SELECT foo, * FROM bar", nil},
