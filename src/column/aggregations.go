@@ -17,6 +17,8 @@ type AggState struct {
 	dates     []date
 	datetimes []datetime
 	counts    []int64
+	distinct  bool
+	seen      []map[uint64]bool
 	AddChunk  func(buckets []uint64, ndistinct int, data Chunk)
 	Resolve   func() (Chunk, error)
 }
@@ -88,14 +90,16 @@ var genericResolvers = resolveFuncs{
 // dtypes are types of inputs - rename?
 // TODO: check for function existence
 // OPTIM: the switch(function) could be hoisted outside the closure (would work as a function existence validator)
-func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
+func NewAggregator(function string, distinct bool) (func(...Dtype) (*AggState, error), error) {
 	return func(dtypes ...Dtype) (*AggState, error) {
-		state := &AggState{}
+		state := &AggState{distinct: distinct}
 		updaters := updateFuncs{}
 		resolvers := resolveFuncs{}
 		switch function {
 		case "count":
 			if len(dtypes) == 0 {
+				// ARCH: check for distinct == false? We already disallow it in the parser... but it would make
+				// sense to check it here as well? Maybe we should check it ONLY here... the parser impl is a bit weak
 				state.inputType = DtypeInt // count() will count integers
 			} else {
 				state.inputType = dtypes[0] // count(expr) will accept type(expr)
@@ -264,6 +268,17 @@ func ensurelengthStrings(data []string, length int) []string {
 	return data
 }
 
+func ensurelengthSeenMaps(data []map[uint64]bool, length int) []map[uint64]bool {
+	currentLength := len(data)
+	if currentLength >= length {
+		return data
+	}
+	// TODO/OPTIM: if we initialise these (tiny?) maps, we can avoid all those nil checks in adderFactories
+	// I guess we need to check the performance of this
+	data = append(data, make([]map[uint64]bool, length-currentLength)...)
+	return data
+}
+
 // used to convert a counts slice (how many rows are there for a given bucket) to a nullability
 // bitmap - so a NULL (1) for each zero value
 func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
@@ -286,6 +301,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		return func(buckets []uint64, ndistinct int, data Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.ints = ensureLengthInts(agg.ints, ndistinct)
+			agg.seen = ensurelengthSeenMaps(agg.seen, ndistinct)
 
 			// this can happen if there are no children - so just update the counters
 			// this is here specifically for `count()`
@@ -301,6 +317,19 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 					continue
 				}
 				pos := buckets[j]
+
+				// TODO(next)/ARCH: perhaps wrap this whole thing into some kind of agg.observe(pos int, hash uint64) (skip bool)?
+				// TODO(PR): think about the design + do this for all other adderFactories + add tests for all types
+				if agg.distinct {
+					if agg.seen[pos][uint64(val)] {
+						continue
+					}
+
+					if agg.seen[pos] == nil {
+						agg.seen[pos] = make(map[uint64]bool)
+					}
+					agg.seen[pos][uint64(val)] = true
+				}
 				// we don't always have updaters (e.g. for counters)
 				// OPTIM: can we hoist this outside the loop?
 				if upd.ints != nil {

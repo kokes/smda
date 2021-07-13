@@ -20,6 +20,9 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 	// TODO: test this via UpdateAggregator
 	if f, ok := expr.(*Function); ok && f.aggregator != nil {
 		// TODO: assert that filters !== nil?
+		if f.distinct {
+			return nil, errors.New("DISTINCT not fully implemented, yet")
+		}
 		return f.aggregator.Resolve()
 	}
 

@@ -602,7 +602,12 @@ func (rc *ChunkBools) Hash(position int, hashes []uint64) {
 	}
 }
 
+// TODO(generics): type Hasher[T] struct {...}, Sum[T] -> uint64
+// Or maybe just `Chunk.NthHash(j int) uint64` - so it could be a part of the Chunk interface?
+
 // Hash hashes this chunk's values into a provded container
+// OPTIM/TODO(next): do we need a fnv hasher for ints/floats/dates? We can just take the uint64 representation
+// of these values... or not?
 func (rc *ChunkFloats) Hash(position int, hashes []uint64) {
 	mul := positionMultiplier(position)
 	var buf [8]byte

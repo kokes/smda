@@ -12,6 +12,7 @@ var errWrongNumberofArguments = errors.New("wrong number arguments passed to a f
 var errWrongArgumentType = errors.New("wrong argument type passed to a function")
 var errEmptyTuple = errors.New("tuple cannot be empty")
 var errTupleTypeMismatch = errors.New("all values in a tuple must be the same")
+var errDistinctInProjection = errors.New("cannot use DISTINCT in a non-aggregating function")
 
 type Identifier struct {
 	quoted bool
@@ -193,6 +194,7 @@ func (ex *Tuple) Children() []Expression {
 
 type Function struct {
 	name              string
+	distinct          bool
 	args              []Expression
 	evaler            func(...column.Chunk) (column.Chunk, error)
 	aggregator        *column.AggState
@@ -200,10 +202,13 @@ type Function struct {
 }
 
 // NewFunction is one of the very few constructors as we have to do some fiddling here
-func NewFunction(name string) (*Function, error) {
-	ex := &Function{name: name}
+func NewFunction(name string, distinct bool) (*Function, error) {
+	ex := &Function{name: name, distinct: distinct}
 	fncp, ok := column.FuncProj[name]
 	if ok {
+		if distinct {
+			return nil, fmt.Errorf("%w: %v", errDistinctInProjection, name)
+		}
 		ex.evaler = fncp
 	} else {
 		// if it's not a projection, it must be an aggregator
@@ -211,7 +216,7 @@ func NewFunction(name string) (*Function, error) {
 		// the types that go in (and we're already using static dispatch here)
 		// TODO/ARCH: but since we've decoupled this from the parser, we might have the schema at hand already!
 		//            we just need to remove this `InitFunctionCalls` from ParseStringExpr
-		aggfac, err := column.NewAggregator(name)
+		aggfac, err := column.NewAggregator(name, distinct)
 		if err != nil {
 			return nil, err
 		}
@@ -360,8 +365,12 @@ func (ex *Function) String() string {
 	for _, ch := range ex.args {
 		args = append(args, ch.String())
 	}
+	var distinct string
+	if ex.distinct {
+		distinct = "DISTINCT "
+	}
 
-	return fmt.Sprintf("%s(%s)", ex.name, strings.Join(args, ", "))
+	return fmt.Sprintf("%s(%s%s)", ex.name, distinct, strings.Join(args, ", "))
 }
 func (ex *Function) Children() []Expression {
 	return ex.args

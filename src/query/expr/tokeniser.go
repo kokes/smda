@@ -55,6 +55,7 @@ const (
 	tokenTrue
 	tokenFalse
 	tokenNull
+	tokenDistinct
 	tokenIn
 	tokenLike
 	tokenIlike
@@ -85,32 +86,33 @@ const (
 )
 
 var keywords = map[string]tokenType{
-	"and":    tokenAnd,
-	"or":     tokenOr,
-	"as":     tokenAs,
-	"true":   tokenTrue,
-	"false":  tokenFalse,
-	"null":   tokenNull,
-	"in":     tokenIn,
-	"like":   tokenLike,
-	"ilike":  tokenIlike,
-	"is":     tokenIs,
-	"not":    tokenNot,
-	"case":   tokenCase,
-	"when":   tokenWhen,
-	"end":    tokenEnd,
-	"select": tokenSelect,
-	"from":   tokenFrom,
-	"where":  tokenWhere,
-	"group":  tokenGroup,
-	"by":     tokenBy,
-	"limit":  tokenLimit,
-	"order":  tokenOrder,
-	"asc":    tokenAsc,
-	"desc":   tokenDesc,
-	"nulls":  tokenNulls,
-	"first":  tokenFirst,
-	"last":   tokenLast,
+	"and":      tokenAnd,
+	"or":       tokenOr,
+	"as":       tokenAs,
+	"true":     tokenTrue,
+	"false":    tokenFalse,
+	"null":     tokenNull,
+	"distinct": tokenDistinct,
+	"in":       tokenIn,
+	"like":     tokenLike,
+	"ilike":    tokenIlike,
+	"is":       tokenIs,
+	"not":      tokenNot,
+	"case":     tokenCase,
+	"when":     tokenWhen,
+	"end":      tokenEnd,
+	"select":   tokenSelect,
+	"from":     tokenFrom,
+	"where":    tokenWhere,
+	"group":    tokenGroup,
+	"by":       tokenBy,
+	"limit":    tokenLimit,
+	"order":    tokenOrder,
+	"asc":      tokenAsc,
+	"desc":     tokenDesc,
+	"nulls":    tokenNulls,
+	"first":    tokenFirst,
+	"last":     tokenLast,
 }
 
 // ARCH: it might be useful to just use .value in most cases here
@@ -134,6 +136,8 @@ func (tok token) String() string {
 		return "FALSE"
 	case tokenNull:
 		return "NULL"
+	case tokenDistinct:
+		return "DISTINCT"
 	case tokenIn:
 		return "IN"
 	case tokenLike:
