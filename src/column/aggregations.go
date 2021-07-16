@@ -98,6 +98,8 @@ func NewAggregator(function string, distinct bool) (func(...Dtype) (*AggState, e
 		switch function {
 		case "count":
 			if len(dtypes) == 0 {
+				// ARCH: check for distinct == false? We already disallow it in the parser... but it would make
+				// sense to check it here as well? Maybe we should check it ONLY here... the parser impl is a bit weak
 				state.inputType = DtypeInt // count() will count integers
 			} else {
 				state.inputType = dtypes[0] // count(expr) will accept type(expr)
@@ -303,7 +305,6 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 
 			// this can happen if there are no children - so just update the counters
 			// this is here specifically for `count()`
-			// TODO(next): check if we accept "COUNT(DISTINCT)", that would end up here I guess
 			if data == nil {
 				for _, pos := range buckets {
 					agg.counts[pos]++

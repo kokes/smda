@@ -17,6 +17,7 @@ var errInvalidQuery = errors.New("invalid SQL query")
 var errInvalidFunctionName = errors.New("invalid function name")
 var errEmptyExpression = errors.New("cannot parse an expression from an empty string")
 var errInvalidTuple = errors.New("invalid tuple expression")
+var errDistinctNeedsColumn = errors.New("DISTINCT in a function call needs an argument")
 
 const (
 	_ int = iota
@@ -210,6 +211,10 @@ func (p *Parser) parseCallExpression(left Expression) Expression {
 	if p.peekToken().ttype == tokenDistinct {
 		distinct = true
 		p.position++
+		if p.peekToken().ttype == tokenRparen {
+			p.errors = append(p.errors, errDistinctNeedsColumn)
+			return nil
+		}
 	}
 
 	expr, err := NewFunction(funName, distinct)

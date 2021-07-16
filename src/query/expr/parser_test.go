@@ -504,6 +504,7 @@ func TestParsingSQL(t *testing.T) {
 		{"SELECT foo FROM bar", nil},
 		{"SELECT count(DISTINCT foo) FROM bar", nil},
 		{"SELECT sum(DISTINCT foo), count(DISTINCT baz) FROM bar", nil},
+		{"SELECT count(distinct) FROM bar", errDistinctNeedsColumn},
 		{"SELECT * FROM bar", nil},
 		{"SELECT *, foo FROM bar", nil},
 		{"SELECT foo, * FROM bar", nil},
