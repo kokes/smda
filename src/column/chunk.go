@@ -602,27 +602,11 @@ func (rc *ChunkBools) Hash(position int, hashes []uint64) {
 	}
 }
 
-// TODO(generics): type Hasher[T] struct {...}, Sum(T) -> uint64
-// this will also be used in DISTINCT logic in aggregations.go
-// type Hasher struct {
-// 	buf    [8]byte
-// 	hasher hash.Hash64
-// }
-
-// func NewHasher() *Hasher {
-// 	return &Hasher{
-// 		hasher: fnv.New64(),
-// 	}
-// }
-
-// // TODO(PR): Reset at some point
-// func (h *Hasher) SumFloat(val float64) uint64 {
-// 	binary.LittleEndian.PutUint64(h.buf[:], math.Float64bits(val))
-// 	h.hasher.Write(h.buf[:])
-// 	return h.hasher.Sum64()
-// }
+// TODO(generics): type Hasher[T] struct {...}, Sum[T] -> uint64
 
 // Hash hashes this chunk's values into a provded container
+// OPTIM/TODO(next): do we need a fnv hasher for ints/floats/dates? We can just take the uint64 representation
+// of these values... or not?
 func (rc *ChunkFloats) Hash(position int, hashes []uint64) {
 	mul := positionMultiplier(position)
 	var buf [8]byte
