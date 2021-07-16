@@ -241,6 +241,12 @@ func TestBasicQueries(t *testing.T) {
 		// TODO(next): test ORDER BY (incl. GROUP BY queries)
 		// {"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset WHERE bar != null ORDER BY bar desc", "bar\n6\n5\n4"},
 		// {"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset ORDER BY bar desc", "bar\n6\n5\n4"},
+
+		// DISTINCT queries
+		{"foo,bar\n1,2\n3,4\n1,2", "SELECT count(distinct foo) FROM dataset", "count(distinct foo)\n2"},
+		{"foo,bar\n1,2\n3,4\n1,2", "SELECT sum(distinct foo) FROM dataset", "sum(distinct foo)\n4"},
+		{"foo,bar\n1,2\n3,4\n1,2", "SELECT max(distinct foo) FROM dataset", "max(distinct foo)\n3"},
+		// TODO(PR): NULLs in DISTINCT; floats, strings etc.
 	}
 
 	for testNo, test := range tests {

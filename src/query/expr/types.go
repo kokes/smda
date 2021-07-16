@@ -217,7 +217,7 @@ func NewFunction(name string, distinct bool) (*Function, error) {
 		// TODO/ARCH: but since we've decoupled this from the parser, we might have the schema at hand already!
 		//            we just need to remove this `InitFunctionCalls` from ParseStringExpr
 		// TODO(PR): we probably need to pass in DISTINCT here
-		aggfac, err := column.NewAggregator(name)
+		aggfac, err := column.NewAggregator(name, distinct)
 		if err != nil {
 			return nil, err
 		}

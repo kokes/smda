@@ -17,6 +17,8 @@ type AggState struct {
 	dates     []date
 	datetimes []datetime
 	counts    []int64
+	distinct  bool
+	seen      []map[uint64]struct{}
 	AddChunk  func(buckets []uint64, ndistinct int, data Chunk)
 	Resolve   func() (Chunk, error)
 }
@@ -88,9 +90,9 @@ var genericResolvers = resolveFuncs{
 // dtypes are types of inputs - rename?
 // TODO: check for function existence
 // OPTIM: the switch(function) could be hoisted outside the closure (would work as a function existence validator)
-func NewAggregator(function string) (func(...Dtype) (*AggState, error), error) {
+func NewAggregator(function string, distinct bool) (func(...Dtype) (*AggState, error), error) {
 	return func(dtypes ...Dtype) (*AggState, error) {
-		state := &AggState{}
+		state := &AggState{distinct: distinct}
 		updaters := updateFuncs{}
 		resolvers := resolveFuncs{}
 		switch function {
@@ -289,6 +291,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 
 			// this can happen if there are no children - so just update the counters
 			// this is here specifically for `count()`
+			// TODO(next): check if we accept "COUNT(DISTINCT)", that would end up here I guess
 			if data == nil {
 				for _, pos := range buckets {
 					agg.counts[pos]++
@@ -302,6 +305,9 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 				}
 				pos := buckets[j]
 				// TODO(PR): place DISTINCT logic here?
+				if agg.distinct {
+
+				}
 				// we don't always have updaters (e.g. for counters)
 				// OPTIM: can we hoist this outside the loop?
 				if upd.ints != nil {
