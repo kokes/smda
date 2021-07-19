@@ -279,6 +279,7 @@ func TestParsingContents(t *testing.T) {
 		{"sum(foo >= 3)", nil},
 		{"sum(foo <= 3)", nil},
 		{"count()", &Function{name: "count"}},
+		{"count(*)", &Function{name: "count"}},
 		// TODO: make this work at some point - even in other places (e.g. `select foo, *, bar from ...`)
 		//       think about ways to implement it without it being super hacky
 		// {"count(*)", &Expression{etype: exprFunCall, value: "count"}},
@@ -463,6 +464,8 @@ func TestListParsingContents(t *testing.T) {
 		{"*, foo, bar", []string{"*", "foo", "bar"}},
 		{"foo, *, bar", []string{"foo", "*", "bar"}},
 		{"foo, *", []string{"foo", "*"}},
+		{"count(), foo, bar", []string{"count()", "foo", "bar"}},
+		{"count(*), foo, bar", []string{"count()", "foo", "bar"}},
 	}
 
 testloop:
@@ -472,14 +475,18 @@ testloop:
 			t.Errorf("expression list %+v failed: %v", test.list, err)
 			continue
 		}
+		for _, el := range parsed {
+			PruneFunctionCalls(el)
+		}
 
-		var ip ExpressionList
+		var ip []Expression
 		for _, expr := range test.individual {
 			iparsed, err := ParseStringExpr(expr)
 			if err != nil {
 				t.Error(err)
 				continue testloop
 			}
+			PruneFunctionCalls(iparsed)
 			ip = append(ip, iparsed)
 		}
 

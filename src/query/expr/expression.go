@@ -1,8 +1,6 @@
 package expr
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -33,8 +31,6 @@ func PruneFunctionCalls(ex Expression) {
 	}
 }
 
-type ExpressionList []Expression
-
 // Query describes what we want to retrieve from a given dataset
 // There are basically four places you need to edit (and test!) in order to extend this:
 // 1) The engine itself needs to support this functionality (usually a method on Dataset or column.Chunk)
@@ -43,19 +39,29 @@ type ExpressionList []Expression
 //    to the Query struct (the Unmarshaler should mostly take care of this)
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
-	Select    ExpressionList
+	Select    []Expression
 	Dataset   *database.DatasetIdentifier
 	Filter    Expression
-	Aggregate ExpressionList
-	Order     ExpressionList
+	Aggregate []Expression
+	Order     []Expression
 	Limit     *int
 	// TODO: PAFilter (post-aggregation filter, == having) - check how it behaves without aggregations elsewhere
+}
+
+// ARCH/TODO(go1.18?): use strings.Join(slices.Map(...)) with generics
+func stringifyExpressions(exprs []Expression) string {
+	svar := make([]string, 0, len(exprs))
+	for _, expr := range exprs {
+		svar = append(svar, expr.String())
+	}
+
+	return strings.Join(svar, ", ")
 }
 
 // this stringer is tested in the parser
 func (q Query) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("SELECT %s", q.Select))
+	sb.WriteString(fmt.Sprintf("SELECT %s", stringifyExpressions(q.Select)))
 	// ARCH: preparing for queries without FROM clauses
 	if q.Dataset != nil {
 		sb.WriteString(fmt.Sprintf(" FROM %s", q.Dataset))
@@ -64,10 +70,10 @@ func (q Query) String() string {
 		sb.WriteString(fmt.Sprintf(" WHERE %s", q.Filter))
 	}
 	if q.Aggregate != nil {
-		sb.WriteString(fmt.Sprintf(" GROUP BY %s", q.Aggregate))
+		sb.WriteString(fmt.Sprintf(" GROUP BY %s", stringifyExpressions(q.Aggregate)))
 	}
 	if q.Order != nil {
-		sb.WriteString(fmt.Sprintf(" ORDER BY %s", q.Order))
+		sb.WriteString(fmt.Sprintf(" ORDER BY %s", stringifyExpressions(q.Order)))
 	}
 	if q.Limit != nil {
 		sb.WriteString(fmt.Sprintf(" LIMIT %d", *q.Limit))
@@ -115,21 +121,6 @@ func AggExpr(expr Expression) ([]*Function, error) {
 		}
 	}
 	return ret, nil
-}
-
-func (exprs ExpressionList) String() string {
-	var buf bytes.Buffer
-	for j, expr := range exprs {
-		buf.WriteString(expr.String())
-		if j < len(exprs)-1 {
-			buf.WriteString(", ")
-		}
-	}
-	return buf.String()
-}
-
-func (exprs ExpressionList) MarshalJSON() ([]byte, error) {
-	return json.Marshal(exprs.String())
 }
 
 // should this be in the database package?

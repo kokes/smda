@@ -217,6 +217,16 @@ func (p *Parser) parseCallExpression(left Expression) Expression {
 		}
 	}
 
+	// a special case for "COUNT(*)"
+	// ARCH/TODO: check that the function name is actually "count"?
+	if p.peekToken().ttype == tokenMul {
+		p.position++
+		if p.peekToken().ttype != tokenRparen {
+			p.errors = append(p.errors, errors.New("malformed query"))
+			return nil
+		}
+	}
+
 	expr, err := NewFunction(funName, distinct)
 	if err != nil {
 		p.errors = append(p.errors, fmt.Errorf("error initialising function %v: %w", funName, err))
@@ -359,8 +369,8 @@ func (p *Parser) Err() error {
 }
 
 // parse expressions separated by commas
-func (p *Parser) parseExpressions() (ExpressionList, error) {
-	var ret ExpressionList
+func (p *Parser) parseExpressions() ([]Expression, error) {
+	var ret []Expression
 	for {
 		expr := p.parseExpression(LOWEST)
 		pt := p.peekToken().ttype
@@ -429,7 +439,7 @@ func ParseStringExpr(s string) (Expression, error) {
 	return ret[0], nil
 }
 
-func ParseStringExprs(s string) (ExpressionList, error) {
+func ParseStringExprs(s string) ([]Expression, error) {
 	p, err := NewParser(s)
 	if err != nil {
 		return nil, err

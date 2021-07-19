@@ -145,7 +145,7 @@ func (ex *Null) Children() []Expression {
 }
 
 type Tuple struct {
-	inner ExpressionList
+	inner []Expression
 }
 
 // this is a bit weird, because a Tuple is a container, it doesn't "return" anything,
