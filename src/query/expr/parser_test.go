@@ -428,6 +428,7 @@ func TestParsingErrors(t *testing.T) {
 		{"foo in bar", errInvalidTuple},
 		{"foo not in bar", errInvalidTuple},
 		{"foo in ()", errInvalidTuple},
+		{"(@(", errUnsupportedPrefixToken}, // found via fuzzing; a weird error, I know
 	}
 
 	for _, test := range tests {

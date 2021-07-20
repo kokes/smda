@@ -201,7 +201,9 @@ func (p *Parser) parsePrefixExpression() Expression {
 func (p *Parser) parseCallExpression(left Expression) Expression {
 	id, ok := left.(*Identifier)
 	if !ok || id.quoted {
-		p.errors = append(p.errors, fmt.Errorf("%w: %v", errInvalidFunctionName, left.String()))
+		// ARCH: left can be nil (e.g. if expr is `(foo`), so we can't print `left.String()`
+		// shall we have some error specific to this?
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errInvalidFunctionName, left))
 		return nil
 	}
 	funName := id.name
