@@ -17,6 +17,7 @@ var errInvalidQuery = errors.New("invalid SQL query")
 var errInvalidFunctionName = errors.New("invalid function name")
 var errEmptyExpression = errors.New("cannot parse an expression from an empty string")
 var errInvalidTuple = errors.New("invalid tuple expression")
+var errInvalidDatasetVersion = errors.New("invalid dataset version")
 
 const (
 	_ int = iota
@@ -488,7 +489,10 @@ func ParseQuerySQL(s string) (Query, error) {
 		}
 		dsn := p.curToken().value
 		if len(dsn) == 0 || dsn[0] != 'v' {
-			return q, fmt.Errorf("invalid dataset version, got %s", dsn)
+			return q, fmt.Errorf("%w: %s", errInvalidDatasetVersion, dsn)
+		}
+		if len(dsn[1:]) != 18 {
+			return q, fmt.Errorf("%w: %s", errInvalidDatasetVersion, dsn)
 		}
 		datasetID.Version, err = database.UIDFromHex(dsn[1:])
 		if err != nil {

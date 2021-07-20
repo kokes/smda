@@ -520,6 +520,9 @@ func TestParsingSQL(t *testing.T) {
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo NULLS BY LIMIT 100", errInvalidQuery},
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LIMIT 100", errInvalidQuery},
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo DESC NULLS LIMIT 100", errInvalidQuery},
+
+		// fuzzing entries
+		{"SELECT r FROM J@v111111D1110000000011", errInvalidDatasetVersion}, // this is invalid, because the version needs to be 18 chars
 	}
 
 	for _, test := range tests {

@@ -203,6 +203,7 @@ func (uid UID) MarshalJSON() ([]byte, error) {
 }
 
 // ARCH: test this instead the Unmarshal? Or both?
+// TODO(next): test that input is 18 chars exactly (fuzzing found a bug here)
 func UIDFromHex(data []byte) (UID, error) {
 	var uid UID
 	unhexed := make([]byte, 9)

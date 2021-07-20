@@ -15,6 +15,17 @@ func FuzzExpressionParser(f *testing.F) {
 		}
 	})
 }
+func FuzzExpressionsParser(f *testing.F) {
+	f.Add("1+2*3, true, false")
+	f.Add("foo = bar, foo > 1")
+	f.Add("foo * 2 > 3e2")
+	f.Add("foo, bar, baz")
+	f.Fuzz(func(t *testing.T, raw string) {
+		if _, err := ParseStringExprs(raw); err != nil {
+			t.Skip()
+		}
+	})
+}
 
 func FuzzSQLParser(f *testing.F) {
 	f.Add("SELECT foo, bar, baz FROM bar")
