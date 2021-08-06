@@ -7,12 +7,16 @@ BUILD_OS ?= linux darwin windows
 # TODO(next): not building for ARM, because windows/arm64 not supported in 1.16 (coming in 1.17)
 BUILD_ARCH ?= amd64
 
+GIT_COMMIT := $(shell git rev-list -1 HEAD)
+BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M)
+BUILD_FLAGS = -ldflags "-X main.gitCommit=$(GIT_COMMIT) -X main.buildTime=$(BUILD_TIME)"
+
 check:
 	$(GORLS) fmt ./...
 	CGO_ENABLED=0 $(GORLS) vet ./...
 
 build: check test
-	CGO_ENABLED=0 $(GORLS) build -o bin/server ./cmd/server/
+	CGO_ENABLED=0 $(GORLS) build -o bin/server ${BUILD_FLAGS} ./cmd/server/
 
 build-docker:
 	docker build . -t kokes/smda:latest
@@ -35,7 +39,6 @@ run-docker: build-docker
 
 # TODO(next): use Docker? (as an option)
 # TODO(next): err if git status dirty/untracked files present
-# TODO(next): load version from some place? (also ingrain the version into the binary)
 dist: check test
 	@rm -rf dist
 	mkdir dist
@@ -47,7 +50,7 @@ dist: check test
 			if [ $$os = "windows" ]; then\
 				binpath="smda-server.exe";\
 			fi;\
-			CGO_ENABLED=0 GOARCH=$$arch GOOS=$$os $(GORLS) build -o $$binpath ./cmd/server; \
+			CGO_ENABLED=0 GOARCH=$$arch GOOS=$$os $(GORLS) build -o $$binpath ${BUILD_FLAGS} ./cmd/server; \
 			zip $$artpath LICENSE $$binpath; \
 			rm $$binpath;\
 		done \
