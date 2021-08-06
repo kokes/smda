@@ -3,6 +3,8 @@ package column
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"math"
 
 	"github.com/kokes/smda/src/bitmap"
 )
@@ -268,7 +270,7 @@ func ensurelengthStrings(data []string, length int) []string {
 	return data
 }
 
-func ensurelengthSeenMaps(data []map[uint64]bool, length int) []map[uint64]bool {
+func ensureLengthSeenMaps(data []map[uint64]bool, length int) []map[uint64]bool {
 	currentLength := len(data)
 	if currentLength >= length {
 		return data
@@ -301,7 +303,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		return func(buckets []uint64, ndistinct int, data Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.ints = ensureLengthInts(agg.ints, ndistinct)
-			agg.seen = ensurelengthSeenMaps(agg.seen, ndistinct)
+			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			// this can happen if there are no children - so just update the counters
 			// this is here specifically for `count()`
@@ -319,7 +321,6 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 				pos := buckets[j]
 
 				// TODO(next)/ARCH: perhaps wrap this whole thing into some kind of agg.observe(pos int, hash uint64) (skip bool)?
-				// TODO(PR): think about the design + do this for all other adderFactories + add tests for all types
 				if agg.distinct {
 					if agg.seen[pos][uint64(val)] {
 						continue
@@ -342,6 +343,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		return func(buckets []uint64, ndistinct int, data Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.floats = ensureLengthFloats(agg.floats, ndistinct)
+			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			rc := data.(*ChunkFloats)
 			for j, val := range rc.data {
@@ -349,6 +351,19 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 					continue
 				}
 				pos := buckets[j]
+
+				if agg.distinct {
+					hval := math.Float64bits(val)
+					if agg.seen[pos][hval] {
+						continue
+					}
+
+					if agg.seen[pos] == nil {
+						agg.seen[pos] = make(map[uint64]bool)
+					}
+					agg.seen[pos][hval] = true
+				}
+
 				if upd.floats != nil {
 					upd.floats(agg, val, pos)
 				}
@@ -359,6 +374,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		return func(buckets []uint64, ndistinct int, data Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.dates = ensureLengthDates(agg.dates, ndistinct)
+			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			rc := data.(*ChunkDates)
 			for j, val := range rc.data {
@@ -366,6 +382,16 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 					continue
 				}
 				pos := buckets[j]
+				if agg.distinct {
+					if agg.seen[pos][uint64(val)] {
+						continue
+					}
+
+					if agg.seen[pos] == nil {
+						agg.seen[pos] = make(map[uint64]bool)
+					}
+					agg.seen[pos][uint64(val)] = true
+				}
 				if upd.floats != nil {
 					upd.dates(agg, val, pos)
 				}
@@ -376,6 +402,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		return func(buckets []uint64, ndistinct int, data Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.datetimes = ensureLengthDatetimes(agg.datetimes, ndistinct)
+			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			rc := data.(*ChunkDatetimes)
 			for j, val := range rc.data {
@@ -383,6 +410,16 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 					continue
 				}
 				pos := buckets[j]
+				if agg.distinct {
+					if agg.seen[pos][uint64(val)] {
+						continue
+					}
+
+					if agg.seen[pos] == nil {
+						agg.seen[pos] = make(map[uint64]bool)
+					}
+					agg.seen[pos][uint64(val)] = true
+				}
 				if upd.floats != nil {
 					upd.datetimes(agg, val, pos)
 				}
@@ -393,14 +430,31 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		return func(buckets []uint64, ndistinct int, data Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.strings = ensurelengthStrings(agg.strings, ndistinct)
+			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			rc := data.(*ChunkStrings)
+			hasher := fnv.New64() // TODO/ARCH: should we abstract this out some place?
 			for j := 0; j < rc.Len(); j++ {
 				if rc.Nullability != nil && rc.Nullability.Get(j) {
 					continue
 				}
 				val := rc.nthValue(j)
 				pos := buckets[j]
+				if agg.distinct {
+					if _, err := hasher.Write([]byte(val)); err != nil {
+						panic(err)
+					}
+					hval := hasher.Sum64()
+					hasher.Reset()
+					if agg.seen[pos][hval] {
+						continue
+					}
+
+					if agg.seen[pos] == nil {
+						agg.seen[pos] = make(map[uint64]bool)
+					}
+					agg.seen[pos][hval] = true
+				}
 				// TODO: if we have a function that "accepts" strings (or other types) but doesn't have an updater for them...
 				// this will silently ignore the mismatch (e.g. we didn't have type restrictions on SUM in return_types and we
 				// then did a SUM(string) and it silently did nothing)

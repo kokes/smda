@@ -243,11 +243,18 @@ func TestBasicQueries(t *testing.T) {
 		// {"foo,bar\n,4\n5,5\n,6", "SELECT bar FROM dataset ORDER BY bar desc", "bar\n6\n5\n4"},
 
 		// DISTINCT queries
-		// {"foo,bar\n1,2\n3,4\n1,2", "SELECT count(distinct foo) FROM dataset", "count(distinct foo)\n2"},
-		// {"foo,bar\n1,2\n3,4\n1,2", "SELECT sum(distinct foo) FROM dataset", "sum(distinct foo)\n4"},
-		// {"foo,bar\n1,2\n3,4\n1,2", "SELECT max(distinct foo) FROM dataset", "max(distinct foo)\n3"},
-		// {"foo,bar\n1,2\n3,4\n1,2", "SELECT bar, count(distinct foo) FROM dataset GROUP BY bar", "bar,count(distinct foo)\n2,1\n4,1"},
-		// TODO(PR): NULLs in DISTINCT; floats, strings etc.
+		{"foo,bar\n1,2\n3,4\n1,2", "SELECT count(distinct foo) FROM dataset", "count(distinct foo)\n2"},
+		{"foo,bar\n1,2\n3,4\n1,2", "SELECT sum(distinct foo) FROM dataset", "sum(distinct foo)\n4"},
+		{"foo,bar\n1,2\n3,4\n1,2", "SELECT max(distinct foo) FROM dataset", "max(distinct foo)\n3"},
+		{"foo,bar\n1,2\n3,4\n1,2", "SELECT bar, count(distinct foo) FROM dataset GROUP BY bar", "bar,count(distinct foo)\n2,1\n4,1"},
+		{"foo\n2.0\n3.0\n2\n", "SELECT count(distinct foo) FROM dataset", "count(distinct foo)\n2\n"},
+		// TODO: why don't we have an adderFactory for bools?
+		// {"foo\ntrue\nfalse\ntrue\n", "SELECT count(distinct foo) FROM dataset", "count(distinct foo)\n2\n"},
+		// {"foo\ntrue\ntrue\ntrue\n", "SELECT count(distinct foo) FROM dataset", "count(distinct foo)\n1\n"},
+		// {"foo\ntrue\n\ntrue\n", "SELECT count(distinct foo) FROM dataset", "count(distinct foo)\n1\n"},
+		{"foo\nahoy\nworld\nahoy\n", "SELECT count(distinct foo) FROM dataset", "count(distinct foo)\n2\n"},
+		{"foo\nahoy\nworld\nahoy2\n", "SELECT count(distinct foo) FROM dataset", "count(distinct foo)\n3\n"},
+		// TODO(next): dates, datetimes, groupings (i.e. GROUP BY in string count distincts etc.)
 	}
 
 	for testNo, test := range tests {
