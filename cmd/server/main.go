@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -17,6 +18,12 @@ import (
 //go:embed samples/*.csv
 var sampleDir embed.FS
 
+// global, so that we can inject it at build time
+var (
+	gitCommit string
+	buildTime string
+)
+
 func main() {
 	expose := flag.Bool("expose", false, "expose the server on the network, do not run it just locally")
 	portHTTP := flag.Int("port-http", 8822, "port to listen on for http traffic")
@@ -26,7 +33,13 @@ func main() {
 	useTLS := flag.Bool("tls", false, "use TLS when hosting the server")
 	tlsCert := flag.String("tls-cert", "", "TLS certificate to use")
 	tlsKey := flag.String("tls-key", "", "TLS key to use")
+	version := flag.Bool("version", false, "print the binary's version")
 	flag.Parse()
+
+	if *version {
+		fmt.Printf("build commit: %v\nbuild time: %v\n", gitCommit, buildTime)
+		os.Exit(0)
+	}
 
 	log.Printf("starting up process %v", os.Getpid())
 	ctx, cancel := context.WithCancel(context.Background())
