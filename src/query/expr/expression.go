@@ -65,6 +65,10 @@ func (q Query) String() string {
 	// ARCH: preparing for queries without FROM clauses
 	if q.Dataset != nil {
 		sb.WriteString(fmt.Sprintf(" FROM %s", q.Dataset))
+		// TODO(PR): we had to remove the alias because of an import cycle
+		// if q.Dataset.Alias != "" {
+		// 	sb.WriteString(fmt.Sprintf("AS %v", q.Dataset.Alias)) // TODO(PR): or without AS? what's the canonical way?
+		// }
 	}
 	if q.Filter != nil {
 		sb.WriteString(fmt.Sprintf(" WHERE %s", q.Filter))

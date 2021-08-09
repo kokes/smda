@@ -525,6 +525,9 @@ func TestParsingSQL(t *testing.T) {
 		{"SELECT *, foo FROM bar", nil},
 		{"SELECT foo, * FROM bar", nil},
 		{"SELECT foo, *, foo FROM bar", nil},
+		// TODO(PR): finish this
+		// {"SELECT * FROM bar AS foo", nil},
+		// {"SELECT * FROM bar AS \"Foo\"", nil},
 		{"SELECT foo FROM bar@v020485a2686b8d38fe WHERE foo>2", nil},
 		{"SELECT foo FROM bar WHERE 1=1 AND foo>bar", nil},
 		{"SELECT foo FROM bar WHERE 1=1 AND foo>bar GROUP BY foo", nil},

@@ -391,6 +391,7 @@ func (p *Parser) parseExpressions() ([]Expression, error) {
 	for {
 		expr := p.parseExpression(LOWEST)
 		pt := p.peekToken().ttype
+		// TODO(PR): create a p.parseRelabeling (we use it for aliasing in FROM as well)
 		if pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted {
 			p.position++
 			if pt == tokenAs {
@@ -514,6 +515,7 @@ func ParseQuerySQL(s string) (Query, error) {
 	if p.curToken().ttype != tokenIdentifier {
 		return q, fmt.Errorf("expecting dataset name, got %v", p.curToken())
 	}
+	// TODO(PR): perhaps use a custom type for dataset identifiers... to remove the dependency on dataset.go
 	datasetID := database.DatasetIdentifier{
 		Name:    string(p.curToken().value),
 		Version: database.UID{},
@@ -533,6 +535,21 @@ func ParseQuerySQL(s string) (Query, error) {
 			return q, err
 		}
 		datasetID.Latest = false
+	}
+	pt := p.peekToken().ttype
+	if pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted {
+		p.position++
+		if pt == tokenAs {
+			p.position++
+		}
+		// relabeling is an exception, we use a different Expression for that
+		target := p.parseExpression(LOWEST)
+		label, ok := target.(*Identifier)
+		if !ok {
+			return q, errors.New("when relabeling (AS), the right side value has to be an identifier")
+		}
+		// datasetID.Alias = // TODO(PR)
+		_ = label
 	}
 	q.Dataset = &datasetID
 

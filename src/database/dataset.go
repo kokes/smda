@@ -265,6 +265,8 @@ type DatasetIdentifier struct {
 	Version UID
 	// Latest can be used to avoid using Version (e.g. if it's unknown)
 	Latest bool
+	// TODO(PR): we cannot use `Alias expr.Identifier`, because that would create an import cycle
+	// Alias  string // TODO: not present in the stringer... ok?
 }
 
 func (did DatasetIdentifier) String() string {
