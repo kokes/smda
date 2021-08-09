@@ -385,26 +385,38 @@ func (p *Parser) Err() error {
 	return fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
 }
 
+func (p *Parser) parseRelabeling() (*Identifier, error) {
+	pt := p.peekToken().ttype
+	if !(pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted) {
+		return nil, nil // TODO(PR): perhaps return nil, errNoRelabeling, which we can act upon (just continue)
+	}
+	p.position++
+	if pt == tokenAs {
+		p.position++
+	}
+	// relabeling is an exception, we use a different Expression for that
+	target := p.parseExpression(LOWEST)
+	label, ok := target.(*Identifier)
+	if !ok {
+		return nil, errors.New("when relabeling (AS), the right side value has to be an identifier")
+	}
+	return label, nil
+}
+
 // parse expressions separated by commas
 func (p *Parser) parseExpressions() ([]Expression, error) {
 	var ret []Expression
 	for {
 		expr := p.parseExpression(LOWEST)
-		pt := p.peekToken().ttype
-		// TODO(PR): create a p.parseRelabeling (we use it for aliasing in FROM as well)
-		if pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted {
-			p.position++
-			if pt == tokenAs {
-				p.position++
-			}
-			// relabeling is an exception, we use a different Expression for that
-			target := p.parseExpression(LOWEST)
-			label, ok := target.(*Identifier)
-			if !ok {
-				return nil, errors.New("when relabeling (AS), the right side value has to be an identifier")
-			}
+		label, err := p.parseRelabeling()
+		if err != nil {
+			return nil, err
+		}
+		if label != nil {
 			expr = &Relabel{inner: expr, Label: label.name}
 		}
+		pt := p.peekToken().ttype
+		// TODO(PR): move this equality checks into p.parseOrdering?
 		if pt == tokenAsc || pt == tokenDesc || pt == tokenNulls {
 			oexp, err := p.parseOrdering()
 			if err != nil {
@@ -515,12 +527,7 @@ func ParseQuerySQL(s string) (Query, error) {
 	if p.curToken().ttype != tokenIdentifier {
 		return q, fmt.Errorf("expecting dataset name, got %v", p.curToken())
 	}
-	var (
-		dsName    = string(p.curToken().value)
-		dsVersion string
-		dsAlias   *Identifier
-		dsLatest  = true
-	)
+	q.Dataset = &Dataset{Name: string(p.curToken().value), Latest: true}
 	if p.peekToken().ttype == tokenAt {
 		p.position += 2
 		if p.curToken().ttype != tokenIdentifier {
@@ -534,24 +541,16 @@ func ParseQuerySQL(s string) (Query, error) {
 		if err != nil {
 			return q, err
 		}
-		dsVersion = version.String()
-		dsLatest = false
+		q.Dataset.Version = version.String()
+		q.Dataset.Latest = false
 	}
-	pt := p.peekToken().ttype
-	if pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted {
-		p.position++
-		if pt == tokenAs {
-			p.position++
-		}
-		// relabeling is an exception, we use a different Expression for that
-		target := p.parseExpression(LOWEST)
-		label, ok := target.(*Identifier)
-		if !ok {
-			return q, errors.New("when relabeling (AS), the right side value has to be an identifier")
-		}
-		dsAlias = label
+	label, err := p.parseRelabeling()
+	if err != nil {
+		return q, err
 	}
-	q.Dataset = &Dataset{Name: dsName, Version: dsVersion, Latest: dsLatest, alias: dsAlias}
+	if label != nil {
+		q.Dataset.alias = label
+	}
 
 	p.position++
 
