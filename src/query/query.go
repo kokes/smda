@@ -452,6 +452,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	// expand `*` clauses
 	// ARCH: we're mutating `q.Select`... we don't tend to do that here (it messes up printing it back)
 	// consider having some optimisation here that will spit out a new `Query` and leave the old one intact
+	// TODO(PR): expand foo.*, also correct * to include all datasets
 	var projs []expr.Expression
 	for _, el := range q.Select {
 		if idn, ok := el.(*expr.Identifier); ok && idn.String() == "*" {
