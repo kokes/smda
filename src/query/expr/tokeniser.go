@@ -27,6 +27,7 @@ const (
 	tokenIdentifier
 	tokenIdentifierQuoted
 	tokenComment
+	tokenDot
 	// keywords:
 	tokenSelect
 	tokenFrom
@@ -124,6 +125,8 @@ func (tok token) String() string {
 		return fmt.Sprintf("\"%s\"", tok.value)
 	case tokenComment:
 		return fmt.Sprintf("-- %v\n", tok.value)
+	case tokenDot:
+		return "."
 	case tokenAnd:
 		return "AND"
 	case tokenOr:
@@ -358,6 +361,11 @@ func (ts *tokenScanner) scan() (token, error) {
 		ts.position++
 		return token{tokenLt, nil}, nil
 	case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		next := ts.peek(2)
+		if next[0] == '.' && !(next[1] >= '0' && next[1] <= '9') {
+			ts.position++
+			return token{tokenDot, nil}, nil
+		}
 		return ts.consumeNumber()
 	case '@':
 		ts.position++
