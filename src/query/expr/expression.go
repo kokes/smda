@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/kokes/smda/src/column"
-	"github.com/kokes/smda/src/database"
 )
 
 var errNoNestedAggregations = errors.New("cannot nest aggregations (e.g. sum(min(a)))")
@@ -40,7 +39,7 @@ func PruneFunctionCalls(ex Expression) {
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
 	Select    []Expression
-	Dataset   *database.DatasetIdentifier
+	Dataset   *Dataset
 	Filter    Expression
 	Aggregate []Expression
 	Order     []Expression

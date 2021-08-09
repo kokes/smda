@@ -515,12 +515,12 @@ func ParseQuerySQL(s string) (Query, error) {
 	if p.curToken().ttype != tokenIdentifier {
 		return q, fmt.Errorf("expecting dataset name, got %v", p.curToken())
 	}
-	// TODO(PR): perhaps use a custom type for dataset identifiers... to remove the dependency on dataset.go
-	datasetID := database.DatasetIdentifier{
-		Name:    string(p.curToken().value),
-		Version: database.UID{},
-		Latest:  true,
-	}
+	var (
+		dsName    = string(p.curToken().value)
+		dsVersion string
+		dsAlias   *Identifier
+		dsLatest  = true
+	)
 	if p.peekToken().ttype == tokenAt {
 		p.position += 2
 		if p.curToken().ttype != tokenIdentifier {
@@ -530,11 +530,12 @@ func ParseQuerySQL(s string) (Query, error) {
 		if len(dsn) == 0 || dsn[0] != 'v' {
 			return q, fmt.Errorf("invalid dataset version, got %s", dsn)
 		}
-		datasetID.Version, err = database.UIDFromHex(dsn[1:])
+		version, err := database.UIDFromHex(dsn[1:])
 		if err != nil {
 			return q, err
 		}
-		datasetID.Latest = false
+		dsVersion = version.String()
+		dsLatest = false
 	}
 	pt := p.peekToken().ttype
 	if pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted {
@@ -548,10 +549,9 @@ func ParseQuerySQL(s string) (Query, error) {
 		if !ok {
 			return q, errors.New("when relabeling (AS), the right side value has to be an identifier")
 		}
-		// datasetID.Alias = // TODO(PR)
-		_ = label
+		dsAlias = label
 	}
-	q.Dataset = &datasetID
+	q.Dataset = &Dataset{Name: dsName, Version: dsVersion, Latest: dsLatest, alias: dsAlias}
 
 	p.position++
 

@@ -444,7 +444,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		return res, nil
 	}
 
-	ds, err := db.GetDataset(q.Dataset)
+	ds, err := db.GetDataset(q.Dataset.Name, q.Dataset.Version, q.Dataset.Latest)
 	if err != nil {
 		return nil, err
 	}

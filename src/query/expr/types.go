@@ -66,6 +66,28 @@ func (ex *Identifier) Children() []Expression {
 	return nil
 }
 
+type Dataset struct {
+	Name    string
+	Version string
+	Latest  bool
+	alias   *Identifier
+}
+
+func (ex *Dataset) Children() []Expression { return nil }
+
+func (ex *Dataset) String() string {
+	if ex.Latest {
+		return ex.Name
+	}
+
+	return fmt.Sprintf("%v@v%v", ex.Name, ex.Version)
+}
+
+// TODO(PR): panic? return a specific error?
+func (ex *Dataset) ReturnType(ts column.TableSchema) (column.Schema, error) {
+	return column.Schema{}, nil
+}
+
 type Integer struct {
 	value int64
 }

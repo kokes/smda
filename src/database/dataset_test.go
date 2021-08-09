@@ -131,7 +131,7 @@ func TestAddingDatasets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ds2, err := db.GetDataset(&DatasetIdentifier{Name: ds.Name, Latest: true})
+	ds2, err := db.GetDatasetLatest(ds.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestAddingDatasetsWithVersions(t *testing.T) {
 	}
 	last := dss[len(dss)-1]
 
-	ds, err := db.GetDataset(&DatasetIdentifier{Name: last.Name, Latest: true})
+	ds, err := db.GetDatasetLatest(last.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestAddingDatasetsWithVersions(t *testing.T) {
 	}
 
 	for _, ds := range dss {
-		rds, err := db.GetDataset(&DatasetIdentifier{Name: ds.Name, Version: ds.ID})
+		rds, err := db.GetDatasetByVersion(ds.Name, ds.ID.String())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -202,7 +202,7 @@ func TestAddingDatasetsWithRestarts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ds2, err := db2.GetDataset(&DatasetIdentifier{Name: ds.Name, Latest: true})
+	ds2, err := db2.GetDatasetLatest(ds.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestRemovingDatasets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = db.GetDataset(&DatasetIdentifier{Name: ds.Name, Latest: true})
+	_, err = db.GetDatasetLatest(ds.Name)
 	if !errors.Is(err, errDatasetNotFound) {
 		t.Error("should not be able to retrieve a deleted dataset")
 	}
@@ -280,7 +280,7 @@ func TestGettingNewDatasets(t *testing.T) {
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
-	ds2, err := db.GetDataset(&DatasetIdentifier{Name: ds.Name, Latest: true})
+	ds2, err := db.GetDatasetLatest(ds.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
