@@ -28,6 +28,7 @@ const (
 	ADDITION    // +
 	PRODUCT     // *
 	PREFIX      // -X or NOT X
+	NAMESPACE   // foo.bar
 	CALL        // myFunction(X)
 )
 
@@ -48,6 +49,7 @@ var precedences = map[tokenType]int{
 	tokenQuo:    PRODUCT,
 	tokenMul:    PRODUCT,
 	tokenLparen: CALL,
+	tokenDot:    NAMESPACE,
 }
 
 type (
@@ -111,6 +113,7 @@ func NewParser(s string) (*Parser, error) {
 		tokenGt:     p.parseInfixExpression,
 		tokenLte:    p.parseInfixExpression,
 		tokenGte:    p.parseInfixExpression,
+		tokenDot:    p.parseInfixExpression,
 		tokenLparen: p.parseCallExpression,
 	}
 
@@ -148,6 +151,7 @@ func (p *Parser) peekPrecedence() int {
 func (p *Parser) parseIdentifer() Expression {
 	val := p.curToken().value
 	val = bytes.ToLower(val) // unquoted identifiers are case insensitive, so we can lowercase them
+	// TODO(PR): we should perhaps use NewIdentifier as well... for it to be unified
 	return &Identifier{name: string(val)}
 }
 func (p *Parser) parseIdentiferQuoted() Expression {
@@ -285,6 +289,18 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	}
 
 	expr.right = p.parseExpression(precedence)
+
+	if expr.operator == tokenDot {
+		i1, ok1 := expr.left.(*Identifier)
+		i2, ok2 := expr.right.(*Identifier)
+		if !(ok1 && ok2) {
+			p.errors = append(p.errors, fmt.Errorf("namespace selector ('.') requires an identifier on both sides of it, got %v and %v", expr.left, expr.right))
+			return nil
+		}
+		i2.namespace = i1
+		return i2
+	}
+
 	return expr
 }
 
@@ -317,6 +333,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	curToken := p.curToken()
 
 	// `select * from foo` or `select *, foo from bar` etc.
+	// TODO(PR): support foo.* here?
 	if curToken.ttype == tokenMul && (p.peekToken().ttype == tokenEOF || p.peekToken().ttype == tokenComma || p.peekToken().ttype == tokenFrom) {
 		// ARCH: consider a custom type for this
 		return &Identifier{name: "*"}

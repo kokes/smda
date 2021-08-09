@@ -54,6 +54,15 @@ func TestParsingContents(t *testing.T) {
 		{"+2.4", &Prefix{operator: tokenAdd, right: &Float{value: 2.4}}},
 
 		// infix operators
+		{"foo.bar", &Identifier{namespace: &Identifier{name: "foo"}, name: "bar"}},
+		{"foo.\"Bar\"", &Identifier{namespace: &Identifier{name: "foo"}, name: "Bar", quoted: true}},
+		{"\"Foo\".bar", &Identifier{namespace: &Identifier{name: "Foo", quoted: true}, name: "bar"}},
+		{"2 * foo.bar - 3", &Infix{operator: tokenSub, left: &Infix{
+			operator: tokenMul,
+			left:     &Integer{value: 2},
+			right:    &Identifier{namespace: &Identifier{name: "foo"}, name: "bar"},
+		}, right: &Integer{value: 3}}},
+		{"foo.*", &Identifier{namespace: &Identifier{name: "foo"}, name: "*"}},
 		{"4 * 2", &Infix{
 			left:     &Integer{value: 4},
 			operator: tokenMul,
