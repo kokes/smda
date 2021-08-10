@@ -151,7 +151,7 @@ func (p *Parser) peekPrecedence() int {
 func (p *Parser) parseIdentifer() Expression {
 	val := p.curToken().value
 	val = bytes.ToLower(val) // unquoted identifiers are case insensitive, so we can lowercase them
-	// TODO(PR): we should perhaps use NewIdentifier as well... for it to be unified
+	// ARCH: we should perhaps use NewIdentifier as well... for it to be unified (this way we enforce quoted: false, though)
 	return &Identifier{Name: string(val)}
 }
 func (p *Parser) parseIdentiferQuoted() Expression {
@@ -333,7 +333,6 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	curToken := p.curToken()
 
 	// `select * from foo` or `select *, foo from bar` etc.
-	// TODO(PR): support foo.* here?
 	if curToken.ttype == tokenMul && (p.peekToken().ttype == tokenEOF || p.peekToken().ttype == tokenComma || p.peekToken().ttype == tokenFrom) {
 		// ARCH: consider a custom type for this
 		return &Identifier{Name: "*"}
@@ -388,7 +387,8 @@ func (p *Parser) Err() error {
 func (p *Parser) parseRelabeling() (*Identifier, error) {
 	pt := p.peekToken().ttype
 	if !(pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted) {
-		return nil, nil // TODO(PR): perhaps return nil, errNoRelabeling, which we can act upon (just continue)
+		// ARCH: perhaps return nil, errNoRelabeling, which we can act upon (just continue)
+		return nil, nil
 	}
 	p.position++
 	if pt == tokenAs {
@@ -416,7 +416,7 @@ func (p *Parser) parseExpressions() ([]Expression, error) {
 			expr = &Relabel{inner: expr, Label: label.Name}
 		}
 		pt := p.peekToken().ttype
-		// TODO(PR): move this equality checks into p.parseOrdering?
+		// TODO(next): move this equality checks into p.parseOrdering?
 		if pt == tokenAsc || pt == tokenDesc || pt == tokenNulls {
 			oexp, err := p.parseOrdering()
 			if err != nil {

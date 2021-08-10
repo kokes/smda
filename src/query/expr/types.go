@@ -14,6 +14,21 @@ var errEmptyTuple = errors.New("tuple cannot be empty")
 var errTupleTypeMismatch = errors.New("all values in a tuple must be the same")
 var errDistinctInProjection = errors.New("cannot use DISTINCT in a non-aggregating function")
 
+type Dataset struct {
+	Name    string
+	Version string
+	Latest  bool
+	alias   *Identifier // TODO(PR): not a huge fan of this type
+}
+
+func (ex *Dataset) String() string {
+	if ex.Latest {
+		return ex.Name
+	}
+
+	return fmt.Sprintf("%v@v%v", ex.Name, ex.Version)
+}
+
 type Identifier struct {
 	Namespace *Identifier
 	quoted    bool
@@ -30,14 +45,11 @@ func needsQuoting(s string) bool {
 }
 
 // TODO(quoting): rules are quite non-transparent - unify and document somehow
-// TODO(PR): add tests for all the ifs and such
 func NewIdentifier(name string) *Identifier {
-	idn := Identifier{Name: name}
-
-	// only assign the Quoted variant if there's a need for it
-	idn.quoted = needsQuoting(name)
-
-	return &idn
+	return &Identifier{
+		Name:   name,
+		quoted: needsQuoting(name), // only assign the Quoted variant if there's a need for it
+	}
 }
 
 func (ex *Identifier) ReturnType(ts column.TableSchema) (column.Schema, error) {
@@ -49,7 +61,6 @@ func (ex *Identifier) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	return col, err
 }
 
-// TODO(PR): test this stringer
 func (ex *Identifier) String() string {
 	name := ex.Name
 	if ex.quoted {
@@ -64,28 +75,6 @@ func (ex *Identifier) String() string {
 }
 func (ex *Identifier) Children() []Expression {
 	return nil
-}
-
-type Dataset struct {
-	Name    string
-	Version string
-	Latest  bool
-	alias   *Identifier
-}
-
-func (ex *Dataset) Children() []Expression { return nil }
-
-func (ex *Dataset) String() string {
-	if ex.Latest {
-		return ex.Name
-	}
-
-	return fmt.Sprintf("%v@v%v", ex.Name, ex.Version)
-}
-
-// TODO(PR): panic? return a specific error?
-func (ex *Dataset) ReturnType(ts column.TableSchema) (column.Schema, error) {
-	return column.Schema{}, nil
 }
 
 type Integer struct {

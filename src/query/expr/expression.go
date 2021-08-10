@@ -65,7 +65,7 @@ func (q Query) String() string {
 	if q.Dataset != nil {
 		sb.WriteString(fmt.Sprintf(" FROM %s", q.Dataset))
 		if q.Dataset.alias != nil {
-			sb.WriteString(fmt.Sprintf(" AS %v", q.Dataset.alias)) // TODO(PR): or without AS? what's the canonical way?
+			sb.WriteString(fmt.Sprintf(" AS %v", q.Dataset.alias))
 		}
 	}
 	if q.Filter != nil {
