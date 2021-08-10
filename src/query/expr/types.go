@@ -15,9 +15,9 @@ var errTupleTypeMismatch = errors.New("all values in a tuple must be the same")
 var errDistinctInProjection = errors.New("cannot use DISTINCT in a non-aggregating function")
 
 type Identifier struct {
-	namespace *Identifier
+	Namespace *Identifier
 	quoted    bool
-	name      string
+	Name      string
 }
 
 func needsQuoting(s string) bool {
@@ -32,7 +32,7 @@ func needsQuoting(s string) bool {
 // TODO(quoting): rules are quite non-transparent - unify and document somehow
 // TODO(PR): add tests for all the ifs and such
 func NewIdentifier(name string) *Identifier {
-	idn := Identifier{name: name}
+	idn := Identifier{Name: name}
 
 	// only assign the Quoted variant if there's a need for it
 	idn.quoted = needsQuoting(name)
@@ -42,22 +42,22 @@ func NewIdentifier(name string) *Identifier {
 
 func (ex *Identifier) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	if ex.quoted {
-		_, col, err := ts.LocateColumn(ex.name)
+		_, col, err := ts.LocateColumn(ex.Name)
 		return col, err
 	}
-	_, col, err := ts.LocateColumnCaseInsensitive(ex.name)
+	_, col, err := ts.LocateColumnCaseInsensitive(ex.Name)
 	return col, err
 }
 
 // TODO(PR): test this stringer
 func (ex *Identifier) String() string {
-	name := ex.name
+	name := ex.Name
 	if ex.quoted {
-		name = fmt.Sprintf("\"%s\"", ex.name)
+		name = fmt.Sprintf("\"%s\"", ex.Name)
 	}
 
-	if ex.namespace != nil {
-		return fmt.Sprintf("%v.%v", ex.namespace.String(), name)
+	if ex.Namespace != nil {
+		return fmt.Sprintf("%v.%v", ex.Namespace.String(), name)
 	}
 
 	return name

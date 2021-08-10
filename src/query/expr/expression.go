@@ -203,7 +203,7 @@ func ColumnsUsed(expr Expression, schema column.TableSchema) (cols []string) {
 			lookup = schema.LocateColumn
 		}
 
-		_, col, err := lookup(idf.name)
+		_, col, err := lookup(idf.Name)
 		if err != nil {
 			panic(err)
 		}

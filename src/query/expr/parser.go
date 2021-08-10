@@ -152,7 +152,7 @@ func (p *Parser) parseIdentifer() Expression {
 	val := p.curToken().value
 	val = bytes.ToLower(val) // unquoted identifiers are case insensitive, so we can lowercase them
 	// TODO(PR): we should perhaps use NewIdentifier as well... for it to be unified
-	return &Identifier{name: string(val)}
+	return &Identifier{Name: string(val)}
 }
 func (p *Parser) parseIdentiferQuoted() Expression {
 	val := p.curToken().value
@@ -209,7 +209,7 @@ func (p *Parser) parseCallExpression(left Expression) Expression {
 		p.errors = append(p.errors, fmt.Errorf("%w: %v", errInvalidFunctionName, left.String()))
 		return nil
 	}
-	funName := id.name
+	funName := id.Name
 	var distinct bool
 
 	if p.peekToken().ttype == tokenDistinct {
@@ -297,7 +297,7 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 			p.errors = append(p.errors, fmt.Errorf("namespace selector ('.') requires an identifier on both sides of it, got %v and %v", expr.left, expr.right))
 			return nil
 		}
-		i2.namespace = i1
+		i2.Namespace = i1
 		return i2
 	}
 
@@ -336,7 +336,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	// TODO(PR): support foo.* here?
 	if curToken.ttype == tokenMul && (p.peekToken().ttype == tokenEOF || p.peekToken().ttype == tokenComma || p.peekToken().ttype == tokenFrom) {
 		// ARCH: consider a custom type for this
-		return &Identifier{name: "*"}
+		return &Identifier{Name: "*"}
 	}
 
 	prefix := p.prefixParseFns[curToken.ttype]
@@ -413,7 +413,7 @@ func (p *Parser) parseExpressions() ([]Expression, error) {
 			return nil, err
 		}
 		if label != nil {
-			expr = &Relabel{inner: expr, Label: label.name}
+			expr = &Relabel{inner: expr, Label: label.Name}
 		}
 		pt := p.peekToken().ttype
 		// TODO(PR): move this equality checks into p.parseOrdering?

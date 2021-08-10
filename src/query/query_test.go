@@ -395,6 +395,9 @@ func TestQuerySetup(t *testing.T) {
 		{"SELECT * FROM dataset", nil},
 		{"SELECT * FROM dataset GROUP BY foo, bar, baz", nil},
 		{"SELECT * FROM dataset WHERE foo > 1", nil},
+		{"SELECT dataset.* FROM dataset", nil},
+		{"SELECT d.* FROM dataset d", nil},
+		{"SELECT d.* FROM dataset as d", nil},
 		// we get a parser issue, because we can get multiple where clauses only in JSON unmarshaling of queries
 		// {"SELECT foo FROM dataset WHERE foo > 0, foo < 3", errInvalidFilter},
 
