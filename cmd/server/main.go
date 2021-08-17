@@ -20,8 +20,9 @@ var sampleDir embed.FS
 
 // global, so that we can inject it at build time
 var (
-	gitCommit string
-	buildTime string
+	gitCommit      string
+	buildTime      string
+	buildGoVersion string
 )
 
 func main() {
@@ -37,7 +38,7 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		fmt.Printf("build commit: %v\nbuild time: %v\n", gitCommit, buildTime)
+		fmt.Printf("build commit: %v\nbuild time: %v\ngo version: %v\n", gitCommit, buildTime, buildGoVersion)
 		os.Exit(0)
 	}
 

@@ -1,4 +1,4 @@
-FROM golang:1.16-alpine AS build
+FROM golang:1.17-alpine AS build
 # technically, we don't need the Makefile, because our build process is very
 # simple at this point - but let's keep it, since we don't know what might happen
 # in the future
