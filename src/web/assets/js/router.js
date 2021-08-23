@@ -26,13 +26,8 @@ class Router {
                     if (qform.method !== "get") {
                         throw new Error("cannot submit POST forms yet");
                     }
-                    if (qform.write_sql.checked) {
-                        const query = qform.sql.value;
-                        url.searchParams.set("sql", query);
-                    } else {
-                        for (let entry of (new FormData(qform)).entries()) {
-                            url.searchParams.set(entry[0], entry[1]);
-                        }
+                    for (let entry of (new FormData(qform)).entries()) {
+                        url.searchParams.set(entry[0], entry[1]);
                     }
                     history.pushState({}, "", url);
                     break;

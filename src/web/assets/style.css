@@ -122,62 +122,12 @@ nav#panel ul li a:hover, nav#panel ul li a.current {
     background: darkslategray;
 }
 
-/* contains a fieldset and a column filter */
-div#query {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-}
-
-div#column-filter {
-    max-height: 300px;
-    width: 400px;
-    overflow-y: auto;
-    align-self: end
-}
-div#column-filter input {
-    font-size: 110%;
-    padding: .3em;
-    margin: 1em 0;
-}
-div#column-filter ul li {
-    margin-left: 1.5em;
-}
-
-div#query div#toggle {
-    margin-bottom: 1em;
-}
 textarea#sql {
     display: block;
     margin: 1em 0;
     padding: .5em;
 }
 
-form fieldset {
-    padding: 1em;
-    border: 1px solid #ccc;
-}
-form fieldset legend {
-    padding: .5em;
-    border: 1px solid darkslategray;
-    background: #eee;
-}
-form fieldset > div {
-    margin: .7em 0;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-}
-form fieldset > div label {
-    display: block;
-    width: 150px;
-    padding-right: 1em;
-}
-form fieldset > div input {
-    padding: .3em .5em;
-    min-width: 600px;
-    max-width: 80%;
-}
 div#submit-query {
     margin-top: 1em;
 }

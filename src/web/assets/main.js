@@ -26,27 +26,9 @@ class smda {
     constructor() {        
         this.setupUploader();
         this.setupQueryWindow()
-        this.setupColumnFilter()
     }
     // ARCH: move elsewhere (all UI setups)
     setupQueryWindow() {
-        // toggle query methods based on a checkbox
-        const tick = document.getElementById("write_sql");
-        tick.addEventListener("click", e => {
-            const target = document.getElementById("sql");
-            const checked = e.target.checked;
-            if (checked && target.value.trim() === "") {
-                target.value = this.queryFromStructured(document.forms["query"]);
-            }
-
-            const qform = document.querySelector("div#query fieldset");
-            const qsql = document.querySelector("div#query textarea#sql");
-
-            qform.style.display = checked ? "none" : "block";
-            qsql.style.display = checked ? "block" : "none";
-        });
-        tick.dispatchEvent(new Event("click"));
-
         // submit on shift-enter
         document.querySelector("div#query textarea#sql").addEventListener("keydown", e => {
             if (!(e.code === "Enter" && e.shiftKey === true)) {
@@ -57,54 +39,6 @@ class smda {
             // would circumvent our router
             document.forms["query"].querySelector("button").click();
         });
-    }
-    // ARCH: maybe move this one to submitQuery?
-    setupColumnFilter() {
-        const dsi = document.querySelector("input#dataset");
-        dsi.addEventListener("change", async e => {
-            if (this.datasets === undefined) {
-                await this.loadDatasets(); // OPTIM: we might want to load metadata for just one dataset
-            }
-            if (e.target.value === "") {
-                return;
-            }
-            // ARCH/TODO: create a helper function to work with dataset versions (search `@v` for more use cases here)
-            const version = e.target.value.split("@v")[1];
-            const ds = this.datasets[version];
-            const target = document.getElementById("column-filter");
-            const inner = document.createElement("div");
-            const filter = document.createElement("input");
-            filter.setAttribute("placeholder", "filter columns");
-            filter.addEventListener("keyup", e => {
-                const needle = e.target.value;
-                // TODO(next): add S/A/F links - add to select, aggregate, filter fields (and be aware of its contents)
-                for (const col of e.target.parentNode.querySelectorAll("ul li")) {
-                    const val = col.textContent;
-                    // OPTIM: we can be smart about this and save our last query and if it's a subset, we can skip some columns etc.
-                    if (needle === "" || val.includes(needle)) {
-                        col.style.display = "list-item";
-                    } else {
-                        col.style.display = "none";
-                    }
-                }
-            });
-
-            inner.append(filter);
-
-            const columns = document.createElement("ul");
-
-            for (const col of ds.schema) {
-                columns.append(node("li", null, `${col.name} (${col.dtype})`));
-            }
-
-            inner.append(columns);
-            // we cannot do `target.innerHTML = ...`, because we're registering event listeners
-            empty(target);
-            target.append(inner);
-        });
-
-        // trigger this upon first load
-        dsi.dispatchEvent(new Event("change"));
     }
     setupUploader() {
         const fp = document.getElementById("filepicker");
@@ -129,38 +63,28 @@ class smda {
             e.target.disabled = "";
         })
     }
-    queryFromStructured(qform) {
-        const query = Object.fromEntries(
-            [...qform.querySelectorAll("input")]
-                .filter(x => x.value !== "")
-                .map(x => [x.name, x.value])
-        )
-        if (Object.entries(query).length === 0) {
+    queryFromStructured(data) {
+        if (Object.entries(data).length === 0) {
             return "";
         }
         return [
-            `SELECT ${query["select"] ? query["select"] : "*"}`,
-            `${query["dataset"] ? "FROM " + query["dataset"] : ""}`,
-            `${query["filter"] ? "WHERE " + query["filter"] : ""}`,
-            `${query["aggregate"] ? "GROUP BY " + query["aggregate"] : ""}`,
-            `${query["order"] ? "ORDER BY " + query["order"] : ""}`,
-            `${query["limit"] !== undefined ? "LIMIT " + query["limit"] : ""}`,
+            `SELECT ${data["select"] ? data["select"] : "*"}`,
+            `${data["dataset"] ? "FROM " + data["dataset"] : ""}`,
+            `${data["filter"] ? "WHERE " + data["filter"] : ""}`,
+            `${data["aggregate"] ? "GROUP BY " + data["aggregate"] : ""}`,
+            `${data["order"] ? "ORDER BY " + data["order"] : ""}`,
+            `${data["limit"] !== undefined ? "LIMIT " + data["limit"] : ""}`,
         ].filter(x => x.trim() !== "").join("\n");
     }
     async submitQuery() {
         const qform = document.forms["query"];
-        const writeSQL = document.getElementById("write_sql").checked;
         const target = document.getElementById("query-results");
         const elapsed = qform.querySelector("small#elapsed");
 
-        let query = qform.sql.value;
-        if (!writeSQL) {
-            query = this.queryFromStructured(qform);
-        }
-        if (query.trim() === "") {
+        const query = qform.sql.value.trim();
+        if (query === "") {
             empty(target);
             empty(elapsed);
-            empty(document.getElementById("column-filter"));
             return;
         }
 
@@ -198,9 +122,10 @@ class smda {
         datasets.sort((a, b) => b.created_timestamp - a.created_timestamp)
         const rows = node("tbody", null, datasets.map(
             ds => {
-                const dsv = encodeURIComponent(`${ds.name}@v${ds.id}`);
+                // ARCH: this foo@vbar should be a function or something
+                const query = this.queryFromStructured({dataset: `${ds.name}@v${ds.id}`, limit: 100});
                 const cols = [
-                    node("td", null, node("a", {"href": `/query?dataset=${dsv}&limit=100`}, ds.id)),
+                    node("td", null, node("a", {"href": `/query?sql=${encodeURIComponent(query)}`}, ds.id)),
                     node("td", null, ds.name),
                     node("td", null,
                         node("span",
