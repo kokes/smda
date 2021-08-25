@@ -195,6 +195,8 @@ func HasIdentifiers(expr Expression) bool {
 // ARCH: this panics when a given column is not in the schema, but since we already validated
 // this schema during the ReturnType call, we should be fine. It's still a bit worrying that
 // we might panic though.
+// TODO(next)/TODO(joins): all the columnsUsed functions need to support multiple schemas and namespaces
+// perhaps we should return []*Identifier, that would solve a few other issues as well
 func ColumnsUsed(expr Expression, schema column.TableSchema) (cols []string) {
 	if idf, ok := expr.(*Identifier); ok {
 		var lookup func(string) (int, column.Schema, error)

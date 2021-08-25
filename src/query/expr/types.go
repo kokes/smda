@@ -18,7 +18,7 @@ type Dataset struct {
 	Name    string
 	Version string
 	Latest  bool
-	alias   *Identifier // TODO(PR): not a huge fan of this type
+	alias   *Identifier // TODO(next): not a huge fan of this type
 }
 
 func (ex *Dataset) String() string {

@@ -455,10 +455,11 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	var projs []expr.Expression
 	for _, el := range q.Select {
 		if idn, ok := el.(*expr.Identifier); ok && idn.Name == "*" {
-			// TODO(PR): this works for the wrong reasons - check idn.Namespace and compare it to our sources
-			// it also ignores the namespace in NewIdentifier
 			for _, el := range ds.Schema {
 				col := expr.NewIdentifier(el.Name)
+				// TODO(next): compare this namespace against our sources to make sure
+				// we have this column? (or leave that to the query processor down below?)
+				col.Namespace = idn.Namespace
 				projs = append(projs, col)
 			}
 		} else {
