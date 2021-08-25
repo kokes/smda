@@ -259,21 +259,6 @@ type Dataset struct {
 	Stripes []Stripe `json:"stripes"`
 }
 
-// DatasetIdentifier contains fields needed for a dataset/version lookup
-type DatasetIdentifier struct {
-	Name    string
-	Version UID
-	// Latest can be used to avoid using Version (e.g. if it's unknown)
-	Latest bool
-}
-
-func (did DatasetIdentifier) String() string {
-	if did.Latest {
-		return did.Name
-	}
-	return fmt.Sprintf("%s@v%s", did.Name, did.Version)
-}
-
 // NewDataset creates a new empty dataset
 func NewDataset(name string) *Dataset {
 	// ARCH: we don't give the user a choice - the name will get modified if it doesn't
@@ -303,23 +288,43 @@ func (db *Database) stripePath(ds *Dataset, stripe Stripe) string {
 // OPTIM: not efficient in this implementation, but we don't have a map-like structure
 // to store our datasets - we keep them in a slice, so that we have predictable order
 // -> we need a sorted map
-func (db *Database) GetDataset(did *DatasetIdentifier) (*Dataset, error) {
+func (db *Database) GetDatasetByVersion(name, version string) (*Dataset, error) {
 	var found *Dataset
 	for _, dataset := range db.Datasets {
-		if dataset.Name != did.Name {
+		if dataset.Name != name {
 			continue
 		}
-		if did.Latest && (found == nil || dataset.Created > found.Created) {
-			found = dataset
-		}
-		if !did.Latest && dataset.ID == did.Version {
+		if dataset.ID.String() == version {
 			return dataset, nil
 		}
 	}
 	if found == nil {
-		return nil, fmt.Errorf("dataset %v not found: %w", did.Name, errDatasetNotFound)
+		return nil, fmt.Errorf("dataset %v@v%v not found: %w", name, version, errDatasetNotFound)
 	}
 	return found, nil
+}
+
+func (db *Database) GetDatasetLatest(name string) (*Dataset, error) {
+	var found *Dataset
+	for _, dataset := range db.Datasets {
+		if dataset.Name != name {
+			continue
+		}
+		if found == nil || dataset.Created > found.Created {
+			found = dataset
+		}
+	}
+	if found == nil {
+		return nil, fmt.Errorf("dataset %v not found: %w", name, errDatasetNotFound)
+	}
+	return found, nil
+}
+
+func (db *Database) GetDataset(name, version string, latest bool) (*Dataset, error) {
+	if latest {
+		return db.GetDatasetLatest(name)
+	}
+	return db.GetDatasetByVersion(name, version)
 }
 
 // AddDataset adds a Dataset to a Database

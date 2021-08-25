@@ -49,7 +49,7 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			return nil, fmt.Errorf("unknown prefix token: %v", node.operator)
 		}
 	case *Identifier:
-		lookupValue := node.name
+		lookupValue := node.Name
 		if !node.quoted {
 			lookupValue = strings.ToLower(lookupValue)
 		}
@@ -57,7 +57,7 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 		if !ok {
 			// we validated the expression, so this should not happen?
 			// perhaps to catch bugs in case folding?
-			return nil, fmt.Errorf("column %v not found", node.name)
+			return nil, fmt.Errorf("column %v not found", node.Name)
 		}
 		if filter != nil {
 			return col.Prune(filter), nil

@@ -28,6 +28,7 @@ const (
 	ADDITION    // +
 	PRODUCT     // *
 	PREFIX      // -X or NOT X
+	NAMESPACE   // foo.bar
 	CALL        // myFunction(X)
 )
 
@@ -48,6 +49,7 @@ var precedences = map[tokenType]int{
 	tokenQuo:    PRODUCT,
 	tokenMul:    PRODUCT,
 	tokenLparen: CALL,
+	tokenDot:    NAMESPACE,
 }
 
 type (
@@ -111,6 +113,7 @@ func NewParser(s string) (*Parser, error) {
 		tokenGt:     p.parseInfixExpression,
 		tokenLte:    p.parseInfixExpression,
 		tokenGte:    p.parseInfixExpression,
+		tokenDot:    p.parseInfixExpression,
 		tokenLparen: p.parseCallExpression,
 	}
 
@@ -148,7 +151,8 @@ func (p *Parser) peekPrecedence() int {
 func (p *Parser) parseIdentifer() Expression {
 	val := p.curToken().value
 	val = bytes.ToLower(val) // unquoted identifiers are case insensitive, so we can lowercase them
-	return &Identifier{name: string(val)}
+	// ARCH: we should perhaps use NewIdentifier as well... for it to be unified (this way we enforce quoted: false, though)
+	return &Identifier{Name: string(val)}
 }
 func (p *Parser) parseIdentiferQuoted() Expression {
 	val := p.curToken().value
@@ -205,7 +209,7 @@ func (p *Parser) parseCallExpression(left Expression) Expression {
 		p.errors = append(p.errors, fmt.Errorf("%w: %v", errInvalidFunctionName, left.String()))
 		return nil
 	}
-	funName := id.name
+	funName := id.Name
 	var distinct bool
 
 	if p.peekToken().ttype == tokenDistinct {
@@ -285,6 +289,18 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	}
 
 	expr.right = p.parseExpression(precedence)
+
+	if expr.operator == tokenDot {
+		i1, ok1 := expr.left.(*Identifier)
+		i2, ok2 := expr.right.(*Identifier)
+		if !(ok1 && ok2) {
+			p.errors = append(p.errors, fmt.Errorf("namespace selector ('.') requires an identifier on both sides of it, got %v and %v", expr.left, expr.right))
+			return nil
+		}
+		i2.Namespace = i1
+		return i2
+	}
+
 	return expr
 }
 
@@ -319,7 +335,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	// `select * from foo` or `select *, foo from bar` etc.
 	if curToken.ttype == tokenMul && (p.peekToken().ttype == tokenEOF || p.peekToken().ttype == tokenComma || p.peekToken().ttype == tokenFrom) {
 		// ARCH: consider a custom type for this
-		return &Identifier{name: "*"}
+		return &Identifier{Name: "*"}
 	}
 
 	prefix := p.prefixParseFns[curToken.ttype]
@@ -368,25 +384,39 @@ func (p *Parser) Err() error {
 	return fmt.Errorf("encountered %v errors, first one being: %w", len(p.errors), p.errors[0])
 }
 
+func (p *Parser) parseRelabeling() (*Identifier, error) {
+	pt := p.peekToken().ttype
+	if !(pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted) {
+		// ARCH: perhaps return nil, errNoRelabeling, which we can act upon (just continue)
+		return nil, nil
+	}
+	p.position++
+	if pt == tokenAs {
+		p.position++
+	}
+	// relabeling is an exception, we use a different Expression for that
+	target := p.parseExpression(LOWEST)
+	label, ok := target.(*Identifier)
+	if !ok {
+		return nil, errors.New("when relabeling (AS), the right side value has to be an identifier")
+	}
+	return label, nil
+}
+
 // parse expressions separated by commas
 func (p *Parser) parseExpressions() ([]Expression, error) {
 	var ret []Expression
 	for {
 		expr := p.parseExpression(LOWEST)
-		pt := p.peekToken().ttype
-		if pt == tokenAs || pt == tokenIdentifier || pt == tokenIdentifierQuoted {
-			p.position++
-			if pt == tokenAs {
-				p.position++
-			}
-			// relabeling is an exception, we use a different Expression for that
-			target := p.parseExpression(LOWEST)
-			label, ok := target.(*Identifier)
-			if !ok {
-				return nil, errors.New("when relabeling (AS), the right side value has to be an identifier")
-			}
-			expr = &Relabel{inner: expr, Label: label.name}
+		label, err := p.parseRelabeling()
+		if err != nil {
+			return nil, err
 		}
+		if label != nil {
+			expr = &Relabel{inner: expr, Label: label.Name}
+		}
+		pt := p.peekToken().ttype
+		// TODO(next): move this equality checks into p.parseOrdering?
 		if pt == tokenAsc || pt == tokenDesc || pt == tokenNulls {
 			oexp, err := p.parseOrdering()
 			if err != nil {
@@ -497,11 +527,7 @@ func ParseQuerySQL(s string) (Query, error) {
 	if p.curToken().ttype != tokenIdentifier {
 		return q, fmt.Errorf("expecting dataset name, got %v", p.curToken())
 	}
-	datasetID := database.DatasetIdentifier{
-		Name:    string(p.curToken().value),
-		Version: database.UID{},
-		Latest:  true,
-	}
+	q.Dataset = &Dataset{Name: string(p.curToken().value), Latest: true}
 	if p.peekToken().ttype == tokenAt {
 		p.position += 2
 		if p.curToken().ttype != tokenIdentifier {
@@ -511,13 +537,20 @@ func ParseQuerySQL(s string) (Query, error) {
 		if len(dsn) == 0 || dsn[0] != 'v' {
 			return q, fmt.Errorf("invalid dataset version, got %s", dsn)
 		}
-		datasetID.Version, err = database.UIDFromHex(dsn[1:])
+		version, err := database.UIDFromHex(dsn[1:])
 		if err != nil {
 			return q, err
 		}
-		datasetID.Latest = false
+		q.Dataset.Version = version.String()
+		q.Dataset.Latest = false
 	}
-	q.Dataset = &datasetID
+	label, err := p.parseRelabeling()
+	if err != nil {
+		return q, err
+	}
+	if label != nil {
+		q.Dataset.alias = label
+	}
 
 	p.position++
 

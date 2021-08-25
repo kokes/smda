@@ -14,39 +14,64 @@ var errEmptyTuple = errors.New("tuple cannot be empty")
 var errTupleTypeMismatch = errors.New("all values in a tuple must be the same")
 var errDistinctInProjection = errors.New("cannot use DISTINCT in a non-aggregating function")
 
+type Dataset struct {
+	Name    string
+	Version string
+	Latest  bool
+	alias   *Identifier // TODO(next): not a huge fan of this type
+}
+
+func (ex *Dataset) String() string {
+	if ex.Latest {
+		return ex.Name
+	}
+
+	return fmt.Sprintf("%v@v%v", ex.Name, ex.Version)
+}
+
 type Identifier struct {
-	quoted bool
-	name   string
+	Namespace *Identifier
+	quoted    bool
+	Name      string
+}
+
+func needsQuoting(s string) bool {
+	for _, char := range s {
+		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
+			return true
+		}
+	}
+	return false
 }
 
 // TODO(quoting): rules are quite non-transparent - unify and document somehow
 func NewIdentifier(name string) *Identifier {
-	idn := Identifier{name: name}
-
-	// only assign the Quoted variant if there's a need for it
-	for _, char := range name {
-		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || (char == '_')) {
-			idn.quoted = true
-			break
-		}
+	return &Identifier{
+		Name:   name,
+		quoted: needsQuoting(name), // only assign the Quoted variant if there's a need for it
 	}
-	return &idn
 }
 
 func (ex *Identifier) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	if ex.quoted {
-		_, col, err := ts.LocateColumn(ex.name)
+		_, col, err := ts.LocateColumn(ex.Name)
 		return col, err
 	}
-	_, col, err := ts.LocateColumnCaseInsensitive(ex.name)
+	_, col, err := ts.LocateColumnCaseInsensitive(ex.Name)
 	return col, err
 }
 
 func (ex *Identifier) String() string {
-	if !ex.quoted {
-		return ex.name
+	name := ex.Name
+	if ex.quoted {
+		name = fmt.Sprintf("\"%s\"", ex.Name)
 	}
-	return fmt.Sprintf("\"%s\"", ex.name)
+
+	if ex.Namespace != nil {
+		return fmt.Sprintf("%v.%v", ex.Namespace.String(), name)
+	}
+
+	return name
 }
 func (ex *Identifier) Children() []Expression {
 	return nil

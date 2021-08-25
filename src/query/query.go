@@ -444,7 +444,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		return res, nil
 	}
 
-	ds, err := db.GetDataset(q.Dataset)
+	ds, err := db.GetDataset(q.Dataset.Name, q.Dataset.Version, q.Dataset.Latest)
 	if err != nil {
 		return nil, err
 	}
@@ -454,9 +454,12 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	// consider having some optimisation here that will spit out a new `Query` and leave the old one intact
 	var projs []expr.Expression
 	for _, el := range q.Select {
-		if idn, ok := el.(*expr.Identifier); ok && idn.String() == "*" {
+		if idn, ok := el.(*expr.Identifier); ok && idn.Name == "*" {
 			for _, el := range ds.Schema {
 				col := expr.NewIdentifier(el.Name)
+				// TODO(next): compare this namespace against our sources to make sure
+				// we have this column? (or leave that to the query processor down below?)
+				col.Namespace = idn.Namespace
 				projs = append(projs, col)
 			}
 		} else {

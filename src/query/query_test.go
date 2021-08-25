@@ -72,7 +72,7 @@ func TestQueryInvalidFilter(t *testing.T) {
 	if err := db.AddDataset(ds); err != nil {
 		t.Fatal(err)
 	}
-	q := expr.Query{Select: nil, Dataset: &database.DatasetIdentifier{Name: ds.Name, Latest: true}}
+	q := expr.Query{Select: nil, Dataset: &expr.Dataset{Name: ds.Name, Latest: true}}
 
 	if _, err := Run(db, q); err != errNoProjection {
 		t.Errorf("expected that selecting nothing will yield %v, got %v instead", errNoProjection, err)
@@ -104,7 +104,7 @@ func TestLimitsInQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	q := expr.Query{Select: cols, Dataset: &database.DatasetIdentifier{Name: ds.Name, Latest: true}}
+	q := expr.Query{Select: cols, Dataset: &expr.Dataset{Name: ds.Name, Latest: true}}
 
 	// limit omitted
 	qr, err := Run(db, q)
@@ -395,6 +395,9 @@ func TestQuerySetup(t *testing.T) {
 		{"SELECT * FROM dataset", nil},
 		{"SELECT * FROM dataset GROUP BY foo, bar, baz", nil},
 		{"SELECT * FROM dataset WHERE foo > 1", nil},
+		{"SELECT dataset.* FROM dataset", nil},
+		{"SELECT d.* FROM dataset d", nil},
+		{"SELECT d.* FROM dataset as d", nil},
 		// we get a parser issue, because we can get multiple where clauses only in JSON unmarshaling of queries
 		// {"SELECT foo FROM dataset WHERE foo > 0, foo < 3", errInvalidFilter},
 

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/kokes/smda/src/column"
-	"github.com/kokes/smda/src/database"
 )
 
 var errNoNestedAggregations = errors.New("cannot nest aggregations (e.g. sum(min(a)))")
@@ -40,7 +39,7 @@ func PruneFunctionCalls(ex Expression) {
 // 4) The HTML/JS frontend needs to incorporate this in some way
 type Query struct {
 	Select    []Expression
-	Dataset   *database.DatasetIdentifier
+	Dataset   *Dataset
 	Filter    Expression
 	Aggregate []Expression
 	Order     []Expression
@@ -65,6 +64,9 @@ func (q Query) String() string {
 	// ARCH: preparing for queries without FROM clauses
 	if q.Dataset != nil {
 		sb.WriteString(fmt.Sprintf(" FROM %s", q.Dataset))
+		if q.Dataset.alias != nil {
+			sb.WriteString(fmt.Sprintf(" AS %v", q.Dataset.alias))
+		}
 	}
 	if q.Filter != nil {
 		sb.WriteString(fmt.Sprintf(" WHERE %s", q.Filter))
@@ -193,6 +195,8 @@ func HasIdentifiers(expr Expression) bool {
 // ARCH: this panics when a given column is not in the schema, but since we already validated
 // this schema during the ReturnType call, we should be fine. It's still a bit worrying that
 // we might panic though.
+// TODO(next)/TODO(joins): all the columnsUsed functions need to support multiple schemas and namespaces
+// perhaps we should return []*Identifier, that would solve a few other issues as well
 func ColumnsUsed(expr Expression, schema column.TableSchema) (cols []string) {
 	if idf, ok := expr.(*Identifier); ok {
 		var lookup func(string) (int, column.Schema, error)
@@ -201,7 +205,7 @@ func ColumnsUsed(expr Expression, schema column.TableSchema) (cols []string) {
 			lookup = schema.LocateColumn
 		}
 
-		_, col, err := lookup(idf.name)
+		_, col, err := lookup(idf.Name)
 		if err != nil {
 			panic(err)
 		}
