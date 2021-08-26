@@ -93,6 +93,14 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 		return node.evaler(children...)
 	case *Relabel:
 		return Evaluate(node.inner, chunkLength, columnData, filter)
+	case *Tuple:
+		// TODO/ARCH: it seems a bit misplaced to be building a map here... also...
+		// could be a race condition if we eval this over multiple chunks at once (at some point)
+		// TODO(PR): finish - not sure how though, because we can't turn this into a chunk (no such tuple type)
+		// ... might be good to wait for generics, because then we'll be able to just have all of the relevant types
+		// represented as ChunkTuple[T] without having n specific types with a gazillion methods
+		_ = node.inner
+		return nil, nil
 	case *Infix:
 		c1, err := Evaluate(node.left, chunkLength, columnData, filter)
 		if err != nil {
@@ -204,6 +212,9 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			return div, nil
 		case tokenMul:
 			return column.EvalMultiply(c1, c2)
+		case tokenIn:
+			// TODO(PR)
+			return nil, nil
 		default:
 			return nil, fmt.Errorf("unknown infix token: %v", node.operator)
 		}

@@ -88,6 +88,10 @@ func TestBasicEval(t *testing.T) {
 		{"str_foo = 'o'", column.DtypeBool, 3, "f,t,t", nil},
 		{"str_foo != 'f'", column.DtypeBool, 3, "f,t,t", nil},
 
+		// {"foo123 IN (2, 3)", column.DtypeBool, 3, "f,t,t", nil},
+		// {"foo123 NOT IN (2, 3)", column.DtypeBool, 3, "t,f,f", nil},
+		// test float123 IN (2, 3) to check coercing
+
 		// all literals
 		{"(foo123 > 0) AND (2 >= 1)", column.DtypeBool, 3, "t,t,t", nil},
 		{"4 > 1", column.DtypeBool, 3, "lit:t", nil},

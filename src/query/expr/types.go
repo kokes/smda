@@ -169,8 +169,13 @@ func (ex *Null) Children() []Expression {
 	return nil
 }
 
+// TODO(generics): we could have Tuple[T] instead of TupleInts etc., that is
+// only if generics support custom types for parameters (I guess they do)
 type Tuple struct {
 	inner []Expression
+	// maybe these won't be needed since we're converting it into Chunks
+	// values map[T]struct{}
+	// list []T // for faster access if n < 5?
 }
 
 // this is a bit weird, because a Tuple is a container, it doesn't "return" anything,

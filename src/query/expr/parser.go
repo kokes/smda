@@ -305,6 +305,7 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 }
 
 // ARCH/TODO: I guess I don't need `precedence` here?
+// ARCH/TODO: should we check types of all the elements within the tuple? or is that for later?
 func (p *Parser) parseTuple(precedence int) Expression {
 	if p.curToken().ttype != tokenLparen {
 		p.errors = append(p.errors, fmt.Errorf("%w: IN clauses need to be followed by a parenthesised clause", errInvalidTuple))
