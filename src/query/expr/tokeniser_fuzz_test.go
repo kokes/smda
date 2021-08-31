@@ -1,0 +1,71 @@
+package expr
+
+import (
+	"testing"
+)
+
+func FuzzExpressionTokeniser(f *testing.F) {
+	f.Add("1+2*3")
+	f.Add("foo = bar")
+	f.Add("foo * 2 > 3e2")
+
+	// from tokeniser_test.go
+	f.Add("/--")
+	f.Add("/-- ")
+	f.Add("/-- ahoy\n*")
+	f.Add("2.34")
+	f.Add("2.34e12")
+	f.Add(".5")
+	f.Add("1e3")
+	f.Add(".5e3")
+	f.Add(".5e-3")
+	f.Add("1-3")
+	f.Add("234")
+	f.Add("1232349000")
+	f.Add("234*3")
+	f.Add("234*3")
+	f.Add("234\n\t*\n\t3")
+	f.Add("2.3e2 * 3e12")
+	f.Add("2.3e2 + 3e12")
+	f.Add("2.3e2 - 3e12")
+	f.Add("''")
+	f.Add("'ahoy'*")
+	f.Add("''''*")
+	f.Add("''''''*")
+	f.Add("'ah''oy'*")
+	f.Add("'ah''''oy'*")
+	f.Add("'ah''''''oy'*")
+	f.Add("'ah'' '' '' '' ''oy'*")
+	f.Add("ahoy")
+	f.Add("hello_world")
+	f.Add("foo as bar")
+	f.Add("\"ahoy\"")
+	f.Add("foo in (1, 2)")
+	f.Add("foo not in (1, 2)")
+	f.Add("\"select\"")
+	f.Add("\"SELECT\"")
+	f.Add("\"from\"")
+	f.Add("\"nulls\"")
+	f.Add("+\"ahoy\"+")
+	f.Add("-- here is my comment\n1")
+	f.Add("--here is my comment\n1")
+	f.Add("foo@v020485a2686b8d38fe")
+	f.Add("select foo from bar")
+	f.Add("select foo, bar from baz")
+	f.Add("select foo from bar@v020485a2686b8d38fe")
+	f.Add("select foo from bar@v020485a2686b8d38fe where foo > 1")
+	f.Add("select foo from bar@v020485a2686b8d38fe group by foo, bar")
+	f.Add("select foo from bar@v020485a2686b8d38fe limit 123")
+	f.Add("select foo from bar order by foo")
+	f.Add("select foo from bar order by foo asc")
+	f.Add("select foo from bar order by foo desc")
+	f.Add("select foo from bar order by foo desc nulls first")
+	f.Add("select foo from bar order by foo desc nulls last")
+	f.Add("select foo from bar order by foo nulls last")
+
+	f.Fuzz(func(t *testing.T, raw string) {
+		if _, err := tokeniseString(raw); err != nil {
+			t.Skip()
+		}
+	})
+}
