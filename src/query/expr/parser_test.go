@@ -545,6 +545,15 @@ func TestParsingSQL(t *testing.T) {
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar DESC NULLS FIRST", nil},
 		{"SELECT foo FROM bar GROUP BY foo ORDER BY foo ASC NULLS LAST, bar DESC NULLS FIRST LIMIT 3", nil},
 
+		// GROUP BY number
+		{"SELECT foo FROM bar GROUP BY 1", nil},
+		{"SELECT foo, baz FROM bar GROUP BY 1, 2", nil},
+		// ARCH: all those NULLS LAST/FIRST are due to roundtrip testing
+		{"SELECT foo, baz FROM bar ORDER BY 1 ASC NULLS LAST", nil},
+		{"SELECT foo, baz FROM bar ORDER BY 1 ASC NULLS LAST, 2 ASC NULLS LAST", nil},
+		{"SELECT foo, baz FROM bar ORDER BY 1 DESC NULLS FIRST, 2 ASC NULLS LAST", nil},
+		{"SELECT foo, baz FROM bar ORDER BY 1 ASC NULLS LAST, 2 DESC NULLS LAST", nil},
+
 		{"SELECT foo FROM bar@234", errInvalidQuery},
 		{"SELECT foo FROM bar GROUP for 1", errInvalidQuery},
 		{"SELECT foo FROM bar GROUP BY foo LIMIT foo", errInvalidQuery},

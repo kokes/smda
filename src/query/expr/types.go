@@ -81,6 +81,12 @@ type Integer struct {
 	value int64
 }
 
+// TODO/ARCH: doing this to avoid too many changes across the codebase, consider
+// exporting the field
+func (ex *Integer) Value() int64 {
+	return ex.value
+}
+
 func (ex *Integer) ReturnType(ts column.TableSchema) (column.Schema, error) {
 	return column.Schema{
 		Name:     ex.String(),

@@ -18,6 +18,7 @@ var errInvalidLimitValue = errors.New("invalid limit value")
 var errInvalidProjectionInAggregation = errors.New("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo))")
 var errInvalidFilter = errors.New("invalid WHERE clause")
 var errInvalidOrderClause = errors.New("invalid ORDER BY clause")
+var errInvalidGroupbyClause = errors.New("invalid GROUP BY clause")
 var errQueryNoDatasetIdentifiers = errors.New("query without a dataset has identifiers in the SELECT clause")
 
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
@@ -386,6 +387,13 @@ func reorder(res *Result, q expr.Query) error {
 			nullsFirst = oby.NullsFirst
 			needle = oby.Children()[0]
 		}
+		// TODO/ARCH: I wanted to change q.Order in place... but we can't create a new Ordering,
+		// because `.inner` is private and I didn't want to expose it. But it might be the right way to go
+		// TODO: test this properly (we have parsing tests, not implementation testing)
+		if idx, ok := needle.(*expr.Integer); ok {
+			needle = q.Select[idx.Value()-1] // no need to validate any more, already did that
+		}
+
 		pos := lookupExpr(needle, q.Select)
 		if pos == -1 {
 			return fmt.Errorf("cannot sort by a column not in projections: %s", needle)
@@ -506,6 +514,15 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 				proj = wrapped.Children()[0]
 			}
 
+			// ORDER BY 1, 2
+			if idx, ok := proj.(*expr.Integer); ok {
+				n := idx.Value()
+				if n < 1 || n > int64(len(q.Select)) {
+					return nil, errInvalidOrderClause
+				}
+				continue
+			}
+
 			posS := lookupExpr(proj, q.Select)
 			posG := -1
 			if q.Aggregate != nil {
@@ -528,6 +545,17 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		limit = *q.Limit
 	}
 	if q.Aggregate != nil || allAggregations {
+		// edit GROUP BY 1, 2 in place (replace them by their respective columns)
+		for j, agg := range q.Aggregate {
+			if idx, ok := agg.(*expr.Integer); ok {
+				n := idx.Value()
+				if n < 1 || n > int64(len(q.Select)) {
+					return nil, errInvalidGroupbyClause
+				}
+				q.Aggregate[j] = q.Select[n-1]
+			}
+		}
+
 		if err := aggregate(db, ds, res, q); err != nil {
 			return nil, err
 		}

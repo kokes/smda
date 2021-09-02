@@ -384,6 +384,13 @@ func TestQuerySetup(t *testing.T) {
 		{"SELECT bar FROM dataset GROUP BY foo", errInvalidProjectionInAggregation},
 		{"SELECT foo FROM dataset GROUP BY nullif(foo, 2)", errInvalidProjectionInAggregation},
 		{"SELECT foo FROM dataset ORDER by FOO", nil},
+		{"SELECT foo FROM dataset ORDER by 1", nil},
+		{"SELECT foo, bar FROM dataset ORDER by 1, 2", nil},
+		{"SELECT * FROM dataset ORDER by 1, 2", nil},
+		{"SELECT * FROM dataset ORDER by 1, bar", nil},
+		{"SELECT foo, bar FROM dataset ORDER by 0, 1", errInvalidOrderClause}, // underflow
+		{"SELECT foo, bar FROM dataset ORDER by 2, 3", errInvalidOrderClause}, // overflow
+		{"SELECT * FROM dataset ORDER by 1, 2, 4", errInvalidOrderClause},     // overflow
 		{"SELECT foo FROM dataset ORDER by bar", errInvalidOrderClause},
 		{"SELECT foo FROM dataset ORDER by foo, bar", errInvalidOrderClause},
 		{"SELECT foo FROM dataset LIMIT 0", nil}, // cannot test -2, because that fails with a parser error
@@ -400,6 +407,13 @@ func TestQuerySetup(t *testing.T) {
 		{"SELECT d.* FROM dataset as d", nil},
 		// we get a parser issue, because we can get multiple where clauses only in JSON unmarshaling of queries
 		// {"SELECT foo FROM dataset WHERE foo > 0, foo < 3", errInvalidFilter},
+
+		{"SELECT * FROM dataset GROUP BY 1, 2, 3", nil},
+		{"SELECT foo, bar FROM dataset GROUP BY 1, 2", nil},
+		{"SELECT foo, bar FROM dataset GROUP BY 1, bar", nil},
+		{"SELECT foo, bar FROM dataset GROUP BY 0, 1", errInvalidGroupbyClause}, // underflow
+		{"SELECT foo, bar FROM dataset GROUP BY 1, 3", errInvalidGroupbyClause}, // overflow
+		{"SELECT * FROM dataset GROUP BY 1, 4", errInvalidGroupbyClause},        // overflow
 
 		// relabeling can be tricky, especially when looking up columns across parts of the query - these are all legal
 		// BUT this doesn't work the same for WHERE clauses - we cannot filter on relabeled fields
