@@ -10,6 +10,10 @@ BUILD_OS = $(shell go env GOOS)
 BUILD_ARCH = $(shell go env GOARCH)
 BUILD_PATH = bin/smda-server
 DIST_ARTIFACT = dist/smda-$(BUILD_OS)-$(BUILD_ARCH).zip
+# make artifacts more understandable by not using 'darwin'
+ifeq ($(BUILD_OS), darwin)
+	DIST_ARTIFACT = dist/smda-macos-$(BUILD_ARCH).zip
+endif
 
 ifeq ($(BUILD_OS), windows)
 	BUILD_PATH = bin/smda-server.exe
