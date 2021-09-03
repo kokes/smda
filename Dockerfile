@@ -2,10 +2,10 @@ FROM golang:1.17-alpine AS build
 # technically, we don't need the Makefile, because our build process is very
 # simple at this point - but let's keep it, since we don't know what might happen
 # in the future
-RUN apk --no-cache add make
+RUN apk --no-cache add make zip
 RUN mkdir -p /smda/
 WORKDIR /smda/
-COPY Makefile go.mod go.sum ./
+COPY Makefile LICENSE go.mod go.sum ./
 COPY src src
 COPY cmd cmd
 RUN make build

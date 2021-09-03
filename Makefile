@@ -1,12 +1,24 @@
-.PHONY: check run test bench coverstats build-docker run-docker test-docker bench-many
+.PHONY: check run test bench coverstats build-docker run-docker test-docker bench-many dist
 
 # call the makefile like `GORLS=gotip make test` to use an alternative Go release
 GORLS ?= go
 
-BUILD_OS ?= linux darwin windows
-BUILD_ARCH ?= amd64 arm64
+DIST_BUILD_OS ?= linux darwin windows
+DIST_BUILD_ARCH ?= amd64 arm64
 
-GIT_COMMIT := $(shell git rev-list -1 HEAD)
+BUILD_OS = $(shell go env GOOS)
+BUILD_ARCH = $(shell go env GOARCH)
+BUILD_PATH = bin/smda-server
+DIST_ARTIFACT = dist/smda-$(BUILD_OS)-$(BUILD_ARCH).zip
+
+ifeq ($(BUILD_OS), windows)
+	BUILD_PATH = bin/smda-server.exe
+endif
+
+DOCKER_IMAGE = smda
+DOCKER_IMAGE_BUILD = smda-builder
+
+GIT_COMMIT ?= $(shell git rev-list -1 HEAD)
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M)
 BUILD_GO := $(shell $(GORLS) version)
 BUILD_FLAGS = -ldflags "-X main.gitCommit=$(GIT_COMMIT) -X main.buildTime=$(BUILD_TIME) -X 'main.buildGoVersion=$(BUILD_GO)'"
@@ -15,11 +27,14 @@ check:
 	$(GORLS) fmt ./...
 	CGO_ENABLED=0 $(GORLS) vet ./...
 
-build: check test
-	CGO_ENABLED=0 $(GORLS) build -o bin/server ${BUILD_FLAGS} ./cmd/server/
+# ARCH: consider removing the dependencies here
+# it just triggers the same tests in all the dist runs
+build: test check
+	mkdir -p bin
+	CGO_ENABLED=0 $(GORLS) build -o $(BUILD_PATH) ${BUILD_FLAGS} ./cmd/server/
 
 build-docker:
-	docker build . -t kokes/smda:latest
+	docker build . -t $(DOCKER_IMAGE):latest
 
 build-ingest:
 	CGO_ENABLED=0 $(GORLS) build ./cmd/ingest/
@@ -35,30 +50,30 @@ run-clean:
 
 run-docker: build-docker
 	# ephemeral run - will destroy the container after exiting
-	docker run --rm -p 8822:8822 kokes/smda:latest
+	docker run --rm -p 8822:8822 $(DOCKER_IMAGE):latest
 
-# TODO(next): use Docker? (as an option)
-# TODO(next): err if git status dirty/untracked files present
-dist: check test
+# we need to inject GIT_COMMIT into the Docker image, because
+# we don't have git nor the git repo there
+# ARCH: consider making the docker build a separate step (or maybe even within `build-docker`)
+dist:
+	docker build --target build -t $(DOCKER_IMAGE_BUILD) .
 	@rm -rf dist
 	mkdir dist
-	@for os in $(BUILD_OS) ; do \
-		for arch in $(BUILD_ARCH); do \
+	@for os in $(DIST_BUILD_OS) ; do \
+		for arch in $(DIST_BUILD_ARCH); do \
 			echo "Buidling" $$arch $$os; \
-			artpath="dist/smda-$$os-$$arch.zip"; \
-			binpath="smda-server";\
-			if [ $$os = "windows" ]; then\
-				binpath="smda-server.exe";\
-			fi;\
-			CGO_ENABLED=0 GOARCH=$$arch GOOS=$$os $(GORLS) build -o $$binpath ${BUILD_FLAGS} ./cmd/server; \
-			zip $$artpath LICENSE $$binpath; \
-			rm $$binpath;\
+			docker run --rm -v $(PWD)/dist:/smda/dist -e GOOS=$$os -e GOARCH=$$arch -e GIT_COMMIT=$(GIT_COMMIT) $(DOCKER_IMAGE_BUILD) make package; \
 		done \
 	done
 	(cd dist; shasum -a 256 *.zip > sha256sums.txt)
 
+package: build
+	mkdir -p dist
+	zip -j $(DIST_ARTIFACT) $(BUILD_PATH) LICENSE
+
+# reset GOOS and GOARCH, because they may be set by an outside process
 test:
-	CGO_ENABLED=0 $(GORLS) test -timeout 5s -coverprofile=coverage.out ./...
+	CGO_ENABLED=0 GOOS= GOARCH= $(GORLS) test -timeout 5s -coverprofile=coverage.out ./...
 
 test-race:
 	CGO_ENABLED=1 $(GORLS) test -race -timeout 5s -coverprofile=coverage.out ./...
