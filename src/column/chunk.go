@@ -2056,7 +2056,7 @@ func (rc *ChunkBools) Compare(asc, nullsFirst bool, i, j int) int {
 		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
 	}
 	v1, v2 := rc.data.Get(i), rc.data.Get(j)
-	lt := v1 == false && v2 == true
+	lt := !v1 && v2
 
 	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, lt, v1 == v2, n1, n2)
 }

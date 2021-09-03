@@ -16,7 +16,6 @@ import (
 var errNoProjection = errors.New("no expressions specified to be selected")
 var errInvalidLimitValue = errors.New("invalid limit value")
 var errInvalidProjectionInAggregation = errors.New("selections in aggregating expressions need to be either the group by clauses or aggregating expressions (e.g. sum(foo))")
-var errInvalidFilter = errors.New("invalid WHERE clause")
 var errInvalidOrderClause = errors.New("invalid ORDER BY clause")
 var errInvalidGroupbyClause = errors.New("invalid GROUP BY clause")
 var errQueryNoDatasetIdentifiers = errors.New("query without a dataset has identifiers in the SELECT clause")
