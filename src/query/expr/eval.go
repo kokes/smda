@@ -104,6 +104,7 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 		}
 
 		// TODO(next): test null=null, null>null (in filters, groupbys, selects, wherever)
+		// we have tested this in SELECTs, the rest needs to be tested in query_test.go
 		if c1.Dtype() == column.DtypeNull && c2.Dtype() == column.DtypeNull {
 			return nil, errQueryPatternNotSupported // ARCH: wrap?
 		}

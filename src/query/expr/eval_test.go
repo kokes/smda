@@ -60,6 +60,17 @@ func TestBasicEval(t *testing.T) {
 		{"bar134 * float123", column.DtypeFloat, 3, "1,6,12", nil},
 		{"bar134 / float123", column.DtypeFloat, 3, "1,1.5,1.3333333333333333", nil},
 
+		// NULL handling
+		{"NULL = NULL", column.DtypeInvalid, 0, "", errQueryPatternNotSupported},
+		{"NULL > NULL", column.DtypeInvalid, 0, "", errQueryPatternNotSupported},
+		{"NULL * NULL", column.DtypeInvalid, 0, "", errQueryPatternNotSupported},
+		{"NULL + NULL", column.DtypeInvalid, 0, "", errQueryPatternNotSupported},
+		{"NULL - NULL", column.DtypeInvalid, 0, "", errQueryPatternNotSupported},
+		{"foo123 - NULL", column.DtypeInt, 3, ",,", nil},
+		{"foo123 > NULL", column.DtypeBool, 3, ",,", nil},
+		{"bar134 > NULL", column.DtypeBool, 3, ",,", nil},
+		{"bool_tff > NULL", column.DtypeBool, 3, ",,", nil},
+
 		// division by zero
 		{"foo123 / foo120", column.DtypeFloat, 3, "", errDivisionByZero},
 		{"foo123 / (foo123-2)", column.DtypeFloat, 3, "", errDivisionByZero},
