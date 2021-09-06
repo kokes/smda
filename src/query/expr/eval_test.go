@@ -48,8 +48,17 @@ func TestBasicEval(t *testing.T) {
 		{"bool_tff AND bool_ftf", column.DtypeBool, 3, "f,f,f", nil},
 		{"bool_tff and bool_ftf", column.DtypeBool, 3, "f,f,f", nil},
 
-		// TODO(next): basic arithmetics
+		// basic arithmetics
 		{"foo123 / foo123", column.DtypeFloat, 3, "1,1,1", nil},
+		{"foo123 + foo123", column.DtypeInt, 3, "2,4,6", nil},
+		{"foo123 - bar134", column.DtypeInt, 3, "0,-1,-1", nil},
+		{"foo123 * foo123", column.DtypeInt, 3, "1,4,9", nil},
+		{"foo123 - 2 * foo123", column.DtypeInt, 3, "-1,-2,-3", nil},
+		// int/float
+		{"foo123 - float123", column.DtypeFloat, 3, "0,0,0", nil},
+		{"foo123 + float123", column.DtypeFloat, 3, "2,4,6", nil},
+		{"bar134 * float123", column.DtypeFloat, 3, "1,6,12", nil},
+		{"bar134 / float123", column.DtypeFloat, 3, "1,1.5,1.3333333333333333", nil},
 
 		// division by zero
 		{"foo123 / foo120", column.DtypeFloat, 3, "", errDivisionByZero},
