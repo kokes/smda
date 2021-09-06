@@ -109,17 +109,13 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			return nil, errQueryPatternNotSupported // ARCH: wrap?
 		}
 
-		// ARCH: what should `2-NULL` be in terms of types? Is this dtypenull or dtypeint [with all nulls]? Check pg or other engines
-		// ARCH: this might fit better in a isNull/isNotNull function, which we might either introduce or we could
-		// rewrite all `x=null` expressions into it during our AST shenanigans
-		// even though we don't support this evaluation, we need to honor the input types
 		if c1.Dtype() == column.DtypeNull || c2.Dtype() == column.DtypeNull {
 			if !(node.operator == tokenEq || node.operator == tokenNeq || node.operator == tokenIs) {
 				if node.operator == tokenAdd || node.operator == tokenSub || node.operator == tokenMul || node.operator == tokenQuo {
 					nulls := bitmap.NewBitmap(chunkLength)
 					nulls.Invert()
 					// ARCH: duplicating logic from ReturnTypes
-					if c1.Dtype() == column.DtypeFloat || c2.Dtype() == column.DtypeFloat || node.operator == tokenQuo {
+					if c1.Dtype() == column.DtypeFloat || c2.Dtype() == column.DtypeFloat {
 						return column.NewChunkFloatsFromSlice(make([]float64, chunkLength), nulls), nil
 					}
 					return column.NewChunkIntsFromSlice(make([]int64, chunkLength), nulls), nil
@@ -133,10 +129,9 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			}
 
 			// there are now three cases to consider for equality/nequality
-			// 1) the non-null column is a literal - we can easily return a bool literal bool a result (since literals cannot be nullable)
-			// 2) the non-null column is not nullable - we can return the same literal bool as above
+			// 1) the non-null column is a literal - we can easily return a bool result (since literals cannot be nullable)
+			// 2) the non-null column is not nullable - we can return the same bool as above
 			// 3) the non-null column is nullable, we have to take its nullability vector and create a new chunk from it
-			// TODO(next): test all cases thoroughly
 			cdata := c1
 			if c1.Dtype() == column.DtypeNull {
 				cdata = c2
@@ -146,13 +141,11 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			// literals cannot be null, so a comparison to nulls is simple
 			// this should really be done in constant folding
 			if cdata.Base().IsLiteral || nb == nil {
-				if node.operator == tokenEq || node.operator == tokenIs {
-					return column.NewChunkLiteralTyped("false", column.DtypeBool, chunkLength)
-				} else if node.operator == tokenNeq {
-					return column.NewChunkLiteralTyped("true", column.DtypeBool, chunkLength)
-				} else {
-					panic("unreachable")
-				}
+				// since literals cannot be null, we cannot return a literal bool that is null (which is the correct answer)
+				ch := column.NewChunkBoolsFromBitmap(bitmap.NewBitmap(chunkLength))
+				ch.Nullability = bitmap.NewBitmap(chunkLength)
+				ch.Nullability.Invert()
+				return ch, nil
 			}
 
 			if node.operator == tokenEq || node.operator == tokenIs {

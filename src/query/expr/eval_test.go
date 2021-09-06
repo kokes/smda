@@ -67,9 +67,26 @@ func TestBasicEval(t *testing.T) {
 		{"NULL + NULL", column.DtypeInvalid, 0, "", errQueryPatternNotSupported},
 		{"NULL - NULL", column.DtypeInvalid, 0, "", errQueryPatternNotSupported},
 		{"foo123 - NULL", column.DtypeInt, 3, ",,", nil},
+		{"foo123 = NULL", column.DtypeBool, 3, ",,", nil},
+		{"foo123 != NULL", column.DtypeBool, 3, ",,", nil},
 		{"foo123 > NULL", column.DtypeBool, 3, ",,", nil},
 		{"bar134 > NULL", column.DtypeBool, 3, ",,", nil},
 		{"bool_tff > NULL", column.DtypeBool, 3, ",,", nil},
+		{"foo123 / NULL", column.DtypeInt, 3, ",,", nil},
+		{"NULL / float123", column.DtypeFloat, 3, ",,", nil},
+		{"NULL / bar134", column.DtypeInt, 3, ",,", nil},
+		{"NULL = foo123n", column.DtypeBool, 3, "f,t,f", nil},
+		{"foo123n IS NULL", column.DtypeBool, 3, "f,t,f", nil},
+		{"foo123n != NULL", column.DtypeBool, 3, "t,f,t", nil},
+		// {"foo123n IS NOT NULL", column.DtypeBool, 3, "t,f,t", nil}, // uncomment once implemented in the parser properly
+		// NULL and literals
+		{"3 = NULL", column.DtypeBool, 3, ",,", nil},
+		{"3 != NULL", column.DtypeBool, 3, ",,", nil},
+		{"NULL = 3", column.DtypeBool, 3, ",,", nil},
+		{"NULL > 3", column.DtypeBool, 3, ",,", nil},
+		{"NULL > 3.5", column.DtypeBool, 3, ",,", nil},
+		{"NULL > TRUE", column.DtypeBool, 3, ",,", nil},
+		{"NULL = TRUE", column.DtypeBool, 3, ",,", nil},
 
 		// division by zero
 		{"foo123 / foo120", column.DtypeFloat, 3, "", errDivisionByZero},
@@ -174,6 +191,7 @@ func TestBasicEval(t *testing.T) {
 
 	ds, err := db.LoadDatasetFromMap("dataset", map[string][]string{
 		"foo123":          {"1", "2", "3"},
+		"foo123n":         {"1", "", "3"},
 		"foo120":          {"1", "2", "0"},
 		"bar134":          {"1", "3", "4"},
 		"float123":        {"1.0", "2.", "3"},

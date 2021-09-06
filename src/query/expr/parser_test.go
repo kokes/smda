@@ -154,6 +154,8 @@ func TestParsingContents(t *testing.T) {
 				}},
 			},
 		}},
+		// TODO(next): "foo IS NOT NULL" not supported, parsed as `foo is not(null)`
+		// instead of `not(foo is null)`
 
 		// operators
 		{"4 + 3 > 5", &Infix{operator: tokenGt,

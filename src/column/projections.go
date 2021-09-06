@@ -47,7 +47,7 @@ func floatChunkFromParts(data []float64, null1, null2 *bitmap.Bitmap) *ChunkFloa
 
 func EvalNot(c Chunk) (Chunk, error) {
 	if c.Dtype() != DtypeBool {
-		return nil, fmt.Errorf("%w: cannot evaluate NOT on non-bool columns", errProjectionNotSupported)
+		return nil, fmt.Errorf("%w: cannot evaluate NOT on non-bool columns (%v)", errProjectionNotSupported, c.Dtype())
 	}
 	ret := c.Clone()
 	ret.(*ChunkBools).data.Invert()
