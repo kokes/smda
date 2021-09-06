@@ -166,8 +166,8 @@ func TestAddingDatasetsWithVersions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ds != last {
-		t.Fatal("did not get the `latest` dataset correctly")
+	if ds.ID != last.ID {
+		t.Fatalf("queried for `latest` (%v), got %v instead", last.ID, ds.ID)
 	}
 
 	for _, ds := range dss {

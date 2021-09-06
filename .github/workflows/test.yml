@@ -4,12 +4,13 @@ on: [push, pull_request]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         go: ['1.17']
-      # TODO: platforms?
-    name: Go ${{ matrix.go }} test run
+        # ARCH: consider macos (hit timeout issues), consider pinning
+        os: [ubuntu-latest, windows-latest]
+    name: Go ${{ matrix.go }}@${{ matrix.os }} test run
     steps:
     - uses: actions/checkout@v2
 

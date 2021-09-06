@@ -71,8 +71,10 @@ func NewDatabase(wdir string, overrides *Config) (*Database, error) {
 		}
 
 		if err := json.NewDecoder(f).Decode(&config); err != nil {
+			f.Close() // choosing to close this explicitly, because defer would run quite late
 			return nil, err
 		}
+		f.Close()
 	}
 	// ARCH: allow overrides of database UIDs?
 	if overrides != nil {
@@ -133,8 +135,10 @@ func NewDatabase(wdir string, overrides *Config) (*Database, error) {
 			return nil, err
 		}
 		if err := json.NewDecoder(f).Decode(&ds); err != nil {
+			f.Close() // again being explicit, there can be many of these
 			return nil, err
 		}
+		f.Close()
 		if err := db.AddDataset(&ds); err != nil {
 			return nil, err
 		}
@@ -346,6 +350,7 @@ func (db *Database) AddDataset(ds *Dataset) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 	// ARCH/OPTIM: bufio? Though the manifests are likely to be small (or will they?)
 	if err := json.NewEncoder(f).Encode(ds); err != nil {
 		return err

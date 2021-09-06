@@ -47,6 +47,9 @@ func (db *Database) LoadSampleData(sampleDir fs.FS) error {
 		if err != nil {
 			return err
 		}
+		// considered explicit closing, but there aren't many sample files,
+		// so we should be fine
+		defer f.Close()
 		ds, err := db.LoadDatasetFromReaderAuto(file, f)
 		if err != nil {
 			return err
