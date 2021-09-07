@@ -506,53 +506,45 @@ func ParseQuerySQL(s string) (Query, error) {
 	if err != nil {
 		return q, err
 	}
+	p.position++
 
 	// ARCH: we didn't increment position and used peekToken... elsewhere we use walk+curToken
-	if p.peekToken().ttype != tokenFrom {
-		// we expect FROM ... unless the query is without a dataset (e.g. `SELECT 1`)
-		// ARCH: consider allowing for limits/having, I think they are supported elsewhere
-		// TODO(next): "select 1 limit 100" NOT supported
-		if p.peekToken().ttype == tokenEOF {
-			return q, nil
-		}
-		// this will be for queries without a FROM clause, e.g. SELECT 1`
-		return q, fmt.Errorf("%w: expecting FROM after expression list, got %v instead", errInvalidQuery, p.peekToken())
-	}
+	if p.curToken().ttype == tokenFrom {
+		p.position += 1
 
-	p.position += 2
+		// TODO(next): sanitise dataset names by default + put guards in place do not allow anything non-ascii etc.
 
-	// TODO(next): sanitise dataset names by default + put guards in place do not allow anything non-ascii etc.
-
-	// ARCH: allow for quoted identifiers? will depend on our rules on dataset names
-	if p.curToken().ttype != tokenIdentifier {
-		return q, fmt.Errorf("expecting dataset name, got %v", p.curToken())
-	}
-	q.Dataset = &Dataset{Name: string(p.curToken().value), Latest: true}
-	if p.peekToken().ttype == tokenAt {
-		p.position += 2
+		// ARCH: allow for quoted identifiers? will depend on our rules on dataset names
 		if p.curToken().ttype != tokenIdentifier {
-			return q, fmt.Errorf("%w: expecting dataset version after @", errInvalidQuery)
+			return q, fmt.Errorf("expecting dataset name, got %v", p.curToken())
 		}
-		dsn := p.curToken().value
-		if len(dsn) == 0 || dsn[0] != 'v' {
-			return q, fmt.Errorf("invalid dataset version, got %s", dsn)
+		q.Dataset = &Dataset{Name: string(p.curToken().value), Latest: true}
+		if p.peekToken().ttype == tokenAt {
+			p.position += 2
+			if p.curToken().ttype != tokenIdentifier {
+				return q, fmt.Errorf("%w: expecting dataset version after @", errInvalidQuery)
+			}
+			dsn := p.curToken().value
+			if len(dsn) == 0 || dsn[0] != 'v' {
+				return q, fmt.Errorf("invalid dataset version, got %s", dsn)
+			}
+			version, err := database.UIDFromHex(dsn[1:])
+			if err != nil {
+				return q, err
+			}
+			q.Dataset.Version = version.String()
+			q.Dataset.Latest = false
 		}
-		version, err := database.UIDFromHex(dsn[1:])
+		label, err := p.parseRelabeling()
 		if err != nil {
 			return q, err
 		}
-		q.Dataset.Version = version.String()
-		q.Dataset.Latest = false
-	}
-	label, err := p.parseRelabeling()
-	if err != nil {
-		return q, err
-	}
-	if label != nil {
-		q.Dataset.alias = label
-	}
+		if label != nil {
+			q.Dataset.alias = label
+		}
 
-	p.position++
+		p.position++
+	}
 
 	if p.curToken().ttype == tokenWhere {
 		p.position++

@@ -512,6 +512,10 @@ func TestParsingSQL(t *testing.T) {
 	}{
 		{"WITH foo", errSQLOnlySelects},
 		{"SELECT 1", nil},
+		{"SELECT 1 LIMIT 100", nil},
+		{"SELECT 1 WHERE TRUE", nil},
+		{"SELECT 1 WHERE foo>3", nil},
+		{"SELECT foo", nil},
 		{"SELECT 'foo'", nil},
 		{"SELECT 1+2*3", nil},
 		// TODO: support data-less functions
