@@ -3,6 +3,7 @@ package column
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestBasicDates(t *testing.T) {
@@ -68,6 +69,8 @@ func TestBasicDatetimes(t *testing.T) {
 		err                                                 error
 	}{
 		{"2020-02-20 01:02:03.000004", 2020, 2, 20, 1, 2, 3, 4, true, nil},
+		{"2020-12-20 01:02:03.000004", 2020, 12, 20, 1, 2, 3, 4, true, nil},
+		{"2021-09-08 01:02:03.000004", 2021, 9, 8, 1, 2, 3, 4, true, nil},
 		{"0000-12-31 12:34:56.007890", 0, 12, 31, 12, 34, 56, 7890, true, nil},
 		// no roundtrips
 		{"2020-12-31 12:34:56.789", 2020, 12, 31, 12, 34, 56, 789, false, nil},
@@ -103,6 +106,30 @@ func TestBasicDatetimes(t *testing.T) {
 			if val.String() != test.input {
 				t.Errorf("failed to roundtrip %+v, got %+v instead", test.input, val.String())
 			}
+		}
+	}
+}
+
+func TestNativeConversion(t *testing.T) {
+	loc := time.Now().Location()
+	tests := []struct {
+		input    time.Time
+		expected string
+	}{
+		{time.Date(2021, 9, 3, 12, 34, 56, 0, loc), "2021-09-03 12:34:56.000000"},
+		{time.Date(2021, 9, 3, 12, 34, 56, 1000, loc), "2021-09-03 12:34:56.000001"},
+		{time.Date(2021, 9, 3, 12, 34, 56, 123456, loc), "2021-09-03 12:34:56.000123"},
+		{time.Date(2021, 9, 3, 12, 34, 56, 123456789, loc), "2021-09-03 12:34:56.123456"},
+	}
+
+	for _, test := range tests {
+		val, err := newDatetimeFromNative(test.input)
+		if err != nil {
+			t.Errorf("failed to convert time.Time(%s) into a datetime (%v)", test.input, err)
+			continue
+		}
+		if val.String() != test.expected {
+			t.Errorf("expected time.Time(%v) to be converted to %v, got %v instead", test.input, test.expected, val.String())
 		}
 	}
 }

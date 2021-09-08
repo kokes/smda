@@ -429,6 +429,16 @@ func NewChunkLiteralDates(value date, length int) *ChunkDates {
 	}
 }
 
+func NewChunkLiteralDatetimes(value datetime, length int) *ChunkDatetimes {
+	return &ChunkDatetimes{
+		baseChunk: baseChunk{
+			IsLiteral: true,
+			length:    uint32(length),
+		},
+		data: []datetime{value},
+	}
+}
+
 // TODO/ARCH: consider removing this in favour of NewChunkBoolsFromBitmap
 func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
 	return &ChunkBools{

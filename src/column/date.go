@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 var errInvalidDate = errors.New("date is not valid")
@@ -47,6 +48,11 @@ func newDatetime(year, month, day, hour, minute, second, microsecond int) (datet
 	return datetime(uint64(dateHour)<<32 + uint64(timePart)), nil
 }
 
+// ARCH: ignoring location (but it's only internal, so should be fine)
+func newDatetimeFromNative(t time.Time) (datetime, error) {
+	return newDatetime(t.Year(), int(t.Month()), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond()/1000)
+}
+
 func (d date) Year() int  { return int(d >> 14) }
 func (d date) Month() int { return int(d >> 10 & (1<<4 - 1)) }
 func (d date) Day() int   { return int(d >> 5 & (1<<5 - 1)) }
@@ -61,7 +67,7 @@ func (d date) MarshalJSON() ([]byte, error) {
 }
 
 func (dt datetime) Year() int  { return int(dt >> (32 + 14)) }
-func (dt datetime) Month() int { return int(dt >> (32 + 10) & (1<<5 - 1)) }
+func (dt datetime) Month() int { return int(dt >> (32 + 10) & (1<<4 - 1)) }
 func (dt datetime) Day() int   { return int(dt >> (32 + 5) & (1<<5 - 1)) }
 func (dt datetime) Hour() int  { return int(dt >> 32 & (1<<5 - 1)) }
 

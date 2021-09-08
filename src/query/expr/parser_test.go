@@ -520,9 +520,10 @@ func TestParsingSQL(t *testing.T) {
 		{"SELECT foo", nil},
 		{"SELECT 'foo'", nil},
 		{"SELECT 1+2*3", nil},
-		// TODO: support data-less functions
-		// {"SELECT now()", nil},
-		// {"SELECT version()", nil},
+		// data-less functions
+		{"SELECT now()", nil},
+		{"SELECT version()", nil},
+
 		{"SELECT foo FROM bar", nil},
 		{"SELECT count(DISTINCT foo) FROM bar", nil},
 		{"SELECT sum(DISTINCT foo), count(DISTINCT baz) FROM bar", nil},

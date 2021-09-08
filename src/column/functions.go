@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/kokes/smda/src/bitmap"
@@ -20,6 +21,8 @@ var errTypeNotSupported = errors.New("type not supported in this function")
 // ARCH: we're not treating literals any differently, but since they share the same backing store
 //       as non-literals, we're okay... is that okay?
 var FuncProj = map[string]func(...Chunk) (Chunk, error){
+	"now":      evalNow,
+	"version":  evalVersion,
 	"nullif":   evalNullIf,
 	"coalesce": evalCoalesce,
 	"round":    evalRound, // TODO: ceil, floor
@@ -47,6 +50,24 @@ var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	"left":       evalLeft,
 	"split_part": evalSplitPart,
 	// TODO(next): all those useful string functions - hashing, mid, right, position, ...
+}
+
+func evalNow(cs ...Chunk) (Chunk, error) {
+	dt, err := newDatetimeFromNative(time.Now())
+	if err != nil {
+		return nil, err
+	}
+	return NewChunkLiteralDatetimes(dt, 1), nil
+}
+
+// TODO: Inject this from a global const or something? Feed that at build time?
+func evalVersion(cs ...Chunk) (Chunk, error) {
+	// ARCH/OPTIM: it should be done this way:
+	// return NewChunkLiteralStrings("version_undefined", 1), nil
+	// ... but we don't have a good way of testing equivalence of literal columns in query_test.go
+	// maybe once we start comparing serialised versions of both, then we'll be able to revert to
+	// the implementation above
+	return newChunkStringsFromSlice([]string{"version_undefined"}, nil), nil
 }
 
 func evalCoalesce(cs ...Chunk) (Chunk, error) {

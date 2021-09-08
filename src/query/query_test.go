@@ -158,6 +158,10 @@ func TestBasicQueries(t *testing.T) {
 		query  string
 		output string
 	}{
+		// functions without data
+		// TODO: can't quite test now() as we don't have a mocked time.Now() function
+		// {"foo\nbar\n", "SELECT now()", "now\n2021-09-08T12:23:23"},
+		{"foo\nbar\n", "SELECT version()", "version\nversion_undefined"},
 		// basic aggregations
 		{"foo\na\nb\nc", "SELECT foo FROM dataset GROUP BY foo", "foo\na\nb\nc"},
 		{"foo\na\na\na", "SELECT foo FROM dataset GROUP BY foo", "foo\na"},

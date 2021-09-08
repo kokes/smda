@@ -273,6 +273,18 @@ func (ex *Function) ReturnType(ts column.TableSchema) (column.Schema, error) {
 		argTypes = append(argTypes, ctype)
 	}
 	switch ex.name {
+	case "now":
+		if len(argTypes) != 0 {
+			return schema, errWrongNumberofArguments
+		}
+		schema.Dtype = column.DtypeDatetime
+		schema.Nullable = false
+	case "version":
+		if len(argTypes) != 0 {
+			return schema, errWrongNumberofArguments
+		}
+		schema.Dtype = column.DtypeString
+		schema.Nullable = false
 	case "count":
 		if len(argTypes) > 1 {
 			return schema, errWrongNumberofArguments
