@@ -507,8 +507,7 @@ func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
 			schema.Dtype = t2.Dtype
 		}
 		// for mixed use cases, always resolve it as a float (1 - 2.0 = -1.0)
-		// also division can never result in an integer
-		if (t1.Dtype == column.DtypeFloat || t2.Dtype == column.DtypeFloat) || ex.operator == tokenQuo {
+		if t1.Dtype == column.DtypeFloat || t2.Dtype == column.DtypeFloat {
 			schema.Dtype = column.DtypeFloat
 		}
 		schema.Nullable = t1.Nullable || t2.Nullable

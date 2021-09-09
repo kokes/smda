@@ -49,7 +49,9 @@ func TestBasicEval(t *testing.T) {
 		{"bool_tff and bool_ftf", column.DtypeBool, 3, "f,f,f", nil},
 
 		// basic arithmetics
-		{"foo123 / foo123", column.DtypeFloat, 3, "1,1,1", nil},
+		{"foo123 / foo123", column.DtypeInt, 3, "1,1,1", nil}, // integer division
+		{"bar134 / foo123", column.DtypeInt, 3, "1,1,1", nil},
+		{"foo123 / bar134", column.DtypeInt, 3, "1,0,0", nil},
 		{"foo123 + foo123", column.DtypeInt, 3, "2,4,6", nil},
 		{"foo123 - bar134", column.DtypeInt, 3, "0,-1,-1", nil},
 		{"foo123 * foo123", column.DtypeInt, 3, "1,4,9", nil},
@@ -215,7 +217,7 @@ func TestBasicEval(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, test := range tests {
+	for j, test := range tests {
 		expr, err := ParseStringExpr(test.expr)
 		if err != nil {
 			t.Error(err)
@@ -236,7 +238,7 @@ func TestBasicEval(t *testing.T) {
 			continue
 		}
 		if !column.ChunksEqual(res, expected) {
-			t.Errorf("expected expression %+v to result in\n\t%+v, got\n\t%+v instead", test.expr, expected, res)
+			t.Errorf("%vth test: expected expression %+v to result in\n\t%+v, got\n\t%+v instead", j+1, test.expr, expected, res)
 		}
 	}
 }

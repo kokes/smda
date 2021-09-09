@@ -472,9 +472,7 @@ func EvalLte(c1 Chunk, c2 Chunk) (Chunk, error) {
 // ARCH: either get rid of all this via generic, or, better yet, rewrite all the algebraics
 // using functions. We could then, like in Julia (or lisps), have a function -(a, b)
 type algebraFuncs struct {
-	ints func(int64, int64) int64
-	// so far just for division, ARCH: cast and use intfloat instead?
-	intsf    func(int64, int64) float64
+	ints     func(int64, int64) int64
 	floats   func(float64, float64) float64
 	intfloat func(int64, float64) float64
 	floatint func(float64, int64) float64
@@ -503,32 +501,6 @@ func algebraFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) 
 		ret[j] = eval(j)
 	}
 	return intChunkFromParts(ret, c1.Nullability, c2.Nullability), nil
-}
-
-// ARCH: this is identical to `algebraFactoryFloats` apart from the compFn signature in the argument
-func algebraFactoryIntsf(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) float64) (*ChunkFloats, error) {
-	nvals := c1.Len()
-
-	if c1.IsLiteral && c2.IsLiteral {
-		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
-		return NewChunkLiteralFloats(val, nvals), nil
-	}
-	var eval func(j int) float64
-	eval = func(j int) float64 { return compFn(c1.data[j], c2.data[j]) }
-	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) float64 { return compFn(val, c2.data[j]) }
-	}
-	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) float64 { return compFn(c1.data[j], val) }
-	}
-	ret := make([]float64, nvals)
-	for j := 0; j < nvals; j++ {
-		ret[j] = eval(j)
-	}
-	return floatChunkFromParts(ret, c1.Nullability, c2.Nullability), nil
 }
 
 func algebraFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, float64) float64) (*ChunkFloats, error) {
@@ -617,11 +589,6 @@ func algebraicEval(c1 Chunk, c2 Chunk, commutative bool, cf algebraFuncs) (Chunk
 	if c1d == c2d {
 		switch c1d {
 		case DtypeInt:
-			// if intsf exists, dispatch that instead (for division)
-			if cf.intsf != nil {
-				// TODO: check if cf.ints exists and panic?
-				return algebraFactoryIntsf(c1.(*ChunkInts), c2.(*ChunkInts), cf.intsf)
-			}
 			return algebraFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts), cf.ints)
 		case DtypeFloat:
 			return algebraFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
@@ -672,7 +639,7 @@ func EvalSubtract(c1 Chunk, c2 Chunk) (Chunk, error) {
 // check for division by zero (gives +- infty, which will break json?)
 func EvalDivide(c1 Chunk, c2 Chunk) (Chunk, error) {
 	return algebraicEval(c1, c2, false, algebraFuncs{
-		intsf:    func(a, b int64) float64 { return float64(a) / float64(b) },
+		ints:     func(a, b int64) int64 { return a / b },
 		floats:   func(a, b float64) float64 { return a / b },
 		intfloat: func(a int64, b float64) float64 { return float64(a) / b }, // not commutative
 		floatint: func(a float64, b int64) float64 { return a / float64(b) },

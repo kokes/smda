@@ -181,10 +181,6 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 		case tokenSub:
 			return column.EvalSubtract(c1, c2)
 		case tokenQuo:
-			div, err := column.EvalDivide(c1, c2)
-			if err != nil {
-				return nil, err
-			}
 			// investigate if `c2` contains zeros - if so, trigger errDivisionByZero (SQL standard)
 			// OPTIM: it would probably be faster to iterate c2.data, but this is cleaner
 			eq, err := column.EvalEq(c2, column.NewChunkLiteralFloats(0, c2.Len()))
@@ -195,7 +191,7 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			if zeros.Count() > 0 {
 				return nil, errDivisionByZero
 			}
-			return div, nil
+			return column.EvalDivide(c1, c2)
 		case tokenMul:
 			return column.EvalMultiply(c1, c2)
 		default:
