@@ -358,7 +358,12 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	return left
 }
 
-func (p *Parser) parseOrdering() (Expression, error) {
+func (p *Parser) parseOrdering(inner Expression) (Expression, error) {
+	pt := p.peekToken().ttype
+	if !(pt == tokenAsc || pt == tokenDesc || pt == tokenNulls) {
+		return inner, nil
+	}
+
 	asc := true
 	nullsFirst := false
 	if (p.peekToken().ttype == tokenAsc) || (p.peekToken().ttype == tokenDesc) {
@@ -374,7 +379,7 @@ func (p *Parser) parseOrdering() (Expression, error) {
 		nullsFirst = p.peekToken().ttype == tokenFirst
 		p.position++
 	}
-	return &Ordering{Asc: asc, NullsFirst: nullsFirst}, nil
+	return &Ordering{Asc: asc, NullsFirst: nullsFirst, inner: inner}, nil
 }
 
 func (p *Parser) Err() error {
@@ -415,15 +420,9 @@ func (p *Parser) parseExpressions() ([]Expression, error) {
 		if label != nil {
 			expr = &Relabel{inner: expr, Label: label.Name}
 		}
-		pt := p.peekToken().ttype
-		// TODO(next): move this equality checks into p.parseOrdering?
-		if pt == tokenAsc || pt == tokenDesc || pt == tokenNulls {
-			oexp, err := p.parseOrdering()
-			if err != nil {
-				return nil, err
-			}
-			oexp.(*Ordering).inner = expr
-			expr, oexp = oexp, expr
+		expr, err = p.parseOrdering(expr)
+		if err != nil {
+			return nil, err
 		}
 
 		if err := p.Err(); err != nil {
