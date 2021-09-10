@@ -498,6 +498,12 @@ func (ex *Infix) ReturnType(ts column.TableSchema) (column.Schema, error) {
 		}
 		schema.Dtype = column.DtypeBool
 		schema.Nullable = t1.Nullable || t2.Nullable
+	case tokenLike, tokenIlike:
+		if _, ok := ex.right.(*String); !ok {
+			return schema, errTypeMismatch // ARCH: specify more? wrap?
+		}
+		schema.Dtype = column.DtypeBool
+		schema.Nullable = t1.Nullable
 	case tokenAdd, tokenSub, tokenMul, tokenQuo:
 		if !comparableTypes(t1.Dtype, t2.Dtype) {
 			return schema, errTypeMismatch

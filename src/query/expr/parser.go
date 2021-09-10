@@ -40,6 +40,8 @@ var precedences = map[tokenType]int{
 	tokenNeq:    EQUALS,
 	tokenIn:     EQUALS,
 	tokenNot:    EQUALS,
+	tokenLike:   EQUALS,
+	tokenIlike:  EQUALS,
 	tokenLt:     LESSGREATER,
 	tokenGt:     LESSGREATER,
 	tokenLte:    LESSGREATER,
@@ -107,6 +109,8 @@ func NewParser(s string) (*Parser, error) {
 		tokenEq:     p.parseInfixExpression,
 		tokenIs:     p.parseInfixExpression,
 		tokenNeq:    p.parseInfixExpression,
+		tokenLike:   p.parseInfixExpression,
+		tokenIlike:  p.parseInfixExpression,
 		tokenIn:     p.parseInfixExpression,
 		tokenNot:    p.parseInfixExpression,
 		tokenLt:     p.parseInfixExpression,
@@ -265,8 +269,8 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	p.position++
 
 	// IS NOT => NOT
-	// TODO(like): && (p.cur == tokenNot || p.cur == tokenLike || p.cur == tokenIlike)
-	// 			   expr.operator = p.cur
+	// ARCH/COMPAT: maybe this whole IS IN, IS NOT IN, IS LIKE etc. are not supported (at least I can't get them to work in pg)
+	//				it would certainly simplify a lot of code over here
 	if expr.operator == tokenIs && p.curToken().ttype == tokenNot {
 		expr.operator = tokenNot
 		p.position++
@@ -276,8 +280,7 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	// and a weird one, because it turns an infix operation to a prefix one (`foo NOT IN bar` -> `NOT(foo IN bar)`)
 	// but we also have to support a range of expressions: foo not true, foo is not true, foo is in bar, foo is not in bar, ...
 	if expr.operator == tokenNot {
-		// TODO(like): p.curToken().ttype == tokenIn || p.curToken().ttype == tokenLike || p.curToken().ttype == tokenIlike
-		if p.curToken().ttype == tokenIn {
+		if p.curToken().ttype == tokenIn || p.curToken().ttype == tokenLike || p.curToken().ttype == tokenIlike {
 			infix := p.parseInfixExpression(expr.left)
 
 			return &Prefix{operator: tokenNot, right: infix}
