@@ -264,27 +264,33 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	precedence := p.curPrecedence()
 	p.position++
 
+	// IS NOT => NOT
+	// TODO(like): && (p.cur == tokenNot || p.cur == tokenLike || p.cur == tokenIlike)
+	// 			   expr.operator = p.cur
+	if expr.operator == tokenIs && p.curToken().ttype == tokenNot {
+		expr.operator = tokenNot
+		p.position++
+	}
+
 	// NOT is another exception ¯\_(ツ)_/¯
 	// and a weird one, because it turns an infix operation to a prefix one (`foo NOT IN bar` -> `NOT(foo IN bar)`)
-	if expr.operator == tokenNot || expr.operator == tokenIn {
-		// will be used to extend LIKE and ILIKE to `NOT LIKE/ILIKE`
-		if expr.operator == tokenNot && p.curToken().ttype != tokenIn {
-			p.errors = append(p.errors, errors.New("infix operator NOT expects IN to follow"))
-			return nil
-		}
-		neg := false
-		if expr.operator == tokenNot {
-			neg = true
-			expr.operator = p.curToken().ttype // expr.operator is now e.g. `IN`, we'll wrap this infix be a prefix NOT
-			p.position++
-		}
+	// but we also have to support a range of expressions: foo not true, foo is not true, foo is in bar, foo is not in bar, ...
+	if expr.operator == tokenNot {
+		// TODO(like): p.curToken().ttype == tokenIn || p.curToken().ttype == tokenLike || p.curToken().ttype == tokenIlike
+		if p.curToken().ttype == tokenIn {
+			infix := p.parseInfixExpression(expr.left)
 
-		// TODO(next): this should be `p.parseTuple` for tokenIn and `p.parseStringLiteral` for tokenLike/tokenIlike
+			return &Prefix{operator: tokenNot, right: infix}
+		}
+		right := p.parseExpression(precedence)
+		// ARCH #1: we assume equality... there's no other option, right?
+		// ARCH #2: we use tokenEq and tokenIs in various places... standardise on one? (e.g. tokenEq everywhere once everything is parsed)
+		inner := &Infix{operator: tokenEq, left: expr.left, right: right}
+		return &Prefix{operator: tokenNot, right: inner}
+	}
+	// ARCH: this is needlessly specialised, could it be just parseExpressions?
+	if expr.operator == tokenIn {
 		expr.right = p.parseTuple(precedence)
-
-		if neg {
-			return &Prefix{operator: tokenNot, right: expr}
-		}
 		return expr
 	}
 

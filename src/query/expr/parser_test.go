@@ -154,8 +154,21 @@ func TestParsingContents(t *testing.T) {
 				}},
 			},
 		}},
-		// TODO(next): "foo IS NOT NULL" not supported, parsed as `foo is not(null)`
-		// instead of `not(foo is null)`
+		{"foo is not in (1, 2)", &Prefix{operator: tokenNot,
+			right: &Infix{operator: tokenIn,
+				left: &Identifier{Name: "foo"},
+				right: &Tuple{inner: []Expression{
+					&Integer{value: 1},
+					&Integer{value: 2},
+				}},
+			},
+		}},
+		{"foo is not null", &Prefix{operator: tokenNot,
+			right: &Infix{operator: tokenEq,
+				left:  &Identifier{Name: "foo"},
+				right: &Null{},
+			},
+		}},
 
 		// operators
 		{"4 + 3 > 5", &Infix{operator: tokenGt,
@@ -207,9 +220,9 @@ func TestParsingContents(t *testing.T) {
 			left:  &Identifier{Name: "foo"},
 			right: &Bool{value: true},
 		}},
-		{"foo is not true", &Infix{operator: tokenIs,
-			left: &Identifier{Name: "foo"},
-			right: &Prefix{operator: tokenNot,
+		{"foo is not true", &Prefix{operator: tokenNot,
+			right: &Infix{operator: tokenEq,
+				left:  &Identifier{Name: "foo"},
 				right: &Bool{value: true},
 			},
 		}},

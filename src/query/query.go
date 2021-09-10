@@ -534,8 +534,6 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 	}
 
-	// TODO(next): remove this, we've already incorporated a part of this into `aggregate`
-	// only check that if q.Limit is not nil that it's non-negative, otherwise don't use it and leave it in `q`
 	limit := -1
 	if q.Limit != nil {
 		if *q.Limit < 0 {
