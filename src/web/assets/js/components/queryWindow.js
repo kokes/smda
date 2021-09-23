@@ -133,7 +133,7 @@ div#submit-query button {
     padding: .3em 1em;
 }
 
-div#submit-query  small#elapsed {
+div#submit-query small#elapsed {
     padding-left: 1em;
 }
 </style>
@@ -165,6 +165,8 @@ class QueryWindow extends HTMLElement {
     }
 
     connectedCallback() {
+        // TODO(PR): load query from URL; not sure how - we can't hook into history.pushState :(
+
         // submit on shift-enter
         this.shadowRoot.querySelector("div#query textarea#sql").addEventListener("keydown", e => {
             if (!(e.code === "Enter" && e.shiftKey === true)) {
