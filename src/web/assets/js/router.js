@@ -1,3 +1,5 @@
+// TODO(PR): perhaps eliminate the router by implementing all the routing logic
+// in individual components
 class Router {
     constructor(routes) {
         this.routes = routes;

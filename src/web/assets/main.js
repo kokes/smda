@@ -3,6 +3,7 @@ import { empty, node } from './js/dom.js';
 
 import './js/components/fileUploader.js';
 import './js/components/queryWindow.js';
+import './js/components/tableView.js';
 
 document.addEventListener("keydown", e => {
     if (e.code != "Escape") {
