@@ -3,11 +3,17 @@
 class FileUploader extends HTMLElement {
     constructor() {
         super();
-        this.innerHTML = "<input id='filepicker' type='file' multiple />";
+        this.attachShadow({ mode: "open" });
+        this.shadowRoot.innerHTML = "<input type='file' multiple />";
+    }
+
+    connectedCallback() {
+        const filepicker = this.shadowRoot.querySelector("input[type=file]");
         // TODO(PR): shouldn't the event listener be on something else?
-        this.addEventListener("change", async (e) => {
-            e.target.disabled = "disabled";
-            for (const file of e.target.files) {
+        filepicker.addEventListener("change", async (e) => {
+            const fp = e.target;
+            fp.disabled = "disabled";
+            for (const file of fp.files) {
                 const filename = encodeURIComponent(file.name);
                 const request = await fetch(`/upload/auto?name=${filename}`, {
                     method: "POST",
@@ -25,8 +31,8 @@ class FileUploader extends HTMLElement {
                 // TODO(PR): chain the components somehow
                 // await this.setupDatasets();
             }
-            e.target.value = "";
-            e.target.disabled = "";
+            fp.value = "";
+            fp.disabled = "";
         });
     }
 }
