@@ -2,6 +2,7 @@ import { formatBytes, formatTimestamp, formatDuration } from './js/formatters.js
 import { empty, node } from './js/dom.js';
 
 import './js/components/fileUploader.js';
+import './js/components/queryWindow.js';
 
 document.addEventListener("keydown", e => {
     if (e.code != "Escape") {
@@ -22,25 +23,7 @@ function errDialog(title, msg) {
     target.append(err);
 }
 
-// ARCH: this does a bit of UI stuff - maybe separate that out completely, so that
-// this becomes more testable
 class smda {
-    constructor() {        
-        this.setupQueryWindow()
-    }
-    // ARCH: move elsewhere (all UI setups) / TODO(PR): remove this
-    setupQueryWindow() {
-        // submit on shift-enter
-        document.querySelector("div#query textarea#sql").addEventListener("keydown", e => {
-            if (!(e.code === "Enter" && e.shiftKey === true)) {
-                return;
-            }
-            e.preventDefault();
-            // TODO(next)/ARCH: we can't do `document.forms["query"].submit()`, because that
-            // would circumvent our router
-            document.forms["query"].querySelector("button").click();
-        });
-    }
     queryFromStructured(data) {
         if (Object.entries(data).length === 0) {
             return "";
@@ -53,40 +36,6 @@ class smda {
             `${data["order"] ? "ORDER BY " + data["order"] : ""}`,
             `${data["limit"] !== undefined ? "LIMIT " + data["limit"] : ""}`,
         ].filter(x => x.trim() !== "").join("\n");
-    }
-    async submitQuery() {
-        const qform = document.forms["query"];
-        const target = document.getElementById("query-results");
-        const elapsed = qform.querySelector("small#elapsed");
-
-        const query = qform.sql.value.trim();
-        if (query === "") {
-            empty(target);
-            empty(elapsed);
-            return;
-        }
-
-        let data, incrementor, startTime, success = false;
-        try {
-            startTime = performance.now();
-            incrementor = setInterval(() => {
-                elapsed.textContent = formatDuration(performance.now() - startTime, "Elapsed: ");
-            }, 100)
-
-            data = await this.runQuery(query);
-            success = true;
-        } catch(e) {
-            errDialog("Failed to run query", e)
-        } finally {
-            clearInterval(incrementor);
-            const runtime = formatDuration(performance.now() - startTime, "Elapsed: ");
-            elapsed.textContent = `${runtime} (${formatBytes(data.bytes_read)} scanned)`;
-        }
-
-        if (success) {
-            empty(target);
-            this.renderTable(data, target);
-        }
     }
     async setupDatasets() {
         const target = document.getElementById('route-root');

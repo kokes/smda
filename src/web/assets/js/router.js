@@ -8,21 +8,22 @@ class Router {
         }
 
         document.addEventListener("click", e => {
+            const target = e.composedPath()[0]; // TODO(PR): added because of WebComponents (remove once we chain them)
             // ARCH: input[type=submit]?
-            if (!(e.target.nodeName === "BUTTON" || e.target.nodeName === "A")) {
+            if (!(target.nodeName === "BUTTON" || target.nodeName === "A")) {
                 return;
             }
             e.preventDefault();
 
-            switch (e.target.nodeName) {
+            switch (target.nodeName) {
                 case "A":
-                    const link = e.target.getAttribute("href");
+                    const link = target.getAttribute("href");
                     history.pushState({}, "", link);
                     break;
                 case "BUTTON":
                     const url = new URL(window.location);
                     url.search = '';
-                    const qform = e.target.closest("form");
+                    const qform = target.closest("form");
                     if (qform.method !== "get") {
                         throw new Error("cannot submit POST forms yet");
                     }
@@ -32,7 +33,7 @@ class Router {
                     history.pushState({}, "", url);
                     break;
                 default:
-                    console.error(`unregistered click on ${e.target.nodeName}`);
+                    console.error(`unregistered click on ${target.nodeName}`);
             }
 
             this.route()
@@ -49,16 +50,6 @@ class Router {
             }
         }
 
-        const qform = document.forms["query"];
-        if (qform !== undefined) {
-            const params = new URLSearchParams(window.location.search);
-            for (let inp of qform.querySelectorAll("input, textarea, select")) {
-                const fieldName = inp.getAttribute("name");
-                inp.value = params.get(fieldName);
-                inp.dispatchEvent(new Event("change")); // inputs don't fire change events when value is set programatically
-            }
-        }
-
         const path = window.location.pathname.slice(1).split("/");
         let route = path[0];
         if (route === "") {
@@ -70,11 +61,16 @@ class Router {
         if (target !== null) {
             target.style.display = "block";
         }
-
-        if (!this.routes.hasOwnProperty(route)) {
-            throw new Error(`route ${route} not implemented`);
+        if (route === "query") {
+            const params = new URLSearchParams(window.location.search);
+            const query = params.get("sql");
+            // TODO(PR): is there a better way to tie components together?
+            document.querySelector("query-window").shadowRoot.querySelector("textarea").innerHTML = query;
         }
-        this.routes[route]();
+
+        if (this.routes.hasOwnProperty(route)) {
+            this.routes[route]();
+        }
     }
 }
 
