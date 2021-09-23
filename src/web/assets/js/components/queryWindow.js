@@ -4,7 +4,7 @@
 // it's in three places: URL, component property, query.textarea (maybe we can merge the last two?)
 
 import { formatBytes, formatTimestamp, formatDuration } from '../formatters.js';
-import { node, empty } from '../dom.js';
+import { node } from '../dom.js';
 
 async function runQuery(query) {
     const req = await fetch('/api/query', {
@@ -24,7 +24,6 @@ async function renderTable(data) {
     const table = node("table", {"class": "data-view"},
         node("thead", {},
             node("tr", {}, data.schema.map((col, idx) => {
-                // TODO(PR): this stopped working (probably due to CSS)
                 const props = {"data-idx": idx, "data-dtype": col.dtype};
                 if (data.ordering[idx] !== null) {
                     props["data-ordering"] = data.ordering[idx];
@@ -41,11 +40,11 @@ async function renderTable(data) {
                     const ths = e.target.closest("thead").querySelectorAll("tr th");
                     ths.forEach(x => x.removeAttribute("data-ordering"));
                     e.target.setAttribute("data-ordering", newOrder);
-
+                
                     const colIdx = parseInt(e.target.getAttribute("data-idx"), 10);
                     const tbody = e.target.closest("table").querySelector("tbody");
                     const trs = Array.from(tbody.querySelectorAll("tr"));
-
+                
                     const ltv = newOrder === "asc" ? -1 : 1;
                     trs.sort((a, b) => {
                         const cells = [a, b].map(x => x.children[colIdx]);
@@ -65,7 +64,7 @@ async function renderTable(data) {
                         if (vals[0] < vals[1]) {  return ltv; }
                         return -ltv;
                     });
-                    empty(tbody);
+                    tbody.innerHTML = "";
                     trs.forEach(x => tbody.append(x));
                 });
 
@@ -206,10 +205,12 @@ class QueryWindow extends HTMLElement {
                 elapsed.textContent = `${runtime} (${formatBytes(data.bytes_read)} scanned)`;
             }
 
-            if (success) {
-                const table = await renderTable(data);
-                target.innerHTML = table.outerHTML;
+            if (!success) {
+                return
             }
+            const table = await renderTable(data);
+            target.innerHTML = "";
+            target.append(table);
         })
     }
 }
