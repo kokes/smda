@@ -140,19 +140,17 @@ div#submit-query small#elapsed {
 
 <link rel="stylesheet" href="../../tables.css" />
 
-<div id="query">
-    <form action="/query" name="query">
-        <textarea name="sql" id="sql" rows=10 cols=100 placeholder="SELECT * FROM foo LIMIT 100"></textarea>
 
-        <div id="submit-query">
-            <button>Run query</button>
-            <small id="elapsed"></small>
-        </div>
-    </form>
-</div>
+<form action="/query" name="query">
+    <textarea name="sql" id="sql" rows=10 cols=100 placeholder="SELECT * FROM foo LIMIT 100"></textarea>
+
+    <div id="submit-query">
+        <button>Run query</button>
+        <small id="elapsed"></small>
+    </div>
+</form>
 
 <div id="query-results"></div>
-</div>
 `;
 
 class QueryWindow extends HTMLElement {
@@ -164,11 +162,14 @@ class QueryWindow extends HTMLElement {
         this.shadowRoot.appendChild(queryTmpl.content.cloneNode(true))
     }
 
-    connectedCallback() {
-        // TODO(PR): load query from URL; not sure how - we can't hook into history.pushState :(
+    updateQuery(query) {
+        this.shadowRoot.querySelector("textarea#sql").value = query;
+        // TODO(PR): cleanup any potential results?
+    }
 
+    connectedCallback() {
         // submit on shift-enter
-        this.shadowRoot.querySelector("div#query textarea#sql").addEventListener("keydown", e => {
+        this.shadowRoot.querySelector("textarea#sql").addEventListener("keydown", e => {
             if (!(e.code === "Enter" && e.shiftKey === true)) {
                 return;
             }

@@ -67,7 +67,8 @@ class Router {
             // TODO(PR): is there a better way to tie components together?
             // TODO(PR): also this is a bug - we cannot just intercept the DOM here, we need to push it somehow
             // because once we run a query, the textarea will never be overwritten
-            document.querySelector("query-window").shadowRoot.querySelector("textarea").innerHTML = query;
+            // document.querySelector("query-window").shadowRoot.querySelector("textarea").innerHTML = query;
+            document.querySelector("query-window").updateQuery(query);
         }
 
         if (this.routes.hasOwnProperty(route)) {
