@@ -118,28 +118,51 @@ async function renderTable(data) {
     return table;
 }
 
+const queryTmpl = document.createElement("template");
+queryTmpl.innerHTML = `
+<style type='text/css'>
+textarea#sql {
+    display: block;
+    margin: 1em 0;
+    padding: .5em;
+}
+
+div#submit-query {
+    margin-top: 1em;
+}
+div#submit-query button {
+    padding: .3em 1em;
+}
+
+div#submit-query  small#elapsed {
+    padding-left: 1em;
+}
+</style>
+
+<link rel="stylesheet" href="../../tables.css" />
+
+<div id="query">
+    <form action="/query" name="query">
+        <textarea name="sql" id="sql" rows=10 cols=100 placeholder="SELECT * FROM foo LIMIT 100"></textarea>
+
+        <div id="submit-query">
+            <button>Run query</button>
+            <small id="elapsed"></small>
+        </div>
+    </form>
+</div>
+
+<div id="query-results"></div>
+</div>
+`;
+
 class QueryWindow extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
         // TODO(PR): this is just pasted 1:1, edit this appropriately
         // perhaps split it into multiple components?
-        // TODO(PR): move CSS here
-        this.shadowRoot.innerHTML = `
-        <div id="query">
-            <form action="/query" name="query">
-                <textarea name="sql" id="sql" rows=10 cols=100 placeholder="SELECT * FROM foo LIMIT 100"></textarea>
-
-                <div id="submit-query">
-                    <button>Run query</button>
-                    <small id="elapsed"></small>
-                </div>
-            </form>
-        </div>
-
-        <div id="query-results"></div>
-        </div>
-        `;
+        this.shadowRoot.appendChild(queryTmpl.content.cloneNode(true))
     }
 
     connectedCallback() {
