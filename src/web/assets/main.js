@@ -1,6 +1,8 @@
 import { formatBytes, formatTimestamp, formatDuration } from './js/formatters.js';
 import { empty, node } from './js/dom.js';
 
+import './js/components/fileUploader.js';
+
 document.addEventListener("keydown", e => {
     if (e.code != "Escape") {
         return;
@@ -24,10 +26,9 @@ function errDialog(title, msg) {
 // this becomes more testable
 class smda {
     constructor() {        
-        this.setupUploader();
         this.setupQueryWindow()
     }
-    // ARCH: move elsewhere (all UI setups)
+    // ARCH: move elsewhere (all UI setups) / TODO(PR): remove this
     setupQueryWindow() {
         // submit on shift-enter
         document.querySelector("div#query textarea#sql").addEventListener("keydown", e => {
@@ -39,29 +40,6 @@ class smda {
             // would circumvent our router
             document.forms["query"].querySelector("button").click();
         });
-    }
-    setupUploader() {
-        const fp = document.getElementById("filepicker");
-        fp.addEventListener("change", async e => {
-            e.target.disabled = "disabled";
-            for (const file of e.target.files) {
-                const filename = encodeURIComponent(file.name);
-                const request = await fetch(`/upload/auto?name=${filename}`, {
-                    method: "POST",
-                    body: file,
-                })
-                if (request.ok !== true) {
-                    errDialog(`failed to upload ${file.name}`, await request.text());
-                    continue;
-                }
-                // ARCH/TODO: we're fetching dataset listings from the API... but we already have it in the
-                // request response... maybe add it to `this.datasets` from there directly
-                // this will also mean it won't be async (but we'll need to trigger the UI change)
-                await this.setupDatasets();
-            }
-            e.target.value = "";
-            e.target.disabled = "";
-        })
     }
     queryFromStructured(data) {
         if (Object.entries(data).length === 0) {
