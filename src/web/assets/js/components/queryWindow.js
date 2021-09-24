@@ -53,7 +53,7 @@ class QueryWindow extends HTMLElement {
         this.attachShadow({ mode: "open" });
         // TODO(PR): this is just pasted 1:1, edit this appropriately
         // perhaps split it into multiple components?
-        this.shadowRoot.appendChild(queryTmpl.content.cloneNode(true))
+        this.shadowRoot.appendChild(queryTmpl.content.cloneNode(true));
     }
 
     updateQuery(query) {
@@ -94,8 +94,7 @@ class QueryWindow extends HTMLElement {
                 data = await runQuery(query);
                 success = true;
             } catch(e) {
-                // errDialog("Failed to run query", e)
-                console.error("failed to run query" + e) // TODO(PR): refactor once we have errDialog
+                document.querySelector("err-dialog").addError("Failed to run query", e);
             } finally {
                 clearInterval(incrementor);
                 const runtime = formatDuration(performance.now() - startTime, "Elapsed: ");

@@ -4,20 +4,6 @@
 body, table {
     font-family: Arial, Helvetica, sans-serif;
 }
-div#errors {
-    position: absolute;
-    left: 50%; top: 10%;
-    margin-left: -200px;
-    width: 400px;
-}
-div#errors > div {
-    padding: 1em;
-    margin-bottom: .5em;
-    width: 100%;
-    border: 1px solid red;
-    background: lightpink;
-    color: darkred;
-}
 /* layout start */
 div#container {
     display: grid;

@@ -17,9 +17,7 @@ class FileUploader extends HTMLElement {
                     body: file,
                 })
                 if (request.ok !== true) {
-                    // errDialog(`failed to upload ${file.name}`, await request.text());
-                    // TODO(PR): we don't have errDialog defined
-                    console.error(`failed to upload ${file.name}`, await request.text())
+                    document.querySelector("err-dialog").addError(`failed to upload ${file.name}`, await request.text());
                     continue;
                 }
                 // ARCH/TODO: we're fetching dataset listings from the API... but we already have it in the
