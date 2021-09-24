@@ -2,7 +2,7 @@
 // in individual components
 class Router {
     constructor(routes) {
-        this.routes = routes;
+        this.routes = routes || {};
 
         window.onload = e => this.route();
         window.onpopstate = e => {

@@ -7,11 +7,8 @@
     <!-- TODO(PR): remove this once datasetListing is a component -->
     <link rel='stylesheet' href='tables.css' type='text/css' media='all' />
     <script type='module'>
-        import { smda, Router } from './main.js'
-        const db = new smda();
-        const router = new Router({
-            'root': db.setupDatasets.bind(db), // bind needed for `this` to work, TODO(PR): remove this (all the cb functionality in router.js)
-        });
+        import { Router } from './main.js'
+        const router = new Router(); // TODO(PR): we no longer bind routes to functions - remove this functionality
     </script>
 </head>
 <body>
@@ -29,7 +26,9 @@
         </nav>
 
         <main>
-            <div id="route-root"></div>
+            <div id="route-root">
+                <dataset-listing></dataset-listing>
+            </div>
             <div id="route-query">
                 <query-window></query-window>
                 <table-view></table-view>

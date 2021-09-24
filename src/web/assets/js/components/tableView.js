@@ -1,5 +1,3 @@
-// TODO(PR): remove data-view classes everywhere
-
 import { node } from "../dom.js";
 
 // TODO(PR): include this in formatters?

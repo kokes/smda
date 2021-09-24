@@ -110,7 +110,6 @@ class QueryWindow extends HTMLElement {
             if (!success) {
                 return
             }
-            console.log(data) // TODO(PR): remove
             this.parentNode.querySelector("table-view").setData({
                 header: data.schema.map(x => x.name),
                 dtypes: data.schema.map(x => x.dtype),
