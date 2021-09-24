@@ -1,3 +1,20 @@
+function formatFloat(val) {
+    // ARCH: why three? what if we need more precision?
+    val = val.toFixed(3);
+    // trim trailing zeroes... it's a bit clunky at the moment, but I guess it's better than a regex
+    // TODO: test - 0, 100, 20.00, 0.00, 2.34, 2.340, 2.00, 2.001, 234, 0.000001 (cannot round down to zero) ...
+    if (val.endsWith("0") && val.length > 1 && val.includes(".")) {
+        for (let j=val.length-1; j >= 0; j--) {
+            const char = val.charAt(j);
+            if (char === "." || char !== "0") {
+                val = val.slice(0, j + 1 - (char === "."));
+                break;
+            }
+        }
+    }
+    return val;
+}
+
 // TODO: test (0, 999, 1001, trailing zeroes etc.)
 function formatBytes(nbytes) {
     if (nbytes === 0) {
@@ -51,4 +68,4 @@ function formatDuration(ms, prefix) {
     return `${prefix} ${(ms/1000).toFixed(2)} seconds`;
 }
 
-export { formatBytes, formatTimestamp, formatDuration };
+export { formatFloat, formatBytes, formatTimestamp, formatDuration };

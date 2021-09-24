@@ -1,9 +1,6 @@
-// TODO(PR): finish
-
-import { node, empty } from "../dom.js";
+import { node } from "../dom.js";
 import { formatTimestamp, formatBytes } from "../formatters.js";
 
-// TODO(PR): move elsewhere - perhaps as a method to queryWindow?
 function queryFromStructured(data) {
     if (Object.entries(data).length === 0) {
         return "";
@@ -30,6 +27,9 @@ class DatasetListing extends HTMLElement {
         const raw = await (await fetch('/api/datasets')).json();
         this.datasets = Object.fromEntries(raw.map(x => [x.id, x]))
     }
+
+    // TODO(next): consider redrawing this regularly (setInterval)
+    // two reasons: 1) refresh "created time", 2) load new datasets uploaded through curl and other means
 
     async connectedCallback() {
         await this.loadDatasets();

@@ -1,8 +1,3 @@
-// TODO(PR): finish
-
-// TODO(PR): the main complication is to unify state of the query itself:
-// it's in three places: URL, component property, query.textarea (maybe we can merge the last two?)
-
 import { formatBytes, formatDuration } from '../formatters.js';
 
 async function runQuery(query) {

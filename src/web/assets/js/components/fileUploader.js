@@ -1,5 +1,3 @@
-// TODO(PR): finish
-
 class FileUploader extends HTMLElement {
     constructor() {
         super();
@@ -9,7 +7,6 @@ class FileUploader extends HTMLElement {
 
     connectedCallback() {
         const filepicker = this.shadowRoot.querySelector("input[type=file]");
-        // TODO(PR): shouldn't the event listener be on something else?
         filepicker.addEventListener("change", async (e) => {
             const fp = e.target;
             fp.disabled = "disabled";
@@ -28,8 +25,8 @@ class FileUploader extends HTMLElement {
                 // ARCH/TODO: we're fetching dataset listings from the API... but we already have it in the
                 // request response... maybe add it to `this.datasets` from there directly
                 // this will also mean it won't be async (but we'll need to trigger the UI change)
-                // TODO(PR): chain the components somehow
-                // await this.setupDatasets();
+                // ARCH/TODO: this is an ugly hack to force re-rendering of dataset listing
+                document.querySelector("dataset-listing").connectedCallback();
             }
             fp.value = "";
             fp.disabled = "";

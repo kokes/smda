@@ -1,22 +1,5 @@
 import { node } from "../dom.js";
-
-// TODO(PR): include this in formatters?
-// if (typeof(val) === "number" && !Number.isInteger(val)) {
-//     // ARCH: why three? what if we need more precision?
-//     val = val.toFixed(3);
-//     // trim trailing zeroes... it's a bit clunky at the moment, but I guess it's better than a regex
-//     // TODO: test - 0, 100, 20.00, 0.00, 2.34, 2.340, 2.00, 2.001, 234, 0.000001 (cannot round down to zero) ...
-//     if (val.endsWith("0") && val.length > 1 && val.includes(".")) {
-//         for (let j=val.length-1; j >= 0; j--) {
-//             const char = val.charAt(j);
-//             if (char === "." || char !== "0") {
-//                 val = val.slice(0, j + 1 - (char === "."));
-//                 break;
-//             }
-//         }
-//     }
-// }
-
+import { formatFloat } from "../formatters.js";
 
 //     th.addEventListener("click", e => {
 //         const dtype = e.target.getAttribute("data-dtype");
@@ -88,6 +71,9 @@ class TableView extends HTMLElement {
                     props["data-null"] = "null";
                     val = "";
                 }
+                if (typeof(val) === "number" && !Number.isInteger(val)) {
+                    val = formatFloat(val);
+                }
                 return node("td", props, val)
             }));
             return row;
@@ -97,10 +83,6 @@ class TableView extends HTMLElement {
 
         this.shadowRoot.innerHTML = "<link rel='stylesheet' href='../../tables.css' />";
         this.shadowRoot.appendChild(table);
-    }
-
-    connectedCallback() {
-        // TODO(PR): remove?
     }
 }
 
