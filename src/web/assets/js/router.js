@@ -2,6 +2,7 @@
 // in individual components
 class Router {
     constructor(routes) {
+        // TODO(PR): we no longer bind routes to functions - remove this functionality
         this.routes = routes || {};
 
         window.onload = e => this.route();

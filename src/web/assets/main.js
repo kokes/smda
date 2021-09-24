@@ -1,10 +1,11 @@
-import { formatBytes, formatTimestamp, formatDuration } from './js/formatters.js';
-import { empty, node } from './js/dom.js';
+import { node } from './js/dom.js';
 
 import './js/components/fileUploader.js';
 import './js/components/queryWindow.js';
 import './js/components/tableView.js';
 import './js/components/datasetListing.js';
+
+import { Router } from './js/router.js';
 
 // TODO(PR): move this to the errDialog component
 document.addEventListener("keydown", e => {
@@ -26,5 +27,5 @@ function errDialog(title, msg) {
     target.append(err);
 }
 
-// TODO(PR): this won't be needed as we don't pass anything to it?
-export { Router } from './js/router.js';
+// TODO(PR): remove
+const router = new Router();
