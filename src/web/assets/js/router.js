@@ -9,6 +9,8 @@ class Router {
         }
     }
     route() {
+        // TODO(PR): move this to the "nav-panel" component we'll build instead of <nav>
+        // this component will also route the top level links and eliminate the need for all this?
         const currentClass = "current";
         for (let link of document.querySelectorAll("nav#panel ul li a")) {
             if (link.classList.contains(currentClass)) {
@@ -17,24 +19,6 @@ class Router {
             if (link.getAttribute("href") === window.location.pathname) {
                 link.classList.add(currentClass);
             }
-        }
-
-        const path = window.location.pathname.slice(1).split("/");
-        let route = path[0];
-        if (route === "") {
-            route = "root";
-        }
-        document.querySelectorAll("main > div").forEach(x => x.style.display = "none");
-        // ARCH: pass this down to submitQuery/setupDatasets?
-        const target = document.getElementById(`route-${route}`);
-        if (target !== null) {
-            target.style.display = "block";
-        }
-        if (route === "query") {
-            const params = new URLSearchParams(window.location.search);
-            const query = params.get("sql");
-            // TODO(PR): is there a better way to tie components together?
-            document.querySelector("query-window").updateQuery(query);
         }
     }
 }
