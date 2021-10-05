@@ -32,6 +32,7 @@ class NavPanel extends HTMLElement {
         }
         ul li a:hover, ul li a.current {
             background: darkslategray;
+            pointer: hand;
         }
         </style>
         `;
@@ -42,7 +43,14 @@ class NavPanel extends HTMLElement {
         };
         const links = node("ul");
         for (let [href, name] of Object.entries(routes)) {
-            links.append(node("li", null, node("a", {href: href}, name)));
+            const link = node("a", {href: href}, name);
+            link.addEventListener("click", (e) => {
+                history.pushState({}, "", href);
+                // TODO/ARCH: again, this is a hack (used elsewhere)
+                window.onpopstate();
+                e.preventDefault();
+            });
+            links.append(node("li", null, link));
         }
         this.shadowRoot.appendChild(links);
     }
