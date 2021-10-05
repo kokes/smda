@@ -41,7 +41,6 @@ footer {
 nav#panel {
     background-color: #086375;
 }
-nav#panel, nav#panel a { color: #CCDBDC; }
 main {
     background-color: white;
     overflow: auto;
@@ -51,19 +50,3 @@ main > div {
     display: none;
 }
 /* end layout */
-
-header > input {
-    padding-left: .5em;
-}
-
-nav#panel ul li {
-    list-style: none;
-}
-nav#panel ul li a {
-    display: block;
-    padding: 1em;
-    text-decoration: underline;
-}
-nav#panel ul li a:hover, nav#panel ul li a.current {
-    background: darkslategray;
-}
