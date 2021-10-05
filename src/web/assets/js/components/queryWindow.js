@@ -73,7 +73,18 @@ class QueryWindow extends HTMLElement {
             this.shadowRoot.querySelector("div#submit-query button").click();
         });
         // TODO(PR): add this and other nodes to private properties
-        this.shadowRoot.querySelector("div#submit-query button").addEventListener("click", async () => {
+        this.shadowRoot.querySelector("div#submit-query button").addEventListener("click", async (e) => {
+            // route first
+            // ARCH: encapsulate it in some generic handler?
+            e.preventDefault();
+            const url = new URL(window.location);
+            url.search = '';
+            const qform = this.shadowRoot.querySelector("form[name=query]");
+            for (let entry of (new FormData(qform)).entries()) {
+                url.searchParams.set(entry[0], entry[1]);
+            }
+            history.pushState({}, "", url);
+
             const target = this.shadowRoot.getElementById("query-results");
             const elapsed = this.shadowRoot.querySelector("small#elapsed");
 

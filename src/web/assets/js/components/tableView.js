@@ -1,6 +1,7 @@
 import { node } from "../dom.js";
 import { formatFloat } from "../formatters.js";
 
+// TODO(PR): finish this
 //     th.addEventListener("click", e => {
 //         const dtype = e.target.getAttribute("data-dtype");
 //         const isNumeric = dtype === "float" || dtype === "int"; // TODO: isNumeric as a function?
@@ -80,6 +81,17 @@ class TableView extends HTMLElement {
         }));
         
         const table = node("table", null, [thead, tbody]);
+        // only do this in dataset listing, not in query results
+        for (let link of table.querySelectorAll("a[href^='/query']")) {
+            link.addEventListener("click", e => {
+                const url = e.target.getAttribute("href");
+                history.pushState({}, "", url);
+                // TODO: this is a bit weird - we prevent the click, but we also
+                // trigger onpopstate, otherwise the router wouldn't be triggered...
+                e.preventDefault();
+                window.onpopstate();
+            })
+        }
 
         this.shadowRoot.innerHTML = "<link rel='stylesheet' href='../../tables.css' />";
         this.shadowRoot.appendChild(table);
