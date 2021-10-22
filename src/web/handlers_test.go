@@ -447,7 +447,6 @@ func TestBasicRawUpload(t *testing.T) {
 	}
 }
 
-// TODO(next): test that file listing contains this dataset (we had a bug earlier that wouldn't write this metadata in)
 func TestBasicAutoUpload(t *testing.T) {
 	db, err := newDatabaseWithRoutes()
 	if err != nil {
@@ -462,8 +461,11 @@ func TestBasicAutoUpload(t *testing.T) {
 	srv := httptest.NewServer(db.ServerHTTP.Handler)
 	defer srv.Close()
 
-	url := fmt.Sprintf("%s/upload/auto?name=auto_file", srv.URL)
-	body := strings.NewReader("foo,bar,baz\n1,2,true\n4,,false")
+	dsName := "auto_file"
+	dsContents := "foo,bar,baz\n1,2,true\n4,,false"
+
+	url := fmt.Sprintf("%s/upload/auto?name=%s", srv.URL, dsName)
+	body := strings.NewReader(dsContents)
 	resp, err := http.Post(url, "text/csv", body)
 	if err != nil {
 		t.Fatal(err)
@@ -485,8 +487,8 @@ func TestBasicAutoUpload(t *testing.T) {
 	if decoder.More() {
 		t.Fatal("body cannot contain multiple JSON objects")
 	}
-	if dec.Name != "auto_file" {
-		t.Errorf("expected the name to be %+v, got %+v", "auto_file", dec.Name)
+	if dec.Name != dsName {
+		t.Errorf("expected the name to be %+v, got %+v", dsName, dec.Name)
 	}
 	if dec.ID.Otype != database.OtypeDataset {
 		t.Errorf("expecting an ID for a dataset")
@@ -499,6 +501,16 @@ func TestBasicAutoUpload(t *testing.T) {
 		t.Errorf("expecting the schema to be inferred as %+v, got %+v", es, dec.Schema)
 	}
 
+	if int(dec.SizeRaw) != len(dsContents) {
+		t.Errorf("unexpected size of uploaded content: got %v, expected %v", dec.SizeRaw, dsContents)
+	}
+
+	if _, err := db.GetDataset(dsName, dec.ID.String(), false); err != nil {
+		t.Error(err)
+	}
+	if _, err := db.GetDataset(dsName, "", true); err != nil {
+		t.Error(err)
+	}
 }
 
 func randomStringFuncer(n int) func() []byte {

@@ -141,7 +141,6 @@ func handleAutoUpload(db *database.Database) http.HandlerFunc {
 		if err != nil {
 			clength = 0
 		}
-		// TODO(next): test this (e.g. if we stream data in)
 		// ARCH: maybe do this in loader.go, will then work for all entrypoints (and for compressed data as well)
 		ds.SizeRaw = int64(clength)
 

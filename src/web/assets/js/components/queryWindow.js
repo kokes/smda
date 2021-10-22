@@ -56,8 +56,6 @@ class QueryWindow extends HTMLElement {
 
     updateQuery(query) {
         this.shadowRoot.querySelector("textarea#sql").value = query;
-        // TODO(next): cleanup any potential results? (but we don't own that piece of DOM!)
-        // this works but it's a little clunky (not our only use of parentNode here)
         this.parentNode.querySelector("table-view").clear()
     }
 
