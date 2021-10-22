@@ -4,20 +4,6 @@
 body, table {
     font-family: Arial, Helvetica, sans-serif;
 }
-div#errors {
-    position: absolute;
-    left: 50%; top: 10%;
-    margin-left: -200px;
-    width: 400px;
-}
-div#errors > div {
-    padding: 1em;
-    margin-bottom: .5em;
-    width: 100%;
-    border: 1px solid red;
-    background: lightpink;
-    color: darkred;
-}
 /* layout start */
 div#container {
     display: grid;
@@ -55,7 +41,6 @@ footer {
 nav#panel {
     background-color: #086375;
 }
-nav#panel, nav#panel a { color: #CCDBDC; }
 main {
     background-color: white;
     overflow: auto;
@@ -65,76 +50,3 @@ main > div {
     display: none;
 }
 /* end layout */
-
-header > input {
-    padding-left: .5em;
-}
-
-table {
-    border-spacing: 0;
-    margin-top: 1em;
-    line-height: 1.5em;
-}
-table tr:nth-child(even) {
-    background: lavenderblush;
-}
-table tr td[data-null="null"] {
-    background-image: repeating-linear-gradient(
-      -45deg,
-      transparent 0 20px,
-      #f5f5f5 20px 40px
-    );
-}
-table tr td, table tr th {
-    padding: .5em 1em;
-    /*
-      this is primarily for extendable tables (e.g. schema overviews), so that
-      the content doesn't jump around
-    */
-    vertical-align: top;
-}
-table tr td summary:hover {
-    cursor: pointer;
-}
-table tr th {
-    text-align: start;
-    cursor: pointer;
-    border-bottom: 2px solid mistyrose;
-}
-table tr th[data-ordering="asc"]::after {
-    padding-left: .5em;
-    content: "↑";
-}
-table tr th[data-ordering="desc"]::after {
-    padding-left: .5em;
-    content: "↓";
-}
-
-nav#panel ul li {
-    list-style: none;
-}
-nav#panel ul li a {
-    display: block;
-    padding: 1em;
-    text-decoration: underline;
-}
-nav#panel ul li a:hover, nav#panel ul li a.current {
-    background: darkslategray;
-}
-
-textarea#sql {
-    display: block;
-    margin: 1em 0;
-    padding: .5em;
-}
-
-div#submit-query {
-    margin-top: 1em;
-}
-div#submit-query button {
-    padding: .3em 1em;
-}
-
-div#submit-query  small#elapsed {
-    padding-left: 1em;
-}
