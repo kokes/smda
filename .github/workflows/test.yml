@@ -19,12 +19,11 @@ jobs:
       with:
         go-version: ${{ matrix.go }}
 
-    # the build runs tests as well... so it runs test twice (three times)
-    - name: Build
-      run: make build
-
     - name: Test
       run: make test
     
     - name: Test (race)
       run: make test-race
+
+    - name: Build
+      run: make build

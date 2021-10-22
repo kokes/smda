@@ -31,9 +31,7 @@ check:
 	$(GORLS) fmt ./...
 	CGO_ENABLED=0 $(GORLS) vet ./...
 
-# ARCH: consider removing the dependencies here
-# it just triggers the same tests in all the dist runs
-build: test check
+build:
 	mkdir -p bin
 	CGO_ENABLED=0 $(GORLS) build -o $(BUILD_PATH) ${BUILD_FLAGS} ./cmd/server/
 
@@ -59,7 +57,7 @@ run-docker: build-docker
 # we need to inject GIT_COMMIT into the Docker image, because
 # we don't have git nor the git repo there
 # ARCH: consider making the docker build a separate step (or maybe even within `build-docker`)
-dist:
+dist: test
 	docker build --target build -t $(DOCKER_IMAGE_BUILD) .
 	@rm -rf dist
 	mkdir dist
