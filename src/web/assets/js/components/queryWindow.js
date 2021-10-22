@@ -51,14 +51,14 @@ class QueryWindow extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
-        // TODO(PR): this is just pasted 1:1, edit this appropriately
-        // perhaps split it into multiple components?
         this.shadowRoot.appendChild(queryTmpl.content.cloneNode(true));
     }
 
     updateQuery(query) {
         this.shadowRoot.querySelector("textarea#sql").value = query;
-        // TODO(PR): cleanup any potential results?
+        // TODO(next): cleanup any potential results? (but we don't own that piece of DOM!)
+        // this works but it's a little clunky (not our only use of parentNode here)
+        this.parentNode.querySelector("table-view").clear()
     }
 
     connectedCallback() {
@@ -72,7 +72,6 @@ class QueryWindow extends HTMLElement {
             // would circumvent our router
             this.shadowRoot.querySelector("div#submit-query button").click();
         });
-        // TODO(PR): add this and other nodes to private properties
         this.shadowRoot.querySelector("div#submit-query button").addEventListener("click", async (e) => {
             // route first
             // ARCH: encapsulate it in some generic handler?
