@@ -48,6 +48,7 @@ type resolveFuncs struct {
 
 // these resolvers don't do much, they just take our state and make it into Chunks
 // and so are not suitable for e.g. avg(), where some finaliser work needs to be done
+// TODO(generics): perhaps?
 var genericResolvers = resolveFuncs{
 	ints: func(agg *AggState) func() (Chunk, error) {
 		return func() (Chunk, error) {

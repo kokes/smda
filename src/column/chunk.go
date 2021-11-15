@@ -19,6 +19,7 @@ var errLiteralsCannotBeSerialised = errors.New("cannot serialise literal columns
 var errInvalidTypedLiteral = errors.New("invalid data supplied to a literal constructor")
 
 // Chunk defines a part of a column - constant type, stored contiguously
+// TODO(generics): perhaps use a concrete type with T type arg?
 type Chunk interface {
 	baseChunker
 	Dtype() Dtype
@@ -456,7 +457,25 @@ func NewChunkBoolsFromBitmap(bm *bitmap.Bitmap) *ChunkBools {
 	}
 }
 
-// the next few functions could use some generics
+// TODO(generics): the next few functions could use some generics
+// though I don't think it's possible because of strings: https://github.com/golang/go/issues/45380
+// func NewChunkFromSlice[T comparable](data []T, nulls *bitmap.Bitmap) Chunk {
+// 	switch T {
+// 	case string:
+// 		rc := newChunkStrings()
+// 		if err := rc.AddValues(data); err != nil {
+// 			panic(err)
+// 		}
+// 		rc.Nullability = nulls
+// 		return rc
+// 	default:
+// 		return &ChunkInts{
+// 			baseChunk: baseChunk{length: uint32(len(data)), Nullability: nulls},
+// 			data:      data,
+// 		}
+// 	}
+// }
+
 func NewChunkIntsFromSlice(data []int64, nulls *bitmap.Bitmap) *ChunkInts {
 	return &ChunkInts{
 		baseChunk: baseChunk{length: uint32(len(data)), Nullability: nulls},
