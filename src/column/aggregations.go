@@ -193,7 +193,7 @@ func NewAggregator(function string, distinct bool) (func(...Dtype) (*AggState, e
 					return func() (Chunk, error) {
 						// we can't use agg.ints as we'll return floats
 						// if we reuse agg.floats, we can then use a generic resolver
-						agg.floats = ensureLengthFloats(agg.floats, len(agg.ints))
+						agg.floats = ensureLength(agg.floats, len(agg.ints))
 						for j, el := range agg.ints {
 							agg.floats[j] = float64(el) / float64(agg.counts[j]) // el/0 will yield a +-inf, but that's fine
 						}
@@ -227,46 +227,12 @@ func NewAggregator(function string, distinct bool) (func(...Dtype) (*AggState, e
 	}, nil
 }
 
-// ARCH/TODO: abstract this out using generics
-func ensureLengthInts(data []int64, length int) []int64 {
+func ensureLength[T comparable](data []T, length int) []T {
 	currentLength := len(data)
 	if currentLength >= length {
 		return data
 	}
-	data = append(data, make([]int64, length-currentLength)...)
-	return data
-}
-func ensureLengthFloats(data []float64, length int) []float64 {
-	currentLength := len(data)
-	if currentLength >= length {
-		return data
-	}
-	data = append(data, make([]float64, length-currentLength)...)
-	return data
-}
-func ensureLengthDates(data []date, length int) []date {
-	currentLength := len(data)
-	if currentLength >= length {
-		return data
-	}
-	data = append(data, make([]date, length-currentLength)...)
-	return data
-}
-func ensureLengthDatetimes(data []datetime, length int) []datetime {
-	currentLength := len(data)
-	if currentLength >= length {
-		return data
-	}
-	data = append(data, make([]datetime, length-currentLength)...)
-	return data
-}
-
-func ensurelengthStrings(data []string, length int) []string {
-	currentLength := len(data)
-	if currentLength >= length {
-		return data
-	}
-	data = append(data, make([]string, length-currentLength)...)
+	data = append(data, make([]T, length-currentLength)...)
 	return data
 }
 
@@ -301,8 +267,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 	switch agg.inputType {
 	case DtypeInt:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
-			agg.counts = ensureLengthInts(agg.counts, ndistinct)
-			agg.ints = ensureLengthInts(agg.ints, ndistinct)
+			agg.counts = ensureLength(agg.counts, ndistinct)
+			agg.ints = ensureLength(agg.ints, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			// this can happen if there are no children - so just update the counters
@@ -341,8 +307,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		}, nil
 	case DtypeFloat:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
-			agg.counts = ensureLengthInts(agg.counts, ndistinct)
-			agg.floats = ensureLengthFloats(agg.floats, ndistinct)
+			agg.counts = ensureLength(agg.counts, ndistinct)
+			agg.floats = ensureLength(agg.floats, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			rc := data.(*ChunkFloats)
@@ -372,8 +338,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		}, nil
 	case DtypeDate:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
-			agg.counts = ensureLengthInts(agg.counts, ndistinct)
-			agg.dates = ensureLengthDates(agg.dates, ndistinct)
+			agg.counts = ensureLength(agg.counts, ndistinct)
+			agg.dates = ensureLength(agg.dates, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			rc := data.(*ChunkDates)
@@ -400,8 +366,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		}, nil
 	case DtypeDatetime:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
-			agg.counts = ensureLengthInts(agg.counts, ndistinct)
-			agg.datetimes = ensureLengthDatetimes(agg.datetimes, ndistinct)
+			agg.counts = ensureLength(agg.counts, ndistinct)
+			agg.datetimes = ensureLength(agg.datetimes, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			rc := data.(*ChunkDatetimes)
@@ -428,8 +394,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 		}, nil
 	case DtypeString:
 		return func(buckets []uint64, ndistinct int, data Chunk) {
-			agg.counts = ensureLengthInts(agg.counts, ndistinct)
-			agg.strings = ensurelengthStrings(agg.strings, ndistinct)
+			agg.counts = ensureLength(agg.counts, ndistinct)
+			agg.strings = ensureLength(agg.strings, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
 			rc := data.(*ChunkStrings)
