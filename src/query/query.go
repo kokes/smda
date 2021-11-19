@@ -618,6 +618,13 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	// we don't append tons of data in case we have a LIMIT 10
 	// But we still end up appending tons of data... shouldn't we do top-k or something?
 	// We could also do a merge sort instead of sorting a list of sorted blocks
+	// OPTIM/TODO(next): would be useful to allow for some limited concurrency here:
+	//  We don't really want to do a map(process, ds.Stripes), that would grep huge amounts
+	//  of data for each "SELECT foo FROM bar LIMIT 10" query. But we could process `n` stripes
+	//  at a time, merge results, check if we can exit and perhaps continue with the next n (or perhaps
+	//  evaluate after each stripe finishes and cancel the remaining processes, to avoid straggler issues).
+	//  We can then map `n` to `numCPU` or something, but we could easily start with 1 to replicate current
+	//  behaviour.
 	for idx, stripe := range ds.Stripes {
 		context := fmt.Sprintf("stripe_%02d_%s", idx, stripe.Id)
 		stopStripeTimer := res.TimerStart(context, "projection")
