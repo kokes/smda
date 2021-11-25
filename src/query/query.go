@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/kokes/smda/src/bitmap"
 	"github.com/kokes/smda/src/column"
@@ -21,19 +20,6 @@ var errInvalidOrderClause = errors.New("invalid ORDER BY clause")
 var errInvalidGroupbyClause = errors.New("invalid GROUP BY clause")
 var errQueryNoDatasetIdentifiers = errors.New("query without a dataset has identifiers in the SELECT clause")
 
-// Timer measures the duration of a given action/event
-type Timer struct {
-	Event string `json:"event"`
-	// TODO: parentNode or something - this will require some identifiers/indexes
-	//       meaning that "total_elapsed" will be the root node, the rest will be its children
-	//       and we can support arbitrary nesting here, but let's start simple
-	//       One alternative is to have a Timer field here (subtimers)
-	Context string `json:"context"`
-	// elapsed since the execution started (relative time)
-	StartUs int64 `json:"start_us"`
-	EndUs   int64 `json:"end_us"`
-}
-
 // Result holds the result of a query, at this point it's fairly literal - in the future we may want
 // a Result to be a Dataset of its own (for better interoperability, persistence, caching etc.)
 // ARCH/TODO: this is really a schema and `stripeData`, isn't it? Can we leverage that?
@@ -41,10 +27,8 @@ type Result struct {
 	Schema column.TableSchema
 	Length int
 	Data   []column.Chunk
-	Timers []Timer
 	// ARCH: consider something like `stats` that will encapsulate this?
-	executionStart time.Time
-	bytesRead      int
+	bytesRead int
 
 	// this is used for sorting
 	rowIdxs    []int
@@ -52,19 +36,6 @@ type Result struct {
 	nullsfirst []bool
 	// this does not allow for sorting by things not materialised by projections (ARCH?)
 	sortColumnsIdxs []int
-}
-
-// TODO: we may need to lock this if we introduce concurrency in Run()
-func (res *Result) TimerStart(event, context string) func() {
-	startUs := time.Now().Sub(res.executionStart).Microseconds()
-	return func() {
-		res.Timers = append(res.Timers, Timer{
-			Event:   event,
-			Context: context,
-			StartUs: startUs,
-			EndUs:   time.Now().Sub(res.executionStart).Microseconds(),
-		})
-	}
 }
 
 // Length might be much smaller than the data within (thanks to ORDER BY), so we should prune our columns
@@ -85,7 +56,7 @@ func (res *Result) Prune() {
 	// if we run Prune and then export... it might panic
 }
 
-// TODO(next): test this (at least that it's valid JSON, since we're doing all sorts of tricks here that could go wrong)
+// TODO(next): test this
 func (r *Result) MarshalJSON() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	enc := json.NewEncoder(buf)
@@ -93,12 +64,6 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	if err := enc.Encode(r.Schema); err != nil {
-		return nil, err
-	}
-	if _, err := buf.WriteString(",\"timers\": "); err != nil {
-		return nil, err
-	}
-	if err := enc.Encode(r.Timers); err != nil {
 		return nil, err
 	}
 	if _, err := buf.WriteString(fmt.Sprintf(",\n\"nrows\": %d", r.Length)); err != nil {
@@ -120,7 +85,6 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 		}
 		sorting[idx] = &order
 	}
-	// OPTIM: omit this if there's no ordering info
 	if _, err := buf.WriteString(",\n\"ordering\": "); err != nil {
 		return nil, err
 	}
@@ -456,21 +420,13 @@ func RunSQL(db *database.Database, query string) (*Result, error) {
 // TODO: we have to differentiate between input errors and runtime errors (errors.Is?)
 // the former should result in a 4xx, the latter in a 5xx
 func Run(db *database.Database, q expr.Query) (*Result, error) {
-	res := &Result{
-		Schema:         make([]column.Schema, 0, len(q.Select)),
-		Data:           make([]column.Chunk, 0),
-		Length:         -1,
-		executionStart: time.Now(),
-	}
-	stopExecTimer := res.TimerStart("total", "")
-	stopPrepTimer := res.TimerStart("prep_query", "total")
-
-	defer func() {
-		defer stopExecTimer()
-	}()
-
 	if len(q.Select) == 0 {
 		return nil, errNoProjection
+	}
+	res := &Result{
+		Schema: make([]column.Schema, 0, len(q.Select)),
+		Data:   make([]column.Chunk, 0),
+		Length: -1,
 	}
 
 	// this is a special case of e.g. `SELECT 1`, `SELECT now()` etc.
@@ -585,9 +541,6 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 		limit = *q.Limit
 	}
-
-	stopPrepTimer()
-
 	if q.Aggregate != nil || allAggregations {
 		// edit GROUP BY 1, 2 in place (replace them by their respective columns)
 		for j, agg := range q.Aggregate {
@@ -600,19 +553,12 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 			}
 		}
 
-		stopAggTimer := res.TimerStart("aggregation", "total")
 		if err := aggregate(db, ds, res, q); err != nil {
 			return nil, err
 		}
-		stopAggTimer()
 
 		return res, nil
 	}
-
-	// ARCH: this is quite coarse, but we cannot quite distinguish individual actions in the loop
-	// below, because we'd have to somehow piece together timers from individual stripes (or leave
-	// it on a stripe-by-stripe basis)
-	stopQueryExecTimer := res.TimerStart("projection", "total")
 
 	// OPTIM: if there's an ORDERBY, we sort/prune a given (filtered) stripe before appending it... so that
 	// we don't append tons of data in case we have a LIMIT 10
@@ -625,25 +571,19 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	//  evaluate after each stripe finishes and cancel the remaining processes, to avoid straggler issues).
 	//  We can then map `n` to `numCPU` or something, but we could easily start with 1 to replicate current
 	//  behaviour.
-	for idx, stripe := range ds.Stripes {
-		context := fmt.Sprintf("stripe_%02d_%s", idx, stripe.Id)
-		stopStripeTimer := res.TimerStart(context, "projection")
-
+	for _, stripe := range ds.Stripes {
 		colnames := expr.ColumnsUsedMultiple(ds.Schema, q.Select...)
 		if q.Filter != nil {
 			colnames = append(colnames, expr.ColumnsUsedMultiple(ds.Schema, q.Filter)...)
 		}
-		stopDataTimer := res.TimerStart("read_stripe_data", context)
 		columns, bytesRead, err := db.ReadColumnsFromStripeByNames(ds, stripe, colnames)
 		res.bytesRead += bytesRead
 		if err != nil {
 			return nil, err
 		}
-		stopDataTimer()
 		var filter *bitmap.Bitmap
 		loadFromStripe := stripe.Length
 		if q.Filter != nil {
-			stopFilterTimer := res.TimerStart("filter_stripe", context)
 			filter, err = filterStripe(db, ds, stripe, q.Filter, columns)
 			if err != nil {
 				return nil, err
@@ -652,7 +592,6 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 			if q.Order == nil && limit >= 0 && filter.Count() > limit {
 				filter.KeepFirstN(limit)
 			}
-			stopFilterTimer()
 		} else {
 			// TODO/ARCH: all this limit handling is a bit clunky, simplify it quite a bit
 			if q.Order == nil && limit >= 0 && stripe.Length > limit {
@@ -668,7 +607,6 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 			loadFromStripe = limit
 		}
 		if loadFromStripe == 0 {
-			stopStripeTimer()
 			continue
 		}
 		if q.Order == nil {
@@ -679,7 +617,6 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		// OPTIM: either top-k to avoid most of the sort (might be tricky when sorting by multiple cols)
 		// OPTIM: merge sort in the end, not append + sort (again, tricky for multiple cols)
 		intermediate := &Result{}
-		stopEvalTimer := res.TimerStart("evaluate_columns", context)
 		for _, colExpr := range q.Select {
 			col, err := expr.Evaluate(colExpr, loadFromStripe, columns, filter)
 			if err != nil {
@@ -689,9 +626,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 			intermediate.Data = append(intermediate.Data, col)
 		}
 		intermediate.Length = intermediate.Data[0].Len()
-		stopEvalTimer()
 
-		stopOrderingTimer := res.TimerStart("order_rows", context)
 		if q.Order != nil && limit > 0 && intermediate.Length > limit {
 			intermediate.Length = limit
 			if err := reorder(intermediate, q); err != nil {
@@ -699,26 +634,16 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 			}
 			intermediate.Prune()
 		}
-		stopOrderingTimer()
-
-		stopAppendTimer := res.TimerStart("append_intermediate_results", context)
 		for j, col := range intermediate.Data {
 			if err := res.Data[j].Append(col); err != nil {
 				return nil, err
 			}
 		}
-		stopAppendTimer()
 
-		// TODO/ARCH: we'll have to encapsulate stripe processing in some function, so that we don't have to faff
-		// with these stop functions
-		stopStripeTimer()
 		if limit <= 0 {
 			break
 		}
 	}
-	stopQueryExecTimer()
-
-	stopOrderingTimer := res.TimerStart("post_evaluation_ordering", "total")
 	res.Length = res.Data[0].Len()
 	if q.Order != nil {
 		if err := reorder(res, q); err != nil {
@@ -728,7 +653,6 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 			res.Length = *q.Limit
 		}
 	}
-	stopOrderingTimer()
 
 	return res, nil
 }
