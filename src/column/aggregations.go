@@ -21,8 +21,8 @@ type AggState struct {
 	counts    []int64
 	distinct  bool
 	seen      []map[uint64]bool
-	AddChunk  func(buckets []uint64, ndistinct int, data Chunk)
-	Resolve   func() (Chunk, error)
+	AddChunk  func(buckets []uint64, ndistinct int, data *Chunk)
+	Resolve   func() (*Chunk, error)
 }
 
 // how will we update the state given a value
@@ -34,7 +34,7 @@ type updateFuncs struct {
 	strings   func(state *AggState, value string, position uint64)
 }
 
-type resolveFunc func(state *AggState) func() (Chunk, error)
+type resolveFunc func(state *AggState) func() (*Chunk, error)
 
 // given our state, how do we generate chunks?
 type resolveFuncs struct {
@@ -49,32 +49,32 @@ type resolveFuncs struct {
 // these resolvers don't do much, they just take our state and make it into Chunks
 // and so are not suitable for e.g. avg(), where some finaliser work needs to be done
 var genericResolvers = resolveFuncs{
-	ints: func(agg *AggState) func() (Chunk, error) {
-		return func() (Chunk, error) {
+	ints: func(agg *AggState) func() (*Chunk, error) {
+		return func() (*Chunk, error) {
 			bm := bitmapFromCounts(agg.counts)
 			return NewChunkIntsFromSlice(agg.ints, bm), nil
 		}
 	},
-	floats: func(agg *AggState) func() (Chunk, error) {
-		return func() (Chunk, error) {
+	floats: func(agg *AggState) func() (*Chunk, error) {
+		return func() (*Chunk, error) {
 			bm := bitmapFromCounts(agg.counts)
 			return NewChunkFloatsFromSlice(agg.floats, bm), nil
 		}
 	},
-	dates: func(agg *AggState) func() (Chunk, error) {
-		return func() (Chunk, error) {
+	dates: func(agg *AggState) func() (*Chunk, error) {
+		return func() (*Chunk, error) {
 			bm := bitmapFromCounts(agg.counts)
 			return newChunkDatesFromSlice(agg.dates, bm), nil
 		}
 	},
-	datetimes: func(agg *AggState) func() (Chunk, error) {
-		return func() (Chunk, error) {
+	datetimes: func(agg *AggState) func() (*Chunk, error) {
+		return func() (*Chunk, error) {
 			bm := bitmapFromCounts(agg.counts)
 			return newChunkDatetimesFromSlice(agg.datetimes, bm), nil
 		}
 	},
-	strings: func(agg *AggState) func() (Chunk, error) {
-		return func() (Chunk, error) {
+	strings: func(agg *AggState) func() (*Chunk, error) {
+		return func() (*Chunk, error) {
 			bm := bitmapFromCounts(agg.counts)
 			return newChunkStringsFromSlice(agg.strings, bm), nil
 		}
@@ -107,8 +107,8 @@ func NewAggregator(function string, distinct bool) (func(...Dtype) (*AggState, e
 				state.inputType = dtypes[0] // count(expr) will accept type(expr)
 			}
 			resolvers = resolveFuncs{
-				any: func(agg *AggState) func() (Chunk, error) {
-					return func() (Chunk, error) {
+				any: func(agg *AggState) func() (*Chunk, error) {
+					return func() (*Chunk, error) {
 						return NewChunkIntsFromSlice(agg.counts, nil), nil
 					}
 				},
@@ -189,8 +189,8 @@ func NewAggregator(function string, distinct bool) (func(...Dtype) (*AggState, e
 			}
 			// so far it's the same as sums, so we might share the codebase somehow (fallthrough and overwrite resolvers?)
 			resolvers = resolveFuncs{
-				ints: func(agg *AggState) func() (Chunk, error) {
-					return func() (Chunk, error) {
+				ints: func(agg *AggState) func() (*Chunk, error) {
+					return func() (*Chunk, error) {
 						// we can't use agg.ints as we'll return floats
 						// if we reuse agg.floats, we can then use a generic resolver
 						agg.floats = ensureLengthFloats(agg.floats, len(agg.ints))
@@ -200,8 +200,8 @@ func NewAggregator(function string, distinct bool) (func(...Dtype) (*AggState, e
 						return genericResolvers.floats(agg)()
 					}
 				},
-				floats: func(agg *AggState) func() (Chunk, error) {
-					return func() (Chunk, error) {
+				floats: func(agg *AggState) func() (*Chunk, error) {
+					return func() (*Chunk, error) {
 						// we can overwrite our float sums in place, we no longer need them
 						for j, el := range agg.floats {
 							agg.floats[j] = el / float64(agg.counts[j])
@@ -297,10 +297,10 @@ func bitmapFromCounts(counts []int64) *bitmap.Bitmap {
 }
 
 // OPTIM/ARCH: this might be abstracted away thanks to generics (though... we don't have nthvalue for all chunk types)
-func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), error) {
+func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, *Chunk), error) {
 	switch agg.inputType {
 	case DtypeInt:
-		return func(buckets []uint64, ndistinct int, data Chunk) {
+		return func(buckets []uint64, ndistinct int, data *Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.ints = ensureLengthInts(agg.ints, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
@@ -313,9 +313,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 				}
 				return
 			}
-			rc := data.(*ChunkInts)
-			for j, val := range rc.data {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j, val := range data.storage.ints {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -340,14 +339,13 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 			}
 		}, nil
 	case DtypeFloat:
-		return func(buckets []uint64, ndistinct int, data Chunk) {
+		return func(buckets []uint64, ndistinct int, data *Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.floats = ensureLengthFloats(agg.floats, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
-			rc := data.(*ChunkFloats)
-			for j, val := range rc.data {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j, val := range data.storage.floats {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -371,14 +369,13 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 			}
 		}, nil
 	case DtypeDate:
-		return func(buckets []uint64, ndistinct int, data Chunk) {
+		return func(buckets []uint64, ndistinct int, data *Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.dates = ensureLengthDates(agg.dates, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
-			rc := data.(*ChunkDates)
-			for j, val := range rc.data {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j, val := range data.storage.dates {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -399,14 +396,13 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 			}
 		}, nil
 	case DtypeDatetime:
-		return func(buckets []uint64, ndistinct int, data Chunk) {
+		return func(buckets []uint64, ndistinct int, data *Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.datetimes = ensureLengthDatetimes(agg.datetimes, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
-			rc := data.(*ChunkDatetimes)
-			for j, val := range rc.data {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j, val := range data.storage.datetimes {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -427,18 +423,17 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 			}
 		}, nil
 	case DtypeString:
-		return func(buckets []uint64, ndistinct int, data Chunk) {
+		return func(buckets []uint64, ndistinct int, data *Chunk) {
 			agg.counts = ensureLengthInts(agg.counts, ndistinct)
 			agg.strings = ensurelengthStrings(agg.strings, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
-			rc := data.(*ChunkStrings)
 			hasher := fnv.New64() // TODO/ARCH: should we abstract this out some place?
-			for j := 0; j < rc.Len(); j++ {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j := 0; j < data.Len(); j++ {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
-				val := rc.nthValue(j)
+				val := data.nthValue(j)
 				pos := buckets[j]
 				if agg.distinct {
 					if _, err := hasher.Write([]byte(val)); err != nil {
@@ -469,7 +464,7 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, Chunk), e
 	}
 }
 
-func resolverFactory(agg *AggState, resfuncs resolveFuncs) (func() (Chunk, error), error) {
+func resolverFactory(agg *AggState, resfuncs resolveFuncs) (func() (*Chunk, error), error) {
 	// the `any` func has precedence over any concrete resolvers
 	if resfuncs.any != nil {
 		return resfuncs.any(agg), nil

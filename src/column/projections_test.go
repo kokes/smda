@@ -8,8 +8,8 @@ import (
 
 var litPrefix = "lit:"
 
-func prepColumn(nrows int, dtype Dtype, rawData string) (Chunk, error) {
-	c := NewChunkFromSchema(Schema{Dtype: dtype})
+func prepColumn(nrows int, dtype Dtype, rawData string) (*Chunk, error) {
+	c := NewChunk(dtype)
 	var err error
 	if strings.HasPrefix(rawData, litPrefix) {
 		c, err = NewChunkLiteralTyped(strings.TrimPrefix(rawData, litPrefix), dtype, nrows)
@@ -24,7 +24,7 @@ func prepColumn(nrows int, dtype Dtype, rawData string) (Chunk, error) {
 	return c, err
 }
 
-func prepColumns(nrows int, dtype1, dtype2, dtype3 Dtype, rawData1, rawData2, rawData3 string) (Chunk, Chunk, Chunk, error) {
+func prepColumns(nrows int, dtype1, dtype2, dtype3 Dtype, rawData1, rawData2, rawData3 string) (*Chunk, *Chunk, *Chunk, error) {
 	c1, err := prepColumn(nrows, dtype1, rawData1)
 	if err != nil {
 		return nil, nil, nil, err
@@ -42,7 +42,7 @@ func prepColumns(nrows int, dtype1, dtype2, dtype3 Dtype, rawData1, rawData2, ra
 
 func TestAndOr(t *testing.T) {
 	tests := []struct {
-		fnc              func(Chunk, Chunk) (Chunk, error)
+		fnc              func(*Chunk, *Chunk) (*Chunk, error)
 		nrows            int
 		c1, c2, expected string
 	}{
@@ -90,7 +90,7 @@ func TestAndOr(t *testing.T) {
 func TestComparisons(t *testing.T) {
 	tests := []struct {
 		dtype1, dtype2   Dtype
-		fnc              func(Chunk, Chunk) (Chunk, error)
+		fnc              func(*Chunk, *Chunk) (*Chunk, error)
 		nrows            int
 		c1, c2, expected string
 	}{
@@ -164,7 +164,7 @@ func TestComparisons(t *testing.T) {
 
 func TestAlgebraicExpressions(t *testing.T) {
 	tests := []struct {
-		fnc              func(Chunk, Chunk) (Chunk, error)
+		fnc              func(*Chunk, *Chunk) (*Chunk, error)
 		nrows            int
 		dt1, dt2, dte    Dtype
 		c1, c2, expected string

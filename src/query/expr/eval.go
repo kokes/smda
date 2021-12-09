@@ -16,7 +16,7 @@ var errDivisionByZero = errors.New("division by zero") // TODO/ARCH: hint that w
 // OPTIM: we're doing a lot of type shenanigans at runtime - when we evaluate a function on each stripe, we do
 // the same tree of operations - this applies not just here, but in projections.go as well - e.g. we know that
 // if we have `intA - intB`, we'll run a function for ints - we don't need to decide that for each stripe
-func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chunk, filter *bitmap.Bitmap) (column.Chunk, error) {
+func Evaluate(expr Expression, chunkLength int, columnData map[string]*column.Chunk, filter *bitmap.Bitmap) (*column.Chunk, error) {
 	// TODO: test this via UpdateAggregator
 	if f, ok := expr.(*Function); ok && f.aggregator != nil {
 		// TODO: assert that filters !== nil?
@@ -82,7 +82,7 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			return nil, fmt.Errorf("%w: %s", errFunctionNotImplemented, node.name)
 		}
 		// ARCH: abstract out this `children` construction and use it elsewhere (in exprEquality etc.)
-		children := make([]column.Chunk, 0, len(node.Children()))
+		children := make([]*column.Chunk, 0, len(node.Children()))
 		for _, ch := range node.Children() {
 			child, err := Evaluate(ch, chunkLength, columnData, filter)
 			if err != nil {
@@ -136,11 +136,11 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			if c1.Dtype() == column.DtypeNull {
 				cdata = c2
 			}
-			nb := cdata.Base().Nullability
+			nb := cdata.Nullability
 
 			// literals cannot be null, so a comparison to nulls is simple
 			// this should really be done in constant folding
-			if cdata.Base().IsLiteral || nb == nil {
+			if cdata.IsLiteral || nb == nil {
 				// since literals cannot be null, we cannot return a literal bool that is null (which is the correct answer)
 				ch := column.NewChunkBoolsFromBitmap(bitmap.NewBitmap(chunkLength))
 				ch.Nullability = bitmap.NewBitmap(chunkLength)
@@ -187,7 +187,7 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 			if err != nil {
 				return nil, err
 			}
-			zeros := eq.(*column.ChunkBools).Truths()
+			zeros := eq.Truths()
 			if zeros.Count() > 0 {
 				return nil, errDivisionByZero
 			}
@@ -202,13 +202,13 @@ func Evaluate(expr Expression, chunkLength int, columnData map[string]column.Chu
 	}
 }
 
-func UpdateAggregator(fun *Function, buckets []uint64, ndistinct int, columnData map[string]column.Chunk, filter *bitmap.Bitmap) error {
+func UpdateAggregator(fun *Function, buckets []uint64, ndistinct int, columnData map[string]*column.Chunk, filter *bitmap.Bitmap) error {
 	// if expr.aggregator == nil {err}
 	// if len(expr.children) != 1 {err}// what about count()?
 
 	// e.g. sum(1+foo) needs `1+foo` evaluated first, then we feed the resulting
 	// chunk to the sum aggregator
-	var child column.Chunk
+	var child *column.Chunk
 	var err error
 	// in case we have e.g. `count()`, we cannot evaluate its children as there are none
 	if len(fun.args) > 0 {

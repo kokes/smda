@@ -18,7 +18,7 @@ var errProjectionNotSupported = errors.New("projection not supported")
 
 // when this gets too long, split it up into projections_string, projections_date etc.
 
-func boolChunkFromParts(data []uint64, length int, null1, null2 *bitmap.Bitmap) *ChunkBools {
+func boolChunkFromParts(data []uint64, length int, null1, null2 *bitmap.Bitmap) *Chunk {
 	cdata := newChunkBoolsFromBits(data, length)
 	nulls := bitmap.Or(null1, null2)
 	if nulls != nil {
@@ -27,7 +27,7 @@ func boolChunkFromParts(data []uint64, length int, null1, null2 *bitmap.Bitmap) 
 	return cdata
 }
 
-func boolChunkLiteralFromParts(val bool, length int, null1, null2 *bitmap.Bitmap) *ChunkBools {
+func boolChunkLiteralFromParts(val bool, length int, null1, null2 *bitmap.Bitmap) *Chunk {
 	ch := NewChunkLiteralBools(val, length)
 	nulls := bitmap.Or(null1, null2)
 	if nulls != nil {
@@ -36,25 +36,25 @@ func boolChunkLiteralFromParts(val bool, length int, null1, null2 *bitmap.Bitmap
 	return ch
 }
 
-func intChunkFromParts(data []int64, null1, null2 *bitmap.Bitmap) *ChunkInts {
+func intChunkFromParts(data []int64, null1, null2 *bitmap.Bitmap) *Chunk {
 	nulls := bitmap.Or(null1, null2)
 	return NewChunkIntsFromSlice(data, nulls)
 }
-func floatChunkFromParts(data []float64, null1, null2 *bitmap.Bitmap) *ChunkFloats {
+func floatChunkFromParts(data []float64, null1, null2 *bitmap.Bitmap) *Chunk {
 	nulls := bitmap.Or(null1, null2)
 	return NewChunkFloatsFromSlice(data, nulls)
 }
 
-func EvalNot(c Chunk) (Chunk, error) {
-	if c.Dtype() != DtypeBool {
-		return nil, fmt.Errorf("%w: cannot evaluate NOT on non-bool columns (%v)", errProjectionNotSupported, c.Dtype())
+func EvalNot(c *Chunk) (*Chunk, error) {
+	if c.dtype != DtypeBool {
+		return nil, fmt.Errorf("%w: cannot evaluate NOT on non-bool columns (%v)", errProjectionNotSupported, c.dtype)
 	}
 	ret := c.Clone()
-	ret.(*ChunkBools).data.Invert()
+	ret.storage.bools.Invert()
 	return ret, nil
 }
 
-func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, string) bool) (*ChunkBools, error) {
+func compFactoryStrings(c1 *Chunk, c2 *Chunk, compFn func(string, string) bool) (*Chunk, error) {
 	nvals := c1.Len()
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
@@ -92,24 +92,24 @@ func compFactoryStrings(c1 *ChunkStrings, c2 *ChunkStrings, compFn func(string, 
 // I'm worried that this runtime func assignment will limit inlining and thus lead to large overhead of
 // function calls
 // Maybe try this once we have tests and benchmarks in place
-func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) bool) (*ChunkBools, error) {
+func compFactoryInts(c1 *Chunk, c2 *Chunk, compFn func(int64, int64) bool) (*Chunk, error) {
 	nvals := c1.Len()
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.ints[0], c2.storage.ints[0])
 		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 	}
 
 	bm := bitmap.NewBitmap(nvals)
-	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	eval := func(j int) bool { return compFn(c1.storage.ints[j], c2.storage.ints[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+		val := c1.storage.ints[0]
+		eval = func(j int) bool { return compFn(val, c2.storage.ints[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) bool { return compFn(c1.data[j], val) }
+		val := c2.storage.ints[0]
+		eval = func(j int) bool { return compFn(c1.storage.ints[j], val) }
 	}
 	for j := 0; j < nvals; j++ {
 		// OPTIM: cannot inline re-assigned closure variable at src/column/projections.go:99:8: eval = func literal
@@ -121,25 +121,25 @@ func compFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) boo
 }
 
 // ARCH: this function is identical to compFactoryInts, so it's probably the first to make use of generics
-func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, float64) bool) (*ChunkBools, error) {
+func compFactoryFloats(c1 *Chunk, c2 *Chunk, compFn func(float64, float64) bool) (*Chunk, error) {
 	nvals := c1.Len()
 	bm := bitmap.NewBitmap(nvals)
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.floats[0], c2.storage.floats[0])
 		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 
 	}
 
-	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	eval := func(j int) bool { return compFn(c1.storage.floats[j], c2.storage.floats[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+		val := c1.storage.floats[0]
+		eval = func(j int) bool { return compFn(val, c2.storage.floats[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) bool { return compFn(c1.data[j], val) }
+		val := c2.storage.floats[0]
+		eval = func(j int) bool { return compFn(c1.storage.floats[j], val) }
 	}
 
 	for j := 0; j < nvals; j++ {
@@ -152,25 +152,25 @@ func compFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, fl
 }
 
 // ARCH: this is, again, identical to the previous factory functions
-func compFactoryIntsFloats(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, float64) bool) (*ChunkBools, error) {
+func compFactoryIntsFloats(c1 *Chunk, c2 *Chunk, compFn func(int64, float64) bool) (*Chunk, error) {
 	nvals := c1.Len()
 	bm := bitmap.NewBitmap(nvals)
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.ints[0], c2.storage.floats[0])
 		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 
 	}
 
-	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	eval := func(j int) bool { return compFn(c1.storage.ints[j], c2.storage.floats[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+		val := c1.storage.ints[0]
+		eval = func(j int) bool { return compFn(val, c2.storage.floats[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) bool { return compFn(c1.data[j], val) }
+		val := c2.storage.floats[0]
+		eval = func(j int) bool { return compFn(c1.storage.ints[j], val) }
 	}
 
 	for j := 0; j < nvals; j++ {
@@ -183,25 +183,25 @@ func compFactoryIntsFloats(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, fl
 }
 
 // ARCH: this is, again, identical to the previous factory functions
-func compFactoryFloatsInts(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64, int64) bool) (*ChunkBools, error) {
+func compFactoryFloatsInts(c1 *Chunk, c2 *Chunk, compFn func(float64, int64) bool) (*Chunk, error) {
 	nvals := c1.Len()
 	bm := bitmap.NewBitmap(nvals)
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.floats[0], c2.storage.ints[0])
 		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 
 	}
 
-	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	eval := func(j int) bool { return compFn(c1.storage.floats[j], c2.storage.ints[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+		val := c1.storage.floats[0]
+		eval = func(j int) bool { return compFn(val, c2.storage.ints[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) bool { return compFn(c1.data[j], val) }
+		val := c2.storage.ints[0]
+		eval = func(j int) bool { return compFn(c1.storage.floats[j], val) }
 	}
 
 	for j := 0; j < nvals; j++ {
@@ -216,29 +216,29 @@ func compFactoryFloatsInts(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64, 
 const ALL_ZEROS = uint64(0)
 const ALL_ONES = uint64(1<<64 - 1)
 
-func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64) uint64) (*ChunkBools, error) {
+func compFactoryBools(c1 *Chunk, c2 *Chunk, compFn func(uint64, uint64) uint64) (*Chunk, error) {
 	nvals := c1.Len()
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data.Data()[0], c2.data.Data()[0])
+		val := compFn(c1.storage.bools.Data()[0], c2.storage.bools.Data()[0])
 		return NewChunkLiteralBools(val&1 > 0, nvals), nil // TODO: should this be `boolChunkLiteralFromParts`?
 	}
 	res := make([]uint64, (nvals+63)/64)
 
-	c1d := c1.data.Data()
-	c2d := c2.data.Data()
+	c1d := c1.storage.bools.Data()
+	c2d := c2.storage.bools.Data()
 	eval := func(j int) uint64 { return compFn(c1d[j], c2d[j]) }
 	if c1.IsLiteral {
 		mask := ALL_ZEROS
-		if c1.data.Get(0) {
+		if c1.storage.bools.Get(0) {
 			mask = ALL_ONES
 		}
 		eval = func(j int) uint64 { return compFn(mask, c2d[j]) }
 	}
 	if c2.IsLiteral {
 		mask := ALL_ZEROS
-		if c2.data.Get(0) {
+		if c2.storage.bools.Get(0) {
 			mask = ALL_ONES
 		}
 		eval = func(j int) uint64 { return compFn(c1d[j], mask) }
@@ -261,24 +261,24 @@ func compFactoryBools(c1 *ChunkBools, c2 *ChunkBools, compFn func(uint64, uint64
 }
 
 // ARCH: many if not all of these could be implemented in generics
-func compFactoryDates(c1 *ChunkDates, c2 *ChunkDates, compFn func(date, date) bool) (*ChunkBools, error) {
+func compFactoryDates(c1 *Chunk, c2 *Chunk, compFn func(date, date) bool) (*Chunk, error) {
 	nvals := c1.Len()
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.dates[0], c2.storage.dates[0])
 		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 	}
 
 	bm := bitmap.NewBitmap(nvals)
-	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	eval := func(j int) bool { return compFn(c1.storage.dates[j], c2.storage.dates[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+		val := c1.storage.dates[0]
+		eval = func(j int) bool { return compFn(val, c2.storage.dates[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) bool { return compFn(c1.data[j], val) }
+		val := c2.storage.dates[0]
+		eval = func(j int) bool { return compFn(c1.storage.dates[j], val) }
 	}
 	for j := 0; j < nvals; j++ {
 		// OPTIM: cannot inline re-assigned closure variable at src/column/projections.go:99:8: eval = func literal
@@ -289,24 +289,24 @@ func compFactoryDates(c1 *ChunkDates, c2 *ChunkDates, compFn func(date, date) bo
 	return boolChunkFromParts(bm.Data(), nvals, c1.Nullability, c2.Nullability), nil
 }
 
-func compFactoryDatetimes(c1 *ChunkDatetimes, c2 *ChunkDatetimes, compFn func(datetime, datetime) bool) (*ChunkBools, error) {
+func compFactoryDatetimes(c1 *Chunk, c2 *Chunk, compFn func(datetime, datetime) bool) (*Chunk, error) {
 	nvals := c1.Len()
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.datetimes[0], c2.storage.datetimes[0])
 		return boolChunkLiteralFromParts(val, nvals, c1.Nullability, c2.Nullability), nil
 	}
 
 	bm := bitmap.NewBitmap(nvals)
-	eval := func(j int) bool { return compFn(c1.data[j], c2.data[j]) }
+	eval := func(j int) bool { return compFn(c1.storage.datetimes[j], c2.storage.datetimes[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) bool { return compFn(val, c2.data[j]) }
+		val := c1.storage.datetimes[0]
+		eval = func(j int) bool { return compFn(val, c2.storage.datetimes[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) bool { return compFn(c1.data[j], val) }
+		val := c2.storage.datetimes[0]
+		eval = func(j int) bool { return compFn(c1.storage.datetimes[j], val) }
 	}
 	for j := 0; j < nvals; j++ {
 		// OPTIM: cannot inline re-assigned closure variable at src/column/projections.go:99:8: eval = func literal
@@ -329,60 +329,60 @@ type compFuncs struct {
 }
 
 // OPTIM: what if c1 === c2? short circuit it with a boolean array (copy in the nullability vector though)
-func compEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
-	err := fmt.Errorf("comparison expression not supported for types %s and %s: %w", c1.Dtype(), c2.Dtype(), errProjectionNotSupported)
-	if c1.Dtype() == c2.Dtype() {
-		switch c1.Dtype() {
+func compEval(c1 *Chunk, c2 *Chunk, cf compFuncs) (*Chunk, error) {
+	err := fmt.Errorf("comparison expression not supported for types %s and %s: %w", c1.dtype, c2.dtype, errProjectionNotSupported)
+	if c1.dtype == c2.dtype {
+		switch c1.dtype {
 		case DtypeString:
 			if cf.strings == nil {
 				return nil, err
 			}
-			return compFactoryStrings(c1.(*ChunkStrings), c2.(*ChunkStrings), cf.strings)
+			return compFactoryStrings(c1, c2, cf.strings)
 		case DtypeInt:
 			if cf.ints == nil {
 				return nil, err
 			}
-			return compFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts), cf.ints)
+			return compFactoryInts(c1, c2, cf.ints)
 		case DtypeFloat:
 			if cf.floats == nil {
 				return nil, err
 			}
-			return compFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
+			return compFactoryFloats(c1, c2, cf.floats)
 		case DtypeBool:
 			if cf.bools == nil {
 				return nil, err
 			}
-			return compFactoryBools(c1.(*ChunkBools), c2.(*ChunkBools), cf.bools)
+			return compFactoryBools(c1, c2, cf.bools)
 		case DtypeDate:
 			if cf.dates == nil {
 				return nil, err
 			}
-			return compFactoryDates(c1.(*ChunkDates), c2.(*ChunkDates), cf.dates)
+			return compFactoryDates(c1, c2, cf.dates)
 		case DtypeDatetime:
 			if cf.datetimes == nil {
 				return nil, err
 			}
-			return compFactoryDatetimes(c1.(*ChunkDatetimes), c2.(*ChunkDatetimes), cf.datetimes)
+			return compFactoryDatetimes(c1, c2, cf.datetimes)
 		default:
 			return nil, err
 		}
 	}
 
 	type dtypes struct{ a, b Dtype }
-	c1d := c1.Dtype()
-	c2d := c2.Dtype()
+	c1d := c1.dtype
+	c2d := c2.dtype
 	cs := dtypes{c1d, c2d}
 	switch cs {
 	case dtypes{DtypeInt, DtypeFloat}:
 		if cf.intfloat == nil {
 			return nil, err
 		}
-		return compFactoryIntsFloats(c1.(*ChunkInts), c2.(*ChunkFloats), cf.intfloat)
+		return compFactoryIntsFloats(c1, c2, cf.intfloat)
 	case dtypes{DtypeFloat, DtypeInt}:
 		if cf.floatint == nil {
 			return nil, err
 		}
-		return compFactoryFloatsInts(c1.(*ChunkFloats), c2.(*ChunkInts), cf.floatint)
+		return compFactoryFloatsInts(c1, c2, cf.floatint)
 	default:
 		return nil, err
 
@@ -390,21 +390,21 @@ func compEval(c1 Chunk, c2 Chunk, cf compFuncs) (Chunk, error) {
 }
 
 // EvalAnd produces a bitwise operation on two bool chunks
-func EvalAnd(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalAnd(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return compEval(c1, c2, compFuncs{
 		bools: func(a, b uint64) uint64 { return a & b },
 	})
 }
 
 // EvalOr produces a bitwise operation on two bool chunks
-func EvalOr(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalOr(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return compEval(c1, c2, compFuncs{
 		bools: func(a, b uint64) uint64 { return a | b },
 	})
 }
 
 // EvalEq compares values from two different chunks
-func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalEq(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return compEval(c1, c2, compFuncs{
 		ints:      func(a, b int64) bool { return a == b },
 		floats:    func(a, b float64) bool { return a == b },
@@ -418,7 +418,7 @@ func EvalEq(c1 Chunk, c2 Chunk) (Chunk, error) {
 }
 
 // EvalNeq compares values from two different chunks for inequality
-func EvalNeq(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalNeq(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return compEval(c1, c2, compFuncs{
 		ints:      func(a, b int64) bool { return a != b },
 		floats:    func(a, b float64) bool { return a != b },
@@ -432,7 +432,7 @@ func EvalNeq(c1 Chunk, c2 Chunk) (Chunk, error) {
 }
 
 // EvalGt checks if values in c1 are greater than in c2
-func EvalGt(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalGt(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return compEval(c1, c2, compFuncs{
 		ints:      func(a, b int64) bool { return a > b },
 		floats:    func(a, b float64) bool { return a > b },
@@ -446,7 +446,7 @@ func EvalGt(c1 Chunk, c2 Chunk) (Chunk, error) {
 }
 
 // EvalGte checks if values in c1 are greater than or equal to those in c2
-func EvalGte(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalGte(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return compEval(c1, c2, compFuncs{
 		ints:      func(a, b int64) bool { return a >= b },
 		floats:    func(a, b float64) bool { return a >= b },
@@ -460,12 +460,12 @@ func EvalGte(c1 Chunk, c2 Chunk) (Chunk, error) {
 }
 
 // EvalLt checks if values in c1 are lower than in c2
-func EvalLt(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalLt(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return EvalGt(c2, c1)
 }
 
 // EvalLte checks if values in c1 are lower than or equal to those in c2
-func EvalLte(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalLte(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return EvalGte(c2, c1)
 }
 
@@ -478,23 +478,23 @@ type algebraFuncs struct {
 	floatint func(float64, int64) float64
 }
 
-func algebraFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) int64) (*ChunkInts, error) {
+func algebraFactoryInts(c1 *Chunk, c2 *Chunk, compFn func(int64, int64) int64) (*Chunk, error) {
 	nvals := c1.Len()
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.ints[0], c2.storage.ints[0])
 		return NewChunkLiteralInts(val, nvals), nil
 	}
 	var eval func(j int) int64
-	eval = func(j int) int64 { return compFn(c1.data[j], c2.data[j]) }
+	eval = func(j int) int64 { return compFn(c1.storage.ints[j], c2.storage.ints[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) int64 { return compFn(val, c2.data[j]) }
+		val := c1.storage.ints[0]
+		eval = func(j int) int64 { return compFn(val, c2.storage.ints[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) int64 { return compFn(c1.data[j], val) }
+		val := c2.storage.ints[0]
+		eval = func(j int) int64 { return compFn(c1.storage.ints[j], val) }
 	}
 	ret := make([]int64, nvals)
 	for j := 0; j < nvals; j++ {
@@ -503,23 +503,23 @@ func algebraFactoryInts(c1 *ChunkInts, c2 *ChunkInts, compFn func(int64, int64) 
 	return intChunkFromParts(ret, c1.Nullability, c2.Nullability), nil
 }
 
-func algebraFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64, float64) float64) (*ChunkFloats, error) {
+func algebraFactoryFloats(c1 *Chunk, c2 *Chunk, compFn func(float64, float64) float64) (*Chunk, error) {
 	nvals := c1.Len()
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.floats[0], c2.storage.floats[0])
 		return NewChunkLiteralFloats(val, nvals), nil
 	}
 	var eval func(j int) float64
-	eval = func(j int) float64 { return compFn(c1.data[j], c2.data[j]) }
+	eval = func(j int) float64 { return compFn(c1.storage.floats[j], c2.storage.floats[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) float64 { return compFn(val, c2.data[j]) }
+		val := c1.storage.floats[0]
+		eval = func(j int) float64 { return compFn(val, c2.storage.floats[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) float64 { return compFn(c1.data[j], val) }
+		val := c2.storage.floats[0]
+		eval = func(j int) float64 { return compFn(c1.storage.floats[j], val) }
 	}
 	ret := make([]float64, nvals)
 	for j := 0; j < nvals; j++ {
@@ -529,23 +529,23 @@ func algebraFactoryFloats(c1 *ChunkFloats, c2 *ChunkFloats, compFn func(float64,
 }
 
 // ARCH: this is identical to `algebraFactoryFloats` apart from the compFn signature in the argument
-func algebraFactoryIntFloat(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, float64) float64) (*ChunkFloats, error) {
+func algebraFactoryIntFloat(c1 *Chunk, c2 *Chunk, compFn func(int64, float64) float64) (*Chunk, error) {
 	nvals := c1.Len()
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.ints[0], c2.storage.floats[0])
 		return NewChunkLiteralFloats(val, nvals), nil
 	}
 	var eval func(j int) float64
-	eval = func(j int) float64 { return compFn(c1.data[j], c2.data[j]) }
+	eval = func(j int) float64 { return compFn(c1.storage.ints[j], c2.storage.floats[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) float64 { return compFn(val, c2.data[j]) }
+		val := c1.storage.ints[0]
+		eval = func(j int) float64 { return compFn(val, c2.storage.floats[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) float64 { return compFn(c1.data[j], val) }
+		val := c2.storage.floats[0]
+		eval = func(j int) float64 { return compFn(c1.storage.ints[j], val) }
 	}
 	ret := make([]float64, nvals)
 	for j := 0; j < nvals; j++ {
@@ -555,23 +555,23 @@ func algebraFactoryIntFloat(c1 *ChunkInts, c2 *ChunkFloats, compFn func(int64, f
 }
 
 // ARCH: this is identical to `algebraFactoryFloats` apart from the compFn signature in the argument
-func algebraFactoryFloatInt(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64, int64) float64) (*ChunkFloats, error) {
+func algebraFactoryFloatInt(c1 *Chunk, c2 *Chunk, compFn func(float64, int64) float64) (*Chunk, error) {
 	nvals := c1.Len()
 
 	if c1.IsLiteral && c2.IsLiteral {
 		// OPTIM: this should be a part of constant folding and should never get to this point
-		val := compFn(c1.data[0], c2.data[0])
+		val := compFn(c1.storage.floats[0], c2.storage.ints[0])
 		return NewChunkLiteralFloats(val, nvals), nil
 	}
 	var eval func(j int) float64
-	eval = func(j int) float64 { return compFn(c1.data[j], c2.data[j]) }
+	eval = func(j int) float64 { return compFn(c1.storage.floats[j], c2.storage.ints[j]) }
 	if c1.IsLiteral {
-		val := c1.data[0]
-		eval = func(j int) float64 { return compFn(val, c2.data[j]) }
+		val := c1.storage.floats[0]
+		eval = func(j int) float64 { return compFn(val, c2.storage.ints[j]) }
 	}
 	if c2.IsLiteral {
-		val := c2.data[0]
-		eval = func(j int) float64 { return compFn(c1.data[j], val) }
+		val := c2.storage.ints[0]
+		eval = func(j int) float64 { return compFn(c1.storage.floats[j], val) }
 	}
 	ret := make([]float64, nvals)
 	for j := 0; j < nvals; j++ {
@@ -580,18 +580,18 @@ func algebraFactoryFloatInt(c1 *ChunkFloats, c2 *ChunkInts, compFn func(float64,
 	return floatChunkFromParts(ret, c1.Nullability, c2.Nullability), nil
 }
 
-func algebraicEval(c1 Chunk, c2 Chunk, commutative bool, cf algebraFuncs) (Chunk, error) {
+func algebraicEval(c1 *Chunk, c2 *Chunk, commutative bool, cf algebraFuncs) (*Chunk, error) {
 	errg := func(c1d, c2d Dtype) error {
 		return fmt.Errorf("algebraic expression not supported for types %s and %s: %w", c1d, c2d, errProjectionNotSupported)
 	}
-	c1d := c1.Dtype()
-	c2d := c2.Dtype()
+	c1d := c1.dtype
+	c2d := c2.dtype
 	if c1d == c2d {
 		switch c1d {
 		case DtypeInt:
-			return algebraFactoryInts(c1.(*ChunkInts), c2.(*ChunkInts), cf.ints)
+			return algebraFactoryInts(c1, c2, cf.ints)
 		case DtypeFloat:
-			return algebraFactoryFloats(c1.(*ChunkFloats), c2.(*ChunkFloats), cf.floats)
+			return algebraFactoryFloats(c1, c2, cf.floats)
 		default:
 			return nil, errg(c1d, c2d)
 		}
@@ -604,21 +604,21 @@ func algebraicEval(c1 Chunk, c2 Chunk, commutative bool, cf algebraFuncs) (Chunk
 		if commutative && cf.intfloat == nil {
 			// could have returned `algebraicEval` instead, which would be more future proof
 			// but also way less performant (will change in case we implement static dispatch)
-			return algebraFactoryFloatInt(c2.(*ChunkFloats), c1.(*ChunkInts), cf.floatint)
+			return algebraFactoryFloatInt(c2, c1, cf.floatint)
 		}
-		return algebraFactoryIntFloat(c1.(*ChunkInts), c2.(*ChunkFloats), cf.intfloat)
+		return algebraFactoryIntFloat(c1, c2, cf.intfloat)
 	case dtypes{DtypeFloat, DtypeInt}:
 		if commutative && cf.floatint == nil {
-			return algebraFactoryIntFloat(c2.(*ChunkInts), c1.(*ChunkFloats), cf.intfloat)
+			return algebraFactoryIntFloat(c2, c1, cf.intfloat)
 		}
-		return algebraFactoryFloatInt(c1.(*ChunkFloats), c2.(*ChunkInts), cf.floatint)
+		return algebraFactoryFloatInt(c1, c2, cf.floatint)
 	default:
 		return nil, errg(c1d, c2d)
 	}
 }
 
 // a solid case for generics?
-func EvalAdd(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalAdd(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return algebraicEval(c1, c2, true, algebraFuncs{
 		ints:     func(a, b int64) int64 { return a + b },
 		floats:   func(a, b float64) float64 { return a + b },
@@ -626,7 +626,7 @@ func EvalAdd(c1 Chunk, c2 Chunk) (Chunk, error) {
 	})
 }
 
-func EvalSubtract(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalSubtract(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return algebraicEval(c1, c2, false, algebraFuncs{
 		ints:     func(a, b int64) int64 { return a - b },
 		floats:   func(a, b float64) float64 { return a - b },
@@ -637,7 +637,7 @@ func EvalSubtract(c1 Chunk, c2 Chunk) (Chunk, error) {
 
 // different return type for ints! should we perhaps cast to make this more systematic?
 // check for division by zero (gives +- infty, which will break json?)
-func EvalDivide(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalDivide(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return algebraicEval(c1, c2, false, algebraFuncs{
 		ints:     func(a, b int64) int64 { return a / b },
 		floats:   func(a, b float64) float64 { return a / b },
@@ -646,7 +646,7 @@ func EvalDivide(c1 Chunk, c2 Chunk) (Chunk, error) {
 	})
 }
 
-func EvalMultiply(c1 Chunk, c2 Chunk) (Chunk, error) {
+func EvalMultiply(c1 *Chunk, c2 *Chunk) (*Chunk, error) {
 	return algebraicEval(c1, c2, true, algebraFuncs{
 		ints:     func(a, b int64) int64 { return a * b },
 		floats:   func(a, b float64) float64 { return a * b },

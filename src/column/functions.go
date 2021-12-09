@@ -20,7 +20,7 @@ var errTypeNotSupported = errors.New("type not supported in this function")
 // TODO: this will be hard to cover properly, so let's make sure we test everything explicitly
 // ARCH: we're not treating literals any differently, but since they share the same backing store
 //       as non-literals, we're okay... is that okay?
-var FuncProj = map[string]func(...Chunk) (Chunk, error){
+var FuncProj = map[string]func(...*Chunk) (*Chunk, error){
 	"now":      evalNow,
 	"version":  evalVersion,
 	"nullif":   evalNullIf,
@@ -52,7 +52,7 @@ var FuncProj = map[string]func(...Chunk) (Chunk, error){
 	// TODO(next): all those useful string functions - hashing, mid, right, position, ...
 }
 
-func evalNow(cs ...Chunk) (Chunk, error) {
+func evalNow(cs ...*Chunk) (*Chunk, error) {
 	dt, err := newDatetimeFromNative(time.Now())
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func evalNow(cs ...Chunk) (Chunk, error) {
 }
 
 // TODO: Inject this from a global const or something? Feed that at build time?
-func evalVersion(cs ...Chunk) (Chunk, error) {
+func evalVersion(cs ...*Chunk) (*Chunk, error) {
 	// ARCH/OPTIM: it should be done this way:
 	// return NewChunkLiteralStrings("version_undefined", 1), nil
 	// ... but we don't have a good way of testing equivalence of literal columns in query_test.go
@@ -70,7 +70,7 @@ func evalVersion(cs ...Chunk) (Chunk, error) {
 	return newChunkStringsFromSlice([]string{"version_undefined"}, nil), nil
 }
 
-func evalCoalesce(cs ...Chunk) (Chunk, error) {
+func evalCoalesce(cs ...*Chunk) (*Chunk, error) {
 	if len(cs) == 0 {
 		// ARCH: this is taken care of in return_types, delete? panic?
 		return nil, errors.New("coalesce needs at least one argument")
@@ -93,12 +93,12 @@ func evalCoalesce(cs ...Chunk) (Chunk, error) {
 // at some point test sum(nullif([1,2,3], 2)) to check we're not interpreting
 // "dead" values
 // treat this differently, if cs[0] is a literal column
-func evalNullIf(cs ...Chunk) (Chunk, error) {
+func evalNullIf(cs ...*Chunk) (*Chunk, error) {
 	eq, err := EvalEq(cs[0], cs[1])
 	if err != nil {
 		return nil, err
 	}
-	truths := eq.(*ChunkBools).Truths()
+	truths := eq.Truths()
 	if truths.Count() == 0 {
 		return cs[0], nil
 	}
@@ -110,33 +110,33 @@ func evalNullIf(cs ...Chunk) (Chunk, error) {
 // ARCH: this could be generalised using numFunc, we just have to pass in a closure
 // with our power
 // ARCH: should this return decimals (which we don't support)?
-func evalRound(cs ...Chunk) (Chunk, error) {
+func evalRound(cs ...*Chunk) (*Chunk, error) {
 	var factor int
 	if len(cs) == 2 {
 		// TODO: check factor size (and test it)
 		// what if this is not a literal? Do we want to round it to each value separately?
-		factor = int(cs[1].(*ChunkInts).data[0])
+		factor = int(cs[1].storage.ints[0])
 	}
 	pow := math.Pow10(factor)
-	switch ct := cs[0].(type) {
-	case *ChunkInts:
+	switch cs[0].dtype {
+	case DtypeInt:
 		// cast to floats and do nothing (nothing happens, regardless of the factor specified)
 		// ARCH: check how other engines behave, it would make sense to make it a noop (make sure
 		// to edit return_types as well)
-		return ct.cast(DtypeFloat)
-	case *ChunkFloats:
+		return cs[0].cast(DtypeFloat)
+	case DtypeFloat:
 		if pow == 1 {
-			return ct, nil
+			return cs[0], nil
 		}
-		ctr := ct.Clone().(*ChunkFloats)
-		for j, el := range ctr.data {
+		ctr := cs[0].Clone()
+		for j, el := range ctr.storage.floats {
 			// ARCH: is this the right way to round to n digits? What about overflows or loss of precision?
 			// we can easily check by checking that abs(old-new) < 1
-			ctr.data[j] = math.Round(pow*el) / pow
+			ctr.storage.floats[j] = math.Round(pow*el) / pow
 		}
 		return ctr, nil
 	default:
-		return nil, fmt.Errorf("%w: round(%v)", errTypeNotSupported, ct.Dtype())
+		return nil, fmt.Errorf("%w: round(%v)", errTypeNotSupported, cs[0].dtype)
 	}
 }
 
@@ -153,15 +153,14 @@ func hasRunes(d []byte) bool {
 // OPTIM: maybe if nchars > max(len(j)), we can just cheaply clone/return the existing column
 // OPTIM: use nthValue returning []byte rather than string... and then use something cheaper than AddValue (AddValueNative?)
 // ARCH: postgres allows for negative indexing
-func evalLeft(cs ...Chunk) (Chunk, error) {
-	nchars := int(cs[1].(*ChunkInts).data[0])
-	data := cs[0].(*ChunkStrings)
-	ret := newChunkStrings()
+func evalLeft(cs ...*Chunk) (*Chunk, error) {
+	nchars := int(cs[1].storage.ints[0])
+	ret := NewChunk(DtypeString)
 
-	runes := hasRunes(data.data)
+	runes := hasRunes(cs[0].storage.strings)
 
-	for j := 0; j < data.Len(); j++ {
-		val := data.nthValue(j)
+	for j := 0; j < cs[0].Len(); j++ {
+		val := cs[0].nthValue(j)
 		if runes && utf8.RuneCountInString(val) > nchars {
 			val = string([]rune(val)[:nchars])
 		}
@@ -177,14 +176,13 @@ func evalLeft(cs ...Chunk) (Chunk, error) {
 	return ret, nil
 }
 
-func evalSplitPart(cs ...Chunk) (Chunk, error) {
-	pos := int(cs[2].(*ChunkInts).data[0])
-	data := cs[0].(*ChunkStrings)
-	needle := cs[1].(*ChunkStrings).nthValue(0)
-	ret := newChunkStrings()
+func evalSplitPart(cs ...*Chunk) (*Chunk, error) {
+	pos := int(cs[2].storage.ints[0])
+	needle := cs[1].nthValue(0)
+	ret := NewChunk(DtypeString)
 
-	for j := 0; j < data.Len(); j++ {
-		val := data.nthValue(j)
+	for j := 0; j < cs[0].Len(); j++ {
+		val := cs[0].nthValue(j)
 		parts := strings.SplitN(val, needle, pos+1)
 		if len(parts) == 1 || len(parts) < pos {
 			val = ""
@@ -200,29 +198,29 @@ func evalSplitPart(cs ...Chunk) (Chunk, error) {
 	return ret, nil
 }
 
-func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
-	return func(cs ...Chunk) (Chunk, error) {
-		switch ct := cs[0].(type) {
-		case *ChunkInts:
+func numFunc(fnc func(float64) float64) func(...*Chunk) (*Chunk, error) {
+	return func(cs ...*Chunk) (*Chunk, error) {
+		ct := cs[0]
+		switch ct.dtype {
+		case DtypeInt:
 			rc, err := ct.cast(DtypeFloat)
 			if err != nil {
 				return nil, err
 			}
-			ctr := rc.(*ChunkFloats)
-			for j, el := range ctr.data {
+			for j, el := range rc.storage.floats {
 				val := fnc(el)
 				if math.IsNaN(val) || math.IsInf(val, 0) {
-					if ctr.Nullability == nil {
-						ctr.Nullability = bitmap.NewBitmap(ctr.Len())
+					if rc.Nullability == nil {
+						rc.Nullability = bitmap.NewBitmap(rc.Len())
 					}
-					ctr.Nullability.Set(j, true)
+					rc.Nullability.Set(j, true)
 				}
-				ctr.data[j] = val
+				rc.storage.floats[j] = val
 			}
-			return ctr, nil
-		case *ChunkFloats:
-			ctr := ct.Clone().(*ChunkFloats)
-			for j, el := range ctr.data {
+			return rc, nil
+		case DtypeFloat:
+			ctr := ct.Clone()
+			for j, el := range ctr.storage.floats {
 				val := fnc(el)
 				// ARCH: infinity is a valid float (well, so is nan), but I guess we cannot
 				// get it as a legit value from an operation and it's a "placeholder" for some
@@ -235,28 +233,27 @@ func numFunc(fnc func(float64) float64) func(...Chunk) (Chunk, error) {
 					}
 					ctr.Nullability.Set(j, true)
 				}
-				ctr.data[j] = val
+				ctr.storage.floats[j] = val
 			}
 			return ctr, nil
 		default:
-			return nil, fmt.Errorf("%w: func(%v)", errTypeNotSupported, ct.Dtype())
+			return nil, fmt.Errorf("%w: func(%v)", errTypeNotSupported, ct.dtype)
 		}
 	}
 }
 
-func stringFunc(fnc func(string) string) func(...Chunk) (Chunk, error) {
-	return func(cs ...Chunk) (Chunk, error) {
-		ct := cs[0].(*ChunkStrings)
-		if ct.IsLiteral {
-			newValue := fnc(ct.nthValue(0))
-			return NewChunkLiteralStrings(newValue, ct.Len()), nil
+func stringFunc(fnc func(string) string) func(...*Chunk) (*Chunk, error) {
+	return func(cs ...*Chunk) (*Chunk, error) {
+		if cs[0].IsLiteral {
+			newValue := fnc(cs[0].nthValue(0))
+			return NewChunkLiteralStrings(newValue, cs[0].Len()), nil
 		}
-		ret := newChunkStrings()
-		if ct.Nullability != nil {
-			ret.Nullability = ct.Nullability.Clone()
+		ret := NewChunk(DtypeString)
+		if cs[0].Nullability != nil {
+			ret.Nullability = cs[0].Nullability.Clone()
 		}
-		for j := 0; j < ct.Len(); j++ {
-			newValue := fnc(ct.nthValue(j))
+		for j := 0; j < cs[0].Len(); j++ {
+			newValue := fnc(cs[0].nthValue(j))
 			if err := ret.AddValue(newValue); err != nil {
 				return nil, err
 			}

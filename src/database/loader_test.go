@@ -134,27 +134,24 @@ func TestReadingFromStripes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cols := col.(*column.ChunkInts)
-	if cols.Len() != 2 {
-		t.Errorf("expecting the length to be %+v, got %+v", 2, cols.Len())
+	if col.Len() != 2 {
+		t.Errorf("expecting the length to be %+v, got %+v", 2, col.Len())
 	}
 
 	col, err = sr.ReadColumn(1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	colb := col.(*column.ChunkBools)
-	if colb.Len() != 2 {
-		t.Errorf("expecting the length to be %+v, got %+v", 2, colb.Len())
+	if col.Len() != 2 {
+		t.Errorf("expecting the length to be %+v, got %+v", 2, col.Len())
 	}
 
 	col, err = sr.ReadColumn(2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	colf := col.(*column.ChunkFloats)
-	if colf.Len() != 2 {
-		t.Errorf("expecting the length to be %+v, got %+v", 2, colf.Len())
+	if col.Len() != 2 {
+		t.Errorf("expecting the length to be %+v, got %+v", 2, col.Len())
 	}
 }
 

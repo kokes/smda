@@ -26,7 +26,7 @@ var errQueryNoDatasetIdentifiers = errors.New("query without a dataset has ident
 type Result struct {
 	Schema column.TableSchema
 	Length int
-	Data   []column.Chunk
+	Data   []*column.Chunk
 	// ARCH: consider something like `stats` that will encapsulate this?
 	bytesRead int
 
@@ -142,7 +142,7 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func filterStripe(db *database.Database, ds *database.Dataset, stripe database.Stripe, filterExpr expr.Expression, colData map[string]column.Chunk) (*bitmap.Bitmap, error) {
+func filterStripe(db *database.Database, ds *database.Dataset, stripe database.Stripe, filterExpr expr.Expression, colData map[string]*column.Chunk) (*bitmap.Bitmap, error) {
 	fvals, err := expr.Evaluate(filterExpr, stripe.Length, colData, nil)
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func filterStripe(db *database.Database, ds *database.Dataset, stripe database.S
 	// it's essential that we clone the bool column here (implicitly in Truths),
 	// because this bitmap may be truncated later on (e.g. in KeepFirstN)
 	// and expr.Evaluate may return a reference, not a clone (e.g. in exprIdent)
-	bm := fvals.(*column.ChunkBools).Truths()
+	bm := fvals.Truths()
 	return bm, nil
 }
 
@@ -219,11 +219,11 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 	}
 	groups := make(map[uint64]uint64)
 	// ARCH: `nrc` and `rcs` are not very descriptive
-	nrc := make([]column.Chunk, len(q.Aggregate))
+	nrc := make([]*column.Chunk, len(q.Aggregate))
 	for _, stripe := range ds.Stripes {
 		stripeLength := stripe.Length
 		var filter *bitmap.Bitmap
-		rcs := make([]column.Chunk, len(q.Aggregate))
+		rcs := make([]*column.Chunk, len(q.Aggregate))
 		columnData, bytesRead, err := db.ReadColumnsFromStripeByNames(ds, stripe, columnNames)
 		res.bytesRead += bytesRead
 		if err != nil {
@@ -283,7 +283,7 @@ func aggregate(db *database.Database, ds *database.Dataset, res *Result, q expr.
 		}
 	}
 	// 3) resolve aggregating expressions
-	ret := make([]column.Chunk, len(q.Select))
+	ret := make([]*column.Chunk, len(q.Select))
 	for j, gr := range q.Aggregate {
 		// OPTIM: we did this once already
 		pos := lookupExpr(gr, q.Select)
@@ -425,7 +425,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 	}
 	res := &Result{
 		Schema: make([]column.Schema, 0, len(q.Select)),
-		Data:   make([]column.Chunk, 0),
+		Data:   make([]*column.Chunk, 0),
 		Length: -1,
 	}
 
@@ -483,7 +483,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 		res.Schema = append(res.Schema, rschema)
 		// ARCH: this won't be used in aggregation, is that okay?
-		res.Data = append(res.Data, column.NewChunkFromSchema(rschema))
+		res.Data = append(res.Data, column.NewChunk(rschema.Dtype))
 
 		aggexpr, err := expr.AggExpr(col)
 		if err != nil {
