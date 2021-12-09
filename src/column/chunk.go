@@ -19,20 +19,6 @@ var errLiteralsCannotBeSerialised = errors.New("cannot serialise literal columns
 var errInvalidTypedLiteral = errors.New("invalid data supplied to a literal constructor")
 
 // Chunk defines a part of a column - constant type, stored contiguously
-// type Chunk interface {
-// 	baseChunker
-// 	Dtype() Dtype
-// 	AddValue(string) error
-// 	AddValues([]string) error // consider merging AddValues and AddValue (using varargs)
-// 	WriteTo(io.Writer) (int64, error)
-// 	Prune(*bitmap.Bitmap) Chunk
-// 	Append(Chunk) error
-// 	Hash(int, []uint64)
-// 	Clone() Chunk
-// 	JSONLiteral(int) (string, bool) // the bool stands for 'ok' (not null)
-// 	Compare(bool, bool, int, int) int
-// }
-
 type Chunk struct {
 	dtype       Dtype
 	length      uint32
@@ -223,7 +209,7 @@ func (rc *Chunk) AddValues(vals []string) error {
 
 // ChunksEqual compares two chunks, even if they contain []float64 data
 // consider making this lenient enough to compare only the relevant bits in ChunkBools
-func ChunksEqual(c1 Chunk, c2 Chunk) bool {
+func ChunksEqual(c1 *Chunk, c2 *Chunk) bool {
 	if c1.dtype == c2.dtype && c1.length == c2.length {
 		return false
 	}

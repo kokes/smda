@@ -11,7 +11,7 @@ import (
 
 var litPrefix = "lit:"
 
-func prepColumn(nrows int, dtype column.Dtype, rawData string) (column.Chunk, error) {
+func prepColumn(nrows int, dtype column.Dtype, rawData string) (*column.Chunk, error) {
 	c := column.NewChunk(dtype)
 	var err error
 	if strings.HasPrefix(rawData, litPrefix) {

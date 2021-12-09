@@ -149,10 +149,10 @@ func TestBoolColumnFromBits(t *testing.T) {
 			data = append(data, rand.Uint64())
 		}
 		bc := newChunkBoolsFromBits(data, length*64)
-		c1 := bc.data.Count()
+		c1 := bc.storage.bools.Count()
 		data[length/2] = 1234
 		data[length-1] = 38484
-		c2 := bc.data.Count()
+		c2 := bc.storage.bools.Count()
 
 		if c1 == c2 {
 			t.Error("newChunkBoolsFromBits should not copy")
@@ -335,7 +335,7 @@ func TestJSONMarshaling(t *testing.T) {
 		if err := rc.AddValues(test.values); err != nil {
 			t.Error(err)
 		}
-		got := jsonLiteral(test.rc)
+		got := jsonLiteral(rc)
 		if got != test.expected {
 			t.Errorf("expecting %+v, got %+v", test.expected, got)
 		}
@@ -604,7 +604,7 @@ func TestHashing(t *testing.T) {
 }
 
 // this used to be a thing not just in tests, so reimplementing it now for testing purposes
-func jsonLiteral(c Chunk) string {
+func jsonLiteral(c *Chunk) string {
 	buf := new(bytes.Buffer)
 	buf.WriteByte('[')
 	for j := 0; j < c.Len(); j++ {
@@ -650,7 +650,7 @@ func TestNewLiterals(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, chunk := range []Chunk{chunkAuto, chunkTyped} {
+		for _, chunk := range []*Chunk{chunkAuto, chunkTyped} {
 			if chunk.Dtype() != test.dtype {
 				t.Errorf("expecting literal '%s' to have dtype of %s, got %s instead", test.val, test.dtype, chunk.Dtype())
 			}
@@ -745,13 +745,13 @@ func TestTruths(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		truths := rc.(*ChunkBools).Truths()
+		truths := rc.Truths()
 		expected, err := prepColumn(test.length, DtypeBool, test.result)
 		if err != nil {
 			t.Error(err)
 			continue
 		}
-		bm := expected.(*ChunkBools).data
+		bm := expected.storage.bools
 
 		if !reflect.DeepEqual(truths, bm) {
 			t.Errorf("expected Truths(%s) to result in %+v, got %b instead", test.values, test.result, truths.Data())
