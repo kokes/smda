@@ -187,7 +187,7 @@ func skipBom(r io.Reader) (io.Reader, error) {
 
 type stripeData struct {
 	meta    Stripe
-	columns []column.Chunk
+	columns []*column.Chunk
 }
 
 func newDataStripe() *stripeData {
@@ -288,7 +288,7 @@ func newStripeFromReader(rr RowReader, schema column.TableSchema, maxRows, maxBy
 	// given a schema, initialise a data stripe
 	ds.columns = make([]column.Chunk, 0, len(schema))
 	for _, col := range schema {
-		ds.columns = append(ds.columns, column.NewChunkFromSchema(col))
+		ds.columns = append(ds.columns, column.NewChunk(col.Dtype))
 	}
 
 	// now let's finally load some data

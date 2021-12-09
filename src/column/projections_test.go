@@ -9,7 +9,7 @@ import (
 var litPrefix = "lit:"
 
 func prepColumn(nrows int, dtype Dtype, rawData string) (Chunk, error) {
-	c := NewChunkFromSchema(Schema{Dtype: dtype})
+	c := NewChunk(dtype)
 	var err error
 	if strings.HasPrefix(rawData, litPrefix) {
 		c, err = NewChunkLiteralTyped(strings.TrimPrefix(rawData, litPrefix), dtype, nrows)

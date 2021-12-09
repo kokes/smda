@@ -50,6 +50,14 @@ type Chunk struct {
 	}
 }
 
+func NewChunk(dtype Dtype) *Chunk {
+	ch := &Chunk{
+		dtype: dtype,
+	}
+
+	return ch
+}
+
 // ARCH: we sometimes use this, sometimes we access the struct field directly... perhaps remove this?
 func (ch *Chunk) Len() int {
 	return int(ch.length)
@@ -67,11 +75,12 @@ func (ch *Chunk) AddValue(s string) error {
 }
 
 // consider merging AddValues and AddValue (using varargs)
-func (ch *Chunk) AddValueS(s []string) error {
+func (ch *Chunk) AddValues(s []string) error {
 	panic("not implemented yet TODO(PR)")
 	return nil
 }
 
+// TODO(PR): remove
 // type baseChunker interface {
 // 	Base() *baseChunk
 // 	baseEqual(baseChunker) bool
@@ -170,28 +179,6 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 	}
 }
 
-// NewChunkFromSchema creates a new Chunk based a column schema provided
-func NewChunkFromSchema(schema Schema) Chunk {
-	switch schema.Dtype {
-	case DtypeString:
-		return newChunkStrings()
-	case DtypeInt:
-		return newChunkInts()
-	case DtypeFloat:
-		return newChunkFloats()
-	case DtypeBool:
-		return newChunkBools()
-	case DtypeDate:
-		return newChunkDates()
-	case DtypeDatetime:
-		return newChunkDatetimes()
-	case DtypeNull:
-		return newChunkNulls()
-	default:
-		panic(fmt.Sprintf("unknown schema type: %v", schema.Dtype))
-	}
-}
-
 func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
 	bc := baseChunk{
 		IsLiteral: true,
@@ -273,47 +260,6 @@ func NewChunkLiteralAuto(s string, length int) (Chunk, error) {
 	dtype := guessType(s)
 
 	return NewChunkLiteralTyped(s, dtype, length)
-}
-
-// ChunkStrings defines a backing struct for a chunk of string values
-type ChunkStrings struct {
-	baseChunk
-	data    []byte
-	offsets []uint32
-}
-
-// ChunkInts defines a backing struct for a chunk of integer values
-type ChunkInts struct {
-	baseChunk
-	data []int64
-}
-
-// ChunkFloats defines a backing struct for a chunk of floating point values
-type ChunkFloats struct {
-	baseChunk
-	data []float64
-}
-
-// ChunkBools defines a backing struct for a chunk of boolean values
-type ChunkBools struct {
-	baseChunk
-	data *bitmap.Bitmap
-}
-
-// ChunkDates defines a backing struct for a chunk of date values
-type ChunkDates struct {
-	baseChunk
-	data []date
-}
-type ChunkDatetimes struct {
-	baseChunk
-	data []datetime
-}
-
-// ChunkNulls defines a backing struct for a chunk of null values
-// Since it's all nulls, we only need to know how many there are
-type ChunkNulls struct {
-	baseChunk
 }
 
 // preallocate column data, so that slice appends don't trigger new reallocations

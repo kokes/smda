@@ -45,7 +45,7 @@ func TestTheMostBasicQuery(t *testing.T) {
 	if !(reflect.DeepEqual(qr.Schema, expschema) && len(qr.Data) == 3) {
 		t.Errorf("expected schema %+v, got %+v instead", expschema, qr.Schema)
 	}
-	firstCol := column.NewChunkFromSchema(column.Schema{Dtype: column.DtypeInt})
+	firstCol := column.NewChunk(column.DtypeInt)
 	firstCol.AddValue("1")
 	firstCol.AddValue("4")
 	if !reflect.DeepEqual(qr.Data[0], firstCol) {
@@ -140,7 +140,7 @@ func TestLimitsInQueries(t *testing.T) {
 		if !(reflect.DeepEqual(qr.Schema, expschema) && len(qr.Data) == 3) {
 			t.Errorf("expected schema %+v, got %+v instead", expschema, qr.Schema)
 		}
-		firstCol := column.NewChunkFromSchema(column.Schema{Dtype: column.DtypeInt})
+		firstCol := column.NewChunk(column.DtypeInt)
 		if limit > len(firstColRaw) {
 			firstCol.AddValues(firstColRaw)
 		} else {

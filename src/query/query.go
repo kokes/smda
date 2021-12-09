@@ -26,7 +26,7 @@ var errQueryNoDatasetIdentifiers = errors.New("query without a dataset has ident
 type Result struct {
 	Schema column.TableSchema
 	Length int
-	Data   []column.Chunk
+	Data   []*column.Chunk
 	// ARCH: consider something like `stats` that will encapsulate this?
 	bytesRead int
 
@@ -483,7 +483,7 @@ func Run(db *database.Database, q expr.Query) (*Result, error) {
 		}
 		res.Schema = append(res.Schema, rschema)
 		// ARCH: this won't be used in aggregation, is that okay?
-		res.Data = append(res.Data, column.NewChunkFromSchema(rschema))
+		res.Data = append(res.Data, column.NewChunk(rschema.Dtype))
 
 		aggexpr, err := expr.AggExpr(col)
 		if err != nil {

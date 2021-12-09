@@ -20,7 +20,7 @@ func TestBlankColumnInitialisation(t *testing.T) {
 	for _, dt := range Dtypes {
 		for _, nullable := range []bool{true, false} {
 			schema := Schema{"", dt, nullable}
-			NewChunkFromSchema(schema)
+			NewChunk(schema.Dtype)
 		}
 	}
 }
@@ -34,7 +34,7 @@ func TestInvalidColumnInitialisation(t *testing.T) {
 		}
 	}()
 	schema := Schema{"", DtypeInvalid, true}
-	NewChunkFromSchema(schema)
+	NewChunk(schema.Dtype)
 }
 
 func TestBasicStringColumn(t *testing.T) {
@@ -229,7 +229,7 @@ func TestColumnLength(t *testing.T) {
 
 	for _, test := range tt {
 		schema := Schema{"", test.Dtype, true}
-		col := NewChunkFromSchema(schema)
+		col := NewChunk(schema.Dtype)
 		col.AddValues(test.vals)
 		if col.Len() != test.length {
 			t.Errorf("expecting %+v to have length of %+v, got %+v", test.vals, test.length, col.Len())
@@ -266,7 +266,7 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		{Schema{"", DtypeDatetime, true}, []string{"2020-02-22 12:34:45", "", "2030-12-31 11:12:00.012"}},
 	}
 	for j, test := range tests {
-		col := NewChunkFromSchema(test.schema)
+		col := NewChunk(test.schema.Dtype)
 		if err := col.AddValues(test.vals); err != nil {
 			t.Error(err)
 		}
@@ -301,7 +301,7 @@ func TestSerialisationUnsupportedTypes(t *testing.T) {
 
 func TestJSONMarshaling(t *testing.T) {
 	tests := []struct {
-		rc       Chunk // use NewChunkFromSchema instead
+		rc       Chunk // use NewChunk instead
 		values   []string
 		expected string
 	}{
@@ -387,7 +387,7 @@ func TestBasicPruning(t *testing.T) {
 	}
 	for _, test := range tests {
 		testSchema := Schema{Dtype: test.Dtype, Nullable: test.nullable}
-		rc := NewChunkFromSchema(testSchema)
+		rc := NewChunk(testSchema.Dtype)
 		if err := rc.AddValues(test.values); err != nil {
 			t.Error(err)
 			continue
@@ -398,7 +398,7 @@ func TestBasicPruning(t *testing.T) {
 			bm = bitmap.NewBitmapFromBools(test.bools)
 		}
 		pruned := rc.Prune(bm)
-		expected := NewChunkFromSchema(testSchema)
+		expected := NewChunk(testSchema.Dtype)
 		if err := expected.AddValues(test.expected); err != nil {
 			t.Error(err)
 			continue
@@ -438,7 +438,7 @@ func TestPruningFailureMisalignment(t *testing.T) {
 
 	for j, test := range tests {
 		testSchema := Schema{Dtype: test.Dtype, Nullable: test.nullable}
-		rc := NewChunkFromSchema(testSchema)
+		rc := NewChunk(testSchema.Dtype)
 		if err := rc.AddValues(test.values); err != nil {
 			t.Error(err)
 			continue
@@ -487,9 +487,10 @@ func TestAppending(t *testing.T) {
 		{DtypeBool, true, []string{"", "", ""}, []string{"F", "F", ""}, []string{"", "", "", "F", "F", ""}},
 	}
 	for _, test := range tests {
-		rc := NewChunkFromSchema(Schema{Dtype: test.Dtype, Nullable: test.nullable})
-		nrc := NewChunkFromSchema(Schema{Dtype: test.Dtype, Nullable: test.nullable})
-		rrc := NewChunkFromSchema(Schema{Dtype: test.Dtype, Nullable: test.nullable})
+		// TODO(PR): this doesn't use `test.nullable` in any way
+		rc := NewChunk(test.Dtype)
+		nrc := NewChunk(test.Dtype)
+		rrc := NewChunk(test.Dtype)
 
 		if err := rc.AddValues(test.a); err != nil {
 			t.Error(err)
@@ -522,8 +523,8 @@ func TestAppendTypeMismatch(t *testing.T) {
 			if dt1 == dt2 {
 				continue
 			}
-			col1 := NewChunkFromSchema(Schema{"", dt1, true})
-			col2 := NewChunkFromSchema(Schema{"", dt2, true})
+			col1 := NewChunk(dt1)
+			col2 := NewChunk(dt2)
 
 			if err := col1.Append(col2); err != errAppendTypeMismatch {
 				t.Errorf("expecting a type mismatch in Append to result in errTypeMismatchAppend, got: %+v", err)
@@ -586,7 +587,7 @@ func TestHashing(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		rc := NewChunkFromSchema(Schema{Dtype: test.Dtype, Nullable: true})
+		rc := NewChunk(test.Dtype)
 		if err := rc.AddValues(test.data); err != nil {
 			t.Fatal(err)
 		}
@@ -707,7 +708,7 @@ func TestJSONMarshal(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		nc := NewChunkFromSchema(Schema{Dtype: test.dtype})
+		nc := NewChunk(test.dtype)
 		if err := nc.AddValues(strings.Split(test.vals, ",")); err != nil {
 			t.Error(err)
 			continue
