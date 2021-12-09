@@ -83,6 +83,8 @@ func (rc *Chunk) AddValue(s string) error {
 		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
 	}
 
+	rc.length++
+
 	switch rc.dtype {
 	case DtypeString:
 		rc.storage.strings = append(rc.storage.strings, []byte(s)...)
@@ -91,7 +93,6 @@ func (rc *Chunk) AddValue(s string) error {
 		valLen += rc.storage.offsets[len(rc.storage.offsets)-1]
 		rc.storage.offsets = append(rc.storage.offsets, valLen)
 
-		rc.length++
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
@@ -102,7 +103,6 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.ints = append(rc.storage.ints, 0) // this value is not meant to be read
-			rc.length++
 			return nil
 		}
 
@@ -111,7 +111,6 @@ func (rc *Chunk) AddValue(s string) error {
 			return err
 		}
 		rc.storage.ints = append(rc.storage.ints, val)
-		rc.length++
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
@@ -132,12 +131,10 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.floats = append(rc.storage.floats, 0) // this value is not meant to be read
-			rc.length++
 			return nil
 		}
 
 		rc.storage.floats = append(rc.storage.floats, val)
-		rc.length++
 		// make sure the nullability bitmap aligns with the length of the chunk
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
@@ -149,7 +146,6 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.bools.Set(rc.Len(), false) // this value is not meant to be read
-			rc.length++
 			return nil
 		}
 		val, err := parseBool(s)
@@ -157,7 +153,6 @@ func (rc *Chunk) AddValue(s string) error {
 			return err
 		}
 		rc.storage.bools.Set(rc.Len(), val)
-		rc.length++
 		// make sure the nullability bitmap aligns with the length of the chunk
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
@@ -169,7 +164,6 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.dates = append(rc.storage.dates, 0) // this value is not meant to be read
-			rc.length++
 			return nil
 		}
 
@@ -178,7 +172,6 @@ func (rc *Chunk) AddValue(s string) error {
 			return err
 		}
 		rc.storage.dates = append(rc.storage.dates, val)
-		rc.length++
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
@@ -189,7 +182,6 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.datetimes = append(rc.storage.datetimes, 0) // this value is not meant to be read
-			rc.length++
 			return nil
 		}
 
@@ -198,10 +190,11 @@ func (rc *Chunk) AddValue(s string) error {
 			return err
 		}
 		rc.storage.datetimes = append(rc.storage.datetimes, val)
-		rc.length++
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
+	case DtypeNull:
+		// nothing to be done here
 	default:
 		return fmt.Errorf("no support for AddValue for Dtype %v", rc.dtype)
 	}
