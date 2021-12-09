@@ -1167,171 +1167,101 @@ func (rc *Chunk) Prune(bm *bitmap.Bitmap) *Chunk {
 // shouldn't the files be readable as standalone files?
 // OPTIM: shouldn't we deserialize based on a byte slice instead? We already have it, so we're just duplicating it using a byte buffer
 // OPTIM: we may be able to safely cast these byte slice in the future - see https://github.com/golang/go/issues/19367
-func Deserialize(r io.Reader, Dtype Dtype) (Chunk, error) {
+func Deserialize(r io.Reader, Dtype Dtype) (*Chunk, error) {
+	ch := NewChunk(Dtype)
+	if Dtype == DtypeNull {
+		if err := binary.Read(r, binary.LittleEndian, &ch.length); err != nil {
+			return nil, err
+		}
+		return ch, nil
+	}
+
+	bm, err := bitmap.DeserializeBitmapFromReader(r)
+	if err != nil {
+		return nil, err
+	}
+	ch.Nullability = bm
+
 	switch Dtype {
 	case DtypeString:
-		return deserializeChunkStrings(r)
+		var lenOffsets uint32
+		if err := binary.Read(r, binary.LittleEndian, &lenOffsets); err != nil {
+			return nil, err
+		}
+		offsets := make([]uint32, lenOffsets)
+		if err := binary.Read(r, binary.LittleEndian, &offsets); err != nil {
+			return nil, err
+		}
+
+		var lenData uint32
+		if err := binary.Read(r, binary.LittleEndian, &lenData); err != nil {
+			return nil, err
+		}
+		data := make([]byte, lenData)
+		if _, err := io.ReadFull(r, data); err != nil {
+			return nil, err
+		}
+		ch.length = lenOffsets - 1
+		ch.storage.strings = data
+		ch.storage.offsets = offsets
+
+		return ch, nil
 	case DtypeInt:
-		return deserializeChunkInts(r)
+		// OPTIM/ARCH: this &ch.length reading is common across int/float/date/datetime
+		if err := binary.Read(r, binary.LittleEndian, &ch.length); err != nil {
+			return nil, err
+		}
+		ch.storage.ints = make([]int64, ch.length)
+		if err := binary.Read(r, binary.LittleEndian, &ch.storage.ints); err != nil {
+			return nil, err
+		}
+		return ch, nil
 	case DtypeFloat:
-		return deserializeChunkFloats(r)
-	case DtypeBool:
-		return deserializeChunkBools(r)
+		if err := binary.Read(r, binary.LittleEndian, &ch.length); err != nil {
+			return nil, err
+		}
+		ch.storage.floats = make([]float64, ch.length)
+		if err := binary.Read(r, binary.LittleEndian, &ch.storage.floats); err != nil {
+			return nil, err
+		}
+		return ch, nil
 	case DtypeDatetime:
-		return deserializeChunkDatetimes(r)
+		if err := binary.Read(r, binary.LittleEndian, &ch.length); err != nil {
+			return nil, err
+		}
+		ch.storage.datetimes = make([]datetime, ch.length)
+		if err := binary.Read(r, binary.LittleEndian, &ch.storage.datetimes); err != nil {
+			return nil, err
+		}
+		return ch, nil
 	case DtypeDate:
-		return deserializeChunkDates(r)
-	case DtypeNull:
-		return deserializeChunkNulls(r)
+		if err := binary.Read(r, binary.LittleEndian, &ch.length); err != nil {
+			return nil, err
+		}
+		ch.storage.dates = make([]date, ch.length)
+		if err := binary.Read(r, binary.LittleEndian, &ch.storage.dates); err != nil {
+			return nil, err
+		}
+		return ch, nil
+	case DtypeBool:
+		if err := binary.Read(r, binary.LittleEndian, &ch.length); err != nil {
+			return nil, err
+		}
+		data, err := bitmap.DeserializeBitmapFromReader(r)
+		if err != nil {
+			return nil, err
+		}
+		// an empty bitmap deserialises as a <nil>, so we'll initialise it here, just to
+		// make it a valid container
+		// Note: it doesn't deserialise as a NewBitmap(0), because we want our nullability bitmaps
+		// to stay small and possibly empty
+		if data == nil {
+			data = bitmap.NewBitmap(0)
+		}
+		ch.storage.bools = data
+		return ch, nil
 	}
 	panic(fmt.Sprintf("unsupported Dtype: %v", Dtype))
-}
-
-func deserializeChunkStrings(r io.Reader) (*ChunkStrings, error) {
-	bm, err := bitmap.DeserializeBitmapFromReader(r)
-	if err != nil {
-		return nil, err
-	}
-	var lenOffsets uint32
-	if err := binary.Read(r, binary.LittleEndian, &lenOffsets); err != nil {
-		return nil, err
-	}
-	offsets := make([]uint32, lenOffsets)
-	if err := binary.Read(r, binary.LittleEndian, &offsets); err != nil {
-		return nil, err
-	}
-
-	var lenData uint32
-	if err := binary.Read(r, binary.LittleEndian, &lenData); err != nil {
-		return nil, err
-	}
-	data := make([]byte, lenData)
-	if _, err := io.ReadFull(r, data); err != nil {
-		return nil, err
-	}
-	return &ChunkStrings{
-		baseChunk: baseChunk{
-			Nullability: bm,
-			length:      lenOffsets - 1,
-		},
-		data:    data,
-		offsets: offsets,
-	}, nil
-}
-
-func deserializeChunkInts(r io.Reader) (*ChunkInts, error) {
-	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
-	if err != nil {
-		return nil, err
-	}
-	var nelements uint32
-	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
-		return nil, err
-	}
-	data := make([]int64, nelements)
-	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
-		return nil, err
-	}
-	return &ChunkInts{
-		baseChunk: baseChunk{
-			Nullability: bitmap,
-			length:      nelements,
-		},
-		data: data,
-	}, nil
-}
-
-func deserializeChunkFloats(r io.Reader) (*ChunkFloats, error) {
-	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
-	if err != nil {
-		return nil, err
-	}
-	var nelements uint32
-	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
-		return nil, err
-	}
-	data := make([]float64, nelements)
-	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
-		return nil, err
-	}
-	return &ChunkFloats{
-		baseChunk: baseChunk{Nullability: bitmap, length: nelements},
-		data:      data,
-	}, nil
-}
-
-func deserializeChunkBools(r io.Reader) (*ChunkBools, error) {
-	bm, err := bitmap.DeserializeBitmapFromReader(r)
-	if err != nil {
-		return nil, err
-	}
-	var nelements uint32
-	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
-		return nil, err
-	}
-	data, err := bitmap.DeserializeBitmapFromReader(r)
-	if err != nil {
-		return nil, err
-	}
-	// an empty bitmap deserialises as a <nil>, so we'll initialise it here, just to
-	// make it a valid container
-	// Note: it doesn't deserialise as a NewBitmap(0), because we want our nullability bitmaps
-	// to stay small and possibly empty
-	if data == nil {
-		data = bitmap.NewBitmap(0)
-	}
-	return &ChunkBools{
-		baseChunk: baseChunk{Nullability: bm, length: nelements},
-		data:      data,
-	}, nil
-}
-
-func deserializeChunkDates(r io.Reader) (*ChunkDates, error) {
-	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
-	if err != nil {
-		return nil, err
-	}
-	var nelements uint32
-	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
-		return nil, err
-	}
-	data := make([]date, nelements)
-	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
-		return nil, err
-	}
-	return &ChunkDates{
-		baseChunk: baseChunk{Nullability: bitmap, length: nelements},
-		data:      data,
-	}, nil
-}
-
-func deserializeChunkDatetimes(r io.Reader) (*ChunkDatetimes, error) {
-	bitmap, err := bitmap.DeserializeBitmapFromReader(r)
-	if err != nil {
-		return nil, err
-	}
-	var nelements uint32
-	if err := binary.Read(r, binary.LittleEndian, &nelements); err != nil {
-		return nil, err
-	}
-	data := make([]datetime, nelements)
-	if err := binary.Read(r, binary.LittleEndian, &data); err != nil {
-		return nil, err
-	}
-	return &ChunkDatetimes{
-		baseChunk: baseChunk{Nullability: bitmap, length: nelements},
-		data:      data,
-	}, nil
-}
-
-func deserializeChunkNulls(r io.Reader) (*ChunkNulls, error) {
-	var length uint32
-	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
-		return nil, err
-	}
-	return &ChunkNulls{
-		baseChunk: baseChunk{length: length},
-	}, nil
 }
 
 // WriteTo converts a chunk into its binary representation
