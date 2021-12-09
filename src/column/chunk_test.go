@@ -45,7 +45,7 @@ func TestBasicStringColumn(t *testing.T) {
 		{""},
 	}
 	for _, vals := range tt {
-		nc := newChunkStrings()
+		nc := NewChunk(DtypeString)
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -76,7 +76,7 @@ func TestBasicIntColumn(t *testing.T) {
 		{"1", "2", ""},
 	}
 	for _, vals := range tt {
-		nc := newChunkInts()
+		nc := NewChunk(DtypeInt)
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -107,7 +107,7 @@ func TestBasicFloatColumn(t *testing.T) {
 		{"1", "", "1.2"},
 	}
 	for _, vals := range tt {
-		nc := newChunkFloats()
+		nc := NewChunk(DtypeFloat)
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -129,7 +129,7 @@ func TestBasicBoolColumn(t *testing.T) {
 		{"T", "F", ""},
 	}
 	for _, vals := range tt {
-		nc := newChunkBools()
+		nc := NewChunk(DtypeBool)
 		if err := nc.AddValues(vals); err != nil {
 			t.Error(err)
 		}
@@ -164,7 +164,7 @@ func TestInvalidInts(t *testing.T) {
 	tt := []string{"1.", ".1", "1e3"}
 
 	for _, testCase := range tt {
-		nc := newChunkInts()
+		nc := NewChunk(DtypeInt)
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%+v\" to not be a valid int", testCase)
 		}
@@ -175,7 +175,7 @@ func TestInvalidFloats(t *testing.T) {
 	tt := []string{"1e123003030303", ".e", "123f"}
 
 	for _, testCase := range tt {
-		nc := newChunkFloats()
+		nc := NewChunk(DtypeFloat)
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%+v\" to not be a valid float", testCase)
 		}
@@ -186,7 +186,7 @@ func TestInvalidBools(t *testing.T) {
 	tt := []string{"Y", "N", "YES", "NO", "True", "False", "1", "0"} // add True/False once we stop supporting it
 
 	for _, testCase := range tt {
-		nc := newChunkBools()
+		nc := NewChunk(DtypeBool)
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%+v\" to not be a valid bool", testCase)
 		}
@@ -197,7 +197,7 @@ func TestInvalidNulls(t *testing.T) {
 	tt := []string{"foo", "bar", "baz"}
 
 	for _, testCase := range tt {
-		nc := newChunkNulls()
+		nc := NewChunk(DtypeNull)
 		if err := nc.AddValue(testCase); err == nil {
 			t.Errorf("did not expect \"%+v\" to not be a valid null", testCase)
 		}
@@ -301,37 +301,38 @@ func TestSerialisationUnsupportedTypes(t *testing.T) {
 
 func TestJSONMarshaling(t *testing.T) {
 	tests := []struct {
-		rc       Chunk // use NewChunk instead
+		dtype    Dtype
 		values   []string
 		expected string
 	}{
-		{newChunkBools(), []string{}, "[]"},
-		{newChunkBools(), []string{}, "[]"},
-		{newChunkBools(), []string{"true", "false"}, "[true,false]"},
-		{newChunkBools(), []string{"true", "false"}, "[true,false]"},
-		{newChunkBools(), []string{"", "true", "", ""}, "[null,true,null,null]"},
-		{newChunkInts(), []string{}, "[]"},
-		{newChunkInts(), []string{}, "[]"},
-		{newChunkInts(), []string{"123", "456"}, "[123,456]"},
-		{newChunkInts(), []string{"123", "456"}, "[123,456]"},
-		{newChunkInts(), []string{"123", "", "", "456"}, "[123,null,null,456]"},
-		{newChunkFloats(), []string{"123", "456"}, "[123,456]"},
-		{newChunkFloats(), []string{"123.456", "456.789"}, "[123.456,456.789]"},
-		{newChunkFloats(), []string{"123", "", "456"}, "[123,null,456]"},
-		{newChunkFloats(), []string{"123", "", "nan"}, "[123,null,null]"},
-		{newChunkFloats(), []string{"123", "+inf", "-inf"}, "[123,null,null]"}, // infty -> null
-		{newChunkStrings(), []string{}, "[]"},
-		{newChunkStrings(), []string{}, "[]"},
-		{newChunkStrings(), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
-		{newChunkStrings(), []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
-		{newChunkNulls(), []string{""}, "[null]"},
-		{newChunkNulls(), []string{"", "", ""}, "[null,null,null]"},
+		{DtypeBool, []string{}, "[]"},
+		{DtypeBool, []string{}, "[]"},
+		{DtypeBool, []string{"true", "false"}, "[true,false]"},
+		{DtypeBool, []string{"true", "false"}, "[true,false]"},
+		{DtypeBool, []string{"", "true", "", ""}, "[null,true,null,null]"},
+		{DtypeInt, []string{}, "[]"},
+		{DtypeInt, []string{}, "[]"},
+		{DtypeInt, []string{"123", "456"}, "[123,456]"},
+		{DtypeInt, []string{"123", "456"}, "[123,456]"},
+		{DtypeInt, []string{"123", "", "", "456"}, "[123,null,null,456]"},
+		{DtypeFloat, []string{"123", "456"}, "[123,456]"},
+		{DtypeFloat, []string{"123.456", "456.789"}, "[123.456,456.789]"},
+		{DtypeFloat, []string{"123", "", "456"}, "[123,null,456]"},
+		{DtypeFloat, []string{"123", "", "nan"}, "[123,null,null]"},
+		{DtypeFloat, []string{"123", "+inf", "-inf"}, "[123,null,null]"}, // infty -> null
+		{DtypeString, []string{}, "[]"},
+		{DtypeString, []string{}, "[]"},
+		{DtypeString, []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
+		{DtypeString, []string{"foo", "bar"}, "[\"foo\",\"bar\"]"},
+		{DtypeNull, []string{""}, "[null]"},
+		{DtypeNull, []string{"", "", ""}, "[null,null,null]"},
 
 		// we don't really have nullable strings at this point
 		// {newColumnStrings(), []string{"", "bar", ""}, "[null,\"bar\",null]"},
 	}
 	for _, test := range tests {
-		if err := test.rc.AddValues(test.values); err != nil {
+		rc := NewChunk(test.dtype)
+		if err := rc.AddValues(test.values); err != nil {
 			t.Error(err)
 		}
 		got := jsonLiteral(test.rc)
@@ -802,7 +803,7 @@ func TestCompare(t *testing.T) {
 
 func BenchmarkHashingInts(b *testing.B) {
 	n := 10000
-	col := newChunkInts()
+	col := NewChunk(DtypeInt)
 	for j := 0; j < n; j++ {
 		col.AddValue(strconv.Itoa(j))
 	}
@@ -817,7 +818,7 @@ func BenchmarkHashingInts(b *testing.B) {
 
 func BenchmarkHashingFloats(b *testing.B) {
 	n := 10000
-	col := newChunkFloats()
+	col := NewChunk(DtypeFloat)
 	for j := 0; j < n; j++ {
 		col.AddValue(strconv.Itoa(j))
 	}

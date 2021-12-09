@@ -55,6 +55,8 @@ func NewChunk(dtype Dtype) *Chunk {
 		dtype: dtype,
 	}
 
+	// TODO(PR): allocate based on dtype
+
 	return ch
 }
 
@@ -179,21 +181,19 @@ func ChunksEqual(c1 Chunk, c2 Chunk) bool {
 	}
 }
 
-func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
-	bc := baseChunk{
-		IsLiteral: true,
-		length:    uint32(length),
-	}
+func NewChunkLiteralTyped(s string, dtype Dtype, length int) (*Chunk, error) {
+	ch := NewChunk(dtype)
+	ch.length = uint32(length)
+	ch.IsLiteral = true
+
 	switch dtype {
 	case DtypeInt:
 		val, err := parseInt(s)
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid typed literal: %v", errInvalidTypedLiteral, s)
 		}
-		return &ChunkInts{
-			baseChunk: bc,
-			data:      []int64{val},
-		}, nil
+		ch.storage.ints = []int64{val}
+		return ch, nil
 	case DtypeFloat:
 		val, err := parseFloat(s)
 		if err != nil {
@@ -202,10 +202,8 @@ func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
 		if math.IsNaN(val) || math.IsInf(val, 0) {
 			return nil, fmt.Errorf("cannot set %v as a literal float value", s)
 		}
-		return &ChunkFloats{
-			baseChunk: bc,
-			data:      []float64{val},
-		}, nil
+		ch.storage.floats = []float64{val}
+		return ch, nil
 	case DtypeBool:
 		bm := bitmap.NewBitmap(1)
 		val, err := parseBool(s)
@@ -215,38 +213,30 @@ func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
 		if val {
 			bm.Set(0, true)
 		}
-		return &ChunkBools{
-			baseChunk: bc,
-			data:      bm,
-		}, nil
+		ch.storage.bools = bm
+		return ch, nil
 	case DtypeString:
-		return &ChunkStrings{
-			baseChunk: bc,
-			data:      []byte(s),
-			offsets:   []uint32{0, uint32(len(s))},
-		}, nil
+		ch.storage.strings = []byte(s)
+		ch.storage.offsets = []uint32{0, uint32(len(s))}
+
+		return ch, nil
 	case DtypeDate:
 		val, err := parseDate(s)
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid typed literal: %v", errInvalidTypedLiteral, s)
 		}
-		return &ChunkDates{
-			baseChunk: bc,
-			data:      []date{val},
-		}, nil
+		ch.storage.dates = []date{val}
+
+		return ch, nil
 	case DtypeDatetime:
 		val, err := parseDatetime(s)
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid typed literal: %v", errInvalidTypedLiteral, s)
 		}
-		return &ChunkDatetimes{
-			baseChunk: bc,
-			data:      []datetime{val},
-		}, nil
+		ch.storage.datetimes = []datetime{val}
+		return ch, nil
 	case DtypeNull:
-		return &ChunkNulls{
-			baseChunk: bc,
-		}, nil
+		return ch, nil
 	default:
 		return nil, fmt.Errorf("%w: invalid typed literal: unsupported type %v", errInvalidTypedLiteral, dtype)
 	}
@@ -256,23 +246,14 @@ func NewChunkLiteralTyped(s string, dtype Dtype, length int) (Chunk, error) {
 // it's useful in e.g. 'foo > 1', where can convert the '1' to a whole chunk
 // OPTIM: we're using single-value slices, should we perhaps have a value specific for each literal
 // to avoid working with slices (stack allocation etc.)
-func NewChunkLiteralAuto(s string, length int) (Chunk, error) {
+func NewChunkLiteralAuto(s string, length int) (*Chunk, error) {
 	dtype := guessType(s)
 
 	return NewChunkLiteralTyped(s, dtype, length)
 }
 
 // preallocate column data, so that slice appends don't trigger new reallocations
-const defaultChunkCap = 512
-
-func newChunkStrings() *ChunkStrings {
-	offsets := make([]uint32, 1, defaultChunkCap)
-	offsets[0] = 0
-	return &ChunkStrings{
-		data:    make([]byte, 0, defaultChunkCap),
-		offsets: offsets,
-	}
-}
+const defaultChunkCap = 512 // TODO(PR): remove
 
 func NewChunkLiteralStrings(value string, length int) *ChunkStrings {
 	offsets := []uint32{0, uint32(len(value))}
@@ -286,12 +267,6 @@ func NewChunkLiteralStrings(value string, length int) *ChunkStrings {
 	}
 }
 
-func newChunkInts() *ChunkInts {
-	return &ChunkInts{
-		data: make([]int64, 0, defaultChunkCap),
-	}
-}
-
 func NewChunkLiteralInts(value int64, length int) *ChunkInts {
 	return &ChunkInts{
 		baseChunk: baseChunk{
@@ -299,12 +274,6 @@ func NewChunkLiteralInts(value int64, length int) *ChunkInts {
 			length:    uint32(length),
 		},
 		data: []int64{value},
-	}
-}
-
-func newChunkFloats() *ChunkFloats {
-	return &ChunkFloats{
-		data: make([]float64, 0, defaultChunkCap),
 	}
 }
 
@@ -318,12 +287,6 @@ func NewChunkLiteralFloats(value float64, length int) *ChunkFloats {
 	}
 }
 
-func newChunkBools() *ChunkBools {
-	return &ChunkBools{
-		data: bitmap.NewBitmap(0),
-	}
-}
-
 func NewChunkLiteralBools(value bool, length int) *ChunkBools {
 	bm := bitmap.NewBitmap(1)
 	bm.Set(0, value)
@@ -333,17 +296,6 @@ func NewChunkLiteralBools(value bool, length int) *ChunkBools {
 			length:    uint32(length),
 		},
 		data: bm,
-	}
-}
-
-func newChunkDates() *ChunkDates {
-	return &ChunkDates{
-		data: make([]date, 0, defaultChunkCap),
-	}
-}
-func newChunkDatetimes() *ChunkDatetimes {
-	return &ChunkDatetimes{
-		data: make([]datetime, 0, defaultChunkCap),
 	}
 }
 
@@ -439,10 +391,6 @@ func (rc *ChunkBools) Truths() *bitmap.Bitmap {
 	// don't expect to mutate this downstream, but...)
 	bm.AndNot(rc.Nullability)
 	return bm
-}
-
-func newChunkNulls() *ChunkNulls {
-	return &ChunkNulls{}
 }
 
 // TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
@@ -1139,12 +1087,12 @@ func (rc *ChunkNulls) Append(tc Chunk) error {
 }
 
 // Prune filter this chunk and only preserves values for which the bitmap is set
-func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
+func (rc *Chunk) Prune(bm *bitmap.Bitmap) *Chunk {
 	if rc.IsLiteral {
 		// TODO: pruning could be implemented by hydrating this chunk (disabling isLiteral)
 		panic("pruning not supported in literal chunks")
 	}
-	nc := newChunkStrings()
+	nc := NewChunk(rc.dtype)
 	if bm == nil {
 		return nc
 	}
@@ -1159,6 +1107,12 @@ func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 		return rc
 	}
 
+	// we can short-circuit null-chunks
+	if rc.dtype == DtypeNull {
+		nc.length = uint32(bm.Count())
+		return nc
+	}
+
 	// OPTIM: nthValue is not the fastest, just iterate over offsets directly
 	// OR, just iterate over positive bits in our Bitmap - this will be super fast for sparse bitmaps
 	// the bitmap iteration could be implemented in all the typed chunks
@@ -1167,8 +1121,27 @@ func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 		if !bm.Get(j) {
 			continue
 		}
-		// be careful here, AddValue has its own nullability logic and we don't want to mess with that
-		nc.AddValue(rc.nthValue(j))
+		switch rc.dtype {
+		case DtypeInt:
+			nc.storage.ints = append(nc.storage.ints, rc.storage.ints[j])
+		case DtypeFloat:
+			nc.storage.floats = append(nc.storage.floats, rc.storage.floats[j])
+		case DtypeDate:
+			nc.storage.dates = append(nc.storage.dates, rc.storage.dates[j])
+		case DtypeDatetime:
+			nc.storage.datetimes = append(nc.storage.datetimes, rc.storage.datetimes[j])
+		case DtypeBool:
+			// OPTIM: not need to set false values, we already have them set as zero
+			nc.storage.bools.Set(index, rc.storage.bools.Get(j))
+		case DtypeString:
+			// be careful here, AddValue has its own nullability logic and we don't want to mess with that
+			if err := nc.AddValue(rc.nthValue(j)); err != nil {
+				panic(err)
+			}
+		default:
+			panic(fmt.Sprintf("unsupported dtype for pruning: %v", rc.dtype))
+		}
+
 		if rc.Nullability != nil && rc.Nullability.Get(j) {
 			// ARCH: consider making Set a package function (bitmap.Set) to handle nilness
 			if nc.Nullability == nil {
@@ -1184,231 +1157,6 @@ func (rc *ChunkStrings) Prune(bm *bitmap.Bitmap) Chunk {
 	if nc.Nullability != nil {
 		nc.Nullability.Ensure(nc.Len())
 	}
-
-	return nc
-}
-
-// Prune filter this chunk and only preserves values for which the bitmap is set
-func (rc *ChunkInts) Prune(bm *bitmap.Bitmap) Chunk {
-	if rc.IsLiteral {
-		panic("pruning not supported in literal chunks")
-	}
-	nc := newChunkInts()
-	if bm == nil {
-		return nc
-	}
-	if bm.Cap() != rc.Len() {
-		panic("pruning bitmap does not align with the dataset")
-	}
-
-	if bm.Count() == rc.Len() {
-		return rc
-	}
-
-	index := 0
-	for j := 0; j < rc.Len(); j++ {
-		if !bm.Get(j) {
-			continue
-		}
-		nc.data = append(nc.data, rc.data[j])
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			if nc.Nullability == nil {
-				nc.Nullability = bitmap.NewBitmap(index)
-			}
-			nc.Nullability.Set(index, true)
-		}
-		nc.length++
-		index++
-	}
-
-	// make sure the nullability vector aligns with the data
-	if nc.Nullability != nil {
-		nc.Nullability.Ensure(nc.Len())
-	}
-
-	return nc
-}
-
-// Prune filter this chunk and only preserves values for which the bitmap is set
-func (rc *ChunkFloats) Prune(bm *bitmap.Bitmap) Chunk {
-	if rc.IsLiteral {
-		panic("pruning not supported in literal chunks")
-	}
-	nc := newChunkFloats()
-	if bm == nil {
-		return nc
-	}
-	if bm.Cap() != rc.Len() {
-		panic("pruning bitmap does not align with the dataset")
-	}
-
-	if bm.Count() == rc.Len() {
-		return rc
-	}
-
-	index := 0
-	for j := 0; j < rc.Len(); j++ {
-		if !bm.Get(j) {
-			continue
-		}
-		nc.data = append(nc.data, rc.data[j])
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			if nc.Nullability == nil {
-				nc.Nullability = bitmap.NewBitmap(index)
-			}
-			nc.Nullability.Set(index, true)
-		}
-		nc.length++
-		index++
-	}
-
-	// make sure the nullability vector aligns with the data
-	if nc.Nullability != nil {
-		nc.Nullability.Ensure(nc.Len())
-	}
-
-	return nc
-}
-
-// Prune filter this chunk and only preserves values for which the bitmap is set
-func (rc *ChunkBools) Prune(bm *bitmap.Bitmap) Chunk {
-	if rc.IsLiteral {
-		panic("pruning not supported in literal chunks")
-	}
-	nc := newChunkBools()
-	if bm == nil {
-		return nc
-	}
-	if bm.Cap() != rc.Len() {
-		panic("pruning bitmap does not align with the dataset")
-	}
-
-	if bm.Count() == rc.Len() {
-		return rc
-	}
-
-	index := 0
-	for j := 0; j < rc.Len(); j++ {
-		if !bm.Get(j) {
-			continue
-		}
-		// OPTIM: not need to set false values, we already have them set as zero
-		nc.data.Set(index, rc.data.Get(j))
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			if nc.Nullability == nil {
-				nc.Nullability = bitmap.NewBitmap(index)
-			}
-			nc.Nullability.Set(index, true)
-		}
-		nc.length++
-		index++
-	}
-
-	// make sure the nullability vector aligns with the data
-	if nc.Nullability != nil {
-		nc.Nullability.Ensure(nc.Len())
-	}
-
-	return nc
-}
-
-// Prune filter this chunk and only preserves values for which the bitmap is set
-func (rc *ChunkDates) Prune(bm *bitmap.Bitmap) Chunk {
-	if rc.IsLiteral {
-		panic("pruning not supported in literal chunks")
-	}
-	nc := newChunkDates()
-	if bm == nil {
-		return nc
-	}
-	if bm.Cap() != rc.Len() {
-		panic("pruning bitmap does not align with the dataset")
-	}
-
-	if bm.Count() == rc.Len() {
-		return rc
-	}
-
-	index := 0
-	for j := 0; j < rc.Len(); j++ {
-		if !bm.Get(j) {
-			continue
-		}
-		nc.data = append(nc.data, rc.data[j])
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			if nc.Nullability == nil {
-				nc.Nullability = bitmap.NewBitmap(index)
-			}
-			nc.Nullability.Set(index, true)
-		}
-		nc.length++
-		index++
-	}
-
-	// make sure the nullability vector aligns with the data
-	if nc.Nullability != nil {
-		nc.Nullability.Ensure(nc.Len())
-	}
-
-	return nc
-}
-
-// Prune filter this chunk and only preserves values for which the bitmap is set
-func (rc *ChunkDatetimes) Prune(bm *bitmap.Bitmap) Chunk {
-	if rc.IsLiteral {
-		panic("pruning not supported in literal chunks")
-	}
-	nc := newChunkDatetimes()
-	if bm == nil {
-		return nc
-	}
-	if bm.Cap() != rc.Len() {
-		panic("pruning bitmap does not align with the dataset")
-	}
-
-	if bm.Count() == rc.Len() {
-		return rc
-	}
-
-	index := 0
-	for j := 0; j < rc.Len(); j++ {
-		if !bm.Get(j) {
-			continue
-		}
-		nc.data = append(nc.data, rc.data[j])
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			if nc.Nullability == nil {
-				nc.Nullability = bitmap.NewBitmap(index)
-			}
-			nc.Nullability.Set(index, true)
-		}
-		nc.length++
-		index++
-	}
-
-	// make sure the nullability vector aligns with the data
-	if nc.Nullability != nil {
-		nc.Nullability.Ensure(nc.Len())
-	}
-
-	return nc
-}
-
-// Prune filter this chunk and only preserves values for which the bitmap is set
-func (rc *ChunkNulls) Prune(bm *bitmap.Bitmap) Chunk {
-	nc := newChunkNulls()
-	if bm == nil {
-		return nc
-	}
-	if bm.Cap() != rc.Len() {
-		panic("pruning bitmap does not align with the dataset")
-	}
-
-	if bm.Count() == rc.Len() {
-		return rc
-	}
-
-	nc.length = uint32(bm.Count())
 
 	return nc
 }

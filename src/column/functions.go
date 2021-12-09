@@ -156,7 +156,7 @@ func hasRunes(d []byte) bool {
 func evalLeft(cs ...Chunk) (Chunk, error) {
 	nchars := int(cs[1].(*ChunkInts).data[0])
 	data := cs[0].(*ChunkStrings)
-	ret := newChunkStrings()
+	ret := NewChunk(DtypeString)
 
 	runes := hasRunes(data.data)
 
@@ -181,7 +181,7 @@ func evalSplitPart(cs ...Chunk) (Chunk, error) {
 	pos := int(cs[2].(*ChunkInts).data[0])
 	data := cs[0].(*ChunkStrings)
 	needle := cs[1].(*ChunkStrings).nthValue(0)
-	ret := newChunkStrings()
+	ret := NewChunk(DtypeString)
 
 	for j := 0; j < data.Len(); j++ {
 		val := data.nthValue(j)
@@ -251,7 +251,7 @@ func stringFunc(fnc func(string) string) func(...Chunk) (Chunk, error) {
 			newValue := fnc(ct.nthValue(0))
 			return NewChunkLiteralStrings(newValue, ct.Len()), nil
 		}
-		ret := newChunkStrings()
+		ret := NewChunk(DtypeString)
 		if ct.Nullability != nil {
 			ret.Nullability = ct.Nullability.Clone()
 		}
