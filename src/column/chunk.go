@@ -36,12 +36,28 @@ type Chunk struct {
 	}
 }
 
+// preallocate column data, so that slice appends don't trigger new reallocations
+const defaultChunkCap = 512
+
 func NewChunk(dtype Dtype) *Chunk {
 	ch := &Chunk{
 		dtype: dtype,
 	}
-
-	// TODO(PR): allocate based on dtype
+	switch dtype {
+	case DtypeString:
+		ch.storage.offsets = make([]uint32, 1, defaultChunkCap)
+		ch.storage.strings = make([]byte, 0, defaultChunkCap)
+	case DtypeInt:
+		ch.storage.ints = make([]int64, 0, defaultChunkCap)
+	case DtypeFloat:
+		ch.storage.floats = make([]float64, 0, defaultChunkCap)
+	case DtypeDate:
+		ch.storage.dates = make([]date, 0, defaultChunkCap)
+	case DtypeDatetime:
+		ch.storage.datetimes = make([]datetime, 0, defaultChunkCap)
+	case DtypeBool:
+		ch.storage.bools = bitmap.NewBitmap(0)
+	}
 
 	return ch
 }
@@ -361,9 +377,6 @@ func NewChunkLiteralAuto(s string, length int) (*Chunk, error) {
 
 	return NewChunkLiteralTyped(s, dtype, length)
 }
-
-// preallocate column data, so that slice appends don't trigger new reallocations
-const defaultChunkCap = 512 // TODO(PR): remove
 
 func NewChunkLiteralStrings(value string, length int) *Chunk {
 	ch := NewChunk(DtypeString)
