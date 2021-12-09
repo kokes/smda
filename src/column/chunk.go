@@ -19,170 +19,152 @@ var errLiteralsCannotBeSerialised = errors.New("cannot serialise literal columns
 var errInvalidTypedLiteral = errors.New("invalid data supplied to a literal constructor")
 
 // Chunk defines a part of a column - constant type, stored contiguously
-type Chunk interface {
-	baseChunker
-	Dtype() Dtype
-	AddValue(string) error
-	AddValues([]string) error // consider merging AddValues and AddValue (using varargs)
-	WriteTo(io.Writer) (int64, error)
-	Prune(*bitmap.Bitmap) Chunk
-	Append(Chunk) error
-	Hash(int, []uint64)
-	Clone() Chunk
-	JSONLiteral(int) (string, bool) // the bool stands for 'ok' (not null)
-	Compare(bool, bool, int, int) int
-}
+// type Chunk interface {
+// 	baseChunker
+// 	Dtype() Dtype
+// 	AddValue(string) error
+// 	AddValues([]string) error // consider merging AddValues and AddValue (using varargs)
+// 	WriteTo(io.Writer) (int64, error)
+// 	Prune(*bitmap.Bitmap) Chunk
+// 	Append(Chunk) error
+// 	Hash(int, []uint64)
+// 	Clone() Chunk
+// 	JSONLiteral(int) (string, bool) // the bool stands for 'ok' (not null)
+// 	Compare(bool, bool, int, int) int
+// }
 
-type baseChunker interface {
-	Base() *baseChunk
-	baseEqual(baseChunker) bool
-	Len() int
-	Nullify(*bitmap.Bitmap)
-	// IsNullable() bool
-}
-
-type baseChunk struct {
+type Chunk struct {
+	dtype       Dtype
 	length      uint32
-	IsLiteral   bool
+	IsLiteral   bool // TODO(PR): why is IsLiteral an exporter member but length and dtype aren't?
 	Nullability *bitmap.Bitmap
+	storage     struct {
+		ints      []int64
+		floats    []float64
+		dates     []date
+		datetimes []datetime
+		bools     *bitmap.Bitmap
+
+		strings []byte
+		offsets []uint32
+	}
 }
 
 // ARCH: we sometimes use this, sometimes we access the struct field directly... perhaps remove this?
-func (bc *baseChunk) Len() int {
-	return int(bc.length)
+func (ch *Chunk) Len() int {
+	return int(ch.length)
 }
 
 // ARCH: Nullify does NOT switch the data values to be nulls/empty as well
-func (bc *baseChunk) Nullify(bm *bitmap.Bitmap) {
+func (ch *Chunk) Nullify(bm *bitmap.Bitmap) {
 	// OPTIM: this copies, but it covers all the cases
-	bc.Nullability = bitmap.Or(bc.Nullability, bm)
+	ch.Nullability = bitmap.Or(ch.Nullability, bm)
 }
 
-// this might be useful for COALESCE, among other things
-// though this is misleading - a column can be nullable, but have its nullability
-// bitmap nil - a nearly full column will have its chunks without nulls and thus
-// with nullability == nil. We should only talk about nullability in the context
-// of schemas
-// func (bc *baseChunk) IsNullable() bool {
-// 	return bc.nullability != nil
+func (ch *Chunk) AddValue(s string) error {
+	panic("not implemented yet TODO(PR)")
+	return nil
+}
+
+// consider merging AddValues and AddValue (using varargs)
+func (ch *Chunk) AddValueS(s []string) error {
+	panic("not implemented yet TODO(PR)")
+	return nil
+}
+
+// type baseChunker interface {
+// 	Base() *baseChunk
+// 	baseEqual(baseChunker) bool
+// 	Len() int
+// 	Nullify(*bitmap.Bitmap)
+// 	// IsNullable() bool
 // }
 
-func (bc *baseChunk) Base() *baseChunk {
-	return bc
-}
-func (bc *baseChunk) baseEqual(bcb baseChunker) bool {
-	bc2 := bcb.Base()
-	if bc.Len() != bc2.Len() {
-		return false
-	}
-	if bc.IsLiteral != bc2.IsLiteral {
-		return false
-	}
-	if !reflect.DeepEqual(bc.Nullability, bc2.Nullability) {
-		return false
-	}
-	return true
-}
+// type baseChunk struct {
+// 	length      uint32
+// 	IsLiteral   bool
+// 	Nullability *bitmap.Bitmap
+// }
 
 // ChunksEqual compares two chunks, even if they contain []float64 data
 // consider making this lenient enough to compare only the relevant bits in ChunkBools
 func ChunksEqual(c1 Chunk, c2 Chunk) bool {
-	// ARCH: consider doing an .EqualBase() in baseChunk - compares dtype, length, isLiteral and nullability
-	if c1.Dtype() != c2.Dtype() {
+	if c1.dtype == c2.dtype && c1.length == c2.length {
 		return false
 	}
-	if !c1.baseEqual(c2) {
+	// this is length, isliteral and nullability (via DeepEqual)
+	if !reflect.DeepEqual(c1.Nullability, c2.Nullability) {
 		return false
 	}
 
-	switch c1t := c1.(type) {
-	case *ChunkBools:
-		c2t := c2.(*ChunkBools)
-		if c1t.Nullability == nil && c2t.Nullability == nil {
-			return reflect.DeepEqual(c1t, c2t)
-		}
+	if c1.Nullability == nil && c2.Nullability == nil {
+		return reflect.DeepEqual(c1, c2)
+	}
+
+	switch c1.dtype {
+	case DtypeBool:
 		// compare only the valid bits in data
 		// ARCH: what about the bits beyond the cap?
 		// OPTIM: we don't have to clone here - we can easily iterate and check by blocks
 		// data1[j] & ~nullability1[j] == data2[j] & ~nullability2[j] or something like that
-		c1d := c1t.data.Clone()
-		c1d.AndNot(c1t.Nullability)
-		c2d := c2t.data.Clone()
-		c2d.AndNot(c2t.Nullability)
+		c1d := c1.storage.bools.Clone()
+		c1d.AndNot(c1.Nullability)
+		c2d := c2.storage.bools.Clone()
+		c2d.AndNot(c2.Nullability)
 		return reflect.DeepEqual(c1d, c2d)
-	case *ChunkInts:
-		c2t := c2.(*ChunkInts)
-		if c1t.Nullability == nil && c2t.Nullability == nil {
-			return reflect.DeepEqual(c1t, c2t)
-		}
-		for j := 0; j < c1t.Len(); j++ {
-			if c1t.Nullability.Get(j) {
+	case DtypeInt:
+		for j := 0; j < c1.Len(); j++ {
+			if c1.Nullability.Get(j) {
 				continue
 			}
-			if c1t.data[j] != c2t.data[j] {
+			if c1.storage.ints[j] != c2.storage.ints[j] {
 				return false
 			}
 		}
 		return true
-	case *ChunkFloats:
-		c2t := c2.(*ChunkFloats)
-		if c1t.Nullability == nil && c2t.Nullability == nil {
-			return reflect.DeepEqual(c1t, c2t)
-		}
-		for j := 0; j < c1t.Len(); j++ {
-			if c1t.Nullability.Get(j) {
+	case DtypeFloat:
+		for j := 0; j < c1.Len(); j++ {
+			if c1.Nullability.Get(j) {
 				continue
 			}
-			if c1t.data[j] != c2t.data[j] {
+			if c1.storage.floats[j] != c2.storage.floats[j] {
 				return false
 			}
 		}
 		return true
-	case *ChunkStrings:
-		c2t := c2.(*ChunkStrings)
-		if c1t.Nullability == nil && c2t.Nullability == nil {
-			return reflect.DeepEqual(c1t, c2t)
-		}
-		for j := 0; j < c1t.Len(); j++ {
-			if c1t.Nullability.Get(j) {
+	case DtypeString:
+		for j := 0; j < c1.Len(); j++ {
+			if c1.Nullability.Get(j) {
 				continue
 			}
-			if c1t.nthValue(j) != c2t.nthValue(j) {
+			// TODO(PR)
+			if c1.nthValue(j) != c2.nthValue(j) {
 				return false
 			}
 		}
 		return true
-	case *ChunkDatetimes:
-		c2t := c2.(*ChunkDatetimes)
-		if c1t.Nullability == nil && c2t.Nullability == nil {
-			return reflect.DeepEqual(c1t, c2t)
-		}
-		for j := 0; j < c1t.Len(); j++ {
-			if c1t.Nullability.Get(j) {
+	case DtypeDatetime:
+		for j := 0; j < c1.Len(); j++ {
+			if c1.Nullability.Get(j) {
 				continue
 			}
-			if c1t.data[j] != c2t.data[j] {
+			if c1.storage.datetimes[j] != c2.storage.datetimes[j] {
 				return false
 			}
 		}
 		return true
-	case *ChunkDates:
-		c2t := c2.(*ChunkDates)
-		if c1t.Nullability == nil && c2t.Nullability == nil {
-			return reflect.DeepEqual(c1t, c2t)
-		}
-		for j := 0; j < c1t.Len(); j++ {
-			if c1t.Nullability.Get(j) {
+	case DtypeDate:
+		for j := 0; j < c1.Len(); j++ {
+			if c1.Nullability.Get(j) {
 				continue
 			}
-			if c1t.data[j] != c2t.data[j] {
+			if c1.storage.dates[j] != c2.storage.dates[j] {
 				return false
 			}
 		}
 		return true
-	case *ChunkNulls:
-		c2t := c2.(*ChunkNulls)
-		return c1t.length == c2t.length
+	case DtypeNull:
+		return c1.length == c2.length
 	default:
 		panic("type not supported")
 	}
@@ -517,52 +499,18 @@ func newChunkNulls() *ChunkNulls {
 	return &ChunkNulls{}
 }
 
-// Dtype returns the type of this chunk
-func (rc *ChunkBools) Dtype() Dtype {
-	return DtypeBool
-}
-
-// Dtype returns the type of this chunk
-func (rc *ChunkFloats) Dtype() Dtype {
-	return DtypeFloat
-}
-
-// Dtype returns the type of this chunk
-func (rc *ChunkInts) Dtype() Dtype {
-	return DtypeInt
-}
-
-// Dtype returns the type of this chunk
-func (rc *ChunkNulls) Dtype() Dtype {
-	return DtypeNull
-}
-
-// Dtype returns the type of this chunk
-func (rc *ChunkStrings) Dtype() Dtype {
-	return DtypeString
-}
-
-// Dtype returns the type of this chunk
-func (rc *ChunkDates) Dtype() Dtype {
-	return DtypeDate
-}
-
-// Dtype returns the type of this chunk
-func (rc *ChunkDatetimes) Dtype() Dtype {
-	return DtypeDatetime
-}
-
 // TODO: does not support nullability, we should probably get rid of the whole thing anyway (only used for testing now)
 // BUT, we're sort of using it for type inference - so maybe caveat it with a note that it's only to be used with
 // not nullable columns?
 // we could also use it for other types (especially bools)
-func (rc *ChunkStrings) nthValue(n int) string {
+// TODO(PR): revise this
+func (rc *Chunk) nthValue(n int) string {
 	if rc.IsLiteral && n > 0 {
 		return rc.nthValue(0)
 	}
-	offsetStart := rc.offsets[n]
-	offsetEnd := rc.offsets[n+1]
-	return string(rc.data[offsetStart:offsetEnd])
+	offsetStart := rc.storage.offsets[n]
+	offsetEnd := rc.storage.offsets[n+1]
+	return string(rc.storage.strings[offsetStart:offsetEnd])
 }
 
 const hashNull = uint64(0xe96766e0d6221951)
