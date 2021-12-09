@@ -286,7 +286,7 @@ func newStripeFromReader(rr RowReader, schema column.TableSchema, maxRows, maxBy
 	ds := newDataStripe()
 
 	// given a schema, initialise a data stripe
-	ds.columns = make([]column.Chunk, 0, len(schema))
+	ds.columns = make([]*column.Chunk, 0, len(schema))
 	for _, col := range schema {
 		ds.columns = append(ds.columns, column.NewChunk(col.Dtype))
 	}
@@ -349,7 +349,7 @@ func (sr *StripeReader) Close() error {
 	return sr.f.Close()
 }
 
-func (sr *StripeReader) ReadColumn(nthColumn int) (column.Chunk, error) {
+func (sr *StripeReader) ReadColumn(nthColumn int) (*column.Chunk, error) {
 	offsetStart, offsetEnd := sr.offsets[nthColumn], sr.offsets[nthColumn+1]
 	length := int(offsetEnd) - int(offsetStart)
 	if length < 5 {
@@ -390,8 +390,8 @@ func (sr *StripeReader) ReadColumn(nthColumn int) (column.Chunk, error) {
 
 // OPTIM: perhaps reorder the column requests, so that they are contiguous, or at least in order
 //        also add a benchmark that reads columns in reverse and see if we get any benefits from this
-func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) (map[string]column.Chunk, int, error) {
-	cols := make(map[string]column.Chunk, len(columns))
+func (db *Database) ReadColumnsFromStripeByNames(ds *Dataset, stripe Stripe, columns []string) (map[string]*column.Chunk, int, error) {
+	cols := make(map[string]*column.Chunk, len(columns))
 	sr, err := NewStripeReader(db, ds, stripe)
 	if err != nil {
 		return nil, 0, err
