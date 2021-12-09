@@ -510,7 +510,7 @@ func (rc *Chunk) Truths() *bitmap.Bitmap {
 		}
 		return bm
 	}
-	bm := rc.data.Clone()
+	bm := rc.storage.bools.Clone()
 	if rc.Nullability == nil || rc.Nullability.Count() == 0 {
 		return bm
 	}
@@ -990,127 +990,81 @@ func Deserialize(r io.Reader, Dtype Dtype) (*Chunk, error) {
 }
 
 // WriteTo converts a chunk into its binary representation
-func (rc *ChunkStrings) WriteTo(w io.Writer) (int64, error) {
+func (rc *Chunk) WriteTo(w io.Writer) (int64, error) {
 	if rc.IsLiteral {
 		return 0, errLiteralsCannotBeSerialised
 	}
+	// TODO(PR): check that we can serialize this for DtypeNull
 	nb, err := bitmap.Serialize(w, rc.Nullability)
 	if err != nil {
 		return 0, err
 	}
-	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.offsets))); err != nil {
-		return 0, err
-	}
-	// OPTIM: find the largest offset (the last one) and if it's less than 1<<16, use a smaller uint etc.
-	if err := binary.Write(w, binary.LittleEndian, rc.offsets); err != nil {
-		return 0, err
-	}
-	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return 0, err
-	}
-	bdata, err := w.Write(rc.data)
-	if err != nil {
-		return 0, err
-	}
-	if bdata != len(rc.data) {
-		return 0, errors.New("not enough data written")
-	}
-	return int64(nb + 4 + len(rc.offsets)*4 + 4 + len(rc.data)), err
-}
 
-// WriteTo converts a chunk into its binary representation
-func (rc *ChunkInts) WriteTo(w io.Writer) (int64, error) {
-	if rc.IsLiteral {
-		return 0, errLiteralsCannotBeSerialised
+	switch rc.dtype {
+	case DtypeString:
+		if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.storage.offsets))); err != nil {
+			return 0, err
+		}
+		// OPTIM: find the largest offset (the last one) and if it's less than 1<<16, use a smaller uint etc.
+		if err := binary.Write(w, binary.LittleEndian, rc.storage.offsets); err != nil {
+			return 0, err
+		}
+		if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.storage.strings))); err != nil {
+			return 0, err
+		}
+		bdata, err := w.Write(rc.storage.strings)
+		if err != nil {
+			return 0, err
+		}
+		if bdata != len(rc.storage.strings) {
+			return 0, errors.New("not enough data written")
+		}
+		return int64(nb + 4 + len(rc.storage.offsets)*4 + 4 + len(rc.storage.strings)), err
+	case DtypeInt:
+		if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.storage.ints))); err != nil {
+			return 0, err
+		}
+		// OPTIM: find the largest int and possibly use a smaller container than int64
+		err = binary.Write(w, binary.LittleEndian, rc.storage.ints)
+		return int64(nb + 4 + 8*len(rc.storage.ints)), err
+	case DtypeFloat:
+		if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.storage.floats))); err != nil {
+			return 0, err
+		}
+		err = binary.Write(w, binary.LittleEndian, rc.storage.floats)
+		return int64(nb + 4 + 8*len(rc.storage.floats)), err
+	case DtypeBool:
+		// the data bitmap doesn't have a "length", just a capacity (64 aligned), so we
+		// need to explicitly write the length of this column chunk
+		if err := binary.Write(w, binary.LittleEndian, rc.length); err != nil {
+			return 0, err
+		}
+		nbd, err := bitmap.Serialize(w, rc.storage.bools)
+		if err != nil {
+			return 0, err
+		}
+		return int64(nb + 4 + nbd), nil
+	case DtypeDate:
+		if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.storage.dates))); err != nil {
+			return 0, err
+		}
+		err = binary.Write(w, binary.LittleEndian, rc.storage.dates)
+		return int64(nb + 4 + DATE_BYTE_SIZE*len(rc.storage.dates)), err
+	case DtypeDatetime:
+		if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.storage.datetimes))); err != nil {
+			return 0, err
+		}
+		err = binary.Write(w, binary.LittleEndian, rc.storage.datetimes)
+		return int64(nb + 4 + DATETIME_BYTE_SIZE*len(rc.storage.datetimes)), err
+	case DtypeNull:
+		length := rc.length
+		if err := binary.Write(w, binary.LittleEndian, length); err != nil {
+			return 0, err
+		}
+		return int64(4), nil
+	default:
+		return 0, fmt.Errorf("cannot serialize dtype %v", rc.dtype)
 	}
-	nb, err := bitmap.Serialize(w, rc.Nullability)
-	if err != nil {
-		return 0, err
-	}
-	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return 0, err
-	}
-	// OPTIM: find the largest int and possibly use a smaller container than int64
-	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return int64(nb + 4 + 8*len(rc.data)), err
-}
-
-// WriteTo converts a chunk into its binary representation
-func (rc *ChunkFloats) WriteTo(w io.Writer) (int64, error) {
-	if rc.IsLiteral {
-		return 0, errLiteralsCannotBeSerialised
-	}
-	nb, err := bitmap.Serialize(w, rc.Nullability)
-	if err != nil {
-		return 0, err
-	}
-	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return 0, err
-	}
-	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return int64(nb + 4 + 8*len(rc.data)), err
-}
-
-// WriteTo converts a chunk into its binary representation
-func (rc *ChunkBools) WriteTo(w io.Writer) (int64, error) {
-	if rc.IsLiteral {
-		return 0, errLiteralsCannotBeSerialised
-	}
-	nb, err := bitmap.Serialize(w, rc.Nullability)
-	if err != nil {
-		return 0, err
-	}
-	// the data bitmap doesn't have a "length", just a capacity (64 aligned), so we
-	// need to explicitly write the length of this column chunk
-	if err := binary.Write(w, binary.LittleEndian, rc.length); err != nil {
-		return 0, err
-	}
-	nbd, err := bitmap.Serialize(w, rc.data)
-	if err != nil {
-		return 0, err
-	}
-	return int64(nb + 4 + nbd), nil
-}
-
-// WriteTo converts a chunk into its binary representation
-func (rc *ChunkDates) WriteTo(w io.Writer) (int64, error) {
-	if rc.IsLiteral {
-		return 0, errLiteralsCannotBeSerialised
-	}
-	nb, err := bitmap.Serialize(w, rc.Nullability)
-	if err != nil {
-		return 0, err
-	}
-	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return 0, err
-	}
-	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return int64(nb + 4 + DATE_BYTE_SIZE*len(rc.data)), err
-}
-
-// WriteTo converts a chunk into its binary representation
-func (rc *ChunkDatetimes) WriteTo(w io.Writer) (int64, error) {
-	if rc.IsLiteral {
-		return 0, errLiteralsCannotBeSerialised
-	}
-	nb, err := bitmap.Serialize(w, rc.Nullability)
-	if err != nil {
-		return 0, err
-	}
-	if err := binary.Write(w, binary.LittleEndian, uint32(len(rc.data))); err != nil {
-		return 0, err
-	}
-	err = binary.Write(w, binary.LittleEndian, rc.data)
-	return int64(nb + 4 + DATETIME_BYTE_SIZE*len(rc.data)), err
-}
-
-// WriteTo converts a chunk into its binary representation
-func (rc *ChunkNulls) WriteTo(w io.Writer) (int64, error) {
-	length := rc.length
-	if err := binary.Write(w, binary.LittleEndian, length); err != nil {
-		return 0, err
-	}
-	return int64(4), nil
 }
 
 func (rc *Chunk) Clone() *Chunk {
