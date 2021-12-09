@@ -405,7 +405,7 @@ func TestBasicPruning(t *testing.T) {
 			continue
 		}
 		if !ChunksEqual(pruned, expected) {
-			t.Errorf("expected that pruning %+v using %+v would result in %+v", test.values, test.bools, test.expected)
+			t.Errorf("expected that pruning %+v using %+v would result in %+v, got %+v instead", test.values, test.bools, test.expected, pruned)
 		}
 	}
 }

@@ -863,15 +863,20 @@ func (rc *Chunk) Prune(bm *bitmap.Bitmap) *Chunk {
 		switch rc.dtype {
 		case DtypeInt:
 			nc.storage.ints = append(nc.storage.ints, rc.storage.ints[j])
+			nc.length++
 		case DtypeFloat:
 			nc.storage.floats = append(nc.storage.floats, rc.storage.floats[j])
+			nc.length++
 		case DtypeDate:
 			nc.storage.dates = append(nc.storage.dates, rc.storage.dates[j])
+			nc.length++
 		case DtypeDatetime:
 			nc.storage.datetimes = append(nc.storage.datetimes, rc.storage.datetimes[j])
+			nc.length++
 		case DtypeBool:
 			// OPTIM: not need to set false values, we already have them set as zero
 			nc.storage.bools.Set(index, rc.storage.bools.Get(j))
+			nc.length++
 		case DtypeString:
 			// be careful here, AddValue has its own nullability logic and we don't want to mess with that
 			if err := nc.AddValue(rc.nthValue(j)); err != nil {
