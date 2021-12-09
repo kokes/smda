@@ -1198,71 +1198,46 @@ func comparisonFactory(asc, nullsFirst, isLiteral, isNullable, lt, eq, n1, n2 bo
 	return compareValues(ltv, lt, eq)
 }
 
+// TODO(next): docs
 // ARCH: this could be made entirely generic by allowing an interface `nthValue(int) T` to genericise v1/v2
 //       EXCEPT for bools :-( (not comparable)
-func (rc *ChunkInts) Compare(asc, nullsFirst bool, i, j int) int {
+func (rc *Chunk) Compare(asc, nullsFirst bool, i, j int) int {
 	var n1, n2 bool
 	if rc.Nullability != nil {
 		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
 	}
-	v1, v2 := rc.data[i], rc.data[j]
 
-	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
-}
+	// OPTIM: this will be slow, so we should consider [DtypeMax]Compare closures
+	switch rc.dtype {
+	case DtypeInt:
+		v1, v2 := rc.storage.ints[i], rc.storage.ints[j]
 
-func (rc *ChunkFloats) Compare(asc, nullsFirst bool, i, j int) int {
-	var n1, n2 bool
-	if rc.Nullability != nil {
-		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
+		return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+	case DtypeFloat:
+		// TODO: do we have to worry about inf/nans? I thought we eliminated them from the .data slice
+		v1, v2 := rc.storage.floats[i], rc.storage.floats[j]
+
+		return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+	case DtypeString:
+		v1, v2 := rc.nthValue(i), rc.nthValue(j)
+
+		return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+	case DtypeBool:
+		v1, v2 := rc.storage.bools.Get(i), rc.storage.bools.Get(j)
+		lt := !v1 && v2
+
+		return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, lt, v1 == v2, n1, n2)
+	case DtypeDate:
+		v1, v2 := rc.storage.dates[i], rc.storage.dates[j]
+
+		return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+	case DtypeDatetime:
+		v1, v2 := rc.storage.datetimes[i], rc.storage.datetimes[j]
+
+		return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
+	case DtypeNull:
+		return 0
+	default:
+		panic(fmt.Sprintf("unsupported Dtype for Compare: %v", rc.dtype))
 	}
-	// TODO: do we have to worry about inf/nans? I thought we eliminated them from the .data slice
-	v1, v2 := rc.data[i], rc.data[j]
-
-	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
-}
-
-func (rc *ChunkStrings) Compare(asc, nullsFirst bool, i, j int) int {
-	var n1, n2 bool
-	if rc.Nullability != nil {
-		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
-	}
-	v1, v2 := rc.nthValue(i), rc.nthValue(j)
-
-	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
-
-}
-
-func (rc *ChunkBools) Compare(asc, nullsFirst bool, i, j int) int {
-	var n1, n2 bool
-	if rc.Nullability != nil {
-		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
-	}
-	v1, v2 := rc.data.Get(i), rc.data.Get(j)
-	lt := !v1 && v2
-
-	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, lt, v1 == v2, n1, n2)
-}
-
-func (rc *ChunkDates) Compare(asc, nullsFirst bool, i, j int) int {
-	var n1, n2 bool
-	if rc.Nullability != nil {
-		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
-	}
-	v1, v2 := rc.data[i], rc.data[j]
-
-	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
-}
-
-func (rc *ChunkDatetimes) Compare(asc, nullsFirst bool, i, j int) int {
-	var n1, n2 bool
-	if rc.Nullability != nil {
-		n1, n2 = rc.Nullability.Get(i), rc.Nullability.Get(j)
-	}
-	v1, v2 := rc.data[i], rc.data[j]
-
-	return comparisonFactory(asc, nullsFirst, rc.IsLiteral, rc.Nullability != nil, v1 < v2, v1 == v2, n1, n2)
-}
-
-func (rc *ChunkNulls) Compare(asc, nullsFirst bool, i, j int) int {
-	return 0
 }
