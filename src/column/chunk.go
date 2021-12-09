@@ -71,31 +71,151 @@ func (ch *Chunk) Nullify(bm *bitmap.Bitmap) {
 	ch.Nullability = bitmap.Or(ch.Nullability, bm)
 }
 
-func (ch *Chunk) AddValue(s string) error {
-	panic("not implemented yet TODO(PR)")
+// OPTIM: consider using closures in Chunk { adders [ChunkMax]func(string) error }
+func (rc *Chunk) AddValue(s string) error {
+	if rc.IsLiteral {
+		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
+	}
+
+	switch rc.dtype {
+	case DtypeString:
+		rc.storage.strings = append(rc.storage.strings, []byte(s)...)
+
+		valLen := uint32(len(s))
+		valLen += rc.storage.offsets[len(rc.storage.offsets)-1]
+		rc.storage.offsets = append(rc.storage.offsets, valLen)
+
+		rc.length++
+		if rc.Nullability != nil {
+			rc.Nullability.Ensure(int(rc.length))
+		}
+	case DtypeInt:
+		if isNull(s) {
+			if rc.Nullability == nil {
+				rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
+			}
+			rc.Nullability.Set(rc.Len(), true)
+			rc.storage.ints = append(rc.storage.ints, 0) // this value is not meant to be read
+			rc.length++
+			return nil
+		}
+
+		val, err := parseInt(s)
+		if err != nil {
+			return err
+		}
+		rc.storage.ints = append(rc.storage.ints, val)
+		rc.length++
+		if rc.Nullability != nil {
+			rc.Nullability.Ensure(int(rc.length))
+		}
+	case DtypeFloat:
+		var val float64
+		var err error
+		if isNull(s) {
+			val = math.NaN()
+		} else {
+			val, err = parseFloat(s)
+			if err != nil {
+				return err
+			}
+		}
+		if math.IsNaN(val) || math.IsInf(val, 0) {
+			if rc.Nullability == nil {
+				rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
+			}
+			rc.Nullability.Set(rc.Len(), true)
+			rc.storage.floats = append(rc.storage.floats, 0) // this value is not meant to be read
+			rc.length++
+			return nil
+		}
+
+		rc.storage.floats = append(rc.storage.floats, val)
+		rc.length++
+		// make sure the nullability bitmap aligns with the length of the chunk
+		if rc.Nullability != nil {
+			rc.Nullability.Ensure(int(rc.length))
+		}
+	case DtypeBool:
+		if isNull(s) {
+			if rc.Nullability == nil {
+				rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
+			}
+			rc.Nullability.Set(rc.Len(), true)
+			rc.storage.bools.Set(rc.Len(), false) // this value is not meant to be read
+			rc.length++
+			return nil
+		}
+		val, err := parseBool(s)
+		if err != nil {
+			return err
+		}
+		rc.storage.bools.Set(rc.Len(), val)
+		rc.length++
+		// make sure the nullability bitmap aligns with the length of the chunk
+		if rc.Nullability != nil {
+			rc.Nullability.Ensure(int(rc.length))
+		}
+	case DtypeDate:
+		if isNull(s) {
+			if rc.Nullability == nil {
+				rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
+			}
+			rc.Nullability.Set(rc.Len(), true)
+			rc.storage.dates = append(rc.storage.dates, 0) // this value is not meant to be read
+			rc.length++
+			return nil
+		}
+
+		val, err := parseDate(s)
+		if err != nil {
+			return err
+		}
+		rc.storage.dates = append(rc.storage.dates, val)
+		rc.length++
+		if rc.Nullability != nil {
+			rc.Nullability.Ensure(int(rc.length))
+		}
+	case DtypeDatetime:
+		if isNull(s) {
+			if rc.Nullability == nil {
+				rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
+			}
+			rc.Nullability.Set(rc.Len(), true)
+			rc.storage.datetimes = append(rc.storage.datetimes, 0) // this value is not meant to be read
+			rc.length++
+			return nil
+		}
+
+		val, err := parseDatetime(s)
+		if err != nil {
+			return err
+		}
+		rc.storage.datetimes = append(rc.storage.datetimes, val)
+		rc.length++
+		if rc.Nullability != nil {
+			rc.Nullability.Ensure(int(rc.length))
+		}
+	default:
+		return fmt.Errorf("no support for AddValue for Dtype %v", rc.dtype)
+	}
+
 	return nil
 }
 
 // consider merging AddValues and AddValue (using varargs)
-func (ch *Chunk) AddValues(s []string) error {
-	panic("not implemented yet TODO(PR)")
+// OPTIM: this could be faster if made bespoke (though we don't use it that much anyway)
+func (rc *Chunk) AddValues(vals []string) error {
+	if rc.IsLiteral {
+		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
+	}
+	for _, el := range vals {
+		if err := rc.AddValue(el); err != nil {
+			return err
+		}
+	}
 	return nil
 }
-
-// TODO(PR): remove
-// type baseChunker interface {
-// 	Base() *baseChunk
-// 	baseEqual(baseChunker) bool
-// 	Len() int
-// 	Nullify(*bitmap.Bitmap)
-// 	// IsNullable() bool
-// }
-
-// type baseChunk struct {
-// 	length      uint32
-// 	IsLiteral   bool
-// 	Nullability *bitmap.Bitmap
-// }
 
 // ChunksEqual compares two chunks, even if they contain []float64 data
 // consider making this lenient enough to compare only the relevant bits in ChunkBools
@@ -255,114 +375,118 @@ func NewChunkLiteralAuto(s string, length int) (*Chunk, error) {
 // preallocate column data, so that slice appends don't trigger new reallocations
 const defaultChunkCap = 512 // TODO(PR): remove
 
-func NewChunkLiteralStrings(value string, length int) *ChunkStrings {
-	offsets := []uint32{0, uint32(len(value))}
-	return &ChunkStrings{
-		baseChunk: baseChunk{
-			IsLiteral: true,
-			length:    uint32(length),
-		},
-		data:    []byte(value),
-		offsets: offsets,
-	}
+func NewChunkLiteralStrings(value string, length int) *Chunk {
+	ch := NewChunk(DtypeString)
+	ch.storage.offsets = []uint32{0, uint32(len(value))}
+	ch.IsLiteral = true
+	ch.length = uint32(length)
+	ch.storage.strings = []byte(value)
+
+	return ch
 }
 
-func NewChunkLiteralInts(value int64, length int) *ChunkInts {
-	return &ChunkInts{
-		baseChunk: baseChunk{
-			IsLiteral: true,
-			length:    uint32(length),
-		},
-		data: []int64{value},
-	}
+func NewChunkLiteralInts(value int64, length int) *Chunk {
+	ch := NewChunk(DtypeInt)
+	ch.IsLiteral = true
+	ch.length = uint32(length)
+	ch.storage.ints = []int64{value}
+
+	return ch
 }
 
-func NewChunkLiteralFloats(value float64, length int) *ChunkFloats {
-	return &ChunkFloats{
-		baseChunk: baseChunk{
-			IsLiteral: true,
-			length:    uint32(length),
-		},
-		data: []float64{value},
-	}
+func NewChunkLiteralFloats(value float64, length int) *Chunk {
+	ch := NewChunk(DtypeFloat)
+	ch.IsLiteral = true
+	ch.length = uint32(length)
+	ch.storage.floats = []float64{value}
+
+	return ch
 }
 
-func NewChunkLiteralBools(value bool, length int) *ChunkBools {
+func NewChunkLiteralBools(value bool, length int) *Chunk {
 	bm := bitmap.NewBitmap(1)
 	bm.Set(0, value)
-	return &ChunkBools{
-		baseChunk: baseChunk{
-			IsLiteral: true,
-			length:    uint32(length),
-		},
-		data: bm,
-	}
+
+	ch := NewChunk(DtypeBool)
+	ch.IsLiteral = true
+	ch.length = uint32(length)
+	ch.storage.bools = bm
+
+	return ch
 }
 
-func NewChunkLiteralDates(value date, length int) *ChunkDates {
-	return &ChunkDates{
-		baseChunk: baseChunk{
-			IsLiteral: true,
-			length:    uint32(length),
-		},
-		data: []date{value},
-	}
+func NewChunkLiteralDates(value date, length int) *Chunk {
+	ch := NewChunk(DtypeDate)
+	ch.IsLiteral = true
+	ch.length = uint32(length)
+	ch.storage.dates = []date{value}
+
+	return ch
 }
 
-func NewChunkLiteralDatetimes(value datetime, length int) *ChunkDatetimes {
-	return &ChunkDatetimes{
-		baseChunk: baseChunk{
-			IsLiteral: true,
-			length:    uint32(length),
-		},
-		data: []datetime{value},
-	}
+func NewChunkLiteralDatetimes(value datetime, length int) *Chunk {
+	ch := NewChunk(DtypeDatetime)
+	ch.IsLiteral = true
+	ch.length = uint32(length)
+	ch.storage.datetimes = []datetime{value}
+
+	return ch
 }
 
 // TODO/ARCH: consider removing this in favour of NewChunkBoolsFromBitmap
-func newChunkBoolsFromBits(data []uint64, length int) *ChunkBools {
-	return &ChunkBools{
-		baseChunk: baseChunk{length: uint32(length)},
-		data:      bitmap.NewBitmapFromBits(data, length),
-	}
+func newChunkBoolsFromBits(data []uint64, length int) *Chunk {
+	ch := NewChunk(DtypeBool)
+	ch.length = uint32(length)
+	ch.storage.bools = bitmap.NewBitmapFromBits(data, length)
+
+	return ch
 }
 
 // NewChunkBoolsFromBitmap creates a new bool chunk, but in doing so, doesn't clone the incoming bitmap,
 // it uses it as is - the caller might want to clone it aims to mutate it in the future
-func NewChunkBoolsFromBitmap(bm *bitmap.Bitmap) *ChunkBools {
-	return &ChunkBools{
-		baseChunk: baseChunk{length: uint32(bm.Cap())},
-		data:      bm,
-	}
+func NewChunkBoolsFromBitmap(bm *bitmap.Bitmap) *Chunk {
+	ch := NewChunk(DtypeBool)
+	ch.length = uint32(bm.Cap())
+	ch.storage.bools = bm
+
+	return ch
 }
 
 // the next few functions could use some generics
-func NewChunkIntsFromSlice(data []int64, nulls *bitmap.Bitmap) *ChunkInts {
-	return &ChunkInts{
-		baseChunk: baseChunk{length: uint32(len(data)), Nullability: nulls},
-		data:      data,
-	}
+func NewChunkIntsFromSlice(data []int64, nulls *bitmap.Bitmap) *Chunk {
+	ch := NewChunk(DtypeInt)
+	ch.Nullability = nulls
+	ch.length = uint32(len(data))
+	ch.storage.ints = data
+
+	return ch
 }
-func NewChunkFloatsFromSlice(data []float64, nulls *bitmap.Bitmap) *ChunkFloats {
-	return &ChunkFloats{
-		baseChunk: baseChunk{length: uint32(len(data)), Nullability: nulls},
-		data:      data,
-	}
+func NewChunkFloatsFromSlice(data []float64, nulls *bitmap.Bitmap) *Chunk {
+	ch := NewChunk(DtypeFloat)
+	ch.Nullability = nulls
+	ch.length = uint32(len(data))
+	ch.storage.floats = data
+
+	return ch
 }
-func newChunkDatesFromSlice(data []date, nulls *bitmap.Bitmap) *ChunkDates {
-	return &ChunkDates{
-		baseChunk: baseChunk{length: uint32(len(data)), Nullability: nulls},
-		data:      data,
-	}
+func newChunkDatesFromSlice(data []date, nulls *bitmap.Bitmap) *Chunk {
+	ch := NewChunk(DtypeDate)
+	ch.Nullability = nulls
+	ch.length = uint32(len(data))
+	ch.storage.dates = data
+
+	return ch
 }
-func newChunkDatetimesFromSlice(data []datetime, nulls *bitmap.Bitmap) *ChunkDatetimes {
-	return &ChunkDatetimes{
-		baseChunk: baseChunk{length: uint32(len(data)), Nullability: nulls},
-		data:      data,
-	}
+func newChunkDatetimesFromSlice(data []datetime, nulls *bitmap.Bitmap) *Chunk {
+	ch := NewChunk(DtypeDatetime)
+	ch.Nullability = nulls
+	ch.length = uint32(len(data))
+	ch.storage.datetimes = data
+
+	return ch
 }
-func newChunkStringsFromSlice(data []string, nulls *bitmap.Bitmap) *ChunkStrings {
-	rc := newChunkStrings()
+func newChunkStringsFromSlice(data []string, nulls *bitmap.Bitmap) *Chunk {
+	rc := NewChunk(DtypeString)
 	if err := rc.AddValues(data); err != nil {
 		panic(err)
 	}
@@ -373,10 +497,13 @@ func newChunkStringsFromSlice(data []string, nulls *bitmap.Bitmap) *ChunkStrings
 // Truths returns only true values in this boolean column's bitmap - remove those
 // that are null - we use this for filtering, when we're interested in non-null
 // true values (to select given rows)
-func (rc *ChunkBools) Truths() *bitmap.Bitmap {
+func (rc *Chunk) Truths() *bitmap.Bitmap {
+	if rc.dtype != DtypeBool {
+		panic("can only run Truths() on bool chunks")
+	}
 	if rc.IsLiteral {
 		// ARCH: still assuming literals are not nullable
-		value := rc.data.Get(0)
+		value := rc.storage.bools.Get(0)
 		bm := bitmap.NewBitmap(rc.Len())
 		if value {
 			bm.Invert()
@@ -421,71 +548,11 @@ func positionMultiplier(position int) uint64 {
 	return mul * mul * mul * mul * mul * mul * mul * mul // math.pow is for floats only :shrug:
 }
 
-// Hash hashes this chunk's values into a provded container
-func (rc *ChunkBools) Hash(position int, hashes []uint64) {
-	mul := positionMultiplier(position)
-	// TODO: we may have to revisit the idea that literal chunks cannot be nullable (review all the uses of isLiteral in this package)
-	if rc.IsLiteral {
-		hashVal := hashBoolFalse
-		if rc.data.Get(0) {
-			hashVal = hashBoolTrue
-		}
-		for j := range hashes {
-			hashes[j] ^= hashVal * mul
-		}
-		return
-	}
-	for j := 0; j < rc.Len(); j++ {
-		// xor it with a random big integer - we'll need something similar for bool handling
-		// rand.Seed(time.Now().UnixNano())
-		// for j := 0; j < 2; j++ {
-		// 	val := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
-		// 	fmt.Printf("%x, %v\n", val, bits.OnesCount64(val))
-		// }
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			hashes[j] ^= hashNull * mul
-			continue
-		}
-		if rc.data.Get(j) {
-			hashes[j] ^= hashBoolTrue * mul
-		} else {
-			hashes[j] ^= hashBoolFalse * mul
-		}
-	}
-}
-
 // TODO(generics): type Hasher[T] struct {...}, Sum[T] -> uint64
-// Or maybe just `Chunk.NthHash(j int) uint64` - so it could be a part of the Chunk interface?
 
 // Hash hashes this chunk's values into a provded container
 // OPTIM/TODO(next): do we need a fnv hasher for ints/floats/dates? We can just take the uint64 representation
 // of these values... or not?
-func (rc *ChunkFloats) Hash(position int, hashes []uint64) {
-	mul := positionMultiplier(position)
-	var buf [8]byte
-	hasher := fnv.New64()
-	if rc.IsLiteral {
-		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(rc.data[0]))
-		hasher.Write(buf[:])
-		sum := hasher.Sum64() * mul
-
-		for j := range hashes {
-			hashes[j] ^= sum
-		}
-		return
-	}
-	for j, el := range rc.data {
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			hashes[j] ^= hashNull * mul
-			continue
-		}
-		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(el))
-		hasher.Write(buf[:])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
-	}
-}
-
 // Hash hashes this chunk's values into a provded container
 // OPTIM: maphash might be faster than fnv or maphash? test it and if it is so, implement
 // everywhere, but be careful about the seed (needs to be the same for all chunks)
@@ -494,395 +561,172 @@ func (rc *ChunkFloats) Hash(position int, hashes []uint64) {
 // also, check this https://github.com/segmentio/fasthash/ (via https://segment.com/blog/allocation-efficiency-in-high-performance-go-services/)
 // they reimplement fnv using stack allocation only
 //   - we tested it and got a 90% speedup (no allocs, shorter code) - so let's consider it, it's in the fasthash branch
-func (rc *ChunkInts) Hash(position int, hashes []uint64) {
+// OPTIM: use closures [DtypeMax]func(...) within the Chunk struct instead of this big switch
+func (rc *Chunk) Hash(position int, hashes []uint64) {
 	mul := positionMultiplier(position)
 	var buf [8]byte
 	hasher := fnv.New64()
-	// ARCH: literal chunks don't have nullability support... should we check for that?
-	if rc.IsLiteral {
-		binary.LittleEndian.PutUint64(buf[:], uint64(rc.data[0]))
-		hasher.Write(buf[:])
-		sum := hasher.Sum64() * mul
 
+	switch rc.dtype {
+	case DtypeBool:
+		// TODO: we may have to revisit the idea that literal chunks cannot be nullable (review all the uses of isLiteral in this package)
+		if rc.IsLiteral {
+			hashVal := hashBoolFalse
+			if rc.storage.bools.Get(0) {
+				hashVal = hashBoolTrue
+			}
+			for j := range hashes {
+				hashes[j] ^= hashVal * mul
+			}
+			return
+		}
+		for j := 0; j < rc.Len(); j++ {
+			// xor it with a random big integer - we'll need something similar for bool handling
+			// rand.Seed(time.Now().UnixNano())
+			// for j := 0; j < 2; j++ {
+			// 	val := uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
+			// 	fmt.Printf("%x, %v\n", val, bits.OnesCount64(val))
+			// }
+			if rc.Nullability != nil && rc.Nullability.Get(j) {
+				hashes[j] ^= hashNull * mul
+				continue
+			}
+			if rc.storage.bools.Get(j) {
+				hashes[j] ^= hashBoolTrue * mul
+			} else {
+				hashes[j] ^= hashBoolFalse * mul
+			}
+		}
+	case DtypeFloat:
+		if rc.IsLiteral {
+			binary.LittleEndian.PutUint64(buf[:], math.Float64bits(rc.storage.floats[0]))
+			hasher.Write(buf[:])
+			sum := hasher.Sum64() * mul
+
+			for j := range hashes {
+				hashes[j] ^= sum
+			}
+			return
+		}
+		for j, el := range rc.storage.floats {
+			if rc.Nullability != nil && rc.Nullability.Get(j) {
+				hashes[j] ^= hashNull * mul
+				continue
+			}
+			binary.LittleEndian.PutUint64(buf[:], math.Float64bits(el))
+			hasher.Write(buf[:])
+			hashes[j] ^= hasher.Sum64() * mul
+			hasher.Reset()
+		}
+	case DtypeInt:
+		// ARCH: literal chunks don't have nullability support... should we check for that?
+		if rc.IsLiteral {
+			binary.LittleEndian.PutUint64(buf[:], uint64(rc.storage.ints[0]))
+			hasher.Write(buf[:])
+			sum := hasher.Sum64() * mul
+
+			for j := range hashes {
+				hashes[j] ^= sum
+			}
+			return
+		}
+		for j, el := range rc.storage.ints {
+			// OPTIM: not just here, in all of these Hash implementations - we might want to check rc.nullability
+			// just once and have two separate loops - see if it helps - it may bloat the code too much (and avoid inlining,
+			// but that's probably a lost cause already)
+			if rc.Nullability != nil && rc.Nullability.Get(j) {
+				hashes[j] ^= hashNull * mul
+				continue
+			}
+			binary.LittleEndian.PutUint64(buf[:], uint64(el)) // int64 always maps to a uint64 value (negatives underflow)
+			hasher.Write(buf[:])
+			hashes[j] ^= hasher.Sum64() * mul
+			hasher.Reset()
+		}
+	case DtypeNull:
 		for j := range hashes {
-			hashes[j] ^= sum
-		}
-		return
-	}
-	for j, el := range rc.data {
-		// OPTIM: not just here, in all of these Hash implementations - we might want to check rc.nullability
-		// just once and have two separate loops - see if it helps - it may bloat the code too much (and avoid inlining,
-		// but that's probably a lost cause already)
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
 			hashes[j] ^= hashNull * mul
-			continue
 		}
-		binary.LittleEndian.PutUint64(buf[:], uint64(el)) // int64 always maps to a uint64 value (negatives underflow)
-		hasher.Write(buf[:])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
+	case DtypeDate:
+		// ARCH: literal chunks don't have nullability support... should we check for that?
+		if rc.IsLiteral {
+			binary.LittleEndian.PutUint64(buf[:], uint64(rc.storage.dates[0]))
+			hasher.Write(buf[:])
+			sum := hasher.Sum64() * mul
+
+			for j := range hashes {
+				hashes[j] ^= sum
+			}
+			return
+		}
+		for j, el := range rc.storage.dates {
+			if rc.Nullability != nil && rc.Nullability.Get(j) {
+				hashes[j] ^= hashNull * mul
+				continue
+			}
+			binary.LittleEndian.PutUint64(buf[:], uint64(el))
+			hasher.Write(buf[:])
+			hashes[j] ^= hasher.Sum64() * mul
+			hasher.Reset()
+		}
+	case DtypeDatetime:
+		// ARCH: literal chunks don't have nullability support... should we check for that?
+		if rc.IsLiteral {
+			binary.LittleEndian.PutUint64(buf[:], uint64(rc.storage.datetimes[0]))
+			hasher.Write(buf[:])
+			sum := hasher.Sum64() * mul
+
+			for j := range hashes {
+				hashes[j] ^= sum
+			}
+			return
+		}
+		for j, el := range rc.storage.datetimes {
+			if rc.Nullability != nil && rc.Nullability.Get(j) {
+				hashes[j] ^= hashNull * mul
+				continue
+			}
+			binary.LittleEndian.PutUint64(buf[:], uint64(el))
+			hasher.Write(buf[:])
+			hashes[j] ^= hasher.Sum64() * mul
+			hasher.Reset()
+		}
+	case DtypeString:
+		if rc.IsLiteral {
+			offsetStart, offsetEnd := rc.storage.offsets[0], rc.storage.offsets[1]
+			hasher.Write(rc.storage.strings[offsetStart:offsetEnd])
+			sum := hasher.Sum64() * mul
+
+			for j := range hashes {
+				hashes[j] ^= sum
+			}
+			return
+		}
+
+		for j := 0; j < rc.Len(); j++ {
+			if rc.Nullability != nil && rc.Nullability.Get(j) {
+				hashes[j] ^= hashNull * mul
+				continue
+			}
+			offsetStart := rc.storage.offsets[j]
+			offsetEnd := rc.storage.offsets[j+1]
+			hasher.Write(rc.storage.strings[offsetStart:offsetEnd])
+			hashes[j] ^= hasher.Sum64() * mul
+			hasher.Reset()
+		}
+	default:
+		panic(fmt.Sprintf("no support for hashing for dtype %v", rc.dtype))
 	}
 }
 
-// Hash hashes this chunk's values into a provded container
-func (rc *ChunkNulls) Hash(position int, hashes []uint64) {
-	mul := positionMultiplier(position)
-	for j := range hashes {
-		hashes[j] ^= hashNull * mul
-	}
-}
-
-func (rc *ChunkDates) Hash(position int, hashes []uint64) {
-	mul := positionMultiplier(position)
-	var buf [8]byte
-	hasher := fnv.New64()
-	// ARCH: literal chunks don't have nullability support... should we check for that?
-	if rc.IsLiteral {
-		binary.LittleEndian.PutUint64(buf[:], uint64(rc.data[0]))
-		hasher.Write(buf[:])
-		sum := hasher.Sum64() * mul
-
-		for j := range hashes {
-			hashes[j] ^= sum
-		}
-		return
-	}
-	for j, el := range rc.data {
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			hashes[j] ^= hashNull * mul
-			continue
-		}
-		binary.LittleEndian.PutUint64(buf[:], uint64(el))
-		hasher.Write(buf[:])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
-	}
-}
-
-func (rc *ChunkDatetimes) Hash(position int, hashes []uint64) {
-	mul := positionMultiplier(position)
-	var buf [8]byte
-	hasher := fnv.New64()
-	// ARCH: literal chunks don't have nullability support... should we check for that?
-	if rc.IsLiteral {
-		binary.LittleEndian.PutUint64(buf[:], uint64(rc.data[0]))
-		hasher.Write(buf[:])
-		sum := hasher.Sum64() * mul
-
-		for j := range hashes {
-			hashes[j] ^= sum
-		}
-		return
-	}
-	for j, el := range rc.data {
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			hashes[j] ^= hashNull * mul
-			continue
-		}
-		binary.LittleEndian.PutUint64(buf[:], uint64(el))
-		hasher.Write(buf[:])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
-	}
-}
-
-// Hash hashes this chunk's values into a provded container
-func (rc *ChunkStrings) Hash(position int, hashes []uint64) {
-	mul := positionMultiplier(position)
-	hasher := fnv.New64()
-	if rc.IsLiteral {
-		offsetStart, offsetEnd := rc.offsets[0], rc.offsets[1]
-		hasher.Write(rc.data[offsetStart:offsetEnd])
-		sum := hasher.Sum64() * mul
-
-		for j := range hashes {
-			hashes[j] ^= sum
-		}
-		return
-	}
-
-	for j := 0; j < rc.Len(); j++ {
-		if rc.Nullability != nil && rc.Nullability.Get(j) {
-			hashes[j] ^= hashNull * mul
-			continue
-		}
-		offsetStart := rc.offsets[j]
-		offsetEnd := rc.offsets[j+1]
-		hasher.Write(rc.data[offsetStart:offsetEnd])
-		hashes[j] ^= hasher.Sum64() * mul
-		hasher.Reset()
-	}
-}
-
-// AddValue takes in a string representation of a value and converts it into
-// a value suited for this chunk
-func (rc *ChunkStrings) AddValue(s string) error {
+func (rc *Chunk) Append(nrc *Chunk) error {
 	if rc.IsLiteral {
 		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
 	}
-	rc.data = append(rc.data, []byte(s)...)
-
-	valLen := uint32(len(s))
-	valLen += rc.offsets[len(rc.offsets)-1]
-	rc.offsets = append(rc.offsets, valLen)
-
-	rc.length++
-	if rc.Nullability != nil {
-		rc.Nullability.Ensure(int(rc.length))
-	}
-	return nil
-}
-
-// AddValue takes in a string representation of a value and converts it into
-// a value suited for this chunk
-func (rc *ChunkInts) AddValue(s string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	if isNull(s) {
-		if rc.Nullability == nil {
-			rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
-		}
-		rc.Nullability.Set(rc.Len(), true)
-		rc.data = append(rc.data, 0) // this value is not meant to be read
-		rc.length++
-		return nil
-	}
-
-	val, err := parseInt(s)
-	if err != nil {
-		return err
-	}
-	rc.data = append(rc.data, val)
-	rc.length++
-	if rc.Nullability != nil {
-		rc.Nullability.Ensure(int(rc.length))
-	}
-	return nil
-}
-
-// AddValue takes in a string representation of a value and converts it into
-// a value suited for this chunk
-// let's really consider adding standard nulls here, it will probably make our lives a lot easier
-func (rc *ChunkFloats) AddValue(s string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	var val float64
-	var err error
-	if isNull(s) {
-		val = math.NaN()
-	} else {
-		val, err = parseFloat(s)
-		if err != nil {
-			return err
-		}
-	}
-	if math.IsNaN(val) || math.IsInf(val, 0) {
-		if rc.Nullability == nil {
-			rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
-		}
-		rc.Nullability.Set(rc.Len(), true)
-		rc.data = append(rc.data, 0) // this value is not meant to be read
-		rc.length++
-		return nil
-	}
-
-	rc.data = append(rc.data, val)
-	rc.length++
-	// make sure the nullability bitmap aligns with the length of the chunk
-	if rc.Nullability != nil {
-		rc.Nullability.Ensure(int(rc.length))
-	}
-	return nil
-}
-
-// AddValue takes in a string representation of a value and converts it into
-// a value suited for this chunk
-func (rc *ChunkBools) AddValue(s string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	if isNull(s) {
-		if rc.Nullability == nil {
-			rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
-		}
-		rc.Nullability.Set(rc.Len(), true)
-		rc.data.Set(rc.Len(), false) // this value is not meant to be read
-		rc.length++
-		return nil
-	}
-	val, err := parseBool(s)
-	if err != nil {
-		return err
-	}
-	rc.data.Set(rc.Len(), val)
-	rc.length++
-	// make sure the nullability bitmap aligns with the length of the chunk
-	if rc.Nullability != nil {
-		rc.Nullability.Ensure(int(rc.length))
-	}
-	return nil
-}
-
-func (rc *ChunkDates) AddValue(s string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	if isNull(s) {
-		if rc.Nullability == nil {
-			rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
-		}
-		rc.Nullability.Set(rc.Len(), true)
-		rc.data = append(rc.data, 0) // this value is not meant to be read
-		rc.length++
-		return nil
-	}
-
-	val, err := parseDate(s)
-	if err != nil {
-		return err
-	}
-	rc.data = append(rc.data, val)
-	rc.length++
-	if rc.Nullability != nil {
-		rc.Nullability.Ensure(int(rc.length))
-	}
-	return nil
-}
-func (rc *ChunkDatetimes) AddValue(s string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	if isNull(s) {
-		if rc.Nullability == nil {
-			rc.Nullability = bitmap.NewBitmap(rc.Len() + 1)
-		}
-		rc.Nullability.Set(rc.Len(), true)
-		rc.data = append(rc.data, 0) // this value is not meant to be read
-		rc.length++
-		return nil
-	}
-
-	val, err := parseDatetime(s)
-	if err != nil {
-		return err
-	}
-	rc.data = append(rc.data, val)
-	rc.length++
-	if rc.Nullability != nil {
-		rc.Nullability.Ensure(int(rc.length))
-	}
-	return nil
-}
-
-// AddValue takes in a string representation of a value and converts it into
-// a value suited for this chunk
-func (rc *ChunkNulls) AddValue(s string) error {
-	if !isNull(s) {
-		return fmt.Errorf("a null column expects null values, got: %v", s)
-	}
-	rc.length++
-	return nil
-}
-
-// AddValues is a helper method, it just calls AddValue repeatedly
-func (rc *ChunkBools) AddValues(vals []string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	for _, el := range vals {
-		if err := rc.AddValue(el); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// AddValues is a helper method, it just calls AddValue repeatedly
-func (rc *ChunkFloats) AddValues(vals []string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	for _, el := range vals {
-		if err := rc.AddValue(el); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// AddValues is a helper method, it just calls AddValue repeatedly
-func (rc *ChunkInts) AddValues(vals []string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	for _, el := range vals {
-		if err := rc.AddValue(el); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// AddValues is a helper method, it just calls AddValue repeatedly
-func (rc *ChunkDates) AddValues(vals []string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	for _, el := range vals {
-		if err := rc.AddValue(el); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// AddValues is a helper method, it just calls AddValue repeatedly
-func (rc *ChunkDatetimes) AddValues(vals []string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	for _, el := range vals {
-		if err := rc.AddValue(el); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// AddValues is a helper method, it just calls AddValue repeatedly
-func (rc *ChunkNulls) AddValues(vals []string) error {
-	for _, el := range vals {
-		if err := rc.AddValue(el); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// AddValues is a helper method, it just calls AddValue repeatedly
-func (rc *ChunkStrings) AddValues(vals []string) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	for _, el := range vals {
-		if err := rc.AddValue(el); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Append adds a chunk of the same type at the end of this one (in place update)
-func (rc *ChunkStrings) Append(tc Chunk) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	nrc, ok := tc.(*ChunkStrings)
-	if !ok {
+	if rc.dtype != nrc.dtype {
 		return errAppendTypeMismatch
 	}
+
 	if rc.Nullability == nil && nrc.Nullability != nil {
 		rc.Nullability = bitmap.NewBitmap(rc.Len())
 	}
@@ -894,194 +738,75 @@ func (rc *ChunkStrings) Append(tc Chunk) error {
 	}
 	rc.length += nrc.length
 
-	off := uint32(0)
-	if rc.length > 0 {
-		off = rc.offsets[len(rc.offsets)-1]
-	}
-
-	if nrc.IsLiteral {
-		vlength := nrc.offsets[1]
-		for j := 0; j < nrc.Len(); j++ {
-			rc.data = append(rc.data, nrc.data...)
-			rc.offsets = append(rc.offsets, off+vlength*uint32(j+1))
+	switch rc.dtype {
+	case DtypeString:
+		off := uint32(0)
+		if rc.length > 0 {
+			off = rc.storage.offsets[len(rc.storage.offsets)-1]
 		}
-	} else {
-		rc.data = append(rc.data, nrc.data...)
-		for _, el := range nrc.offsets[1:] {
-			rc.offsets = append(rc.offsets, el+off)
+
+		if nrc.IsLiteral {
+			vlength := nrc.storage.offsets[1]
+			for j := 0; j < nrc.Len(); j++ {
+				rc.storage.strings = append(rc.storage.strings, nrc.storage.strings...)
+				rc.storage.offsets = append(rc.storage.offsets, off+vlength*uint32(j+1))
+			}
+		} else {
+			rc.storage.strings = append(rc.storage.strings, nrc.storage.strings...)
+			for _, el := range nrc.storage.offsets[1:] {
+				rc.storage.offsets = append(rc.storage.offsets, el+off)
+			}
 		}
-	}
-
-	return nil
-}
-
-// Append adds a chunk of the same type at the end of this one (in place update)
-func (rc *ChunkInts) Append(tc Chunk) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	nrc, ok := tc.(*ChunkInts)
-	if !ok {
-		return errAppendTypeMismatch
-	}
-	if rc.Nullability == nil && nrc.Nullability != nil {
-		rc.Nullability = bitmap.NewBitmap(rc.Len())
-	}
-	if nrc.Nullability == nil && rc.Nullability != nil {
-		nrc.Nullability = bitmap.NewBitmap(nrc.Len())
-	}
-	if rc.Nullability != nil {
-		rc.Nullability.Append(nrc.Nullability)
-	}
-
-	if nrc.IsLiteral {
-		value := nrc.data[0] // TODO/ARCH: nthValue? (in all implementations here)
-		for j := 0; j < nrc.Len(); j++ {
-			rc.data = append(rc.data, value)
+	case DtypeInt:
+		if nrc.IsLiteral {
+			value := nrc.storage.ints[0] // TODO/ARCH: nthValue? (in all implementations here)
+			for j := 0; j < nrc.Len(); j++ {
+				rc.storage.ints = append(rc.storage.ints, value)
+			}
+		} else {
+			rc.storage.ints = append(rc.storage.ints, nrc.storage.ints...)
 		}
-	} else {
-		rc.data = append(rc.data, nrc.data...)
-	}
-	rc.length += nrc.length
-
-	return nil
-}
-
-// Append adds a chunk of the same type at the end of this one (in place update)
-func (rc *ChunkFloats) Append(tc Chunk) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	nrc, ok := tc.(*ChunkFloats)
-	if !ok {
-		return errAppendTypeMismatch
-	}
-	if rc.Nullability == nil && nrc.Nullability != nil {
-		rc.Nullability = bitmap.NewBitmap(rc.Len())
-	}
-	if nrc.Nullability == nil && rc.Nullability != nil {
-		nrc.Nullability = bitmap.NewBitmap(nrc.Len())
-	}
-	if rc.Nullability != nil {
-		rc.Nullability.Append(nrc.Nullability)
-	}
-
-	if nrc.IsLiteral {
-		value := nrc.data[0]
-		for j := 0; j < nrc.Len(); j++ {
-			rc.data = append(rc.data, value)
+	case DtypeFloat:
+		if nrc.IsLiteral {
+			value := nrc.storage.floats[0]
+			for j := 0; j < nrc.Len(); j++ {
+				rc.storage.floats = append(rc.storage.floats, value)
+			}
+		} else {
+			rc.storage.floats = append(rc.storage.floats, nrc.storage.floats...)
 		}
-	} else {
-		rc.data = append(rc.data, nrc.data...)
-	}
-	rc.length += nrc.length
-
-	return nil
-}
-
-// Append adds a chunk of the same type at the end of this one (in place update)
-func (rc *ChunkBools) Append(tc Chunk) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	nrc, ok := tc.(*ChunkBools)
-	if !ok {
-		return errAppendTypeMismatch
-	}
-	if rc.Nullability == nil && nrc.Nullability != nil {
-		rc.Nullability = bitmap.NewBitmap(rc.Len())
-	}
-	if nrc.Nullability == nil && rc.Nullability != nil {
-		nrc.Nullability = bitmap.NewBitmap(nrc.Len())
-	}
-	if rc.Nullability != nil {
-		rc.Nullability.Append(nrc.Nullability)
-	}
-
-	if nrc.IsLiteral {
-		value := nrc.data.Get(0)
-		for j := 0; j < nrc.Len(); j++ {
-			rc.data.Set(int(rc.length)+j, value)
+	case DtypeBool:
+		if nrc.IsLiteral {
+			value := nrc.storage.bools.Get(0)
+			for j := 0; j < nrc.Len(); j++ {
+				rc.storage.bools.Set(int(rc.length)+j, value)
+			}
+		} else {
+			rc.storage.bools.Append(nrc.storage.bools)
 		}
-	} else {
-		rc.data.Append(nrc.data)
-	}
-	rc.length += nrc.length
-
-	return nil
-}
-
-// Append adds a chunk of the same type at the end of this one (in place update)
-func (rc *ChunkDates) Append(tc Chunk) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	nrc, ok := tc.(*ChunkDates)
-	if !ok {
-		return errAppendTypeMismatch
-	}
-	if rc.Nullability == nil && nrc.Nullability != nil {
-		rc.Nullability = bitmap.NewBitmap(rc.Len())
-	}
-	if nrc.Nullability == nil && rc.Nullability != nil {
-		nrc.Nullability = bitmap.NewBitmap(nrc.Len())
-	}
-	if rc.Nullability != nil {
-		rc.Nullability.Append(nrc.Nullability)
-	}
-
-	if nrc.IsLiteral {
-		value := nrc.data[0]
-		for j := 0; j < nrc.Len(); j++ {
-			rc.data = append(rc.data, value)
+	case DtypeDate:
+		if nrc.IsLiteral {
+			value := nrc.storage.dates[0]
+			for j := 0; j < nrc.Len(); j++ {
+				rc.storage.dates = append(rc.storage.dates, value)
+			}
+		} else {
+			rc.storage.dates = append(rc.storage.dates, nrc.storage.dates...)
 		}
-	} else {
-		rc.data = append(rc.data, nrc.data...)
-	}
-	rc.length += nrc.length
-
-	return nil
-}
-
-// Append adds a chunk of the same type at the end of this one (in place update)
-func (rc *ChunkDatetimes) Append(tc Chunk) error {
-	if rc.IsLiteral {
-		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
-	}
-	nrc, ok := tc.(*ChunkDatetimes)
-	if !ok {
-		return errAppendTypeMismatch
-	}
-	if rc.Nullability == nil && nrc.Nullability != nil {
-		rc.Nullability = bitmap.NewBitmap(rc.Len())
-	}
-	if nrc.Nullability == nil && rc.Nullability != nil {
-		nrc.Nullability = bitmap.NewBitmap(nrc.Len())
-	}
-	if rc.Nullability != nil {
-		rc.Nullability.Append(nrc.Nullability)
-	}
-
-	if nrc.IsLiteral {
-		value := nrc.data[0]
-		for j := 0; j < nrc.Len(); j++ {
-			rc.data = append(rc.data, value)
+	case DtypeDatetime:
+		if nrc.IsLiteral {
+			value := nrc.storage.datetimes[0]
+			for j := 0; j < nrc.Len(); j++ {
+				rc.storage.datetimes = append(rc.storage.datetimes, value)
+			}
+		} else {
+			rc.storage.datetimes = append(rc.storage.datetimes, nrc.storage.datetimes...)
 		}
-	} else {
-		rc.data = append(rc.data, nrc.data...)
+	case DtypeNull:
+		// we only need to increase its length, and that's already done
+	default:
+		return fmt.Errorf("no support for Append for Dtype %v", rc.dtype)
 	}
-	rc.length += nrc.length
-
-	return nil
-}
-
-// Append adds a chunk of the same type at the end of this one (in place update)
-func (rc *ChunkNulls) Append(tc Chunk) error {
-	nrc, ok := tc.(*ChunkNulls)
-	if !ok {
-		return errAppendTypeMismatch
-	}
-	rc.length += nrc.length
 
 	return nil
 }
@@ -1388,94 +1113,37 @@ func (rc *ChunkNulls) WriteTo(w io.Writer) (int64, error) {
 	return int64(4), nil
 }
 
-func (rc *ChunkBools) Clone() Chunk {
-	var nulls, data *bitmap.Bitmap
-	// ARCH: consider bitmap.Clone(bm) to handle nils
-	if rc.Nullability != nil {
-		nulls = rc.Nullability.Clone()
-	}
-	if rc.data != nil {
-		data = rc.data.Clone()
-	}
-	return &ChunkBools{
-		baseChunk: baseChunk{IsLiteral: rc.IsLiteral, Nullability: nulls, length: rc.length},
-		data:      data,
-	}
-}
-
-func (rc *ChunkFloats) Clone() Chunk {
+func (rc *Chunk) Clone() *Chunk {
 	var nulls *bitmap.Bitmap
 	if rc.Nullability != nil {
 		nulls = rc.Nullability.Clone()
 	}
+	ch := NewChunk(rc.dtype)
+	ch.Nullability = nulls
+	ch.length = rc.length
+	rc.IsLiteral = rc.IsLiteral
 
-	data := append(rc.data[:0:0], rc.data...)
-
-	return &ChunkFloats{
-		baseChunk: baseChunk{IsLiteral: rc.IsLiteral, Nullability: nulls, length: rc.length},
-		data:      data,
-	}
-}
-
-func (rc *ChunkInts) Clone() Chunk {
-	var nulls *bitmap.Bitmap
-	if rc.Nullability != nil {
-		nulls = rc.Nullability.Clone()
-	}
-
-	data := append(rc.data[:0:0], rc.data...)
-
-	return &ChunkInts{
-		baseChunk: baseChunk{IsLiteral: rc.IsLiteral, Nullability: nulls, length: rc.length},
-		data:      data,
-	}
-}
-
-func (rc *ChunkDates) Clone() Chunk {
-	var nulls *bitmap.Bitmap
-	if rc.Nullability != nil {
-		nulls = rc.Nullability.Clone()
+	switch rc.dtype {
+	case DtypeBool:
+		if rc.storage.bools != nil {
+			ch.storage.bools = rc.storage.bools.Clone()
+		}
+	case DtypeNull:
+		// nothing to be done here
+	case DtypeString:
+		ch.storage.offsets = append(rc.storage.offsets[:0:0], rc.storage.offsets...)
+		ch.storage.strings = append(rc.storage.strings[:0:0], rc.storage.strings...)
+	case DtypeFloat:
+		ch.storage.floats = append(rc.storage.floats[:0:0], rc.storage.floats...)
+	case DtypeInt:
+		ch.storage.ints = append(rc.storage.ints[:0:0], rc.storage.ints...)
+	case DtypeDate:
+		ch.storage.dates = append(rc.storage.dates[:0:0], rc.storage.dates...)
+	case DtypeDatetime:
+		ch.storage.datetimes = append(rc.storage.datetimes[:0:0], rc.storage.datetimes...)
 	}
 
-	data := append(rc.data[:0:0], rc.data...)
-
-	return &ChunkDates{
-		baseChunk: baseChunk{IsLiteral: rc.IsLiteral, Nullability: nulls, length: rc.length},
-		data:      data,
-	}
-}
-
-func (rc *ChunkDatetimes) Clone() Chunk {
-	var nulls *bitmap.Bitmap
-	if rc.Nullability != nil {
-		nulls = rc.Nullability.Clone()
-	}
-
-	data := append(rc.data[:0:0], rc.data...)
-
-	return &ChunkDatetimes{
-		baseChunk: baseChunk{IsLiteral: rc.IsLiteral, Nullability: nulls, length: rc.length},
-		data:      data,
-	}
-}
-
-func (rc *ChunkNulls) Clone() Chunk {
-	return &ChunkNulls{baseChunk: baseChunk{length: rc.length}}
-}
-
-func (rc *ChunkStrings) Clone() Chunk {
-	var nulls *bitmap.Bitmap
-	if rc.Nullability != nil {
-		nulls = rc.Nullability.Clone()
-	}
-	offsets := append(rc.offsets[:0:0], rc.offsets...)
-	data := append(rc.data[:0:0], rc.data...)
-
-	return &ChunkStrings{
-		baseChunk: baseChunk{IsLiteral: rc.IsLiteral, Nullability: nulls, length: rc.length},
-		data:      data,
-		offsets:   offsets,
-	}
+	return ch
 }
 
 func (rc *ChunkStrings) JSONLiteral(n int) (string, bool) {
