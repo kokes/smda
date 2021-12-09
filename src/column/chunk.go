@@ -90,11 +90,11 @@ func (rc *Chunk) AddValue(s string) error {
 		valLen := uint32(len(s))
 		valLen += rc.storage.offsets[len(rc.storage.offsets)-1]
 		rc.storage.offsets = append(rc.storage.offsets, valLen)
+		rc.length++
 
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
-		rc.length++
 	case DtypeInt:
 		if isNull(s) {
 			if rc.Nullability == nil {
@@ -111,10 +111,11 @@ func (rc *Chunk) AddValue(s string) error {
 			return err
 		}
 		rc.storage.ints = append(rc.storage.ints, val)
+		rc.length++
+
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
-		rc.length++
 	case DtypeFloat:
 		var val float64
 		var err error
@@ -137,11 +138,12 @@ func (rc *Chunk) AddValue(s string) error {
 		}
 
 		rc.storage.floats = append(rc.storage.floats, val)
+		rc.length++
+
 		// make sure the nullability bitmap aligns with the length of the chunk
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
-		rc.length++
 	case DtypeBool:
 		if isNull(s) {
 			if rc.Nullability == nil {
@@ -157,11 +159,12 @@ func (rc *Chunk) AddValue(s string) error {
 			return err
 		}
 		rc.storage.bools.Set(rc.Len(), val)
+		rc.length++
+
 		// make sure the nullability bitmap aligns with the length of the chunk
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
-		rc.length++
 	case DtypeDate:
 		if isNull(s) {
 			if rc.Nullability == nil {
@@ -177,11 +180,12 @@ func (rc *Chunk) AddValue(s string) error {
 		if err != nil {
 			return err
 		}
+		rc.length++
+
 		rc.storage.dates = append(rc.storage.dates, val)
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
-		rc.length++
 	case DtypeDatetime:
 		if isNull(s) {
 			if rc.Nullability == nil {
@@ -198,10 +202,11 @@ func (rc *Chunk) AddValue(s string) error {
 			return err
 		}
 		rc.storage.datetimes = append(rc.storage.datetimes, val)
+		rc.length++
+
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
-		rc.length++
 	case DtypeNull:
 		if !isNull(s) {
 			return fmt.Errorf("a null column expects null values, got: %v", s)
@@ -1084,7 +1089,7 @@ func (rc *Chunk) Clone() *Chunk {
 	ch := NewChunk(rc.dtype)
 	ch.Nullability = nulls
 	ch.length = rc.length
-	rc.IsLiteral = rc.IsLiteral
+	ch.IsLiteral = rc.IsLiteral
 
 	switch rc.dtype {
 	case DtypeBool:
