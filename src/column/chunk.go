@@ -60,6 +60,10 @@ func NewChunk(dtype Dtype) *Chunk {
 	return ch
 }
 
+func (ch *Chunk) Dtype() Dtype {
+	return ch.dtype
+}
+
 // ARCH: we sometimes use this, sometimes we access the struct field directly... perhaps remove this?
 func (ch *Chunk) Len() int {
 	return int(ch.length)

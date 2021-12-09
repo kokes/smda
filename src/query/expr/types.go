@@ -227,7 +227,7 @@ type Function struct {
 	name              string
 	distinct          bool
 	args              []Expression
-	evaler            func(...column.Chunk) (column.Chunk, error)
+	evaler            func(...*column.Chunk) (*column.Chunk, error)
 	aggregator        *column.AggState
 	aggregatorFactory func(...column.Dtype) (*column.AggState, error)
 }
