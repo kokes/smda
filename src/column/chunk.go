@@ -919,12 +919,6 @@ func (rc *Chunk) Prune(bm *bitmap.Bitmap) *Chunk {
 // OPTIM: we may be able to safely cast these byte slice in the future - see https://github.com/golang/go/issues/19367
 func Deserialize(r io.Reader, Dtype Dtype) (*Chunk, error) {
 	ch := NewChunk(Dtype)
-	if Dtype == DtypeNull {
-		if err := binary.Read(r, binary.LittleEndian, &ch.length); err != nil {
-			return nil, err
-		}
-		return ch, nil
-	}
 
 	bm, err := bitmap.DeserializeBitmapFromReader(r)
 	if err != nil {
@@ -932,6 +926,8 @@ func Deserialize(r io.Reader, Dtype Dtype) (*Chunk, error) {
 	}
 	ch.Nullability = bm
 
+	// OPTIM/ARCH: if we dump ch.length for strings as well, we can move this deserilisation from the switch
+	// and remove all the repetition
 	switch Dtype {
 	case DtypeString:
 		var lenOffsets uint32
@@ -1010,6 +1006,11 @@ func Deserialize(r io.Reader, Dtype Dtype) (*Chunk, error) {
 		}
 		ch.storage.bools = data
 		return ch, nil
+	case DtypeNull:
+		if err := binary.Read(r, binary.LittleEndian, &ch.length); err != nil {
+			return nil, err
+		}
+		return ch, nil
 	}
 	panic(fmt.Sprintf("unsupported Dtype: %v", Dtype))
 }
@@ -1019,7 +1020,7 @@ func (rc *Chunk) WriteTo(w io.Writer) (int64, error) {
 	if rc.IsLiteral {
 		return 0, errLiteralsCannotBeSerialised
 	}
-	// TODO(PR): check that we can serialize this for DtypeNull
+
 	nb, err := bitmap.Serialize(w, rc.Nullability)
 	if err != nil {
 		return 0, err

@@ -239,34 +239,34 @@ func TestColumnLength(t *testing.T) {
 
 func TestSerialisationRoundtrip(t *testing.T) {
 	tests := []struct {
-		schema Schema
-		vals   []string
+		dtype Dtype
+		vals  []string
 	}{
-		{Schema{"", DtypeString, true}, []string{"foo", "", "baz"}},
-		{Schema{"", DtypeString, false}, []string{"foo", "bar", "baz"}},
-		{Schema{"", DtypeString, true}, []string{}},
-		{Schema{"", DtypeString, true}, []string{""}},
-		{Schema{"", DtypeInt, true}, []string{}},
-		{Schema{"", DtypeInt, true}, []string{""}},
-		{Schema{"", DtypeFloat, true}, []string{}},
-		{Schema{"", DtypeFloat, true}, []string{""}},
-		{Schema{"", DtypeBool, true}, []string{}},
-		{Schema{"", DtypeBool, true}, []string{""}},
-		{Schema{"", DtypeNull, true}, []string{}},
-		{Schema{"", DtypeNull, true}, []string{""}},
-		{Schema{"", DtypeInt, false}, []string{"1", "2", "3"}},
-		{Schema{"", DtypeInt, true}, []string{"1", "", "3"}},
-		{Schema{"", DtypeFloat, false}, []string{"1", "2", "3"}},
-		{Schema{"", DtypeFloat, true}, []string{"1", "", "3"}},
-		{Schema{"", DtypeFloat, true}, []string{"1", "inf", "3"}},
-		{Schema{"", DtypeFloat, true}, []string{"1", "-inf", "3"}},
-		{Schema{"", DtypeBool, false}, []string{"t", "f", "t"}},
-		{Schema{"", DtypeBool, true}, []string{"t", "", "f"}},
-		{Schema{"", DtypeDate, true}, []string{"2020-02-22", "", "2030-12-31"}},
-		{Schema{"", DtypeDatetime, true}, []string{"2020-02-22 12:34:45", "", "2030-12-31 11:12:00.012"}},
+		{DtypeString, []string{"foo", "", "baz"}},
+		{DtypeString, []string{"foo", "bar", "baz"}},
+		{DtypeString, []string{}},
+		{DtypeString, []string{""}},
+		{DtypeInt, []string{}},
+		{DtypeInt, []string{""}},
+		{DtypeFloat, []string{}},
+		{DtypeFloat, []string{""}},
+		{DtypeBool, []string{}},
+		{DtypeBool, []string{""}},
+		{DtypeNull, []string{}},
+		{DtypeNull, []string{""}},
+		{DtypeInt, []string{"1", "2", "3"}},
+		{DtypeInt, []string{"1", "", "3"}},
+		{DtypeFloat, []string{"1", "2", "3"}},
+		{DtypeFloat, []string{"1", "", "3"}},
+		{DtypeFloat, []string{"1", "inf", "3"}},
+		{DtypeFloat, []string{"1", "-inf", "3"}},
+		{DtypeBool, []string{"t", "f", "t"}},
+		{DtypeBool, []string{"t", "", "f"}},
+		{DtypeDate, []string{"2020-02-22", "", "2030-12-31"}},
+		{DtypeDatetime, []string{"2020-02-22 12:34:45", "", "2030-12-31 11:12:00.012"}},
 	}
 	for j, test := range tests {
-		col := NewChunk(test.schema.Dtype)
+		col := NewChunk(test.dtype)
 		if err := col.AddValues(test.vals); err != nil {
 			t.Error(err)
 		}
@@ -275,7 +275,7 @@ func TestSerialisationRoundtrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		col2, err := Deserialize(buf, test.schema.Dtype)
+		col2, err := Deserialize(buf, test.dtype)
 		if err != nil {
 			t.Fatal(err)
 		}
