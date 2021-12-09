@@ -1146,90 +1146,68 @@ func (rc *Chunk) Clone() *Chunk {
 	return ch
 }
 
-func (rc *ChunkStrings) JSONLiteral(n int) (string, bool) {
+func (rc *Chunk) JSONLiteral(n int) (string, bool) {
 	if rc.Nullability != nil && rc.Nullability.Get(n) {
 		return "", false
 	}
 
-	val := rc.nthValue(n)
-	ret, err := json.Marshal(val)
-	if err != nil {
-		panic(err)
-	}
+	switch rc.dtype {
+	case DtypeString:
+		val := rc.nthValue(n)
+		ret, err := json.Marshal(val)
+		if err != nil {
+			panic(err)
+		}
 
-	return string(ret), true
-}
+		return string(ret), true
+	case DtypeInt:
+		if rc.IsLiteral {
+			return fmt.Sprintf("%v", rc.storage.ints[0]), true
+		}
 
-func (rc *ChunkInts) JSONLiteral(n int) (string, bool) {
-	if rc.IsLiteral {
-		return fmt.Sprintf("%v", rc.data[0]), true
-	}
-	if rc.Nullability != nil && rc.Nullability.Get(n) {
+		return fmt.Sprintf("%v", rc.storage.ints[n]), true
+	case DtypeFloat:
+		val := rc.storage.floats[0]
+		if !rc.IsLiteral {
+			val = rc.storage.floats[n]
+		}
+		// ARCH: this shouldn't happen? (it used to happen in division by zero... can it happen anywhere else?)
+		if math.IsNaN(val) || math.IsInf(val, 0) {
+			return "", false
+		}
+
+		return fmt.Sprintf("%v", val), true
+	case DtypeBool:
+		if rc.IsLiteral {
+			return fmt.Sprintf("%v", rc.storage.bools.Get(0)), true
+		}
+
+		return fmt.Sprintf("%v", rc.storage.bools.Get(n)), true
+	case DtypeDate:
+		val := rc.storage.dates[0]
+		if !rc.IsLiteral {
+			val = rc.storage.dates[n]
+		}
+		ret, err := json.Marshal(val)
+		if err != nil {
+			panic(err)
+		}
+		return string(ret), true
+	case DtypeDatetime:
+		val := rc.storage.datetimes[0]
+		if !rc.IsLiteral {
+			val = rc.storage.datetimes[n]
+		}
+		ret, err := json.Marshal(val)
+		if err != nil {
+			panic(err)
+		}
+		return string(ret), true
+	case DtypeNull:
 		return "", false
+	default:
+		panic(fmt.Sprintf("no support for JSONLiteral for Dtype %v", rc.dtype))
 	}
-
-	return fmt.Sprintf("%v", rc.data[n]), true
-}
-
-func (rc *ChunkFloats) JSONLiteral(n int) (string, bool) {
-	if rc.Nullability != nil && rc.Nullability.Get(n) {
-		return "", false
-	}
-	val := rc.data[0]
-	if !rc.IsLiteral {
-		val = rc.data[n]
-	}
-	// ARCH: this shouldn't happen? (it used to happen in division by zero... can it happen anywhere else?)
-	if math.IsNaN(val) || math.IsInf(val, 0) {
-		return "", false
-	}
-
-	return fmt.Sprintf("%v", val), true
-}
-
-func (rc *ChunkBools) JSONLiteral(n int) (string, bool) {
-	if rc.IsLiteral {
-		return fmt.Sprintf("%v", rc.data.Get(0)), true
-	}
-	if rc.Nullability != nil && rc.Nullability.Get(n) {
-		return "", false
-	}
-
-	return fmt.Sprintf("%v", rc.data.Get(n)), true
-}
-
-func (rc *ChunkDates) JSONLiteral(n int) (string, bool) {
-	if rc.Nullability != nil && rc.Nullability.Get(n) {
-		return "", false
-	}
-	val := rc.data[0]
-	if !rc.IsLiteral {
-		val = rc.data[n]
-	}
-	ret, err := json.Marshal(val)
-	if err != nil {
-		panic(err)
-	}
-	return string(ret), true
-}
-
-func (rc *ChunkDatetimes) JSONLiteral(n int) (string, bool) {
-	if rc.Nullability != nil && rc.Nullability.Get(n) {
-		return "", false
-	}
-	val := rc.data[0]
-	if !rc.IsLiteral {
-		val = rc.data[n]
-	}
-	ret, err := json.Marshal(val)
-	if err != nil {
-		panic(err)
-	}
-	return string(ret), true
-}
-
-func (rc *ChunkNulls) JSONLiteral(n int) (string, bool) {
-	return "", false
 }
 
 func compareOneNull(ltv int, nullsFirst bool, null1, null2 bool) int {
