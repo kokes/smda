@@ -194,7 +194,10 @@ func (rc *Chunk) AddValue(s string) error {
 			rc.Nullability.Ensure(int(rc.length))
 		}
 	case DtypeNull:
-		// nothing to be done here
+		if !isNull(s) {
+			return fmt.Errorf("a null column expects null values, got: %v", s)
+		}
+		// nothing else to be done here
 	default:
 		return fmt.Errorf("no support for AddValue for Dtype %v", rc.dtype)
 	}
