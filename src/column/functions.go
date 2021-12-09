@@ -155,13 +155,12 @@ func hasRunes(d []byte) bool {
 // ARCH: postgres allows for negative indexing
 func evalLeft(cs ...*Chunk) (*Chunk, error) {
 	nchars := int(cs[1].storage.ints[0])
-	data := cs[0] // TODO(PR): redundant
 	ret := NewChunk(DtypeString)
 
-	runes := hasRunes(data.storage.strings)
+	runes := hasRunes(cs[0].storage.strings)
 
-	for j := 0; j < data.Len(); j++ {
-		val := data.nthValue(j)
+	for j := 0; j < cs[0].Len(); j++ {
+		val := cs[0].nthValue(j)
 		if runes && utf8.RuneCountInString(val) > nchars {
 			val = string([]rune(val)[:nchars])
 		}
@@ -179,12 +178,11 @@ func evalLeft(cs ...*Chunk) (*Chunk, error) {
 
 func evalSplitPart(cs ...*Chunk) (*Chunk, error) {
 	pos := int(cs[2].storage.ints[0])
-	data := cs[0] // TODO(PR): redundant?
 	needle := cs[1].nthValue(0)
 	ret := NewChunk(DtypeString)
 
-	for j := 0; j < data.Len(); j++ {
-		val := data.nthValue(j)
+	for j := 0; j < cs[0].Len(); j++ {
+		val := cs[0].nthValue(j)
 		parts := strings.SplitN(val, needle, pos+1)
 		if len(parts) == 1 || len(parts) < pos {
 			val = ""
@@ -209,18 +207,17 @@ func numFunc(fnc func(float64) float64) func(...*Chunk) (*Chunk, error) {
 			if err != nil {
 				return nil, err
 			}
-			ctr := rc // TODO(PR): redundant?
-			for j, el := range ctr.storage.floats {
+			for j, el := range rc.storage.floats {
 				val := fnc(el)
 				if math.IsNaN(val) || math.IsInf(val, 0) {
-					if ctr.Nullability == nil {
-						ctr.Nullability = bitmap.NewBitmap(ctr.Len())
+					if rc.Nullability == nil {
+						rc.Nullability = bitmap.NewBitmap(rc.Len())
 					}
-					ctr.Nullability.Set(j, true)
+					rc.Nullability.Set(j, true)
 				}
-				ctr.storage.floats[j] = val
+				rc.storage.floats[j] = val
 			}
-			return ctr, nil
+			return rc, nil
 		case DtypeFloat:
 			ctr := ct.Clone()
 			for j, el := range ctr.storage.floats {
@@ -247,17 +244,16 @@ func numFunc(fnc func(float64) float64) func(...*Chunk) (*Chunk, error) {
 
 func stringFunc(fnc func(string) string) func(...*Chunk) (*Chunk, error) {
 	return func(cs ...*Chunk) (*Chunk, error) {
-		ct := cs[0] // TODO(PR): redundant?
-		if ct.IsLiteral {
-			newValue := fnc(ct.nthValue(0))
-			return NewChunkLiteralStrings(newValue, ct.Len()), nil
+		if cs[0].IsLiteral {
+			newValue := fnc(cs[0].nthValue(0))
+			return NewChunkLiteralStrings(newValue, cs[0].Len()), nil
 		}
 		ret := NewChunk(DtypeString)
-		if ct.Nullability != nil {
-			ret.Nullability = ct.Nullability.Clone()
+		if cs[0].Nullability != nil {
+			ret.Nullability = cs[0].Nullability.Clone()
 		}
-		for j := 0; j < ct.Len(); j++ {
-			newValue := fnc(ct.nthValue(j))
+		for j := 0; j < cs[0].Len(); j++ {
+			newValue := fnc(cs[0].nthValue(j))
 			if err := ret.AddValue(newValue); err != nil {
 				return nil, err
 			}

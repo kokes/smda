@@ -22,7 +22,7 @@ var errInvalidTypedLiteral = errors.New("invalid data supplied to a literal cons
 type Chunk struct {
 	dtype       Dtype
 	length      uint32
-	IsLiteral   bool // TODO(PR): why is IsLiteral an exporter member but length and dtype aren't?
+	IsLiteral   bool // TODO/ARCH: why is IsLiteral an exporter member but length and dtype aren't?
 	Nullability *bitmap.Bitmap
 	storage     struct {
 		ints      []int64
@@ -290,7 +290,6 @@ func ChunksEqual(c1 *Chunk, c2 *Chunk) bool {
 			if c1.Nullability.Get(j) {
 				continue
 			}
-			// TODO(PR)
 			if c1.nthValue(j) != c2.nthValue(j) {
 				return false
 			}
@@ -543,7 +542,7 @@ func (rc *Chunk) Truths() *bitmap.Bitmap {
 // BUT, we're sort of using it for type inference - so maybe caveat it with a note that it's only to be used with
 // not nullable columns?
 // we could also use it for other types (especially bools)
-// TODO(PR): revise this
+// TODO/ARCH: rename this
 func (rc *Chunk) nthValue(n int) string {
 	if rc.IsLiteral && n > 0 {
 		return rc.nthValue(0)

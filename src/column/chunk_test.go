@@ -472,27 +472,25 @@ func TestPruningFailureMisalignment(t *testing.T) {
 
 func TestAppending(t *testing.T) {
 	tests := []struct {
-		Dtype    Dtype
-		nullable bool
-		a        []string
-		b        []string
-		res      []string
+		Dtype Dtype
+		a     []string
+		b     []string
+		res   []string
 	}{
-		{DtypeString, false, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
-		{DtypeInt, false, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
-		{DtypeFloat, false, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
-		{DtypeBool, false, []string{"T", "F", "T"}, []string{"F", "F", "T"}, []string{"T", "F", "T", "F", "F", "T"}},
+		{DtypeString, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
+		{DtypeInt, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
+		{DtypeFloat, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
+		{DtypeBool, []string{"T", "F", "T"}, []string{"F", "F", "T"}, []string{"T", "F", "T", "F", "F", "T"}},
 
 		// nullable (makes no sense for strings, we don't support them?)
 		// {DtypeString, true, []string{"1", "2", "3"}, []string{"4", "5", "6"}, []string{"1", "2", "3", "4", "5", "6"}},
 		// {DtypeString, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
-		{DtypeInt, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
+		{DtypeInt, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
 		// NaNs in []float64 -> custom treatment
-		{DtypeFloat, true, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
-		{DtypeBool, true, []string{"", "", ""}, []string{"F", "F", ""}, []string{"", "", "", "F", "F", ""}},
+		{DtypeFloat, []string{"1", "", "3"}, []string{"4", "5", ""}, []string{"1", "", "3", "4", "5", ""}},
+		{DtypeBool, []string{"", "", ""}, []string{"F", "F", ""}, []string{"", "", "", "F", "F", ""}},
 	}
 	for _, test := range tests {
-		// TODO(PR): this doesn't use `test.nullable` in any way
 		rc := NewChunk(test.Dtype)
 		nrc := NewChunk(test.Dtype)
 		rrc := NewChunk(test.Dtype)

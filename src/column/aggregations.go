@@ -313,9 +313,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, *Chunk), 
 				}
 				return
 			}
-			rc := data // TODO(PR): redundant
-			for j, val := range rc.storage.ints {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j, val := range data.storage.ints {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -345,9 +344,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, *Chunk), 
 			agg.floats = ensureLengthFloats(agg.floats, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
-			rc := data // TODO(PR): redundant
-			for j, val := range rc.storage.floats {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j, val := range data.storage.floats {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -376,9 +374,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, *Chunk), 
 			agg.dates = ensureLengthDates(agg.dates, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
-			rc := data // TODO(PR): redundant
-			for j, val := range rc.storage.dates {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j, val := range data.storage.dates {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -404,9 +401,8 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, *Chunk), 
 			agg.datetimes = ensureLengthDatetimes(agg.datetimes, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
-			rc := data // TODO(PR): redundant
-			for j, val := range rc.storage.datetimes {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j, val := range data.storage.datetimes {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
 				pos := buckets[j]
@@ -432,13 +428,12 @@ func adderFactory(agg *AggState, upd updateFuncs) (func([]uint64, int, *Chunk), 
 			agg.strings = ensurelengthStrings(agg.strings, ndistinct)
 			agg.seen = ensureLengthSeenMaps(agg.seen, ndistinct)
 
-			rc := data            // TODO(PR): redundant
 			hasher := fnv.New64() // TODO/ARCH: should we abstract this out some place?
-			for j := 0; j < rc.Len(); j++ {
-				if rc.Nullability != nil && rc.Nullability.Get(j) {
+			for j := 0; j < data.Len(); j++ {
+				if data.Nullability != nil && data.Nullability.Get(j) {
 					continue
 				}
-				val := rc.nthValue(j)
+				val := data.nthValue(j)
 				pos := buckets[j]
 				if agg.distinct {
 					if _, err := hasher.Write([]byte(val)); err != nil {
