@@ -83,8 +83,6 @@ func (rc *Chunk) AddValue(s string) error {
 		return fmt.Errorf("cannot add values to literal chunks: %w", errNoAddToLiterals)
 	}
 
-	rc.length++
-
 	switch rc.dtype {
 	case DtypeString:
 		rc.storage.strings = append(rc.storage.strings, []byte(s)...)
@@ -96,6 +94,7 @@ func (rc *Chunk) AddValue(s string) error {
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
+		rc.length++
 	case DtypeInt:
 		if isNull(s) {
 			if rc.Nullability == nil {
@@ -103,6 +102,7 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.ints = append(rc.storage.ints, 0) // this value is not meant to be read
+			rc.length++
 			return nil
 		}
 
@@ -114,6 +114,7 @@ func (rc *Chunk) AddValue(s string) error {
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
+		rc.length++
 	case DtypeFloat:
 		var val float64
 		var err error
@@ -131,6 +132,7 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.floats = append(rc.storage.floats, 0) // this value is not meant to be read
+			rc.length++
 			return nil
 		}
 
@@ -139,6 +141,7 @@ func (rc *Chunk) AddValue(s string) error {
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
+		rc.length++
 	case DtypeBool:
 		if isNull(s) {
 			if rc.Nullability == nil {
@@ -146,6 +149,7 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.bools.Set(rc.Len(), false) // this value is not meant to be read
+			rc.length++
 			return nil
 		}
 		val, err := parseBool(s)
@@ -157,6 +161,7 @@ func (rc *Chunk) AddValue(s string) error {
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
+		rc.length++
 	case DtypeDate:
 		if isNull(s) {
 			if rc.Nullability == nil {
@@ -164,6 +169,7 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.dates = append(rc.storage.dates, 0) // this value is not meant to be read
+			rc.length++
 			return nil
 		}
 
@@ -175,6 +181,7 @@ func (rc *Chunk) AddValue(s string) error {
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
+		rc.length++
 	case DtypeDatetime:
 		if isNull(s) {
 			if rc.Nullability == nil {
@@ -182,6 +189,7 @@ func (rc *Chunk) AddValue(s string) error {
 			}
 			rc.Nullability.Set(rc.Len(), true)
 			rc.storage.datetimes = append(rc.storage.datetimes, 0) // this value is not meant to be read
+			rc.length++
 			return nil
 		}
 
@@ -193,10 +201,12 @@ func (rc *Chunk) AddValue(s string) error {
 		if rc.Nullability != nil {
 			rc.Nullability.Ensure(int(rc.length))
 		}
+		rc.length++
 	case DtypeNull:
 		if !isNull(s) {
 			return fmt.Errorf("a null column expects null values, got: %v", s)
 		}
+		rc.length++
 		// nothing else to be done here
 	default:
 		return fmt.Errorf("no support for AddValue for Dtype %v", rc.dtype)
@@ -222,7 +232,7 @@ func (rc *Chunk) AddValues(vals []string) error {
 // ChunksEqual compares two chunks, even if they contain []float64 data
 // consider making this lenient enough to compare only the relevant bits in ChunkBools
 func ChunksEqual(c1 *Chunk, c2 *Chunk) bool {
-	if c1.dtype == c2.dtype && c1.length == c2.length {
+	if !(c1.dtype == c2.dtype && c1.length == c2.length) {
 		return false
 	}
 	// this is length, isliteral and nullability (via DeepEqual)
