@@ -755,7 +755,6 @@ func (rc *Chunk) Append(nrc *Chunk) error {
 	if rc.Nullability != nil {
 		rc.Nullability.Append(nrc.Nullability)
 	}
-	rc.length += nrc.length
 
 	switch rc.dtype {
 	case DtypeString:
@@ -826,6 +825,8 @@ func (rc *Chunk) Append(nrc *Chunk) error {
 	default:
 		return fmt.Errorf("no support for Append for Dtype %v", rc.dtype)
 	}
+
+	rc.length += nrc.length
 
 	return nil
 }

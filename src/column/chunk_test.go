@@ -565,7 +565,7 @@ func TestAppendingLiterals(t *testing.T) {
 		}
 
 		if !ChunksEqual(c1, res) {
-			t.Errorf("expecting that appending %+v to %+v would result in %+v, got %+v instead", test.a, test.b, test.res, c1)
+			t.Errorf("expecting that appending %+v and %+v would result in %+v, got %+v instead", test.a, test.b, test.res, c1)
 		}
 	}
 }
