@@ -36,6 +36,11 @@ type Chunk struct {
 	}
 }
 
+// TODO(next): useful for debugging
+// func (rc *Chunk) String() string {
+
+// }
+
 // preallocate column data, so that slice appends don't trigger new reallocations
 const defaultChunkCap = 512
 
