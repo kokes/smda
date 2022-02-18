@@ -78,6 +78,13 @@ func (bm *Bitmap) Clone() *Bitmap {
 	}
 }
 
+func Clone(bm *Bitmap) *Bitmap {
+	if bm == nil {
+		return bm
+	}
+	return bm.Clone()
+}
+
 // AndNot modified this bitmap in place by executing &^ on each element
 func (bm *Bitmap) AndNot(obm *Bitmap) {
 	if bm.cap != obm.cap {

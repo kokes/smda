@@ -137,7 +137,7 @@ func TestBitmapAndNot(t *testing.T) {
 }
 
 func TestBitmapCloning(t *testing.T) {
-	var bm1, bm2 *Bitmap
+	var bm1, bm2, bm3 *Bitmap
 	bm1 = NewBitmap(1000)
 	rand.Seed(0)
 
@@ -145,12 +145,30 @@ func TestBitmapCloning(t *testing.T) {
 		bm1.Set(rand.Intn(bm1.Cap()), true)
 	}
 	bm2 = bm1.Clone()
+	bm3 = Clone(bm1)
 	c2 := bm2.Count()
+	c3 := bm3.Count()
 	for j := 0; j < 100; j++ {
 		bm1.Set(rand.Intn(bm1.Cap()), true)
 	}
 	if bm2.Count() != c2 {
 		t.Errorf("expecting a cloned bitmap not to be affected by changes to the original bitmap")
+	}
+	if bm3.Count() != c3 {
+		t.Errorf("expecting a cloned bitmap not to be affected by changes to the original bitmap")
+	}
+}
+
+func TestCloningNils(t *testing.T) {
+	var bm1, bm2 *Bitmap
+	if Clone(bm1) != nil {
+		t.Error("cloning nil bitmaps should result in a nil as well")
+	}
+	bm2 = NewBitmap(1000)
+	bm2.Set(50, true)
+	bm2.Set(150, true)
+	if Clone(bm2).Count() != bm2.Count() {
+		t.Error("cloning func (not the method) should work just fine")
 	}
 }
 

@@ -27,11 +27,7 @@ func (rc *Chunk) cast(dtype Dtype) (*Chunk, error) {
 		for j := 0; j < rc.Len(); j++ {
 			data[j] = float64(rc.storage.ints[j]) // perhaps use nthValue?
 		}
-		// ARCH: a case for bitmap.Clone(bm)?
-		var nulls *bitmap.Bitmap
-		if rc.Nullability != nil {
-			nulls = rc.Nullability.Clone()
-		}
+		nulls := bitmap.Clone(rc.Nullability)
 		return NewChunkFloatsFromSlice(data, nulls), nil
 	default:
 		return nil, fmt.Errorf("%w: %v to %v", errCannotCastToType, rc.dtype, dtype)
