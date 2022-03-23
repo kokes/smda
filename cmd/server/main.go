@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/web"
@@ -17,13 +18,6 @@ import (
 
 //go:embed samples/*.csv
 var sampleDir embed.FS
-
-// global, so that we can inject it at build time
-var (
-	gitCommit      string
-	buildTime      string
-	buildGoVersion string
-)
 
 func main() {
 	expose := flag.Bool("expose", false, "expose the server on the network, do not run it just locally")
@@ -37,8 +31,15 @@ func main() {
 	version := flag.Bool("version", false, "print the binary's version")
 	flag.Parse()
 
+	// TODO: embed smda version from some place
 	if *version {
-		fmt.Printf("build commit: %v\nbuild time: %v\ngo version: %v\n", gitCommit, buildTime, buildGoVersion)
+		buildInfo, ok := debug.ReadBuildInfo()
+		if ok {
+			fmt.Println("Build information")
+			fmt.Println(buildInfo)
+		} else {
+			fmt.Println("No build information embedded into the binary")
+		}
 		os.Exit(0)
 	}
 

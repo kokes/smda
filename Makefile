@@ -22,19 +22,16 @@ endif
 DOCKER_IMAGE = smda
 DOCKER_IMAGE_BUILD = smda-builder
 
-GIT_COMMIT ?= $(shell git rev-list -1 HEAD)
-BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M)
-BUILD_GO := $(shell $(GORLS) version)
-BUILD_FLAGS = -ldflags "-X main.gitCommit=$(GIT_COMMIT) -X main.buildTime=$(BUILD_TIME) -X 'main.buildGoVersion=$(BUILD_GO)'"
-
 check:
 	$(GORLS) fmt ./...
 	CGO_ENABLED=0 $(GORLS) vet ./...
 
 build:
 	mkdir -p bin
-	CGO_ENABLED=0 $(GORLS) build -o $(BUILD_PATH) ${BUILD_FLAGS} ./cmd/server/
+	CGO_ENABLED=0 $(GORLS) build -o $(BUILD_PATH) ./cmd/server/
 
+# TODO: vcs info not stamped into the binary, because we don't attach
+# the current working directory as a volume
 build-docker:
 	docker build . -t $(DOCKER_IMAGE):latest
 
@@ -54,8 +51,6 @@ run-docker: build-docker
 	# ephemeral run - will destroy the container after exiting
 	docker run --rm -p 8822:8822 $(DOCKER_IMAGE):latest
 
-# we need to inject GIT_COMMIT into the Docker image, because
-# we don't have git nor the git repo there
 # ARCH: consider making the docker build a separate step (or maybe even within `build-docker`)
 dist: test
 	docker build --target build -t $(DOCKER_IMAGE_BUILD) .
@@ -64,7 +59,7 @@ dist: test
 	@for os in $(DIST_BUILD_OS) ; do \
 		for arch in $(DIST_BUILD_ARCH); do \
 			echo "Buidling" $$arch $$os; \
-			docker run --rm -v $(PWD)/dist:/smda/dist -e GOOS=$$os -e GOARCH=$$arch -e GIT_COMMIT=$(GIT_COMMIT) $(DOCKER_IMAGE_BUILD) make package; \
+			docker run --rm -v $(PWD)/dist:/smda/dist -e GOOS=$$os -e GOARCH=$$arch $(DOCKER_IMAGE_BUILD) make package; \
 		done \
 	done
 	(cd dist; shasum -a 256 *.zip > sha256sums.txt)
