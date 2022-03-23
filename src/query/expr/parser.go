@@ -18,6 +18,7 @@ var errInvalidFunctionName = errors.New("invalid function name")
 var errEmptyExpression = errors.New("cannot parse an expression from an empty string")
 var errInvalidTuple = errors.New("invalid tuple expression")
 var errDistinctNeedsColumn = errors.New("DISTINCT in a function call needs an argument")
+var errInvalidDatasetVersion = errors.New("invalid dataset version")
 
 const (
 	_ int = iota
@@ -210,7 +211,9 @@ func (p *Parser) parsePrefixExpression() Expression {
 func (p *Parser) parseCallExpression(left Expression) Expression {
 	id, ok := left.(*Identifier)
 	if !ok || id.quoted {
-		p.errors = append(p.errors, fmt.Errorf("%w: %v", errInvalidFunctionName, left.String()))
+		// ARCH: left can be nil (e.g. if expr is `(foo`), so we can't print `left.String()`
+		// shall we have some error specific to this?
+		p.errors = append(p.errors, fmt.Errorf("%w: %v", errInvalidFunctionName, left))
 		return nil
 	}
 	funName := id.Name
@@ -534,7 +537,10 @@ func ParseQuerySQL(s string) (Query, error) {
 			}
 			dsn := p.curToken().value
 			if len(dsn) == 0 || dsn[0] != 'v' {
-				return q, fmt.Errorf("invalid dataset version, got %s", dsn)
+				return q, fmt.Errorf("%w: %s", errInvalidDatasetVersion, dsn)
+			}
+			if len(dsn[1:]) != 18 {
+				return q, fmt.Errorf("%w: %s", errInvalidDatasetVersion, dsn)
 			}
 			version, err := database.UIDFromHex(dsn[1:])
 			if err != nil {
