@@ -15,7 +15,10 @@ import (
 )
 
 func TestServerHappyPath(t *testing.T) {
-	db, err := database.NewDatabase("", nil)
+	port := 10000 + rand.Intn(1000)
+	db, err := database.NewDatabase("", &database.Config{
+		PortHTTP: port,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,9 +27,8 @@ func TestServerHappyPath(t *testing.T) {
 			panic(err)
 		}
 	}()
-	port := 10000 + rand.Intn(1000)
 	go func() {
-		if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
+		if err := RunWebserver(context.Background(), db, false, "", ""); err != http.ErrServerClosed {
 			panic(fmt.Sprintf("unable to start a webserver: %v", err))
 		}
 	}()
@@ -45,7 +47,10 @@ func TestServerHappyPath(t *testing.T) {
 }
 
 func TestServerClosing(t *testing.T) {
-	db, err := database.NewDatabase("", nil)
+	port := 10000 + rand.Intn(1000)
+	db, err := database.NewDatabase("", &database.Config{
+		PortHTTP: port,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,8 +64,7 @@ func TestServerClosing(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		port := 10000 + rand.Intn(1000)
-		if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err != http.ErrServerClosed {
+		if err := RunWebserver(context.Background(), db, false, "", ""); err != http.ErrServerClosed {
 			panic(fmt.Sprintf("expecting a server to be stopped with a ErrServerClosed, got %+v", err))
 		}
 	}()
@@ -74,7 +78,10 @@ func TestServerClosing(t *testing.T) {
 }
 
 func TestBusyPort(t *testing.T) {
-	db, err := database.NewDatabase("", nil)
+	port := 10000 + rand.Intn(1000)
+	db, err := database.NewDatabase("", &database.Config{
+		PortHTTP: port,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +91,6 @@ func TestBusyPort(t *testing.T) {
 		}
 	}()
 
-	port := 10000 + rand.Intn(1000)
 	address := net.JoinHostPort("localhost", strconv.Itoa(port))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
@@ -95,7 +101,7 @@ func TestBusyPort(t *testing.T) {
 			panic(err)
 		}
 	}()
-	if err := RunWebserver(context.Background(), db, port, port+1, false, false, "", ""); err == nil {
+	if err := RunWebserver(context.Background(), db, false, "", ""); err == nil {
 		t.Error("server started on a busy port with port ensuring should err, got nil")
 	}
 }

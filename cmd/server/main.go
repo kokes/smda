@@ -65,6 +65,7 @@ func main() {
 	}
 }
 
+// TODO: consider passing a database.Config instead of many of the args here
 func run(ctx context.Context, wdir string, portHTTP, portHTTPS int, expose bool, loadSamples, useTLS bool, tlsCert, tlsKey string) error {
 	if wdir == "" {
 		hdir, err := os.UserHomeDir()
@@ -73,7 +74,11 @@ func run(ctx context.Context, wdir string, portHTTP, portHTTPS int, expose bool,
 		}
 		wdir = filepath.Join(hdir, "smda_db")
 	}
-	d, err := database.NewDatabase(wdir, nil)
+	d, err := database.NewDatabase(wdir, &database.Config{
+		UseTLS:    useTLS,
+		PortHTTP:  portHTTP,
+		PortHTTPS: portHTTPS,
+	})
 	if err != nil {
 		return err
 	}
@@ -93,5 +98,5 @@ func run(ctx context.Context, wdir string, portHTTP, portHTTPS int, expose bool,
 		}
 	}
 
-	return web.RunWebserver(ctx, d, portHTTP, portHTTPS, expose, useTLS, tlsCert, tlsKey)
+	return web.RunWebserver(ctx, d, expose, tlsCert, tlsKey)
 }
