@@ -129,6 +129,7 @@ func run() error {
 			return err
 		}
 		role = createRole.Role
+		// TODO: the role doesn't exist for the next few seconds... we may have to check for its existence here and wait
 	}
 	log.Printf("we have a (new) role: %+v", *role.Arn)
 
@@ -162,20 +163,35 @@ func run() error {
 		return err
 	}
 	log.Printf("function created: %v", *fn.FunctionArn)
-	furl, err := lambdaClient.GetFunctionUrlConfig(context.TODO(), &lambda.GetFunctionUrlConfigInput{FunctionName: &functionName})
+	_, err = lambdaClient.GetFunctionUrlConfig(context.TODO(), &lambda.GetFunctionUrlConfigInput{FunctionName: &functionName})
 	if err == nil {
-		log.Printf("already have a function URL: %v", *furl.FunctionUrl)
-	} else {
-		fu, err := lambdaClient.CreateFunctionUrlConfig(context.TODO(), &lambda.CreateFunctionUrlConfigInput{
-			FunctionName: &functionName,
-			AuthType:     lambdaTypes.FunctionUrlAuthTypeNone,
-			// Cors: // TODO
-		})
-		if err != nil {
+		log.Println("already have a function URL, deleting")
+		if _, err := lambdaClient.DeleteFunctionUrlConfig(context.TODO(), &lambda.DeleteFunctionUrlConfigInput{FunctionName: &functionName}); err != nil {
 			return err
 		}
-		log.Printf("function URL created: %v", *fu.FunctionUrl)
 	}
+	fu, err := lambdaClient.CreateFunctionUrlConfig(context.TODO(), &lambda.CreateFunctionUrlConfigInput{
+		FunctionName: &functionName,
+		AuthType:     lambdaTypes.FunctionUrlAuthTypeNone,
+		// Cors: // TODO
+	})
+	if err != nil {
+		return err
+	}
+	log.Printf("function URL created: %v", *fu.FunctionUrl)
+
+	// update permissions, so that this Function URL can be invoked
+	perm, err := lambdaClient.AddPermission(context.TODO(), &lambda.AddPermissionInput{
+		FunctionName:        &functionName,
+		Action:              aws.String("lambda:InvokeFunctionUrl"),
+		Principal:           aws.String("*"),
+		StatementId:         aws.String("FunctionURLAllowPublicAccess"),
+		FunctionUrlAuthType: lambdaTypes.FunctionUrlAuthTypeNone,
+	})
+	if err != nil {
+		return err
+	}
+	log.Printf("added permission: %v", *perm.Statement)
 
 	return nil
 }
