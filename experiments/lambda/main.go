@@ -78,12 +78,19 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	functionName := "ahoy" // TODO: formalise
 	lambdaClient := lambda.NewFromConfig(cfg)
+
+	// TODO: let's not delete it every single time
+	log.Printf("deleting function %v", functionName)
+	lambdaClient.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
+		FunctionName: &functionName,
+	})
 
 	// TODO: update if exists (given a flag, create only by default)
 	// TODO: description etc.
 	lambdaInputs := &lambda.CreateFunctionInput{
-		FunctionName: aws.String("ahoy"), // TODO: flag/set
+		FunctionName: &functionName,
 		Role:         role.Arn,
 		Runtime:      lambdaTypes.RuntimeGo1x,
 		Handler:      aws.String("MyHandler"), // TODO: set
@@ -96,5 +103,16 @@ func run() error {
 		return err
 	}
 	log.Printf("function created: %v", *fn.FunctionArn)
+
+	fu, err := lambdaClient.CreateFunctionUrlConfig(context.TODO(), &lambda.CreateFunctionUrlConfigInput{
+		FunctionName: &functionName,
+		AuthType:     lambdaTypes.FunctionUrlAuthTypeNone,
+		// Cors: // TODO
+	})
+	if err != nil {
+		return err
+	}
+	log.Printf("function URL created: %v", *fu.FunctionUrl)
+
 	return nil
 }
