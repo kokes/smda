@@ -1,10 +1,13 @@
 package main
 
 import (
+	"archive/zip"
 	"context"
 	"errors"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -33,7 +36,63 @@ var iamPolicy string = `{
 }`
 
 func run() error {
-	log.Println("it runs!")
+	// 0) build our function
+	log.Println("building our Lambda function")
+	// TODO: parametrise? run `which`?
+	binPath := "./main" // TODO: extract filename to `-o` and `Dir` below?
+	binAbsPath, err := filepath.Abs(binPath)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("go", "build", "-o", binAbsPath, ".")
+	cmd.Env = append(os.Environ(), []string{"GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0"}...) // TODO: arm64 functions?
+	cmd.Dir = "handler"
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	defer os.Remove(binPath)
+	log.Printf("built %v", binPath)
+	log.Println("compressing")
+	fw, err := os.Create("main.zip")
+	if err != nil {
+		return err
+	}
+	// defer os.Remove("main.zip")
+	zw := zip.NewWriter(fw)
+	fi, err := os.Stat(binPath)
+	if err != nil {
+		return err
+	}
+	fh, err := zip.FileInfoHeader(fi)
+	if err != nil {
+		return err
+	}
+	w, err := zw.CreateHeader(fh)
+	if err != nil {
+		return err
+	}
+	// TODO: maybe use io.Copy instead (and defer closing and deletion) - once we move
+	// it into a function
+	binFile, err := os.ReadFile(binPath)
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write(binFile); err != nil {
+		return err
+	}
+	if err := zw.Close(); err != nil {
+		return err
+	}
+	if err := fw.Close(); err != nil {
+		return err
+	}
+
+	zipData, err := os.ReadFile("main.zip")
+	if err != nil {
+		return err
+	}
+
 	// 1) setup config
 	cfg, err := config.LoadDefaultConfig(
 		context.TODO(),
@@ -74,11 +133,7 @@ func run() error {
 	log.Printf("we have a (new) role: %+v", *role.Arn)
 
 	// 3) create a lambda function
-	zipData, err := os.ReadFile("main.zip") // TODO: create
-	if err != nil {
-		return err
-	}
-	functionName := "ahoy" // TODO: formalise
+	functionName := "smda-gateway" // TODO: formalise
 	lambdaClient := lambda.NewFromConfig(cfg)
 
 	// TODO: let's not delete it every single time
@@ -93,26 +148,34 @@ func run() error {
 		FunctionName: &functionName,
 		Role:         role.Arn,
 		Runtime:      lambdaTypes.RuntimeGo1x,
-		Handler:      aws.String("MyHandler"), // TODO: set
+		// TODO: extract binary name from binPath
+		Handler: aws.String("main"),
 		Code: &lambdaTypes.FunctionCode{
 			ZipFile: zipData,
 		},
+		// TODO: environment
+		// TODO: memory and such
+		// TODO: timeout
 	}
 	fn, err := lambdaClient.CreateFunction(context.TODO(), lambdaInputs)
 	if err != nil {
 		return err
 	}
 	log.Printf("function created: %v", *fn.FunctionArn)
-
-	fu, err := lambdaClient.CreateFunctionUrlConfig(context.TODO(), &lambda.CreateFunctionUrlConfigInput{
-		FunctionName: &functionName,
-		AuthType:     lambdaTypes.FunctionUrlAuthTypeNone,
-		// Cors: // TODO
-	})
-	if err != nil {
-		return err
+	furl, err := lambdaClient.GetFunctionUrlConfig(context.TODO(), &lambda.GetFunctionUrlConfigInput{FunctionName: &functionName})
+	if err == nil {
+		log.Printf("already have a function URL: %v", *furl.FunctionUrl)
+	} else {
+		fu, err := lambdaClient.CreateFunctionUrlConfig(context.TODO(), &lambda.CreateFunctionUrlConfigInput{
+			FunctionName: &functionName,
+			AuthType:     lambdaTypes.FunctionUrlAuthTypeNone,
+			// Cors: // TODO
+		})
+		if err != nil {
+			return err
+		}
+		log.Printf("function URL created: %v", *fu.FunctionUrl)
 	}
-	log.Printf("function URL created: %v", *fu.FunctionUrl)
 
 	return nil
 }
