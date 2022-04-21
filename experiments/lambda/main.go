@@ -24,6 +24,7 @@ func main() {
 }
 
 // TODO: allow logs? s3?
+// in that case add AWSLambdaBasicExecutionRole somehow
 var iamPolicy string = `{
     "Version": "2012-10-17",
 	"Statement": [
@@ -35,8 +36,14 @@ var iamPolicy string = `{
     ]
 }`
 
+var attachRoles []string = []string{
+	"arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole", // basic logging permissions
+}
+
 func run() error {
 	// 0) build our function
+	// TODO: don't build it here, have it as part of our `make dist` and only use the (zipped) binary
+	//       directly from here
 	log.Println("building our Lambda function")
 	// TODO: parametrise? run `which`?
 	binPath := "./main" // TODO: extract filename to `-o` and `Dir` below?
@@ -58,7 +65,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	// defer os.Remove("main.zip")
+	defer os.Remove("main.zip")
 	zw := zip.NewWriter(fw)
 	fi, err := os.Stat(binPath)
 	if err != nil {
@@ -131,13 +138,24 @@ func run() error {
 		role = createRole.Role
 		// TODO: the role doesn't exist for the next few seconds... we may have to check for its existence here and wait
 	}
+
+	for _, arole := range attachRoles {
+		if _, err := iamClient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
+			RoleName:  &roleName,
+			PolicyArn: &arole,
+		}); err != nil {
+			return err
+		}
+		log.Printf("attached policy %v", arole)
+	}
+
 	log.Printf("we have a (new) role: %+v", *role.Arn)
 
 	// 3) create a lambda function
 	functionName := "smda-gateway" // TODO: formalise
 	lambdaClient := lambda.NewFromConfig(cfg)
 
-	// TODO: let's not delete it every single time
+	// TODO: let's not delete it every single time (add a version instead)
 	log.Printf("deleting function %v", functionName)
 	lambdaClient.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
 		FunctionName: &functionName,
@@ -192,6 +210,8 @@ func run() error {
 		return err
 	}
 	log.Printf("added permission: %v", *perm.Statement)
+
+	// TODO: test that the URL works now
 
 	return nil
 }
