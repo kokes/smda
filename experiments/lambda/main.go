@@ -155,7 +155,7 @@ func run() error {
 	functionName := "smda-gateway" // TODO: formalise
 	lambdaClient := lambda.NewFromConfig(cfg)
 
-	// TODO: let's not delete it every single time (add a version instead)
+	// TODO: let's not delete it every single time (add a version or update config instead)
 	log.Printf("deleting function %v", functionName)
 	lambdaClient.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
 		FunctionName: &functionName,
