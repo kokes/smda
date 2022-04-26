@@ -52,12 +52,14 @@ func lambdaRequestToNative(req events.LambdaFunctionURLRequest) *http.Request {
 
 func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
 	invocations += 1
-	// TODO: use `embed` to return static assets
 
-	// maybe instead construct a http.Request instead and pass it to our web.handlers
-	// call `lambdaRequestToNative` and create a recording ResponseWriter
-	// and then wrap this by our native web handlers
-	// hint: should we use httptest.ResponseRecorder instead?
+	// in the end I think we'll do this:
+	// 1) create a smda db (perhaps in the main() loop or init(), not sure)
+	// 2) convert a lambdaFunctionURL request to net/http.Request
+	// 3) initialise a recording responsewriter (maybe use httptest.ResponseRecorder)
+	// 4) run web.setupRoutes (need to expose it first)
+	// 5) run router.ServeHTTP(mockWriter, convertedRequest)
+	// 6) convert mockWriter response into a lambdaFunctionURL response
 
 	if req.RawPath == "/" {
 		return events.LambdaFunctionURLResponse{
