@@ -40,7 +40,7 @@ build-ingest:
 
 # TODO: inject lambda arch? (x86 for now)
 # TODO: build in docker?
-lambda-handler.zip: cmd/lambda-handler/
+lambda-handler.zip: cmd/lambda-handler/*
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GORLS) build -o main ./cmd/lambda-handler/
 	zip lambda-handler.zip main
 	rm main

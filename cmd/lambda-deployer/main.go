@@ -69,6 +69,8 @@ func run() error {
 	getRole, err := iamClient.GetRole(context.TODO(), &iam.GetRoleInput{RoleName: &roleName})
 	if err == nil {
 		log.Printf("role exists")
+		// TODO: unescape and load *getRole.Role.AssumeRolePolicyDocument and compare to iamPolicy
+		// https://github.com/aws/aws-sdk-go-v2/issues/225
 		role = getRole.Role
 	}
 	var exists *iamTypes.NoSuchEntityException
@@ -105,61 +107,77 @@ func run() error {
 	functionName := "smda-gateway" // TODO: formalise
 	lambdaClient := lambda.NewFromConfig(cfg)
 
-	// TODO: let's not delete it every single time (add a version or update config instead)
-	log.Printf("deleting function %v", functionName)
-	lambdaClient.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
+	// update if exists
+	_, err = lambdaClient.GetFunction(context.TODO(), &lambda.GetFunctionInput{
 		FunctionName: &functionName,
 	})
 
-	// TODO: update if exists (given a flag, create only by default)
-	// TODO: description etc.
-	lambdaInputs := &lambda.CreateFunctionInput{
-		FunctionName: &functionName,
-		Role:         role.Arn,
-		Runtime:      lambdaTypes.RuntimeGo1x,
-		// TODO: extract binary name from binPath
-		Handler: aws.String("main"),
-		Code: &lambdaTypes.FunctionCode{
-			ZipFile: zipData,
-		},
-		// TODO: environment
-		// TODO: memory and such
-		// TODO: timeout
-	}
-	fn, err := lambdaClient.CreateFunction(context.TODO(), lambdaInputs)
-	if err != nil {
-		return err
-	}
-	log.Printf("function created: %v", *fn.FunctionArn)
-	_, err = lambdaClient.GetFunctionUrlConfig(context.TODO(), &lambda.GetFunctionUrlConfigInput{FunctionName: &functionName})
 	if err == nil {
-		log.Println("already have a function URL, deleting")
-		if _, err := lambdaClient.DeleteFunctionUrlConfig(context.TODO(), &lambda.DeleteFunctionUrlConfigInput{FunctionName: &functionName}); err != nil {
+		log.Printf("function exists, updating function code")
+		lambdaClient.UpdateFunctionCode(context.TODO(), &lambda.UpdateFunctionCodeInput{
+			FunctionName: &functionName,
+			ZipFile:      zipData,
+		})
+	}
+
+	var lexists *lambdaTypes.ResourceNotFoundException
+	if err != nil {
+		if !errors.As(err, &lexists) {
 			return err
 		}
-	}
-	fu, err := lambdaClient.CreateFunctionUrlConfig(context.TODO(), &lambda.CreateFunctionUrlConfigInput{
-		FunctionName: &functionName,
-		AuthType:     lambdaTypes.FunctionUrlAuthTypeNone,
-		// Cors: // TODO
-	})
-	if err != nil {
-		return err
-	}
-	log.Printf("function URL created: %v", *fu.FunctionUrl)
+		log.Printf("lambda does not exist, creating")
+		// TODO: these don't get overriden in case the function already exists
+		// maybe add some "--recreate" mode
+		lambdaInputs := &lambda.CreateFunctionInput{
+			FunctionName: &functionName,
+			Role:         role.Arn,
+			Runtime:      lambdaTypes.RuntimeGo1x,
+			Handler:      aws.String("main"), // TODO: param/global
+			Code: &lambdaTypes.FunctionCode{
+				ZipFile: zipData,
+			},
+			Timeout: aws.Int32(30), // TODO
+			// TODO: environment
+			// TODO: memory and such
+		}
+		fn, err := lambdaClient.CreateFunction(context.TODO(), lambdaInputs)
+		if err != nil {
+			return err
+		}
+		log.Printf("function created: %v", *fn.FunctionArn)
 
-	// update permissions, so that this Function URL can be invoked
-	perm, err := lambdaClient.AddPermission(context.TODO(), &lambda.AddPermissionInput{
-		FunctionName:        &functionName,
-		Action:              aws.String("lambda:InvokeFunctionUrl"),
-		Principal:           aws.String("*"),
-		StatementId:         aws.String("FunctionURLAllowPublicAccess"),
-		FunctionUrlAuthType: lambdaTypes.FunctionUrlAuthTypeNone,
+		fu, err := lambdaClient.CreateFunctionUrlConfig(context.TODO(), &lambda.CreateFunctionUrlConfigInput{
+			FunctionName: &functionName,
+			AuthType:     lambdaTypes.FunctionUrlAuthTypeNone,
+			// Cors: // TODO
+		})
+		if err != nil {
+			return err
+		}
+		log.Printf("function URL created: %v", *fu.FunctionUrl)
+
+		// update permissions, so that this Function URL can be invoked
+		perm, err := lambdaClient.AddPermission(context.TODO(), &lambda.AddPermissionInput{
+			FunctionName:        &functionName,
+			Action:              aws.String("lambda:InvokeFunctionUrl"),
+			Principal:           aws.String("*"),
+			StatementId:         aws.String("FunctionURLAllowPublicAccess"),
+			FunctionUrlAuthType: lambdaTypes.FunctionUrlAuthTypeNone,
+		})
+		if err != nil {
+			return err
+		}
+		log.Printf("added permission: %v", *perm.Statement)
+	}
+
+	// get metadata
+	urlc, err := lambdaClient.GetFunctionUrlConfig(context.TODO(), &lambda.GetFunctionUrlConfigInput{
+		FunctionName: &functionName,
 	})
 	if err != nil {
 		return err
 	}
-	log.Printf("added permission: %v", *perm.Statement)
+	log.Printf("lambda URL: %v", *urlc.FunctionUrl)
 
 	// TODO: test that the URL works now
 

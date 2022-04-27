@@ -68,7 +68,7 @@ func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (ev
 			Headers: map[string]string{
 				"Content-Type": "text/html",
 			},
-			Body: fmt.Sprintf("<h1>Hello</h1>\n%v", jsMeasure),
+			Body: fmt.Sprintf("<h1>Hello again</h1>\n%v", jsMeasure),
 		}, nil
 	}
 	if req.RawPath == "/introspect" {
