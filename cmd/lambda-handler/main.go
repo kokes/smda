@@ -16,6 +16,7 @@ var invocations int
 
 var jsMeasure string = `
 Measure container reuse by running something like this
+
 <pre>
 for (let j=0; j < 10; j++) {
 	const stats = document.createElement("span");

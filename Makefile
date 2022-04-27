@@ -38,6 +38,17 @@ build-docker:
 build-ingest:
 	CGO_ENABLED=0 $(GORLS) build ./cmd/ingest/
 
+# TODO: inject lambda arch? (x86 for now)
+# TODO: build in docker?
+lambda-handler.zip: cmd/lambda-handler/
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GORLS) build -o main ./cmd/lambda-handler/
+	zip lambda-handler.zip main
+	rm main
+
+deploy-lambda: lambda-handler.zip
+	$(GORLS) run ./cmd/lambda-deployer/ lambda-handler.zip
+
+
 run:
 	$(GORLS) run cmd/server/main.go -port-http 8822 -samples -wdir tmp
 

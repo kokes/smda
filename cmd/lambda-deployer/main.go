@@ -1,13 +1,14 @@
+// This is an ad-hoc script to set up all the necessary AWS
+// services. In case this Lambda approach is viable, maybe
+// include some CloudFormation templates, perhaps Terraform,
+// Pulumi etc.
 package main
 
 import (
-	"archive/zip"
 	"context"
 	"errors"
 	"log"
 	"os"
-	"os/exec"
-	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -23,8 +24,7 @@ func main() {
 	}
 }
 
-// TODO: allow logs? s3?
-// in that case add AWSLambdaBasicExecutionRole somehow
+// TODO: allow s3?
 var iamPolicy string = `{
     "Version": "2012-10-17",
 	"Statement": [
@@ -41,61 +41,11 @@ var attachRoles []string = []string{
 }
 
 func run() error {
-	// 0) build our function
-	// TODO: don't build it here, have it as part of our `make dist` and only use the (zipped) binary
-	//       directly from here
-	log.Println("building our Lambda function")
-	// TODO: parametrise? run `which`?
-	binPath := "./main" // TODO: extract filename to `-o` and `Dir` below?
-	binAbsPath, err := filepath.Abs(binPath)
-	if err != nil {
-		return err
+	if len(os.Args) != 2 {
+		return errors.New("need to supply the lambda zip bundle as the first and only argument")
 	}
-	cmd := exec.Command("go", "build", "-o", binAbsPath, ".")
-	cmd.Env = append(os.Environ(), []string{"GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0"}...) // TODO: arm64 functions?
-	cmd.Dir = "handler"
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	defer os.Remove(binPath)
-	log.Printf("built %v", binPath)
-	log.Println("compressing")
-	fw, err := os.Create("main.zip")
-	if err != nil {
-		return err
-	}
-	defer os.Remove("main.zip")
-	zw := zip.NewWriter(fw)
-	fi, err := os.Stat(binPath)
-	if err != nil {
-		return err
-	}
-	fh, err := zip.FileInfoHeader(fi)
-	if err != nil {
-		return err
-	}
-	w, err := zw.CreateHeader(fh)
-	if err != nil {
-		return err
-	}
-	// TODO: maybe use io.Copy instead (and defer closing and deletion) - once we move
-	// it into a function
-	binFile, err := os.ReadFile(binPath)
-	if err != nil {
-		return err
-	}
-	if _, err := w.Write(binFile); err != nil {
-		return err
-	}
-	if err := zw.Close(); err != nil {
-		return err
-	}
-	if err := fw.Close(); err != nil {
-		return err
-	}
-
-	zipData, err := os.ReadFile("main.zip")
+	lambdaPkg := os.Args[1]
+	zipData, err := os.ReadFile(lambdaPkg)
 	if err != nil {
 		return err
 	}
