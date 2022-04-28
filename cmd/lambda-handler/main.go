@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -31,6 +32,39 @@ for (let j=0; j < 10; j++) {
 }
 </pre>
 `
+
+var dummyStatusCode int = -1
+
+type recordingResponseWriter struct {
+	headers http.Header
+	buffer  bytes.Buffer
+	status  int
+}
+
+func newRecordingResponseWriter() *recordingResponseWriter {
+	return &recordingResponseWriter{
+		headers: make(http.Header),
+		status:  dummyStatusCode,
+	}
+}
+
+func (rw *recordingResponseWriter) Header() http.Header {
+	return rw.headers
+}
+
+func (rw *recordingResponseWriter) WriteHeader(statusCode int) {
+	rw.status = statusCode
+}
+
+func (rw *recordingResponseWriter) Write(s []byte) (int, error) {
+	if rw.status == dummyStatusCode {
+		rw.status = http.StatusOK
+	}
+
+	// TODO: detect MIME via http.DetectContentType?
+
+	return rw.buffer.Write(s)
+}
 
 func lambdaRequestToNative(req events.LambdaFunctionURLRequest) *http.Request {
 	header := make(http.Header, len(req.Headers))
@@ -80,8 +114,10 @@ func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (ev
 	// 7) remove all disk I/O from NewDatabase
 
 	handler := web.SetupRoutes(db)
-	_ = handler
-	// TODO: steps 3, 5, 6, maybe 7
+	rw := newRecordingResponseWriter()
+	httpReq := lambdaRequestToNative(req)
+	handler.ServeHTTP(rw, httpReq)
+	// TODO: steps 6, maybe 7
 
 	if req.RawPath == "/" {
 		return events.LambdaFunctionURLResponse{
