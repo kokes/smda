@@ -137,8 +137,9 @@ func run() error {
 				ZipFile: zipData,
 			},
 			Timeout: aws.Int32(30), // TODO
+			// MemorySize: aws.Int32(1024), // TODO
+			// EphemeralStorage: &lambdaTypes.EphemeralStorage{Size: aws.Int32(512)}, // TODO
 			// TODO: environment
-			// TODO: memory and such
 		}
 		fn, err := lambdaClient.CreateFunction(context.TODO(), lambdaInputs)
 		if err != nil {
