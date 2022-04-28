@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -91,11 +90,29 @@ func lambdaRequestToNative(req events.LambdaFunctionURLRequest) *http.Request {
 	return &ret
 }
 
+// TODO: err if we don't have status set? (in case of no writes)
+func (rw *recordingResponseWriter) toLambdaFunctionResponse() events.LambdaFunctionURLResponse {
+	headers := make(map[string]string)
+	for h, v := range rw.headers {
+		headers[h] = strings.Join(v, ",")
+	}
+	ret := events.LambdaFunctionURLResponse{
+		StatusCode:      rw.status,
+		Body:            rw.buffer.String(),
+		IsBase64Encoded: false,
+		Headers:         headers,
+		// Cookies: , // TODO?
+	}
+
+	return ret
+}
+
 func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
 	invocations += 1
 	if db == nil {
 		t := time.Now()
 		var err error
+		// TODO: remove all disk I/O from db creation
 		db, err = database.NewDatabase("", nil)
 		if err != nil {
 			// TODO: write a wrapper to return this as a 500
@@ -104,44 +121,18 @@ func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (ev
 		log.Printf("db init took %v", time.Since(t)) // TODO: remove
 	}
 
-	// in the end I think we'll do this:
-	// 1) create a smda db (perhaps in the main() loop or init(), not sure)
-	// 2) convert a lambdaFunctionURL request to net/http.Request
-	// 3) initialise a recording responsewriter (maybe use httptest.ResponseRecorder)
-	// 4) run web.setupRoutes (need to expose it first)
-	// 5) run router.ServeHTTP(mockWriter, convertedRequest)
-	// 6) convert mockWriter response into a lambdaFunctionURL response
-	// 7) remove all disk I/O from NewDatabase
+	// what happens now is:
+	// 1) convert a lambdaFunctionURL request to net/http.Request
+	// 2) initialise a recording responsewriter
+	// 3) run our smda.router.ServeHTTP(mockWriter, convertedRequest)
+	// 4) convert mockWriter response into a lambdaFunctionURL response
 
 	handler := web.SetupRoutes(db)
 	rw := newRecordingResponseWriter()
 	httpReq := lambdaRequestToNative(req)
 	handler.ServeHTTP(rw, httpReq)
-	// TODO: steps 6, maybe 7
 
-	if req.RawPath == "/" {
-		return events.LambdaFunctionURLResponse{
-			StatusCode: http.StatusOK,
-			Headers: map[string]string{
-				"Content-Type": "text/html",
-			},
-			Body: fmt.Sprintf("<h1>Hello again</h1>\n%v", jsMeasure),
-		}, nil
-	}
-	if req.RawPath == "/introspect" {
-		return events.LambdaFunctionURLResponse{
-			StatusCode: http.StatusOK,
-			Body:       fmt.Sprintf("request: %+v\n", req),
-		}, nil
-	}
-
-	return events.LambdaFunctionURLResponse{
-		StatusCode: http.StatusOK,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Body: fmt.Sprintf("{\"invocations\": %v}\n", invocations),
-	}, nil
+	return rw.toLambdaFunctionResponse(), nil
 }
 
 func main() {
