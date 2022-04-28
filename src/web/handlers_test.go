@@ -23,7 +23,7 @@ func newDatabaseWithRoutes() (*database.Database, error) {
 		return nil, err
 	}
 	db.ServerHTTP = &http.Server{
-		Handler: setupRoutes(db, false, 1234),
+		Handler: SetupRoutes(db),
 	}
 	return db, nil
 }

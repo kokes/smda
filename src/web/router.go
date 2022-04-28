@@ -11,7 +11,7 @@ import (
 	"github.com/kokes/smda/src/database"
 )
 
-func setupRoutes(db *database.Database, useTLS bool, portHTTPS int) http.Handler {
+func SetupRoutes(db *database.Database) http.Handler {
 	mux := http.NewServeMux()
 	// there is a great Mat Ryer talk about not building all the handle* funcs as taking
 	// (w, r) as arguments, but rather returning handlefuncs themselves - this allows for
@@ -24,7 +24,7 @@ func setupRoutes(db *database.Database, useTLS bool, portHTTPS int) http.Handler
 	mux.HandleFunc("/upload/auto", handleAutoUpload(db))
 	// mux.HandleFunc("/upload/infer-schema", handleTypeInference(db))
 
-	if !useTLS {
+	if !db.Config.UseTLS {
 		return mux
 	}
 	// if we have https enabled, we need to redirect all http traffic - we could have used HSTS or something,
@@ -37,7 +37,7 @@ func setupRoutes(db *database.Database, useTLS bool, portHTTPS int) http.Handler
 				return
 			}
 			newURL := r.URL
-			newURL.Host = net.JoinHostPort(host, strconv.Itoa(portHTTPS))
+			newURL.Host = net.JoinHostPort(host, strconv.Itoa(db.Config.PortHTTPS))
 			newURL.Scheme = "https"
 			// redirects are cached, so we need to expire these in case we turn off TLS
 			// this way if we try the HTTP endpoint a minute later (for some reason), the redirect
@@ -55,8 +55,8 @@ func setupRoutes(db *database.Database, useTLS bool, portHTTPS int) http.Handler
 }
 
 // RunWebserver sets up all the necessities for a server to run (namely routes) and launches one
-func RunWebserver(ctx context.Context, db *database.Database, portHTTP, portHTTPS int, expose, useTLS bool, tlsCert, tlsKey string) error {
-	mux := setupRoutes(db, useTLS, portHTTPS)
+func RunWebserver(ctx context.Context, db *database.Database, expose bool, tlsCert, tlsKey string) error {
+	mux := SetupRoutes(db)
 	host := "localhost"
 	if expose {
 		host = ""
@@ -65,7 +65,7 @@ func RunWebserver(ctx context.Context, db *database.Database, portHTTP, portHTTP
 	errs := make(chan error)
 
 	// http handling
-	address := net.JoinHostPort(host, strconv.Itoa(portHTTP))
+	address := net.JoinHostPort(host, strconv.Itoa(db.Config.PortHTTP))
 
 	db.Lock()
 	db.ServerHTTP = &http.Server{
@@ -78,12 +78,12 @@ func RunWebserver(ctx context.Context, db *database.Database, portHTTP, portHTTP
 		errs <- db.ServerHTTP.ListenAndServe()
 	}()
 
-	if useTLS {
+	if db.Config.UseTLS {
 		if tlsCert == "" || tlsKey == "" {
 			return fmt.Errorf("if you enable TLS, you need to submit both a key and a cert")
 		}
 
-		address = net.JoinHostPort(host, strconv.Itoa(portHTTPS))
+		address = net.JoinHostPort(host, strconv.Itoa(db.Config.PortHTTPS))
 		log.Printf("listening on https://%v", address)
 		db.Lock()
 		db.ServerHTTPS = &http.Server{

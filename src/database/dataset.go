@@ -38,16 +38,32 @@ type Config struct {
 	DatabaseID        UID    `json:"database_id"`
 	MaxRowsPerStripe  int    `json:"max_rows_per_stripe"`
 	MaxBytesPerStripe int    `json:"max_bytes_per_stripe"`
+
+	// webserver stuff
+	// TODO: is it supposed to go here? What about certs?
+	// I moved it here because I want setupRoutes to be run automatically
+	UseTLS    bool `json:"use_tls"`
+	PortHTTP  int  `json:"port_http"`
+	PortHTTPS int  `json:"port_https"`
 }
 
 // NewDatabase initiates a new database object and binds it to a given directory. If the directory
 // doesn't exist, it creates it. If it exists, it loads the data contained within.
-func NewDatabase(wdir string, overrides *Config) (*Database, error) {
+// TODO: perhaps merge the two args
+func NewDatabase(wdir string, baseConfig *Config) (*Database, error) {
 	// many objects within the database get random IDs assigned, so we better seed at some point
 	// ARCH: might get in the way in testing, we'll deal with it if it happens to be a problem
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	config := &Config{WorkingDirectory: wdir, CreatedTimestamp: time.Now().UTC().Unix()}
+	var config *Config
+	if baseConfig != nil {
+		config = baseConfig
+	} else {
+		config = &Config{}
+	}
+	config.WorkingDirectory = wdir
+	config.CreatedTimestamp = time.Now().UTC().Unix()
+
 	if wdir == "" {
 		// if no directory supplied, create a database in a temp directory
 		// ARCH: we'll probably do this in $HOME in the future
@@ -75,15 +91,6 @@ func NewDatabase(wdir string, overrides *Config) (*Database, error) {
 			return nil, err
 		}
 		f.Close()
-	}
-	// ARCH: allow overrides of database UIDs?
-	if overrides != nil {
-		if overrides.MaxRowsPerStripe != 0 {
-			config.MaxRowsPerStripe = overrides.MaxRowsPerStripe
-		}
-		if overrides.MaxBytesPerStripe != 0 {
-			config.MaxBytesPerStripe = overrides.MaxBytesPerStripe
-		}
 	}
 
 	if config.MaxRowsPerStripe == 0 {

@@ -4,15 +4,21 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/kokes/smda/src/database"
+	"github.com/kokes/smda/src/web"
 )
 
 var invocations int
+
+var db *database.Database
 
 var jsMeasure string = `
 Measure container reuse by running something like this
@@ -53,6 +59,16 @@ func lambdaRequestToNative(req events.LambdaFunctionURLRequest) *http.Request {
 
 func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
 	invocations += 1
+	if db == nil {
+		t := time.Now()
+		var err error
+		db, err = database.NewDatabase("", nil)
+		if err != nil {
+			// TODO: write a wrapper to return this as a 500
+			panic(err.Error())
+		}
+		log.Printf("db init took %v", time.Since(t)) // TODO: remove
+	}
 
 	// in the end I think we'll do this:
 	// 1) create a smda db (perhaps in the main() loop or init(), not sure)
@@ -61,6 +77,11 @@ func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (ev
 	// 4) run web.setupRoutes (need to expose it first)
 	// 5) run router.ServeHTTP(mockWriter, convertedRequest)
 	// 6) convert mockWriter response into a lambdaFunctionURL response
+	// 7) remove all disk I/O from NewDatabase
+
+	handler := web.SetupRoutes(db)
+	_ = handler
+	// TODO: steps 3, 5, 6, maybe 7
 
 	if req.RawPath == "/" {
 		return events.LambdaFunctionURLResponse{
