@@ -118,8 +118,7 @@ func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (ev
 		// TODO: do this in the NewDatabase constructor
 		cfg, err := config.LoadDefaultConfig(
 			context.TODO(),
-			config.WithRegion("eu-central-1"),          // TODO: flag
-			config.WithSharedConfigProfile("personal"), // TODO: flag
+			config.WithRegion("eu-central-1"), // TODO: flag
 		)
 		if err != nil {
 			panic(err) // TODO: remove all panics
@@ -136,6 +135,8 @@ func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (ev
 			panic(err)
 		}
 		return events.LambdaFunctionURLResponse{
+			StatusCode: 200,
+			// TODO: need headers as well
 			Body: req.URL,
 		}, nil
 	}
