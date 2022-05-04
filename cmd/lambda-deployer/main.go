@@ -16,6 +16,8 @@ import (
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 func main() {
@@ -51,9 +53,10 @@ func run() error {
 	}
 
 	// 1) setup config
+	region := "eu-central-1" // TODO: flag
 	cfg, err := config.LoadDefaultConfig(
 		context.TODO(),
-		config.WithRegion("eu-central-1"),          // TODO: flag
+		config.WithRegion(region),
 		config.WithSharedConfigProfile("personal"), // TODO: flag
 	)
 	if err != nil {
@@ -61,8 +64,31 @@ func run() error {
 	}
 	log.Printf("config loaded for region %v", cfg.Region)
 
+	// 1b) create s3 bucket
+	bucket_name := "smda-testing-poc"
+	s3client := s3.NewFromConfig(cfg)
+	_, err = s3client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
+		Bucket: &bucket_name,
+	})
+	if err == nil {
+		log.Printf("seems like bucket %v exists already", bucket_name)
+	} else {
+		// TODO: distinguish 404, 403 etc.
+		// var nf *s3Types.NoSuchBucket
+		_, err := s3client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
+			Bucket: &bucket_name,
+			CreateBucketConfiguration: &s3Types.CreateBucketConfiguration{
+				LocationConstraint: s3Types.BucketLocationConstraint(region),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		log.Printf("created bucket %v", bucket_name)
+	}
+
 	// 2) create an iam role (TODO: func getOrCreateRole())
-	roleName := "my_execution_role" // TODO: flag
+	roleName := "smda_execution_role" // TODO: flag
 	var role *iamTypes.Role
 	iamClient := iam.NewFromConfig(cfg)
 	log.Printf("getting role %v", roleName)

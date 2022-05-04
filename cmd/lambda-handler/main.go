@@ -12,6 +12,9 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/kokes/smda/src/database"
 	"github.com/kokes/smda/src/web"
 )
@@ -19,18 +22,6 @@ import (
 var invocations int
 
 var db *database.Database
-
-var jsMeasure string = `
-Measure container reuse by running something like this
-
-<pre>
-for (let j=0; j < 10; j++) {
-	const stats = document.createElement("span");
-	stats.innerText = (await (await fetch("/data")).json()).invocations + ", ";
-	document.body.appendChild(stats);
-}
-</pre>
-`
 
 var dummyStatusCode int = -1
 
@@ -113,12 +104,40 @@ func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (ev
 		t := time.Now()
 		var err error
 		// TODO: remove all disk I/O from db creation
+		// TODO: add s3/aws client to the constructor?
 		db, err = database.NewDatabase("", nil)
 		if err != nil {
 			// TODO: write a wrapper to return this as a 500
 			panic(err.Error())
 		}
 		log.Printf("db init took %v", time.Since(t)) // TODO: remove
+	}
+
+	// TODO: move elsewhere?
+	if req.RawPath == "/upload/pre-signed" {
+		// TODO: do this in the NewDatabase constructor
+		cfg, err := config.LoadDefaultConfig(
+			context.TODO(),
+			config.WithRegion("eu-central-1"),          // TODO: flag
+			config.WithSharedConfigProfile("personal"), // TODO: flag
+		)
+		if err != nil {
+			panic(err) // TODO: remove all panics
+		}
+		log.Println("about to pre-sign")
+		client := s3.NewFromConfig(cfg)
+		presigner := s3.NewPresignClient(client)
+		log.Println("config set up")
+		req, err := presigner.PresignPutObject(context.TODO(), &s3.PutObjectInput{
+			Bucket: aws.String("smda-testing-poc"), // TODO: parametrise some place (env?)
+			Key:    aws.String("my-testing-dataset"),
+		})
+		if err != nil {
+			panic(err)
+		}
+		return events.LambdaFunctionURLResponse{
+			Body: req.URL,
+		}, nil
 	}
 
 	// what happens now is:
