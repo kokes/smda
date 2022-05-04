@@ -75,6 +75,7 @@ func run() error {
 	} else {
 		// TODO: distinguish 404, 403 etc.
 		// var nf *s3Types.NoSuchBucket
+		// TODO: disable public objects? (we don't intend to publicise anything, but still...)
 		_, err := s3client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
 			Bucket: &bucket_name,
 			CreateBucketConfiguration: &s3Types.CreateBucketConfiguration{
@@ -116,6 +117,37 @@ func run() error {
 		role = createRole.Role
 		// TODO: the role doesn't exist for the next few seconds... we may have to check for its existence here and wait
 	}
+
+	// 2b) add s3 access
+	// s3PolicyName := "smda-access-s3"
+	// // we should know what the name is: arn:aws:iam::ACCOUNT:policy/smda-access-s3
+	// // not sure if there's a simple way to get account id
+	// // s3PolicyArn := fmt.Sprintf("arn:aws:iam::%v:policy/%v", cfg.)
+
+	// // this is not idempotent... and we need its arn
+	// s3acc, err := iamClient.CreatePolicy(context.TODO(), &iam.CreatePolicyInput{
+	// 	PolicyName: &s3PolicyName,
+	// 	PolicyDocument: aws.String(fmt.Sprintf(`{
+	// 		"Version": "2012-10-17",
+	// 		"Statement": [
+	// 			{
+	// 				"Sid": "VisualEditor0",
+	// 				"Effect": "Allow",
+	// 				"Action": [
+	// 					"s3:GetObject",
+	// 					"s3:PutObject",
+	// 					"s3:DeleteObject"
+	// 				],
+	// 				"Resource": "arn:aws:s3:::%v/*"
+	// 			}
+	// 		]
+	// 	}`, bucket_name)),
+	// })
+	// if err != nil {
+	// 	return err
+	// }
+	// log.Println("new policy for s3 access created")
+	// attachRoles = append(attachRoles, *s3acc.Policy.Arn)
 
 	for _, arole := range attachRoles {
 		if _, err := iamClient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
