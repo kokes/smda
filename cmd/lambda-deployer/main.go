@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 
@@ -75,7 +76,6 @@ func run() error {
 	} else {
 		// TODO: distinguish 404, 403 etc.
 		// var nf *s3Types.NoSuchBucket
-		// TODO: disable public objects? (we don't intend to publicise anything, but still...)
 		_, err := s3client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
 			Bucket: &bucket_name,
 			CreateBucketConfiguration: &s3Types.CreateBucketConfiguration{
@@ -86,6 +86,20 @@ func run() error {
 			return err
 		}
 		log.Printf("created bucket %v", bucket_name)
+	}
+
+	// restricting public access
+	if _, err := s3client.PutPublicAccessBlock(context.TODO(), &s3.PutPublicAccessBlockInput{
+		Bucket: &bucket_name,
+		// TODO: do we need all four?
+		PublicAccessBlockConfiguration: &s3Types.PublicAccessBlockConfiguration{
+			BlockPublicAcls:       true,
+			BlockPublicPolicy:     true,
+			IgnorePublicAcls:      true,
+			RestrictPublicBuckets: true,
+		},
+	}); err != nil {
+		return err
 	}
 
 	// 2) create an iam role (TODO: func getOrCreateRole())
@@ -119,35 +133,31 @@ func run() error {
 	}
 
 	// 2b) add s3 access
-	// s3PolicyName := "smda-access-s3"
-	// // we should know what the name is: arn:aws:iam::ACCOUNT:policy/smda-access-s3
-	// // not sure if there's a simple way to get account id
-	// // s3PolicyArn := fmt.Sprintf("arn:aws:iam::%v:policy/%v", cfg.)
+	s3PolicyName := "smda-access-s3"
+	_, err = iamClient.PutRolePolicy(context.TODO(), &iam.PutRolePolicyInput{
+		PolicyName: &s3PolicyName,
+		RoleName:   role.RoleName,
+		PolicyDocument: aws.String(fmt.Sprintf(`{
+			"Version": "2012-10-17",
+			"Statement": [
+				{
+					"Sid": "ReadWriteS3",
+					"Effect": "Allow",
+					"Action": [
+						"s3:GetObject",
+						"s3:PutObject",
+						"s3:DeleteObject"
+					],
+					"Resource": "arn:aws:s3:::%v/*"
+				}
+			]
+		}`, bucket_name)),
+	})
+	if err != nil {
+		return err
+	}
 
-	// // this is not idempotent... and we need its arn
-	// s3acc, err := iamClient.CreatePolicy(context.TODO(), &iam.CreatePolicyInput{
-	// 	PolicyName: &s3PolicyName,
-	// 	PolicyDocument: aws.String(fmt.Sprintf(`{
-	// 		"Version": "2012-10-17",
-	// 		"Statement": [
-	// 			{
-	// 				"Sid": "VisualEditor0",
-	// 				"Effect": "Allow",
-	// 				"Action": [
-	// 					"s3:GetObject",
-	// 					"s3:PutObject",
-	// 					"s3:DeleteObject"
-	// 				],
-	// 				"Resource": "arn:aws:s3:::%v/*"
-	// 			}
-	// 		]
-	// 	}`, bucket_name)),
-	// })
-	// if err != nil {
-	// 	return err
-	// }
-	// log.Println("new policy for s3 access created")
-	// attachRoles = append(attachRoles, *s3acc.Policy.Arn)
+	log.Println("new policy for s3 access created")
 
 	for _, arole := range attachRoles {
 		if _, err := iamClient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
@@ -198,6 +208,11 @@ func run() error {
 			// MemorySize: aws.Int32(1024), // TODO
 			// EphemeralStorage: &lambdaTypes.EphemeralStorage{Size: aws.Int32(512)}, // TODO
 			// TODO: environment
+			Environment: &lambdaTypes.Environment{
+				Variables: map[string]string{
+					"SMDA_DATA_BUCKET": bucket_name,
+				},
+			},
 		}
 		fn, err := lambdaClient.CreateFunction(context.TODO(), lambdaInputs)
 		if err != nil {

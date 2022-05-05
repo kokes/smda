@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -127,17 +129,23 @@ func HandleRequest(ctx context.Context, req events.LambdaFunctionURLRequest) (ev
 		client := s3.NewFromConfig(cfg)
 		presigner := s3.NewPresignClient(client)
 		log.Println("config set up")
-		req, err := presigner.PresignPutObject(context.TODO(), &s3.PutObjectInput{
-			Bucket: aws.String("smda-testing-poc"), // TODO: parametrise some place (env?)
-			Key:    aws.String("my-testing-dataset"),
+		signed, err := presigner.PresignPutObject(context.TODO(), &s3.PutObjectInput{
+			Bucket: aws.String(os.Getenv("SMDA_DATA_BUCKET")), // TODO: move elsewhere
+			Key:    aws.String("ingest/my-testing-dataset"),
 		})
+		if err != nil {
+			panic(err)
+		}
+		ret, err := json.Marshal(signed)
 		if err != nil {
 			panic(err)
 		}
 		return events.LambdaFunctionURLResponse{
 			StatusCode: 200,
-			// TODO: need headers as well
-			Body: req.URL,
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			Body: string(ret), // this is a bit crude, but works for now
 		}, nil
 	}
 
