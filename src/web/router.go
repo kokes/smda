@@ -22,6 +22,7 @@ func SetupRoutes(db *database.Database) http.Handler {
 	mux.HandleFunc("/api/query", handleQuery(db))
 	mux.HandleFunc("/upload/raw", handleUpload(db))
 	mux.HandleFunc("/upload/auto", handleAutoUpload(db))
+	mux.HandleFunc("/upload/remote", handleRemoteUpload(db))
 	// mux.HandleFunc("/upload/infer-schema", handleTypeInference(db))
 
 	if !db.Config.UseTLS {

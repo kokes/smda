@@ -319,7 +319,7 @@ func TestHandlingQueries(t *testing.T) {
 			cols = append(cols, col.Name)
 		}
 		query := fmt.Sprintf("SELECT %v FROM %v LIMIT %v", strings.Join(cols, ", "), ds.Name, limit)
-		body, err := json.Marshal(payload{SQL: query})
+		body, err := json.Marshal(queryPayload{SQL: query})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -510,6 +510,54 @@ func TestBasicAutoUpload(t *testing.T) {
 	}
 	if _, err := db.GetDataset(dsName, "", true); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestHttpUpload(t *testing.T) {
+	db, err := newDatabaseWithRoutes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Drop(); err != nil {
+			panic(err)
+		}
+	}()
+
+	srv := httptest.NewServer(db.ServerHTTP.Handler)
+	defer srv.Close()
+
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO(PR)
+		// - compression (incl. content-type if we get accept-encoding to work)
+		// - redirect?
+		// - non-200 response
+		w.Write([]byte("abc,def\n1,2\n"))
+	}))
+
+	tests := []struct {
+		originPath     string
+		expectedStatus int
+	}{
+		{
+			originPath:     "sample/csv",
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, test := range tests {
+		payload := fmt.Sprintf(`{"url": "%v/%v"}`, origin.URL, test.originPath)
+		reqBody := strings.NewReader(payload)
+		req, err := http.Post(fmt.Sprintf("%v/upload/remote", srv.URL), "application/json", reqBody)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if req.StatusCode != test.expectedStatus {
+			// io.Copy(os.Stdout, req.Body)
+			t.Errorf("expecting query to result in %v, got %v instead", test.expectedStatus, req.StatusCode)
+			return
+		}
 	}
 }
 

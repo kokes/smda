@@ -4,8 +4,10 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 
@@ -56,7 +58,7 @@ func handleDatasets(db *database.Database) http.HandlerFunc {
 }
 
 // TODO(next)/ARCH: reorg this, move to query.go maybe?
-type payload struct {
+type queryPayload struct {
 	SQL string `json:"sql"`
 }
 
@@ -68,7 +70,7 @@ func handleQuery(db *database.Database) http.HandlerFunc {
 			return
 		}
 
-		var inc payload
+		var inc queryPayload
 		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&inc); err != nil {
@@ -138,6 +140,92 @@ func handleAutoUpload(db *database.Database) http.HandlerFunc {
 			return
 		}
 		clength, err := strconv.Atoi(r.Header.Get("Content-Length"))
+		if err != nil {
+			clength = 0
+		}
+		// ARCH: maybe do this in loader.go, will then work for all entrypoints (and for compressed data as well)
+		ds.SizeRaw = int64(clength)
+
+		if err := db.AddDataset(ds); err != nil {
+			http.Error(w, fmt.Sprintf("could not write dataset to database: %v", err), http.StatusInternalServerError)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(ds); err != nil {
+			panic(err)
+		}
+	}
+}
+
+// TODO(next)/ARCH: reorg this, move to query.go maybe?
+// TODO: can we perhaps make this async? to return a 201 always and do its thing in the background
+type remotePayload struct {
+	// TODO: add auth
+	// TODO: headers (e.g. accept encoding - maybe set that by default)
+	// TODO: TLS settings? (e.g. insecure skip verify)
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	// TODO: schema?
+	// TODO: compression? (NOT content-type, just plain old .csv.gz files)
+}
+
+func handleRemoteUpload(db *database.Database) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "only POST requests allowed for /upload/remote", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var payl remotePayload
+		dec := json.NewDecoder(r.Body)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&payl); err != nil {
+			http.Error(w, fmt.Sprintf("did not supply correct information about a remote dataset: %v", err), http.StatusBadRequest)
+			return
+		}
+		// NewDecoder(r).Decode() can lead to bugs: https://github.com/golang/go/issues/36225
+		if dec.More() {
+			http.Error(w, "body can only contain a single JSON object", http.StatusBadRequest)
+			return
+		}
+
+		remote, err := url.Parse(payl.URL)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid URL supplied: %v (%v)", payl.URL, err), http.StatusBadRequest)
+			return
+		}
+
+		var (
+			remoteBody io.ReadCloser
+			headers    http.Header
+		)
+		if remote.Scheme == "http" || remote.Scheme == "https" {
+			// TODO: NewRequest once we start faffing around with headers and such
+			req, err := http.Get(remote.String())
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to remote to connect dataset: %v", err), http.StatusInternalServerError)
+				return
+			}
+			// TODO: check status... just < 400? Or be more picky?
+			remoteBody = req.Body
+			headers = req.Header
+		} else if remote.Scheme == "s3" {
+			// TODO(next)
+			http.Error(w, "s3 not supported just yet", http.StatusInternalServerError)
+			return
+		} else {
+			http.Error(w, fmt.Sprintf("unsupported scheme: %v", remote.Scheme), http.StatusInternalServerError)
+			return
+		}
+
+		defer remoteBody.Close()
+
+		ds, err := db.LoadDatasetFromReaderAuto(payl.Name, remoteBody)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to parse a given file: %v", err), http.StatusInternalServerError)
+			return
+		}
+		clength, err := strconv.Atoi(headers.Get("Content-Length"))
 		if err != nil {
 			clength = 0
 		}
