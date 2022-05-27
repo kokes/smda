@@ -262,6 +262,7 @@ func (db *Database) writeStripeToFile(ds *Dataset, stripe *stripeData, ctype com
 		return 0, err
 	}
 
+	// TODO(tiered)
 	f, err := os.Create(db.stripePath(ds, stripe.meta))
 	if err != nil {
 		return 0, err
@@ -332,6 +333,7 @@ type StripeReader struct {
 
 // OPTIM: pass in a bytes buffer to reuse it?
 func NewStripeReader(db *Database, ds *Dataset, stripe Stripe) (*StripeReader, error) {
+	// TODO(tiered)
 	f, err := os.Open(db.stripePath(ds, stripe))
 	if err != nil {
 		return nil, err
@@ -490,6 +492,7 @@ func (db *Database) loadDatasetFromReader(name string, r io.Reader, settings *lo
 
 // convenience wrapper
 func (db *Database) loadDatasetFromLocalFile(name, path string, settings *loadSettings) (*Dataset, error) {
+	// TODO(tiered)
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

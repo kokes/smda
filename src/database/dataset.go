@@ -81,7 +81,7 @@ func NewDatabase(wdir string, baseConfig *Config) (*Database, error) {
 	cfgPath := filepath.Join(abspath, "smda_db.json")
 	// TODO: test how we recover these values from a given file, how we can override them etc.
 	if stat, err := os.Stat(abspath); err == nil && stat.IsDir() {
-		f, err := os.Open(cfgPath)
+		f, err := os.Open(cfgPath) // TODO(tiered)
 		if err != nil {
 			return nil, fmt.Errorf("%w: cannot initialise a database in %v (%v)", errPathNotEmpty, abspath, err)
 		}
@@ -114,6 +114,7 @@ func NewDatabase(wdir string, baseConfig *Config) (*Database, error) {
 	if err := enc.Encode(config); err != nil {
 		return nil, err
 	}
+	// TODO(tiered)
 	if err := os.WriteFile(cfgPath, buf.Bytes(), os.ModePerm); err != nil {
 		return nil, err
 	}
@@ -137,6 +138,7 @@ func NewDatabase(wdir string, baseConfig *Config) (*Database, error) {
 	}
 	for _, manifest := range manifests {
 		var ds Dataset
+		// TODO(tiered)
 		f, err := os.Open(filepath.Join(db.manifestPath(nil), manifest.Name()))
 		if err != nil {
 			return nil, err
@@ -354,7 +356,7 @@ func (db *Database) AddDataset(ds *Dataset) error {
 	if _, err := os.Stat(fn); err == nil {
 		return nil
 	}
-	f, err := os.Create(fn)
+	f, err := os.Create(fn) // TODO(tiered)
 	if err != nil {
 		return err
 	}

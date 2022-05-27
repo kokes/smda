@@ -87,7 +87,7 @@ func cleanupColumns(columns []string) []string {
 // This is only about the schema, not the file format (delimiter, BOM, compression, ...), all
 // of that is within the loadSettings struct
 func inferTypes(path string, settings *loadSettings) (column.TableSchema, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // TODO(tiered)
 	if err != nil {
 		return nil, err
 	}

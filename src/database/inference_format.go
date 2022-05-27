@@ -121,7 +121,7 @@ func inferDelimiter(buf []byte) delimiter {
 }
 
 func inferCompressionAndDelimiter(path string) (compression, delimiter, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // TODO(tiered)
 	if err != nil {
 		return 0, 0, err
 	}
